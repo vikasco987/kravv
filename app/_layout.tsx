@@ -1,24 +1,146 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export const unstable_settings = {
-  anchor: '(tabs)',
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"use client";
+
+import { ClerkProvider, useAuth, useSession } from "@clerk/clerk-expo";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { Drawer } from "expo-router/drawer";
+import Constants from "expo-constants";
+import { useEffect, useState } from "react";
+import { View, ActivityIndicator, Platform } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as SecureStore from "expo-secure-store";
+import { useRouter } from "expo-router";
+import CustomDrawerContent from "./CustomDrawer";
+
+// Clerk token cache
+const tokenCache = {
+  async getToken(key: string) {
+    const value = await SecureStore.getItemAsync(key);
+    console.log("🗄️ getToken:", key, value ? value.slice(0, 15) + "..." : null);
+    return value;
+  },
+  async saveToken(key: string, value: string) {
+    console.log("💾 saveToken:", key, value ? value.slice(0, 15) + "..." : null);
+    return SecureStore.setItemAsync(key, value);
+  },
+  async clearToken() {
+    try {
+      await SecureStore.deleteItemAsync("__clerk_client_jwt");
+      console.log("🧹 Cleared old token");
+    } catch (err) {
+      console.log("⚠️ Failed to clear token:", err);
+    }
+  },
 };
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const publishableKey =
+    Constants.expoConfig?.extra?.clerkPublishableKey ||
+    process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+  if (!publishableKey) throw new Error("Missing Clerk Publishable Key");
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+      <AuthRedirect />
+    </ClerkProvider>
+  );
+}
+
+// Auth redirect logic
+function AuthRedirect() {
+  const router = useRouter();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { session } = useSession();
+  const [ready, setReady] = useState(false);
+  const [lastSessionId, setLastSessionId] = useState<string | null>(null);
+
+  useEffect(() => setReady(true), []);
+
+  useEffect(() => {
+    if (!ready || !isLoaded) return;
+
+    if (!isSignedIn) {
+      setTimeout(() => tokenCache.clearToken(), 300);
+      if (Platform.OS === "web") setTimeout(() => window.location.reload(), 15000);
+      router.replace("/(auth)/sign-in");
+      return;
+    }
+
+    const checkToken = async () => {
+      const retries = 5;
+      const delay = 500;
+      let token: string | null = null;
+
+      for (let i = 0; i < retries; i++) {
+        token = await getToken({ skipCache: true });
+        if (token) break;
+        await new Promise((res) => setTimeout(res, delay));
+      }
+
+      if (!token) return;
+
+      if (session?.id && session.id !== lastSessionId) {
+        setLastSessionId(session.id);
+        if (Platform.OS === "web") window.location.reload();
+        else router.replace("/(tabs)/menu");
+      }
+    };
+
+    checkToken();
+  }, [ready, isLoaded, isSignedIn, session?.id]);
+
+  if (!isLoaded || !ready) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Drawer
+        drawerContent={(props) => <CustomDrawerContent {...props} />}
+        screenOptions={{
+          headerShown: false,
+          drawerActiveTintColor: "#4F46E5",
+          drawerLabelStyle: { fontSize: 16 },
+        }}
+      >
+        <Drawer.Screen
+          name="(tabs)"
+          options={{
+            drawerLabel: "Home",
+            drawerIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+          }}
+        />
+        <Drawer.Screen
+          name="party/index"
+          options={{
+            drawerLabel: "Parties",
+            drawerIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
+          }}
+        />
+      </Drawer>
+    </GestureHandlerRootView>
   );
 }
