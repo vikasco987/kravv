@@ -20,15 +20,15 @@
 "use client";
 
 import { ClerkProvider, useAuth, useSession } from "@clerk/clerk-expo";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Drawer } from "expo-router/drawer";
-import Constants from "expo-constants";
-import { useEffect, useState } from "react";
-import { View, ActivityIndicator, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import * as SecureStore from "expo-secure-store";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
-import CustomDrawerContent from "./CustomDrawer";
+import { Drawer } from "expo-router/drawer";
+import * as SecureStore from "expo-secure-store";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Platform, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import CustomDrawerContent from "../components/CustomDrawer";
 
 // Clerk token cache
 const tokenCache = {

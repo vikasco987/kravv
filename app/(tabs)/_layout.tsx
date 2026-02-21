@@ -43,7 +43,7 @@ import React from "react";
 import { Tabs, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import TopNavBar from "../components/TopNavBar";
+import TopNavBar from "../../components/TopNavBar";
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -54,7 +54,7 @@ export default function TabsLayout() {
     if (pathname.includes("Dashboard")) return "Sales & Bills";
     if (pathname.includes("menu")) return "POS Menu";
     if (pathname.includes("Client")) return "Client";
-    if (pathname.includes("Inventory")) return "Inventory";
+    if (pathname.includes("inventory")) return "Inventory";
     if (pathname.includes("printer")) return "Printer Setup";
     if (pathname.includes("settings")) return "Settings";
     return "App";
@@ -127,7 +127,7 @@ export default function TabsLayout() {
         />
 
         <Tabs.Screen
-          name="Inventory"
+          name="inventory"
           options={{
             title: "Inventory",
             tabBarIcon: ({ color, size, focused }) => (

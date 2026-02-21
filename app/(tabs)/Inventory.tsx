@@ -1,19 +1,18 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  Dimensions,
-} from "react-native";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
 
 const THEME_PRIMARY = "#4F46E5"; // Indigo
 const THEME_SUCCESS = "#10B981"; // Green
@@ -44,19 +43,36 @@ export default function InventoryScreen() {
   useEffect(() => {
     async function fetchInventory() {
       try {
+        console.log("Fetching inventory...");
         setLoading(true);
         const token = await getToken();
-        if (!token) throw new Error("Unauthorized");
+        if (!token) {
+          console.error("No token found");
+          throw new Error("Unauthorized");
+        }
+
         const res = await fetch(
           "https://billing-backend-sable.vercel.app/api/menu/view",
           {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
+
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
         const data = await res.json();
+        console.log("Inventory data received:", data?.menus?.length, "categories");
+
+        if (!data || !data.menus) {
+          setInventory([]);
+          return;
+        }
+
         const allItems = data.menus.flatMap((cat: any) =>
-          cat.items.map((i: any) => ({
-            id: i.id,
+          (cat.items || []).map((i: any) => ({
+            id: i.id || i._id,
             name: i.name,
             price: i.price,
             stock: i.stock || 0,
@@ -68,11 +84,19 @@ export default function InventoryScreen() {
       } catch (err) {
         console.error("Fetch inventory error:", err);
         setInventory([]);
+        Alert.alert("Error", "Failed to load inventory. Please check your connection.");
       } finally {
         setLoading(false);
       }
     }
-    if (isLoaded && isSignedIn) fetchInventory();
+
+    if (isLoaded) {
+      if (isSignedIn) {
+        fetchInventory();
+      } else {
+        setLoading(false);
+      }
+    }
   }, [isLoaded, isSignedIn]);
 
   const updateStock = async (itemId: string, delta: number) => {
