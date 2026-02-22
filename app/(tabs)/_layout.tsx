@@ -38,10 +38,10 @@
 
 
 
-import "react-native-gesture-handler";
-import React from "react";
-import { Tabs, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Tabs, usePathname } from "expo-router";
+import React from "react";
+import "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import TopNavBar from "../../components/TopNavBar";
 
@@ -51,12 +51,9 @@ export default function TabsLayout() {
 
   // Dynamic title logic: now includes Dashboard
   const getTitle = () => {
-    if (pathname.includes("Dashboard")) return "Sales & Bills";
     if (pathname.includes("menu")) return "POS Menu";
-    if (pathname.includes("Client")) return "Client";
     if (pathname.includes("inventory")) return "Inventory";
     if (pathname.includes("printer")) return "Printer Setup";
-    if (pathname.includes("settings")) return "Settings";
     return "App";
   };
 
@@ -83,44 +80,15 @@ export default function TabsLayout() {
           }
         }}
       >
-        {/* === NEW DASHBOARD TAB === */}
-        <Tabs.Screen
-          name="Dashboard" // Maps to Dashboard.jsx
-          options={{
-            title: "Dashboard",
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons 
-                name={focused ? "bar-chart" : "bar-chart-outline"} // Attractive sales icon
-                size={size} 
-                color={color} 
-              />
-            ),
-          }}
-        />
-
         <Tabs.Screen
           name="menu"
           options={{
             title: "Menu",
             tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons 
-                name={focused ? "grid" : "grid-outline"} 
-                size={size} 
-                color={color} 
-              />
-            ),
-          }}
-        />
-
-        <Tabs.Screen
-          name="Client"
-          options={{
-            title: "Client",
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons 
-                name={focused ? "people" : "people-outline"} 
-                size={size} 
-                color={color} 
+              <Ionicons
+                name={focused ? "grid" : "grid-outline"}
+                size={size}
+                color={color}
               />
             ),
           }}
@@ -131,10 +99,10 @@ export default function TabsLayout() {
           options={{
             title: "Inventory",
             tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons 
-                name={focused ? "cube" : "cube-outline"} 
-                size={size} 
-                color={color} 
+              <Ionicons
+                name={focused ? "cube" : "cube-outline"}
+                size={size}
+                color={color}
               />
             ),
           }}
@@ -145,24 +113,10 @@ export default function TabsLayout() {
           options={{
             title: "Printer",
             tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons 
-                name={focused ? "print" : "print-outline"} 
-                size={size} 
-                color={color} 
-              />
-            ),
-          }}
-        />
-
-        <Tabs.Screen
-          name="settings"
-          options={{
-            title: "Settings",
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons 
-                name={focused ? "settings" : "settings-outline"} 
-                size={size} 
-                color={color} 
+              <Ionicons
+                name={focused ? "print" : "print-outline"}
+                size={size}
+                color={color}
               />
             ),
           }}

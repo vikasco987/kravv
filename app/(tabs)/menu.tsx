@@ -292,6 +292,12 @@ export default function MenuScreen() {
           data={filteredMenus}
           keyExtractor={(cat) => cat.id}
           contentContainerStyle={{ paddingBottom: 350 }}
+          onScrollToIndexFailed={(info) => {
+            const wait = new Promise((resolve) => setTimeout(resolve, 500));
+            wait.then(() => {
+              flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
+            });
+          }}
           renderItem={({ item: cat }) => (
             <View>
               <Text style={styles.categoryHeader}>{cat.name}</Text>
