@@ -1,48 +1,54 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  Button,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
-  StyleSheet,
+  Button,
   PermissionsAndroid,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
   ToastAndroid,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import RNBluetoothClassic from "react-native-bluetooth-classic";
+
 
 export default function PrinterScreen() {
   const [devices, setDevices] = useState<any[]>([]);
   const [connectedDevice, setConnectedDevice] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [granted, setGranted] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<string[]>(["Application Started"]);
 
   const addLog = (msg: string) => {
+    console.log("[BluetoothLog]", msg);
     setLogs((prev) => [new Date().toLocaleTimeString() + " - " + msg, ...prev]);
   };
 
   // ================= PERMISSIONS =================
   const requestPermissions = async () => {
+    console.log("Requesting permissions...");
     if (Platform.OS !== "android") return true;
 
     try {
       const api31Plus = Platform.Version >= 31;
+      let permissions = [];
 
-      const permissions = api31Plus
-        ? [
-            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          ]
-        : [
-            PermissionsAndroid.PERMISSIONS.BLUETOOTH,
-            PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADMIN,
-            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          ];
+      if (api31Plus) {
+        permissions = [
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        ];
+      } else {
+        permissions = [
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        ];
+      }
 
+      console.log("Requesting:", permissions);
       const result = await PermissionsAndroid.requestMultiple(permissions);
 
       const allGranted = Object.values(result).every(
@@ -51,9 +57,11 @@ export default function PrinterScreen() {
 
       setGranted(allGranted);
       addLog(allGranted ? "✅ Permissions granted" : "❌ Permissions denied");
+      console.log("Permission results:", result);
 
       return allGranted;
     } catch (e: any) {
+      console.error("Permission error:", e);
       addLog("Permission error: " + e.message);
       return false;
     }
@@ -62,11 +70,15 @@ export default function PrinterScreen() {
   // ================= ENABLE BLUETOOTH =================
   const ensureBluetoothEnabled = async () => {
     try {
+      console.log("Checking if Bluetooth is enabled...");
       const enabled = await RNBluetoothClassic.isBluetoothEnabled();
+      console.log("Bluetooth enabled status:", enabled);
       if (!enabled) {
+        addLog("Requesting to enable Bluetooth...");
         await RNBluetoothClassic.requestEnabled();
       }
     } catch (e: any) {
+      console.error("Bluetooth enable error:", e);
       addLog("Bluetooth enable error: " + e.message);
     }
   };
@@ -74,19 +86,24 @@ export default function PrinterScreen() {
   // ================= SCAN =================
   const scanDevices = async () => {
     const ok = await requestPermissions();
-    if (!ok) return;
+    if (!ok) {
+      addLog("⚠️ Permissions not granted, cannot scan.");
+      return;
+    }
 
     await ensureBluetoothEnabled();
 
     try {
       setIsLoading(true);
-      addLog("Scanning...");
+      addLog("Scanning for bonded devices...");
 
       const bonded = await RNBluetoothClassic.getBondedDevices();
+      console.log("Bonded devices found:", bonded);
       setDevices(bonded);
 
-      addLog("Found devices: " + bonded.length);
+      addLog("Found bonded devices: " + bonded.length);
     } catch (e: any) {
+      console.error("Scan error:", e);
       addLog("Scan error: " + e.message);
     } finally {
       setIsLoading(false);
@@ -97,19 +114,41 @@ export default function PrinterScreen() {
   const connectDevice = async (device: any) => {
     try {
       setIsLoading(true);
-      addLog("Connecting to " + device.name);
+      addLog("Connecting to " + (device.name || device.address) + "...");
+      console.log("Connect attempt to:", device.address);
+
+      // Sometimes a small delay helps before opening a new socket
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const connection = await RNBluetoothClassic.connectToDevice(
-        device.address
+        device.address,
+        {
+          connectorType: "rfcomm",
+          secure: false, // Often fixes the "socket might closed or timeout" error
+        }
       );
 
       if (connection) {
         setConnectedDevice(connection);
-        addLog("Connected ✅");
-        ToastAndroid.show("Connected", ToastAndroid.SHORT);
+        addLog("Connected ✅ to " + device.name);
+
+        // Save the printer address for future use (e.g., in SimpleBill)
+        await AsyncStorage.setItem("saved_printer", device.address);
+        addLog("Printer saved as default 💾");
+
+        ToastAndroid.show("Connected ✅", ToastAndroid.SHORT);
+      } else {
+        addLog("❌ Connection failed (null result)");
       }
     } catch (e: any) {
+      console.error("Connection error:", e);
       addLog("Connection failed: " + e.message);
+
+      // If secure:false failed, maybe try default one more time? 
+      // But usually security mismatch is the issue.
+      if (e.message.includes("read failed")) {
+        addLog("💡 Tip: Try unpairing and re-pairing the printer in Android Settings.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -118,21 +157,27 @@ export default function PrinterScreen() {
   // ================= DISCONNECT =================
   const disconnectDevice = async () => {
     if (!connectedDevice) return;
-
-    await connectedDevice.disconnect();
-    setConnectedDevice(null);
-    addLog("Disconnected");
+    try {
+      addLog("Disconnecting...");
+      await connectedDevice.disconnect();
+      setConnectedDevice(null);
+      addLog("Disconnected");
+    } catch (e: any) {
+      addLog("Disconnect error: " + e.message);
+    }
   };
 
   // ================= PRINT =================
   const printSample = async () => {
     if (!connectedDevice) {
+      addLog("⚠️ Not connected to a printer!");
       ToastAndroid.show("Connect printer first", ToastAndroid.SHORT);
       return;
     }
 
     try {
       setIsLoading(true);
+      addLog("Sending print command...");
 
       const text = `
 Kravy Billing App
@@ -145,9 +190,9 @@ Total:       300
 Thank You\n\n\n`;
 
       await connectedDevice.write(text);
-
-      addLog("Printed successfully");
+      addLog("Printed successfully ✅");
     } catch (e: any) {
+      console.error("Print error:", e);
       addLog("Print error: " + e.message);
     } finally {
       setIsLoading(false);
@@ -155,6 +200,7 @@ Thank You\n\n\n`;
   };
 
   useEffect(() => {
+    console.log("Printer Screen Mounted");
     requestPermissions();
   }, []);
 

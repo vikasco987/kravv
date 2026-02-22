@@ -1,211 +1,96 @@
-// // GenerateBill.tsx
-// "use client";
-// import React from "react";
-// import { Button, Alert } from "react-native";
-// import * as Print from "expo-print";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ToastAndroid } from "react-native";
+import RNBluetoothClassic from "react-native-bluetooth-classic";
 
-// type CartItem = {
-//   id: string;
-//   name: string;
-//   price?: number;
-//   quantity: number;
-// };
+let connectedPrinter: any = null;
 
-// type Props = {
-//   customerName: string;
-//   phone: string;
-//   billingAddress: string;
-//   cart: CartItem[];
-//   companyInfo?: {
-//     name: string;
-//     address: string;
-//     phone: string;
-//     gst?: string;
-//   };
-// };
+export async function ensurePrinterConnected() {
+    try {
+        if (connectedPrinter && (await connectedPrinter.isConnected()))
+            return connectedPrinter;
 
-// export default function GenerateBill({
-//   customerName,
-//   phone,
-//   billingAddress,
-//   cart,
-//   companyInfo,
-// }: Props) {
-//   const subtotal = cart.reduce(
-//     (sum, item) => sum + (item.price || 0) * item.quantity,
-//     0
-//   );
+        const savedAddress = await AsyncStorage.getItem("saved_printer");
+        if (!savedAddress) {
+            ToastAndroid.show("⚠️ No saved printer! Please set in Printer settings.", ToastAndroid.SHORT);
+            return null;
+        }
 
-//   const generateHTML = () => {
-//     let itemsHTML = "";
-//     cart.forEach((item, index) => {
-//       itemsHTML += `
-//         <tr>
-//           <td>${index + 1}</td>
-//           <td>${item.name}</td>
-//           <td>${item.quantity}</td>
-//           <td>₹${item.price || 0}</td>
-//           <td>₹${(item.price || 0) * item.quantity}</td>
-//         </tr>
-//       `;
-//     });
+        const printer = await RNBluetoothClassic.connectToDevice(savedAddress, {
+            connectorType: "rfcomm",
+            secure: false,
+        });
 
-//     return `
-//       <html>
-//         <head>
-//           <style>
-//             body { font-family: Arial, sans-serif; padding: 20px; }
-//             h2, h3 { margin: 0; }
-//             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-//             th, td { border: 1px solid #333; padding: 8px; text-align: left; }
-//             th { background-color: #f2f2f2; }
-//             .company-info { margin-bottom: 20px; }
-//             .total { font-weight: bold; text-align: right; }
-//           </style>
-//         </head>
-//         <body>
-//           <div class="company-info">
-//             <h2>${companyInfo?.name || "Your Company Name"}</h2>
-//             <p>${companyInfo?.address || "Company Address"}</p>
-//             <p>Phone: ${companyInfo?.phone || "0000000000"}</p>
-//             ${companyInfo?.gst ? `<p>GST: ${companyInfo.gst}</p>` : ""}
-//           </div>
+        if (!(await printer.isConnected())) return null;
 
-//           <div class="customer-info">
-//             <h3>Bill To:</h3>
-//             <p>Name: ${customerName}</p>
-//             <p>Phone: ${phone}</p>
-//             <p>Address: ${billingAddress}</p>
-//           </div>
+        connectedPrinter = printer;
+        return printer;
+    } catch (err) {
+        console.log("❌ Printer Connection Error:", err);
+        return null;
+    }
+}
 
-//           <table>
-//             <thead>
-//               <tr>
-//                 <th>#</th>
-//                 <th>Item</th>
-//                 <th>Qty</th>
-//                 <th>Rate</th>
-//                 <th>Total</th>
-//               </tr>
-//             </thead>
-//             <tbody>
-//               ${itemsHTML}
-//             </tbody>
-//           </table>
+async function printInstant(billText: string) {
+    const printer = await ensurePrinterConnected();
+    if (!printer) return false;
 
-//           <h3 class="total">Subtotal: ₹${subtotal}</h3>
-//           <h3 class="total">Total Due: ₹${subtotal}</h3>
-//         </body>
-//       </html>
-//     `;
-//   };
+    try {
+        const safeText = billText.replace(/[^\x00-\x7F]/g, "");
+        await printer.write(safeText + "\n\n");
+        await printer.write(new Uint8Array([0x1b, 0x64, 0x03])); // feed
+        return true;
+    } catch (err) {
+        console.log("❌ Print Error:", err);
+        return false;
+    }
+}
 
-//   const handlePrint = async () => {
-//     try {
-//       const html = generateHTML();
-//       await Print.printAsync({
-//         html,
-//       });
-//     } catch (err: any) {
-//       Alert.alert("Error", err.message || "Failed to generate bill");
-//     }
-//   };
+export default async function SimpleBill(data: any) {
+    // This function is called by menu.tsx with { customerName, phone, cart, billNo, date }
+    const { customerName, phone, cart, billNo, date } = data;
 
-//   return <Button title="Generate Bill & Print" onPress={handlePrint} />;
-// }
+    const companyName = "Magic Scale";
+    const companyAddress = "New Delhi, India";
 
+    const centerText = (text: string, width = 32) => {
+        if (text.length >= width) return text;
+        const pad = Math.floor((width - text.length) / 2);
+        return " ".repeat(pad) + text;
+    };
 
+    const line = (char = "-", width = 32) => char.repeat(width);
 
+    const itemsText = cart
+        .map((item: any) =>
+            `${item.name.slice(0, 12).padEnd(12)} ${String(item.quantity).padStart(3)} ${item.price?.toFixed(2).padStart(6)} ₹${((item.price || 0) * item.quantity).toFixed(2).padStart(7)}`
+        )
+        .join("\n");
 
+    const subtotal = cart.reduce((s: number, i: any) => s + (i.price || 0) * i.quantity, 0);
 
+    const billText = `
+${line("=")}
+${centerText(companyName.toUpperCase())}
+${centerText(companyAddress)}
+${line("-")}
+Bill No: ${billNo || "N/A"}
+Date: ${date || new Date().toLocaleString()}
+Customer: ${customerName || "Walk-in"}
+Ph: ${phone || "N/A"}
+${line("-")}
+Item         Qty  Price   Total
+${line("-")}
+${itemsText}
+${line("-")}
+TOTAL: ${`₹${subtotal.toFixed(2)}`.padStart(25)}
+${line("-")}
+${centerText("Thank You! Visit Again 🙏")}
+`;
 
-// "use client";
-// import React from "react";
-// import { Alert, TouchableOpacity, Text } from "react-native";
-// import * as Print from "expo-print";
-// import * as Sharing from "expo-sharing";
-
-// type CartItem = {
-//   id: string;
-//   name: string;
-//   price: number;
-//   quantity: number;
-// };
-
-// interface BillProps {
-//   customerName: string;
-//   phone: string;
-//   cart: CartItem[];
-//   billNo?: string;
-//   date?: string;
-//   gstPercent?: number;
-// }
-
-// export default function SimpleBill({ customerName, phone, cart, billNo, date, gstPercent = 5 }: BillProps) {
-//   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-//   const gstAmount = (subtotal * gstPercent) / 100;
-//   const totalAmount = subtotal + gstAmount;
-
-//   const generateTextBill = () => {
-//     let billText = `
-// ------------------------------------------------------------
-//                         MAGIC SCALE
-//                   GSTIN: 07ABCDE1234F1Z5
-//                 Address: Delhi, India - 110001
-//                  Phone: +91 98765 43210
-// ------------------------------------------------------------
-// Date: ${date || new Date().toLocaleDateString()}                   Bill No: ${billNo || "MS-XXXX"}
-// Customer Name: ${customerName || "______________________________"}
-// Phone: ${phone || "___________________________"}
-
-// ------------------------------------------------------------
-// S.No   Item Name              Qty   Price   Amount
-// ------------------------------------------------------------
-// `;
-
-//     cart.forEach((item, index) => {
-//       const amount = item.price * item.quantity;
-//       billText += `${index + 1}      ${item.name.padEnd(20, " ")} ${item.quantity}    ${item.price.toFixed(2)}   ${amount.toFixed(2)}\n`;
-//     });
-
-//     billText += `------------------------------------------------------------
-//                      Subtotal:              ${subtotal.toFixed(2)}
-//                      GST (${gstPercent}%):               ${gstAmount.toFixed(2)}
-// ------------------------------------------------------------
-//                      Total Amount:          ₹${totalAmount.toFixed(2)}
-// ------------------------------------------------------------
-
-// Payment Mode: ____________________
-// Transaction ID: __________________
-
-// Thank you for your purchase!
-// Visit Again 🙏
-// ------------------------------------------------------------
-// `;
-//     return billText;
-//   };
-
-//   const handlePrint = async () => {
-//     const htmlContent = `<pre style="font-family: monospace; font-size: 14px;">${generateTextBill()}</pre>`;
-//     try {
-//       const { uri } = await Print.printToFileAsync({ html: htmlContent });
-//       if (await Sharing.isAvailableAsync()) {
-//         await Sharing.shareAsync(uri);
-//       } else {
-//         Alert.alert("Bill Generated", `Saved at: ${uri}`);
-//       }
-//     } catch (err) {
-//       console.error(err);
-//       Alert.alert("Error", "Failed to generate bill.");
-//     }
-//   };
-
-//   return (
-//     <TouchableOpacity
-//       onPress={handlePrint}
-//       style={{ backgroundColor: "#ef4444", padding: 15, borderRadius: 10, marginTop: 10 }}
-//     >
-//       <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>PRINT BILL</Text>
-//     </TouchableOpacity>
-//   );
-// }
+    ToastAndroid.show("🖨 Printing Bill...", ToastAndroid.SHORT);
+    const success = await printInstant(billText);
+    if (!success) {
+        ToastAndroid.show("❌ Print Failed! Check connection.", ToastAndroid.SHORT);
+    }
+    return success;
+}

@@ -7,18 +7,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-"use client";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
@@ -209,6 +197,12 @@ export default function MenuScreen() {
           data={menus}
           keyExtractor={(cat) => cat.id}
           contentContainerStyle={{ paddingBottom: 180 }}
+          onScrollToIndexFailed={(info) => {
+            const wait = new Promise((resolve) => setTimeout(resolve, 500));
+            wait.then(() => {
+              flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
+            });
+          }}
           renderItem={({ item: cat }) => (
             <View>
               <Text style={styles.categoryHeader}>{cat.name}</Text>
