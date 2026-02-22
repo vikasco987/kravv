@@ -51,8 +51,10 @@ export default function TabsLayout() {
 
   // Dynamic title logic: now includes Dashboard
   const getTitle = () => {
+    if (pathname.includes("Dashboard")) return "Sales Dashboard";
     if (pathname.includes("menu")) return "POS Menu";
     if (pathname.includes("inventory")) return "Inventory";
+    if (pathname.includes("Client")) return "Customers & Parties";
     if (pathname.includes("printer")) return "Printer Setup";
     return "App";
   };
@@ -81,6 +83,20 @@ export default function TabsLayout() {
         }}
       >
         <Tabs.Screen
+          name="Dashboard"
+          options={{
+            title: "Dashboard",
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons
+                name={focused ? "stats-chart" : "stats-chart-outline"}
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
           name="menu"
           options={{
             title: "Menu",
@@ -101,6 +117,20 @@ export default function TabsLayout() {
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={focused ? "cube" : "cube-outline"}
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+          name="Client"
+          options={{
+            title: "Customers",
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons
+                name={focused ? "people" : "people-outline"}
                 size={size}
                 color={color}
               />
