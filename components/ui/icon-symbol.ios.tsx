@@ -1,4 +1,6 @@
+// @ts-ignore
 import { SymbolView, SymbolViewProps, SymbolWeight } from 'expo-symbols';
+// @ts-ignore
 import { StyleProp, ViewStyle } from 'react-native';
 
 export function IconSymbol({

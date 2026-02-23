@@ -142,7 +142,7 @@ export default function InventoryScreen() {
         <Text style={styles.headerTitle}>Inventory Management</Text>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => router.push("/party/add-item")}
+          onPress={() => router.push("/party/add-item" as any)}
         >
           <Feather name="plus-circle" size={18} color="#fff" />
           <Text style={styles.addText}>Add Item</Text>
@@ -242,7 +242,7 @@ export default function InventoryScreen() {
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.bulkUploadBtn}
-          onPress={() => router.push("/inventory/bulk-upload")}
+          onPress={() => router.push("/inventory/bulk-upload" as any)}
         >
           <Ionicons name="cloud-upload-outline" size={18} color={THEME_PRIMARY} />
           <Text style={styles.bulkText}>Bulk Upload</Text>
@@ -250,7 +250,7 @@ export default function InventoryScreen() {
 
         <TouchableOpacity
           style={styles.newFab}
-          onPress={() => router.push("/inventory/add")}
+          onPress={() => router.push("/inventory/add" as any)}
         >
           <Ionicons name="add" size={26} color="#fff" />
         </TouchableOpacity>

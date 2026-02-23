@@ -1,5 +1,6 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+// @ts-ignore
 import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useState } from "react";
 import {

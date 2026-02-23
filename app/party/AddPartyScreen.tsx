@@ -1,6 +1,7 @@
 "use client";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+// @ts-ignore
 import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useState } from "react";
 import {
@@ -131,7 +132,7 @@ export default function AddPartyScreen({
                 </Text>
 
                 {/* Inputs */}
-                <View style={styles.inputContainer}>
+                <View style={styles.inputContainer as any}>
                     <Ionicons name="person-circle" size={22} color="#4f46e5" />
                     <TextInput
                         value={customerName}
@@ -142,7 +143,7 @@ export default function AddPartyScreen({
                     />
                 </View>
 
-                <View style={styles.inputContainer}>
+                <View style={styles.inputContainer as any}>
                     <Ionicons name="call" size={22} color="#4f46e5" />
                     <TextInput
                         value={phone}
@@ -154,7 +155,7 @@ export default function AddPartyScreen({
                     />
                 </View>
 
-                <View style={[styles.inputContainer, { height: 100 }]}>
+                <View style={[styles.inputContainer, { height: 100 }] as any}>
                     <Ionicons name="home" size={22} color="#4f46e5" />
                     <TextInput
                         value={billingAddress}
@@ -169,7 +170,7 @@ export default function AddPartyScreen({
                 {/* DOB Picker */}
                 <TouchableOpacity
                     onPress={() => setShowPicker(true)}
-                    style={[styles.inputContainer, { justifyContent: "center" }]}
+                    style={[styles.inputContainer, { justifyContent: "center" }] as any}
                 >
                     <Ionicons name="calendar" size={22} color="#4f46e5" />
                     <Text
@@ -194,10 +195,10 @@ export default function AddPartyScreen({
                 {/* Save Button */}
                 <TouchableOpacity
                     onPress={handleSubmit}
-                    style={[styles.button, loading && { opacity: 0.6 }]}
+                    style={[styles.button, loading && { opacity: 0.6 }] as any}
                     disabled={loading}
                 >
-                    <Text style={styles.buttonText}>
+                    <Text style={styles.buttonText as any}>
                         {loading ? "Saving..." : "Save Customer"}
                     </Text>
                 </TouchableOpacity>

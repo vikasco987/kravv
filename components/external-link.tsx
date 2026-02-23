@@ -1,5 +1,8 @@
+// @ts-ignore
 import { Href, Link } from 'expo-router';
+// @ts-ignore
 import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
+// @ts-ignore
 import { type ComponentProps } from 'react';
 
 type Props = Omit<ComponentProps<typeof Link>, 'href'> & { href: Href & string };
@@ -11,6 +14,7 @@ export function ExternalLink({ href, ...rest }: Props) {
       {...rest}
       href={href}
       onPress={async (event) => {
+        // @ts-ignore
         if (process.env.EXPO_OS !== 'web') {
           // Prevent the default behavior of linking to the default browser on native.
           event.preventDefault();

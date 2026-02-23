@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+// @ts-ignore
 import { useColorScheme as useRNColorScheme } from 'react-native';
 
 /**

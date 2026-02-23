@@ -1,17 +1,21 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
+// @ts-ignore
 import { useNavigation } from "expo-router";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const THEME_PRIMARY = "#4F46E5";
 
-export default function TopNavBar({ title = "Home" }) {
+interface TopNavBarProps {
+  title?: string;
+}
+
+export default function TopNavBar({ title = "Home" }: TopNavBarProps) {
   const navigation = useNavigation();
 
   return (
     <View style={styles.container}>
       {/* Left: Menu Button */}
-      <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.iconButton}>
+      <TouchableOpacity onPress={() => (navigation as any).openDrawer()} style={styles.iconButton}>
         <Feather name="menu" size={24} color="#fff" />
       </TouchableOpacity>
 

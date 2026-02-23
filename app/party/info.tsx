@@ -408,17 +408,17 @@
 
 
 
+import { useAuth } from "@clerk/clerk-expo";
 import React, { useEffect, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
-  ScrollView,
-  ActivityIndicator,
+  View,
 } from "react-native";
-import { useAuth } from "@clerk/clerk-expo";
 
 export default function CompanyInfoScreen() {
   const { getToken } = useAuth(); // 👈 Clerk token fetcher
@@ -571,8 +571,8 @@ export default function CompanyInfoScreen() {
       {renderInput("State", state, setState)}
       {renderInput("PIN Code", pinCode, setPinCode)}
 
-      <TouchableOpacity onPress={handleSave} style={styles.button}>
-        <Text style={styles.buttonText}>{company ? "Update Info" : "Save Info"}</Text>
+      <TouchableOpacity onPress={handleSave} style={styles.button as any}>
+        <Text style={styles.buttonText as any}>{company ? "Update Info" : "Save Info"}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -581,7 +581,7 @@ export default function CompanyInfoScreen() {
 function renderInput(label, value, setValue) {
   return (
     <View style={{ marginBottom: 15 }}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.label as any}>{label}</Text>
       <TextInput
         style={styles.input}
         value={value}

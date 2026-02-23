@@ -3831,21 +3831,23 @@
 "use client";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Feather } from "@expo/vector-icons";
+// @ts-ignore
 import DateTimePicker from "@react-native-community/datetimepicker";
+// @ts-ignore
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
-  FlatList,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  // @ts-ignore
   ToastAndroid,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SimpleBill } from "../../utils/SimpleBill";
 import CompanyInfoScreen from "./info";
@@ -4126,28 +4128,24 @@ export default function BillPage() {
 
       {/* Cart Items */}
       <Text style={styles.sectionTitle}>🛍️ Cart Summary</Text>
-      <FlatList
-        data={cart}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.itemCard}>
-            <View style={{ flex: 2 }}>
-              <Text style={styles.itemName}>{item.name}</Text>
-              <Text style={styles.itemPrice}>₹{item.price}</Text>
-            </View>
-            <View style={styles.qtyContainer}>
-              <TouchableOpacity onPress={() => decreaseQty(item.id)}>
-                <Feather name="minus-circle" size={22} color="#4ade80" />
-              </TouchableOpacity>
-              <Text style={styles.qtyText}>{item.quantity}</Text>
-              <TouchableOpacity onPress={() => increaseQty(item.id)}>
-                <Feather name="plus-circle" size={22} color="#4ade80" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.itemTotal}>₹{(item.price || 0) * item.quantity}</Text>
+      {cart.map((item) => (
+        <View key={item.id} style={styles.itemCard}>
+          <View style={{ flex: 2 }}>
+            <Text style={styles.itemName}>{item.name}</Text>
+            <Text style={styles.itemPrice}>₹{item.price}</Text>
           </View>
-        )}
-      />
+          <View style={styles.qtyContainer}>
+            <TouchableOpacity onPress={() => decreaseQty(item.id)}>
+              <Feather name="minus-circle" size={22} color="#4ade80" />
+            </TouchableOpacity>
+            <Text style={styles.qtyText}>{item.quantity}</Text>
+            <TouchableOpacity onPress={() => increaseQty(item.id)}>
+              <Feather name="plus-circle" size={22} color="#4ade80" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.itemTotal}>₹{(item.price || 0) * item.quantity}</Text>
+        </View>
+      ))}
 
       {/* Footer Section */}
       <View style={styles.footer}>

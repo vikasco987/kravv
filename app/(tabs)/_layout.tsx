@@ -1,43 +1,3 @@
-// import { Tabs } from 'expo-router';
-// import React from 'react';
-
-// import { HapticTab } from '@/components/haptic-tab';
-// import { IconSymbol } from '@/components/ui/icon-symbol';
-// import { Colors } from '@/constants/theme';
-// import { useColorScheme } from '@/hooks/use-color-scheme';
-
-// export default function TabLayout() {
-//   const colorScheme = useColorScheme();
-
-//   return (
-//     <Tabs
-//       screenOptions={{
-//         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-//         headerShown: false,
-//         tabBarButton: HapticTab,
-//       }}>
-//       <Tabs.Screen
-//         name="index"
-//         options={{
-//           title: 'Home',
-//           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-//         }}
-//       />
-//       <Tabs.Screen
-//         name="explore"
-//         options={{
-//           title: 'Explore',
-//           tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-//         }}
-//       />
-//     </Tabs>
-//   );
-// }
-
-
-
-
-
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs, usePathname } from "expo-router";
 import React from "react";
@@ -49,31 +9,30 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
 
-  // Dynamic title logic: now includes Dashboard
+  // Dynamic title logic: matches file names
   const getTitle = () => {
     if (pathname.includes("Dashboard")) return "Sales Dashboard";
     if (pathname.includes("menu")) return "POS Menu";
-    if (pathname.includes("inventory")) return "Inventory";
+    if (pathname.includes("Inventory")) return "Inventory";
     if (pathname.includes("Client")) return "Customers & Parties";
-    if (pathname.includes("printer")) return "Printer Setup";
+    if (pathname.includes("Printer")) return "Printer Setup";
     return "App";
   };
 
   return (
     <>
-      {/* Top title bar */}
       <TopNavBar title={getTitle()} />
 
       <Tabs
         screenOptions={{
-          headerShown: false, // hide default header
-          tabBarActiveTintColor: "#1E90FF", // A vibrant blue
-          tabBarInactiveTintColor: "#6B7280", // Slate gray
+          headerShown: false,
+          tabBarActiveTintColor: "#1E90FF",
+          tabBarInactiveTintColor: "#6B7280",
           tabBarStyle: {
             backgroundColor: "#fff",
             borderTopWidth: 1,
             borderTopColor: "#E5E7EB",
-            height: 60 + insets.bottom,
+            height: 60 + (insets.bottom || 0),
             paddingBottom: insets.bottom > 0 ? insets.bottom : 6,
           },
           tabBarLabelStyle: {
@@ -88,7 +47,7 @@ export default function TabsLayout() {
             title: "Dashboard",
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
-                name={focused ? "stats-chart" : "stats-chart-outline"}
+                name={(focused ? "stats-chart" : "stats-chart-outline") as any}
                 size={size}
                 color={color}
               />
@@ -102,7 +61,7 @@ export default function TabsLayout() {
             title: "Menu",
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
-                name={focused ? "grid" : "grid-outline"}
+                name={(focused ? "grid" : "grid-outline") as any}
                 size={size}
                 color={color}
               />
@@ -111,12 +70,12 @@ export default function TabsLayout() {
         />
 
         <Tabs.Screen
-          name="inventory"
+          name="Inventory"
           options={{
             title: "Inventory",
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
-                name={focused ? "cube" : "cube-outline"}
+                name={(focused ? "cube" : "cube-outline") as any}
                 size={size}
                 color={color}
               />
@@ -130,7 +89,7 @@ export default function TabsLayout() {
             title: "Customers",
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
-                name={focused ? "people" : "people-outline"}
+                name={(focused ? "people" : "people-outline") as any}
                 size={size}
                 color={color}
               />
@@ -139,12 +98,12 @@ export default function TabsLayout() {
         />
 
         <Tabs.Screen
-          name="printer"
+          name="Printer"
           options={{
             title: "Printer",
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
-                name={focused ? "print" : "print-outline"}
+                name={(focused ? "print" : "print-outline") as any}
                 size={size}
                 color={color}
               />

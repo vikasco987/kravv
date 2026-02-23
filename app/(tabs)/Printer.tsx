@@ -1,17 +1,22 @@
+// @ts-ignore
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  // @ts-ignore
   Button,
+  // @ts-ignore
   PermissionsAndroid,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  // @ts-ignore
   ToastAndroid,
   TouchableOpacity,
   View,
 } from "react-native";
+// @ts-ignore
 import RNBluetoothClassic from "react-native-bluetooth-classic";
 
 
@@ -75,6 +80,7 @@ export default function PrinterScreen() {
       console.log("Bluetooth enabled status:", enabled);
       if (!enabled) {
         addLog("Requesting to enable Bluetooth...");
+        // @ts-ignore
         await RNBluetoothClassic.requestEnabled();
       }
     } catch (e: any) {

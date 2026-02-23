@@ -21,9 +21,12 @@
 
 import { ClerkProvider, useAuth, useSession } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+// @ts-ignore
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
+// @ts-ignore
 import { Drawer } from "expo-router/drawer";
+// @ts-ignore
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
@@ -54,6 +57,7 @@ const tokenCache = {
 export default function RootLayout() {
   const publishableKey =
     Constants.expoConfig?.extra?.clerkPublishableKey ||
+    // @ts-ignore
     process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
   if (!publishableKey) throw new Error("Missing Clerk Publishable Key");

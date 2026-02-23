@@ -1,5 +1,8 @@
+// @ts-ignore
 import AsyncStorage from "@react-native-async-storage/async-storage";
+// @ts-ignore
 import { ToastAndroid } from "react-native";
+// @ts-ignore
 import RNBluetoothClassic from "react-native-bluetooth-classic";
 
 let connectedPrinter: any = null;

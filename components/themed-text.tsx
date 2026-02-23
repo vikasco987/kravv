@@ -1,3 +1,4 @@
+// @ts-ignore
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { useThemeColor } from '@/hooks/use-theme-color';

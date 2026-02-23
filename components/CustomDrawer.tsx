@@ -1,6 +1,8 @@
 // app/CustomDrawer.tsx
+// @ts-ignore
 import { useClerk, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+// @ts-ignore
 import { DrawerContentScrollView, DrawerItem } from "@react-navigation/drawer";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";

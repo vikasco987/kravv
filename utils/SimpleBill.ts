@@ -1,7 +1,9 @@
 
 
-
+import AsyncStorage from "@react-native-async-storage/async-storage";
+// @ts-ignore
 import { ToastAndroid } from "react-native";
+// @ts-ignore
 import RNBluetoothClassic from "react-native-bluetooth-classic";
 import { getRecentCompanyProfile } from "../services/companyService";
 
@@ -9,6 +11,7 @@ export type CartItem = {
   id: string;
   name: string;
   price?: number;
+  editedPrice?: number;
   quantity: number;
 };
 
@@ -19,7 +22,8 @@ export type BillOptions = {
   paymentMode?: string;
 };
 
-let connectedPrinter: RNBluetoothClassic.BluetoothDevice | null = null;
+// @ts-ignore
+let connectedPrinter: any = null;
 
 // Center text for thermal printer width (32 chars)
 const centerText = (text: string, width: number = 32): string => {
@@ -31,20 +35,32 @@ const centerText = (text: string, width: number = 32): string => {
 // Line helper
 const line = (char: string = '-', width: number = 32) => char.repeat(width);
 
-// ✅ Connect printer
+// ✅ Connect printer using saved address or fallback scan
 export async function ensurePrinterConnected() {
   try {
     if (connectedPrinter && (await connectedPrinter.isConnected())) return connectedPrinter;
 
+    // Try saved printer first
+    const savedAddress = await AsyncStorage.getItem("saved_printer");
+    if (savedAddress) {
+      console.log("📍 Connecting to saved printer:", savedAddress);
+      connectedPrinter = await RNBluetoothClassic.connectToDevice(savedAddress);
+      if (connectedPrinter && (await connectedPrinter.isConnected())) {
+        return connectedPrinter;
+      }
+    }
+
+    // Fallback to name-based scan
     const devices = await RNBluetoothClassic.getBondedDevices();
     const printer = devices.find(
-      (d) =>
+      (d: any) =>
         d.name?.toLowerCase().includes("tish") ||
-        d.name?.toLowerCase().includes("mt580")
+        d.name?.toLowerCase().includes("mt580") ||
+        d.name?.toLowerCase().includes("printer")
     );
 
     if (!printer) {
-      ToastAndroid.show("⚠️ Tish printer not found!", ToastAndroid.SHORT);
+      ToastAndroid.show("⚠️ Printer not found! Connect in Setup.", ToastAndroid.SHORT);
       return null;
     }
 
@@ -103,13 +119,16 @@ export async function SimpleBill(
     const date = new Date();
     const billNo = `MS-${Math.floor(Math.random() * 10000) + 5000}`;
 
-    const products = cartItems.map((item) => ({
-      productId: item.id,
-      name: item.name,
-      quantity: item.quantity,
-      price: item.price ?? 0,
-      total: (item.price ?? 0) * item.quantity,
-    }));
+    const products = cartItems.map((item) => {
+      const unitPrice = item.editedPrice ?? item.price ?? 0;
+      return {
+        productId: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: unitPrice,
+        total: unitPrice * item.quantity,
+      };
+    });
 
     const total = products.reduce((sum, p) => sum + p.total, 0);
     const paymentMode = options?.paymentMode || "CASH";
@@ -138,7 +157,7 @@ export async function SimpleBill(
 
     // --- Final Bill Text (no top blank lines) ---
     const billText =
-`${line('=')}
+      `${line('=')}
 ${centeredCompanyName}
 ${centeredAddress}
 ${centeredPhone}
