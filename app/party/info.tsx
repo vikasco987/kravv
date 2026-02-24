@@ -587,6 +587,7 @@ function renderInput(label, value, setValue) {
         value={value}
         onChangeText={setValue}
         placeholder={label}
+        placeholderTextColor="#1f1e1e63"
       />
     </View>
   );

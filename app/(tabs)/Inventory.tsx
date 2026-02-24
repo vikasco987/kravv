@@ -1,6 +1,6 @@
 "use client";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -239,7 +239,7 @@ export default function InventoryScreen() {
       </ScrollView>
 
       {/* Bottom Floating Buttons */}
-      <View style={styles.bottomBar}>
+      {/* <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.bulkUploadBtn}
           onPress={() => router.push("/inventory/bulk-upload" as any)}
@@ -254,7 +254,7 @@ export default function InventoryScreen() {
         >
           <Ionicons name="add" size={26} color="#fff" />
         </TouchableOpacity>
-      </View>
+      </View> */}
     </View>
   );
 }

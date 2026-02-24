@@ -21,7 +21,7 @@ export default function AddPartyScreen({
     onBack?: () => void;
 }) {
     const { getToken } = useAuth();
-    const { isLoaded, isSignedIn } = useUser();
+    const { isLoaded, isSignedIn, user } = useUser();
 
     const [customerName, setCustomerName] = useState("");
     const [phone, setPhone] = useState("");
@@ -53,6 +53,15 @@ export default function AddPartyScreen({
                 return;
             }
 
+            const payload = {
+                name: customerName.trim(),
+                phone: phone.trim(),
+                address: billingAddress.trim() || null,
+                dob: dob ? dob.toISOString() : null,
+            };
+
+            console.log("Payload sent:", payload);
+
             const response = await fetch(
                 "https://billing-backend-sable.vercel.app/api/parties",
                 {
@@ -61,16 +70,20 @@ export default function AddPartyScreen({
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
-                    body: JSON.stringify({
-                        name: customerName,
-                        phone,
-                        address: billingAddress,
-                        dob: dob ? dob.toISOString() : null,
-                    }),
+                    body: JSON.stringify(payload),
                 }
             );
 
-            const data = await response.json();
+            console.log("Server Status:", response.status);
+
+            const text = await response.text();
+            let data: any;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                data = { error: text || "Server returned an error" };
+            }
+
             if (response.ok) {
                 Alert.alert("✅ Success", "Party added successfully!");
                 setCustomerName("");
@@ -80,10 +93,11 @@ export default function AddPartyScreen({
                 onSuccess && onSuccess();
                 handleBack();
             } else {
+                console.warn("Server Error Response:", text);
                 Alert.alert("Error", data.error || "Failed to add party.");
             }
         } catch (err: any) {
-            console.error("Party Add Error:", err);
+            console.warn("Party Add Error:", err.message);
             Alert.alert("Error", err.message || "Something went wrong.");
         } finally {
             setLoading(false);

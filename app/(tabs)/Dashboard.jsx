@@ -159,7 +159,7 @@ export default function SalesDashboard() {
                 </View>
 
                 {/* Quick Action Box */}
-                <TouchableOpacity
+                {/* <TouchableOpacity
                     style={styles.quickActionCard}
                     onPress={() => router.push('/(tabs)/menu')}
                 >
@@ -170,7 +170,7 @@ export default function SalesDashboard() {
                     <View style={styles.quickActionButton}>
                         <Ionicons name="add" size={24} color={COLORS.white} />
                     </View>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
 
             </ScrollView>
         </SafeAreaView>

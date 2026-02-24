@@ -22,7 +22,7 @@ export default function AddPartyScreen({
     onBack?: () => void;
 }) {
     const { getToken } = useAuth();
-    const { isLoaded, isSignedIn } = useUser();
+    const { isLoaded, isSignedIn, user } = useUser();
 
     const [customerName, setCustomerName] = useState("");
     const [phone, setPhone] = useState("");
@@ -52,6 +52,15 @@ export default function AddPartyScreen({
                 return;
             }
 
+            const payload = {
+                name: customerName.trim(),
+                phone: phone.trim(),
+                address: billingAddress.trim() || null,
+                dob: dob ? dob.toISOString() : null,
+            };
+
+            console.log("Payload sent:", payload);
+
             const response = await fetch(
                 "https://billing-backend-sable.vercel.app/api/parties",
                 {
@@ -60,16 +69,19 @@ export default function AddPartyScreen({
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
-                    body: JSON.stringify({
-                        name: customerName,
-                        phone,
-                        address: billingAddress,
-                        dob: dob ? dob.toISOString() : null,
-                    }),
+                    body: JSON.stringify(payload),
                 }
             );
 
-            const data = await response.json();
+            console.log("Server Status:", response.status);
+            const text = await response.text();
+            let data: any;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                data = { error: text || "Server returned an error" };
+            }
+
             if (response.ok) {
                 Alert.alert("✅ Success", "Party added successfully!");
                 setCustomerName("");
@@ -79,9 +91,11 @@ export default function AddPartyScreen({
                 onSuccess && onSuccess();
                 handleBack();
             } else {
+                console.warn("Server Error Response:", text);
                 Alert.alert("Error", data.error || "Failed to add party.");
             }
         } catch (err: any) {
+            console.warn("Network/Request Error:", err.message);
             Alert.alert("Error", err.message || "Something went wrong.");
         } finally {
             setLoading(false);
@@ -155,7 +169,8 @@ export default function AddPartyScreen({
                     />
                 </View>
 
-                <View style={[styles.inputContainer, { height: 100 }] as any}>
+                {/* Billing Address */}
+                {/* <View style={[styles.inputContainer, { height: 100 }] as any}>
                     <Ionicons name="home" size={22} color="#4f46e5" />
                     <TextInput
                         value={billingAddress}
@@ -165,10 +180,10 @@ export default function AddPartyScreen({
                         placeholderTextColor="#777"
                         style={[styles.input, { height: "100%" }]}
                     />
-                </View>
+                </View> */}
 
                 {/* DOB Picker */}
-                <TouchableOpacity
+                {/* <TouchableOpacity
                     onPress={() => setShowPicker(true)}
                     style={[styles.inputContainer, { justifyContent: "center" }] as any}
                 >
@@ -181,7 +196,7 @@ export default function AddPartyScreen({
                     >
                         {dob ? dob.toDateString() : "Select Date of Birth"}
                     </Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
 
                 {showPicker && (
                     <DateTimePicker

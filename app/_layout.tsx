@@ -23,7 +23,7 @@ import { ClerkProvider, useAuth, useSession } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore
 import Constants from "expo-constants";
-import { useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 // @ts-ignore
 import { Drawer } from "expo-router/drawer";
 // @ts-ignore
@@ -117,6 +117,15 @@ function AuthRedirect() {
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#007AFF" />
       </View>
+    );
+  }
+
+  if (!isSignedIn) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        {/* @ts-ignore */}
+        <Stack screenOptions={{ headerShown: false }} />
+      </GestureHandlerRootView>
     );
   }
 

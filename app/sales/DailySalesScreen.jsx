@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, SafeAreaView, TouchableOpacity } from "react-native";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 // --- Constants for Styling ---
 const COLORS = {
@@ -46,34 +46,34 @@ const SalesStat = ({ label, value, icon, color, isMain = false }) => (
 
 // New Component for the Table View
 const TableListView = ({ data }) => (
-    <View style={enhancedStyles.tableContainer}>
-        {/* Table Header */}
-        <View style={enhancedStyles.tableHeaderRow}>
-            <Text style={[enhancedStyles.tableCellHeader, { flex: 3 }]}>Date</Text>
-            <Text style={enhancedStyles.tableCellHeader}>Bills</Text>
-            <Text style={[enhancedStyles.tableCellHeader, { flex: 2, textAlign: 'right' }]}>Sales</Text>
-        </View>
-
-        {/* Table Rows */}
-        <FlatList
-            data={data}
-            keyExtractor={(item) => item.date}
-            renderItem={({ item }) => (
-                <View style={enhancedStyles.tableRow}>
-                    <Text style={[enhancedStyles.tableCell, { flex: 3 }]}>{item.date}</Text>
-                    <Text style={enhancedStyles.tableCell}>{item.numberOfBills}</Text>
-                    <Text style={[enhancedStyles.tableCell, { flex: 2, color: COLORS.success, fontWeight: 'bold', textAlign: 'right' }]}>
-                        ₹{item.totalSales.toLocaleString('en-IN')}
-                    </Text>
-                </View>
-            )}
-            ListEmptyComponent={() => (
-                <View style={enhancedStyles.emptyContainer}>
-                    <Text style={enhancedStyles.emptyText}>No sales found for Table View.</Text>
-                </View>
-            )}
-        />
+  <View style={enhancedStyles.tableContainer}>
+    {/* Table Header */}
+    <View style={enhancedStyles.tableHeaderRow}>
+      <Text style={[enhancedStyles.tableCellHeader, { flex: 3 }]}>Date</Text>
+      <Text style={enhancedStyles.tableCellHeader}>Bills</Text>
+      <Text style={[enhancedStyles.tableCellHeader, { flex: 2, textAlign: 'right' }]}>Sales</Text>
     </View>
+
+    {/* Table Rows */}
+    <FlatList
+      data={data}
+      keyExtractor={(item) => item.id || item.date}
+      renderItem={({ item }) => (
+        <View style={enhancedStyles.tableRow}>
+          <Text style={[enhancedStyles.tableCell, { flex: 3 }]}>{item.date}</Text>
+          <Text style={enhancedStyles.tableCell}>{item.numberOfBills}</Text>
+          <Text style={[enhancedStyles.tableCell, { flex: 2, color: COLORS.success, fontWeight: 'bold', textAlign: 'right' }]}>
+            ₹{item.totalSales.toLocaleString('en-IN')}
+          </Text>
+        </View>
+      )}
+      ListEmptyComponent={() => (
+        <View style={enhancedStyles.emptyContainer}>
+          <Text style={enhancedStyles.emptyText}>No sales found for Table View.</Text>
+        </View>
+      )}
+    />
+  </View>
 );
 
 
@@ -85,7 +85,7 @@ export default function DailySalesScreen() {
   const [dailySales, setDailySales] = useState([]);
   const [loading, setLoading] = useState(true);
   // State to manage the view: 'card' or 'table'
-  const [viewMode, setViewMode] = useState('card'); 
+  const [viewMode, setViewMode] = useState('card');
 
   const totalGrandSales = dailySales.reduce((sum, item) => sum + item.totalSales, 0);
 
@@ -99,12 +99,12 @@ export default function DailySalesScreen() {
         day: 'numeric',
       });
 
-      if (!grouped[dateKey]) grouped[dateKey] = { date: dateDisplay, numberOfBills: 0, totalSales: 0 };
+      if (!grouped[dateKey]) grouped[dateKey] = { id: dateKey, date: dateDisplay, numberOfBills: 0, totalSales: 0 };
       grouped[dateKey].numberOfBills += 1;
       grouped[dateKey].totalSales += bill.grandTotal;
     });
 
-    return Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
+    return Object.values(grouped).sort((a, b) => b.id.localeCompare(a.id));
   };
 
   const fetchBills = async () => {
@@ -115,10 +115,14 @@ export default function DailySalesScreen() {
       const res = await fetch("https://billing-backend-sable.vercel.app/api/billing/list", {
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
-      const data = await res.json();
-      if (res.ok && data.bills) setDailySales(groupSalesByDate(data.bills));
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.bills) setDailySales(groupSalesByDate(data.bills));
+      } else {
+        console.warn(`Server returned status: ${res.status}`);
+      }
     } catch (err) {
-      console.error(err);
+      console.warn("DailySales Fetch Error:", err.message);
     } finally {
       setLoading(false);
     }
@@ -136,24 +140,24 @@ export default function DailySalesScreen() {
         <Text style={enhancedStyles.subtitle}>
           All Time Sales: <Text style={enhancedStyles.totalSalesValue}>₹{totalGrandSales.toLocaleString('en-IN')}</Text>
         </Text>
-        
+
         {/* Toggle and Refresh Buttons */}
         <View style={enhancedStyles.controlButtons}>
-            {/* Refresh Button */}
-            <TouchableOpacity onPress={fetchBills} style={enhancedStyles.refreshButton}>
-                <Ionicons name="refresh-circle-outline" size={24} color={COLORS.primary} />
-            </TouchableOpacity>
-            {/* View Toggle Button */}
-            <TouchableOpacity 
-                onPress={() => setViewMode(viewMode === 'card' ? 'table' : 'card')} 
-                style={enhancedStyles.toggleButton}
-            >
-                <Ionicons 
-                    name={viewMode === 'card' ? "grid-outline" : "list-outline"} 
-                    size={24} 
-                    color={COLORS.primary} 
-                />
-            </TouchableOpacity>
+          {/* Refresh Button */}
+          <TouchableOpacity onPress={fetchBills} style={enhancedStyles.refreshButton}>
+            <Ionicons name="refresh-circle-outline" size={24} color={COLORS.primary} />
+          </TouchableOpacity>
+          {/* View Toggle Button */}
+          <TouchableOpacity
+            onPress={() => setViewMode(viewMode === 'card' ? 'table' : 'card')}
+            style={enhancedStyles.toggleButton}
+          >
+            <Ionicons
+              name={viewMode === 'card' ? "grid-outline" : "list-outline"}
+              size={24}
+              color={COLORS.primary}
+            />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -161,7 +165,7 @@ export default function DailySalesScreen() {
       {viewMode === 'card' ? (
         <FlatList
           data={dailySales}
-          keyExtractor={(item) => item.date}
+          keyExtractor={(item) => item.id || item.date}
           renderItem={({ item }) => (
             <SalesCard
               date={item.date}
