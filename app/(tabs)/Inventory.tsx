@@ -3,6 +3,7 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+
 import {
   ActivityIndicator,
   Alert,
@@ -84,7 +85,7 @@ export default function InventoryScreen() {
       } catch (err) {
         console.error("Fetch inventory error:", err);
         setInventory([]);
-        Alert.alert("Error", "Failed to load inventory. Please check your connection.");
+        Alert.alert("you don't have inventory items ");
       } finally {
         setLoading(false);
       }

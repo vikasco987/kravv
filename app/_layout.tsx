@@ -1,22 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 "use client";
 
 import { ClerkProvider, useAuth, useSession } from "@clerk/clerk-expo";

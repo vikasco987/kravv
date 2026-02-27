@@ -26,7 +26,9 @@
         "android.permission.BLUETOOTH_ADMIN",
         "android.permission.BLUETOOTH_SCAN",
         "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -50,7 +52,8 @@
       "expo-secure-store",
       "@react-native-community/datetimepicker",
       "expo-audio",
-      "expo-video"
+      "expo-video",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -59,8 +62,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d61c0ca7-b450-459f-89b6-7cc058f14224"
+        "projectId": "57ea8ea7-aff2-45d2-9129-0e4545bf531f"
       }
-    }
+    },
+    "owner": "vikash111s-organization"
   }
 }

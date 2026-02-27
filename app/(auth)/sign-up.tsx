@@ -163,11 +163,11 @@
 
 // app/_layout.tsx
 import { ClerkProvider } from "@clerk/clerk-expo";
-import { Stack } from "expo-router";
 import Constants from "expo-constants";
+import * as Linking from "expo-linking";
+import { Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -195,7 +195,7 @@ export default function RootLayout() {
     <ClerkProvider
       publishableKey={publishableKey}
       tokenCache={tokenCache}
-      fallbackRedirectUrl={`${prefix}oauth-native-callback`}
+      signInFallbackRedirectUrl={`${prefix}oauth-native-callback`}
     >
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
