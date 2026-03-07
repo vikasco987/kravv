@@ -20,6 +20,7 @@ export type BillOptions = {
   phone?: string;
   notes?: string;
   paymentMode?: string;
+  billId?: string;
 };
 
 // @ts-ignore
@@ -180,41 +181,47 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
     await printBill(billText);
 
     // Save bill in backend
-    const res = await fetch("https://billing-backend-sable.vercel.app/api/billing", {
-      method: "POST",
+    const subtotalVal = Number((total / 1.05).toFixed(2));
+    
+    // Smart Update Logic
+    const method = options?.billId ? "PUT" : "POST";
+    const url = options?.billId 
+      ? `https://billing.kravy.in/api/bill-manager/${options.billId}`
+      : "https://billing.kravy.in/api/bill-manager";
+
+    const res = await fetch(url, {
+      method: method,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        userClerkId,
+        items: products,
+        subtotal: subtotalVal,
+        total: total,
+        paymentMode: options?.paymentMode === "UPI" || options?.paymentMode === "Card" ? options.paymentMode : "Cash",
+        paymentStatus: "Paid",
+        isHeld: false,
+        upiTxnRef: null,
         customerName: options?.customerName || "Walk-in",
-        phone: options?.phone || "",
-        date: date.toISOString(),
-        billNo,
-        products,
-        total,
-        grandTotal: total,
-        discount: 0,
-        gst: 0,
-        paymentMode,
-        paymentStatus: "PAID",
-        notes: options?.notes || `Bill No ${billNo}`,
-        companyName,
-        companyAddress,
-        companyPhone,
+        customerPhone: options?.phone || null,
       }),
     });
 
+    const data = await res.json();
+
     if (!res.ok) {
-      const errText = await res.text();
-      console.log("❌ Backend Error:", errText);
-      ToastAndroid.show("⚠️ Bill save failed!", ToastAndroid.SHORT);
+      console.log("❌ Backend Error:", data);
+      ToastAndroid.show(`⚠️ Save failed: ${data.error || "Unknown error"}`, ToastAndroid.SHORT);
+      return { status: "error", error: data.error };
     } else {
       ToastAndroid.show("✅ Bill saved!", ToastAndroid.SHORT);
+      return { 
+        status: "success", 
+        data: data.bill || data, 
+        payload: { companyName, billNo: data.bill?.billNumber || billNo, total } 
+      };
     }
-
-    return { status: "success", payload: { companyName, billNo, total } };
   } catch (err: any) {
     console.log("❌ [SimpleBill Error]:", err.message || err);
     ToastAndroid.show("❌ Error creating bill", ToastAndroid.SHORT);

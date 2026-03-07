@@ -11,6 +11,11 @@ export default function CustomDrawerContent(props: any) {
   const { user } = useUser();
   const { signOut } = useClerk();
 
+  const COLORS = {
+    primary: '#4F46E5',
+    danger: '#EF4444',
+  };
+
   return (
     <DrawerContentScrollView {...props}>
       <View style={styles.header}>
@@ -25,19 +30,44 @@ export default function CustomDrawerContent(props: any) {
         onPress={() => props.navigation.navigate("(tabs)")}
       />
 
-      {user ? (
+      <DrawerItem
+        label="Home Menu"
+        icon={({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />}
+        onPress={() => props.navigation.navigate("(tabs)", { screen: "menu" })}
+      />
+      <DrawerItem
+        label="Sales Reports"
+        icon={({ color, size }) => <Ionicons name="stats-chart-outline" size={size} color={color} />}
+        onPress={() => props.navigation.navigate("sales/DailySalesScreen")}
+      />
+      <DrawerItem
+        label="Inventory"
+        icon={({ color, size }) => <Ionicons name="cube-outline" size={size} color={color} />}
+        onPress={() => props.navigation.navigate("(tabs)", { screen: "Inventory" })}
+      />
+
+      <DrawerItem
+        label="Settings"
+        icon={({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />}
+        onPress={() => props.navigation.navigate("(tabs)", { screen: "setting" })}
+      />
+
+      {!user ? (
         <DrawerItem
-          label="Sign Out"
-          icon={({ color, size }) => <Ionicons name="log-out-outline" size={size} color={color} />}
-          onPress={async () => {
-            await signOut();
-          }}
+          label="Sign In"
+          icon={({ color, size }) => <Ionicons name="log-in-outline" size={size} color={COLORS.primary} />}
+          onPress={() => props.navigation.navigate("(auth)/sign-in")}
+          labelStyle={{ color: COLORS.primary, fontWeight: 'bold' }}
         />
       ) : (
         <DrawerItem
-          label="Sign In"
-          icon={({ color, size }) => <Ionicons name="log-in-outline" size={size} color={color} />}
-          onPress={() => props.navigation.navigate("(auth)/sign-in")}
+          label="Sign Out"
+          icon={({ color, size }) => <Ionicons name="log-out-outline" size={size} color={COLORS.danger} />}
+          onPress={async () => {
+            await signOut();
+            props.navigation.replace("(auth)/sign-in");
+          }}
+          labelStyle={{ color: COLORS.danger }}
         />
       )}
     </DrawerContentScrollView>

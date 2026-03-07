@@ -2,8 +2,9 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
 // @ts-ignore
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +25,7 @@ import {
 // Fixed imports based on project structure
 import { SaveBill } from "../../components/SaveBill";
 import { SimpleKOT } from "../../components/SimpleKOT";
+import { useRefresh } from "../../context/RefreshContext";
 import { SimpleBill } from "../../utils/SimpleBill";
 
 // --- TYPE DEFINITIONS ---
@@ -63,9 +65,14 @@ export default function MenuScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState<Record<string, CartItem>>({});
-  const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Bank" | "Check">("Cash");
+  const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Card">("Cash");
   const [received, setReceived] = useState(false);
   const [isCartModalVisible, setIsCartModalVisible] = useState(false);
+  const [heldCount, setHeldCount] = useState(0);
+  const [isHoldModalVisible, setIsHoldModalVisible] = useState(false);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [showHoldSuccess, setShowHoldSuccess] = useState(false);
+  const { refreshSignal } = useRefresh();
 
   // @ts-ignore
   const flatListRef = useRef<any>(null);
@@ -88,41 +95,200 @@ export default function MenuScreen() {
       if (isManualRefresh) setRefreshing(true);
       else setLoading(true);
 
-      if (!isLoaded || !isSignedIn) return;
+      if (!isLoaded || !isSignedIn) {
+        setMenus([]);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
 
       const token = await getToken();
-      if (!token) throw new Error("Unauthorized");
 
-      const res = await fetch("https://billing-backend-sable.vercel.app/api/menu/view", {
-        headers: { Authorization: `Bearer ${token}` },
+      console.log("Fetching menu from: https://billing.kravy.in/api/menu/view");
+      const response = await fetch("https://billing.kravy.in/api/menu/view", {
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
       });
-      const data = await res.json();
 
-      const categoryList = data.menus || [];
-      const sortedCategories = categoryList.sort((a: MenuCategory, b: MenuCategory) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-      );
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(`❌ Backend Error (${response.status}):`, errorBody);
 
-      const fullySortedMenus = sortedCategories.map((cat: MenuCategory) => ({
-        ...cat,
-        items: (cat.items || []).sort((itemA, itemB) =>
-          itemA.name.localeCompare(itemB.name, undefined, { sensitivity: "base" })
-        ),
-      }));
+        if (response.status === 500) {
+          ToastAndroid.show("Backend Error (500). Please check server logs.", ToastAndroid.LONG);
+        }
 
-      setMenus(fullySortedMenus);
-    } catch (err) {
-      console.error("Menu fetch error:", err);
-      setMenus([]);
+        // --- FALLBACK TO CACHE ON ERROR ---
+        const cachedData = await AsyncStorage.getItem('@cached_menu');
+        if (cachedData) {
+          setMenus(JSON.parse(cachedData));
+          ToastAndroid.show("Backend Issue: Showing Cached Menu", ToastAndroid.LONG);
+        } else {
+          ToastAndroid.show("Server Error: " + response.status, ToastAndroid.LONG);
+          setMenus([]);
+        }
+        return;
+      }
+
+      let items = await response.json();
+
+      // Handle different response structures
+      let processedItems: any[] = [];
+
+      if (Array.isArray(items)) {
+        processedItems = items;
+      } else if (items && Array.isArray(items.menus)) {
+        // Nested structure: { menus: [ { name: 'Category', items: [...] } ] }
+        console.log("Processing nested categories from data.menus");
+        items.menus.forEach((cat: any) => {
+          const categoryRaw = {
+            id: cat.id || cat._id || "others",
+            name: cat.name || "Others"
+          };
+          if (Array.isArray(cat.items)) {
+            cat.items.forEach((item: any) => {
+              processedItems.push({
+                ...item,
+                category: categoryRaw // Inject category info for downstream grouping
+              });
+            });
+          }
+        });
+      } else if (items && Array.isArray(items.items)) {
+        processedItems = items.items;
+      } else {
+        console.error("❌ Unexpected response structure:", items);
+        const cachedData = await AsyncStorage.getItem('@cached_menu');
+        if (cachedData) setMenus(JSON.parse(cachedData));
+        return;
+      }
+
+      // Group items by category
+      const categoryMap: Record<string, MenuCategory> = {};
+      processedItems.forEach((item: any) => {
+        const rawCat = item.category || { id: "others", name: "Others" };
+        const catId = String(rawCat.id || rawCat._id || "others");
+        const catName = String(rawCat.name || "Others");
+
+        if (!categoryMap[catId]) {
+          categoryMap[catId] = { id: catId, name: catName, items: [] };
+        }
+
+        categoryMap[catId].items.push({
+          id: String(item.id || item._id || Math.random().toString()),
+          name: String(item.name || "Unnamed Item"),
+          price: Number(item.sellingPrice || item.price || item.selling_price || 0),
+          imageUrl: item.imageUrl,
+          unit: item.unit,
+        });
+      });
+
+      const sortedMenus = Object.values(categoryMap)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(cat => ({
+          ...cat,
+          items: cat.items.sort((a, b) => a.name.localeCompare(b.name))
+        }));
+
+      // SAVE TO CACHE FOR NEXT TIME
+      await AsyncStorage.setItem('@cached_menu', JSON.stringify(sortedMenus));
+      setMenus(sortedMenus);
+
+    } catch (err: any) {
+      console.error("❌ Fetch Exception:", err);
+      const cachedData = await AsyncStorage.getItem('@cached_menu');
+      if (cachedData) {
+        setMenus(JSON.parse(cachedData));
+        ToastAndroid.show("Offline: Loaded from Cache", ToastAndroid.SHORT);
+      } else {
+        ToastAndroid.show("Connection Error", ToastAndroid.SHORT);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
+  // Initial load handled by useFocusEffect below
+
+  const fetchHeldCount = async () => {
+    try {
+      if (!isLoaded || !isSignedIn) {
+        setHeldCount(0);
+        return;
+      }
+      const token = await getToken();
+      if (!token) return;
+
+      const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
+      const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
+
+      // 1. Fetch from Backend
+      const res = await fetch("https://billing.kravy.in/api/bill-manager?isHeld=true", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      let backendValidCount = 0;
+      if (res.ok) {
+        const data = await res.json();
+        const bills = data.bills || [];
+        const filteredBackend = bills.filter((b: any) =>
+          !hiddenIds.includes(b.billNumber) &&
+          !hiddenIds.includes(b._id) &&
+          !hiddenIds.includes(b.id)
+        );
+        backendValidCount = filteredBackend.length;
+      }
+
+      // 2. Local Count
+      const localData = await AsyncStorage.getItem('@held_orders');
+      let localValidCount = 0;
+      if (localData) {
+        const localHeld = JSON.parse(localData);
+        const filteredLocal = localHeld.filter((lh: any) => !hiddenIds.includes(lh.id));
+        localValidCount = filteredLocal.length;
+      }
+
+      setHeldCount(backendValidCount + localValidCount);
+    } catch (e) {
+      console.error("Fetch held count error:", e);
+    }
+  };
+
+  // Handle Resume Cart from Hold Page
+  useFocusEffect(
+    useCallback(() => {
+      fetchMenus();
+      fetchHeldCount();
+      const checkResumeCart = async () => {
+        try {
+          const data = await AsyncStorage.getItem('@resume_cart');
+          if (data) {
+            const resumedItems = JSON.parse(data);
+            const newCart: Record<string, CartItem> = {};
+            resumedItems.forEach((item: any) => {
+              newCart[item.id] = item;
+            });
+            setCart(newCart);
+            await AsyncStorage.removeItem('@resume_cart');
+            ToastAndroid.show("Order Loaded from Hold List", ToastAndroid.SHORT);
+          }
+        } catch (error) {
+          console.error("Error loading resumed cart:", error);
+        }
+      };
+      checkResumeCart();
+    }, [isLoaded, isSignedIn])
+  );
+
+  // ---------- GLOBAL REFRESH LISTENER ----------
   useEffect(() => {
-    if (isLoaded && isSignedIn) fetchMenus();
-  }, [isLoaded, isSignedIn, user]);
+    if (refreshSignal > 0) {
+      fetchMenus(true);
+      fetchHeldCount();
+    }
+  }, [refreshSignal]);
 
   // ---------- SEARCH FILTER LOGIC ----------
   const filteredMenus = useMemo(() => {
@@ -199,6 +365,110 @@ export default function MenuScreen() {
   const totalItems = Object.values(cart).reduce((sum, i) => sum + i.quantity, 0);
   const totalAmount = Object.values(cart).reduce((sum, i) => sum + ((i.editedPrice ?? i.price ?? 0) * i.quantity), 0);
 
+  const pauseOrder = async () => {
+    if (Object.keys(cart).length === 0) {
+      ToastAndroid.show("Cart is empty!", ToastAndroid.SHORT);
+      return;
+    }
+    setIsHoldModalVisible(true);
+  };
+
+  const confirmPauseOrder = async () => {
+    try {
+      const token = await getToken();
+      if (token && user?.id) {
+        try {
+          const method = activeOrderId ? "PUT" : "POST";
+          const url = activeOrderId
+            ? `https://billing.kravy.in/api/bill-manager/${activeOrderId}`
+            : "https://billing.kravy.in/api/bill-manager";
+
+          const response = await fetch(url, {
+            method: method,
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              items: Object.values(cart).map(i => ({
+                productId: i.id,
+                name: i.name,
+                quantity: i.quantity,
+                price: i.editedPrice ?? i.price ?? 0,
+                total: (i.editedPrice ?? i.price ?? 0) * i.quantity,
+              })),
+              subtotal: Number((totalAmount / 1.05).toFixed(2)),
+              total: totalAmount,
+              paymentMode: "Cash",
+              paymentStatus: "HELD",
+              isHeld: true,
+              customerName: "Walk-in Customer",
+              customerPhone: null,
+            }),
+          });
+
+          if (response.ok) {
+            setShowHoldSuccess(true);
+            setTimeout(() => {
+              setIsHoldModalVisible(false);
+              setShowHoldSuccess(false);
+              setCart({});
+              setActiveOrderId(null);
+              fetchHeldCount();
+            }, 2000);
+          } else {
+            const errorText = await response.text();
+            console.error(`Backend hold error:`, errorText);
+            await saveToLocalFallback();
+          }
+        } catch (fetchError) {
+          console.error("Network error during hold sync:", fetchError);
+          await saveToLocalFallback();
+        }
+      } else {
+        await saveToLocalFallback();
+      }
+
+      async function saveToLocalFallback() {
+        if (activeOrderId && activeOrderId.startsWith("BILL-")) {
+          // Updating local order
+          const localData = await AsyncStorage.getItem('@held_orders');
+          let orders = localData ? JSON.parse(localData) : [];
+          orders = orders.map((o: any) => o.id === activeOrderId ? {
+            ...o,
+            items: Object.values(cart),
+            total: totalAmount,
+            timestamp: new Date().toISOString()
+          } : o);
+          await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
+        } else {
+          const id = "BILL-" + Date.now();
+          const newOrder = {
+            id,
+            items: Object.values(cart),
+            total: totalAmount,
+            timestamp: new Date().toISOString()
+          };
+          const localData = await AsyncStorage.getItem('@held_orders');
+          const orders = localData ? JSON.parse(localData) : [];
+          orders.push(newOrder);
+          await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
+        }
+
+        setShowHoldSuccess(true);
+        setTimeout(() => {
+          setIsHoldModalVisible(false);
+          setShowHoldSuccess(false);
+          setCart({});
+          setActiveOrderId(null);
+          fetchHeldCount();
+        }, 2000);
+      }
+    } catch (e) {
+      console.error("Hold process error:", e);
+      ToastAndroid.show("Failed to hold order", ToastAndroid.SHORT);
+    }
+  };
   const numColumns = screenWidth < 700 ? 3 : 4;
   const itemWidth = (screenWidth - CATEGORY_COLUMN_WIDTH - 24) / numColumns;
 
@@ -229,17 +499,27 @@ export default function MenuScreen() {
           </TouchableOpacity>
         </View>
         <View style={styles.headerActionGroup}>
-          <TouchableOpacity style={styles.integratedActionButton} onPress={() => router.push("/party/add")}>
+          <TouchableOpacity style={styles.integratedActionButton} onPress={() => router.push("/party/items")}>
             <Feather name="plus" size={16} color="#FFF" style={{ marginRight: 4 }} />
             <Text style={styles.integratedButtonText}>Item</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.integratedActionButton}>
+          <TouchableOpacity
+            style={styles.integratedActionButton}
+            onPress={pauseOrder}
+          >
+            <Text style={styles.integratedButtonText}>Pause</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.integratedActionButton, { position: 'relative' }]}
+            onPress={() => router.push("/party/hold")}
+          >
             <Ionicons name="timer-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
             <Text style={styles.integratedButtonText}>HOLD</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.integratedActionButton}>
-            <Feather name="package" size={16} color="#FFF" style={{ marginRight: 4 }} />
-            <Text style={styles.integratedButtonText}>Parcel</Text>
+            {heldCount > 0 && (
+              <View style={styles.headerBadge}>
+                <Text style={styles.headerBadgeText}>{heldCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -292,7 +572,13 @@ export default function MenuScreen() {
           onScrollToIndexFailed={(info) => {
             const wait = new Promise((resolve) => setTimeout(resolve, 500));
             wait.then(() => {
-              flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
+              if (flatListRef.current) {
+                try {
+                  flatListRef.current.scrollToIndex({ index: info.index, animated: true });
+                } catch (e) {
+                  console.warn("Scroll to index fallback failed:", e);
+                }
+              }
             });
           }}
           renderItem={({ item: cat }) => (
@@ -330,6 +616,34 @@ export default function MenuScreen() {
               </View>
             </View>
           )}
+          ListEmptyComponent={
+            !loading ? (
+              <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="fast-food-outline" size={80} color="#D1D5DB" />
+                <Text style={{ marginTop: 16, color: '#6B7280', fontSize: 18, fontWeight: '600', textAlign: 'center' }}>
+                  No items found in your menu
+                </Text>
+                <Text style={{ marginTop: 8, color: '#9CA3AF', fontSize: 14, textAlign: 'center' }}>
+                  Try refreshing or add new items from the "Item" button above.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => fetchMenus(true)}
+                  style={{
+                    marginTop: 24,
+                    paddingHorizontal: 20,
+                    paddingVertical: 12,
+                    backgroundColor: THEME_PRIMARY,
+                    borderRadius: 10,
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Ionicons name="refresh" size={18} color="#fff" style={{ marginRight: 8 }} />
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>Refresh Menu</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null
+          }
         />
       </View>
 
@@ -354,7 +668,7 @@ export default function MenuScreen() {
           </View>
 
           <View style={styles.paymentSelector}>
-            {["Cash", "Bank", "Check"].map((method) => (
+            {["Cash", "UPI", "Card"].map((method) => (
               <TouchableOpacity
                 key={method}
                 style={[styles.paymentOption, paymentMethod === method && styles.paymentSelected]}
@@ -366,12 +680,13 @@ export default function MenuScreen() {
           </View>
 
 
+
           <View style={styles.actionButtonsRow}>
             {/* KOT */}
             <TouchableOpacity style={styles.printKotButton} onPress={async () => {
               const token = await getToken();
               await SimpleKOT(Object.values(cart), token!, user?.id!);
-              ToastAndroid.show("🍜 KOT Printed!", ToastAndroid.SHORT);
+              ToastAndroid.show("KOT Printed!", ToastAndroid.SHORT);
             }}>
               <Feather name="file-text" size={16} color="#fff" />
               <Text style={styles.printBillText}>KOT</Text>
@@ -380,14 +695,20 @@ export default function MenuScreen() {
             {/* BILL */}
             <TouchableOpacity style={styles.printBillButton} onPress={async () => {
               const token = await getToken();
-              await SimpleBill(
+              const result = await SimpleBill(
                 Object.values(cart),
                 token!,
                 user?.id!,
-                { paymentMode: paymentMethod }
+                {
+                  paymentMode: paymentMethod,
+                  billId: activeOrderId || undefined
+                }
               );
-              setCart({});
-              ToastAndroid.show("🧾 Bill Printed!", ToastAndroid.SHORT);
+              if (result?.status === "success") {
+                setCart({});
+                setActiveOrderId(null);
+                fetchHeldCount();
+              }
             }}>
               <Feather name="printer" size={16} color="#fff" />
               <Text style={styles.printBillText}>BILL</Text>
@@ -399,14 +720,21 @@ export default function MenuScreen() {
               onPress={async () => {
                 const token = await getToken();
 
-                await SaveBill(
+                const result = await SaveBill(
                   Object.values(cart),
                   token!,
                   user?.id!,
-                  { paymentMode: paymentMethod }
+                  {
+                    paymentMode: paymentMethod,
+                    billId: activeOrderId || undefined
+                  }
                 );
 
-                ToastAndroid.show("💾 Saved (No Print)", ToastAndroid.SHORT);
+                if (result?.status === "saved") {
+                  setCart({});
+                  setActiveOrderId(null);
+                  fetchHeldCount();
+                }
               }}
             >
               <Feather name="save" size={16} color="#fff" />
@@ -518,6 +846,70 @@ export default function MenuScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Custom Hold Order Modal */}
+      <Modal
+        transparent={true}
+        visible={isHoldModalVisible}
+        animationType="slide"
+        onRequestClose={() => setIsHoldModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.bottomModalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsHoldModalVisible(false)}
+        >
+          <View style={styles.bottomModalContent}>
+            <View style={styles.modalHandle} />
+
+            {showHoldSuccess ? (
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <View style={styles.successCircle}>
+                  <Ionicons name="checkmark-sharp" size={40} color="#10B981" />
+                </View>
+                <Text style={[styles.bottomModalTitle, { color: '#10B981' }]}>Order Held!</Text>
+                <Text style={styles.bottomModalSubtext}>Order moved to the Hold List.</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.holdCircle}>
+                  <Ionicons name="pause" size={32} color="#4F46E5" />
+                </View>
+
+                <Text style={styles.bottomModalTitle}>Hold Order?</Text>
+                <Text style={styles.bottomModalSubtext}>
+                  Are you sure you want to pause this order and move it to the Hold List?
+                </Text>
+
+                <View style={styles.holdInfoBox}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.holdOrderText}>Active Order</Text>
+                    <Text style={styles.holdSummaryText} numberOfLines={1}>
+                      {totalItems} items in cart
+                    </Text>
+                  </View>
+                  <Text style={styles.holdTotalText}>₹{totalAmount.toFixed(0)}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.confirmHoldBtn}
+                  onPress={confirmPauseOrder}
+                >
+                  <Ionicons name="pause" size={18} color="#FFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.confirmHoldText}>Yes, Move to Hold</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setIsHoldModalVisible(false)}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -574,8 +966,27 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: "bold", color: "#1F2937" },
   refreshIconButton: { marginLeft: 10, padding: 5 },
   headerActionGroup: { flexDirection: "row", backgroundColor: THEME_PRIMARY, borderRadius: 10, padding: 4 },
-  integratedActionButton: { flexDirection: "row", alignItems: "center", paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, marginHorizontal: 2 },
+  integratedActionButton: { flexDirection: "row", alignItems: "center", paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, marginHorizontal: 2, position: 'relative' },
   integratedButtonText: { fontSize: 13, fontWeight: "700", color: "#FFF" },
+
+  headerBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -4,
+    backgroundColor: THEME_DANGER,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFF',
+  },
+  headerBadgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
 
   cartBar: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", padding: 12, borderTopWidth: 1, borderColor: "#E5E7EB", zIndex: 999, elevation: 20 },
   summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
@@ -615,5 +1026,121 @@ const styles = StyleSheet.create({
   modalTotalLabel: { fontSize: 18, fontWeight: 'bold' },
   modalTotalValue: { fontSize: 20, fontWeight: '900', color: THEME_PRIMARY },
   clearAllButton: { backgroundColor: THEME_DANGER, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 10 },
-  clearAllText: { color: '#fff', fontWeight: 'bold', fontSize: 14 }
+  clearAllText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+
+  // --- NEW BOTTOM MODAL STYLES ---
+  bottomModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomModalContent: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    alignItems: 'center',
+    paddingBottom: 40,
+  },
+  modalHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
+    marginBottom: 20,
+  },
+  holdCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#4F46E5',
+  },
+  successCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#D1FAE5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  bottomModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  bottomModalSubtext: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+    paddingHorizontal: 10,
+  },
+  holdInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 20,
+    padding: 16,
+    width: '100%',
+    marginBottom: 24,
+  },
+  holdOrderText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  holdSummaryText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  holdTotalText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#4F46E5',
+  },
+  confirmHoldBtn: {
+    width: '100%',
+    backgroundColor: '#4F46E5',
+    paddingVertical: 18,
+    borderRadius: 20,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    elevation: 8,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  confirmHoldText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  modalCancelBtn: {
+    width: '100%',
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 18,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    color: '#4B5563',
+    fontSize: 18,
+    fontWeight: '600',
+  },
 });

@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import CustomDrawerContent from "../components/CustomDrawer";
+import { RefreshProvider } from "../context/RefreshContext";
 
 // Clerk token cache
 const tokenCache = {
@@ -45,7 +46,9 @@ export default function RootLayout() {
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <AuthRedirect />
+      <RefreshProvider>
+        <AuthRedirect />
+      </RefreshProvider>
     </ClerkProvider>
   );
 }
@@ -64,9 +67,7 @@ function AuthRedirect() {
     if (!ready || !isLoaded) return;
 
     if (!isSignedIn) {
-      setTimeout(() => tokenCache.clearToken(), 300);
-      if (Platform.OS === "web") setTimeout(() => window.location.reload(), 15000);
-      router.replace("/(auth)/sign-in");
+      // In guest mode, no forced redirects
       return;
     }
 
@@ -101,15 +102,6 @@ function AuthRedirect() {
     );
   }
 
-  if (!isSignedIn) {
-    return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        {/* @ts-ignore */}
-        <Stack screenOptions={{ headerShown: false }} />
-      </GestureHandlerRootView>
-    );
-  }
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Drawer
@@ -132,6 +124,34 @@ function AuthRedirect() {
           options={{
             drawerLabel: "Parties",
             drawerIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
+          }}
+        />
+        <Drawer.Screen
+          name="party/items"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            headerShown: false,
+          }}
+        />
+        <Drawer.Screen
+          name="party/bill"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            headerShown: false,
+          }}
+        />
+        <Drawer.Screen
+          name="party/add"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            headerShown: false,
+          }}
+        />
+        <Drawer.Screen
+          name="party/info"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            headerShown: false,
           }}
         />
       </Drawer>

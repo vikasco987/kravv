@@ -10,7 +10,7 @@
 //   signatureUrl?: string;
 // };
 
-// const BACKEND_URL = "https://billing-backend-sable.vercel.app";
+// const BACKEND_URL = "https://billing.kravy.in";
 
 // // Plain function to fetch recent company profile
 // export const getRecentCompanyProfile = async (getToken: () => Promise<string>): Promise<CompanyProfile> => {
@@ -52,7 +52,7 @@
 
 // import { useAuth } from "@clerk/clerk-expo";
 
-// const BACKEND_URL = "https://billing-backend-sable.vercel.app";
+// const BACKEND_URL = "https://billing.kravy.in";
 
 // // ✅ Fetch recent company profile and normalize keys
 // export const getRecentCompanyProfile = async (getToken: () => Promise<string>) => {
@@ -99,7 +99,7 @@
 
 
 
-const BACKEND_URL = "https://billing-backend-sable.vercel.app";
+const BACKEND_URL = "https://billing.kravy.in";
 
 // ✅ getRecentCompanyProfile ab sahi token le raha hai
 export const getRecentCompanyProfile = async (token: string) => {

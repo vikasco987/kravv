@@ -28,7 +28,10 @@
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA"
       ]
     },
     "web": {
@@ -53,7 +56,14 @@
       "@react-native-community/datetimepicker",
       "expo-audio",
       "expo-video",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you set item images.",
+          "cameraPermission": "The app accesses your camera to let you take item photos."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

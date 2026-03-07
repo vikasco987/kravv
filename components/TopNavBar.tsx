@@ -1,23 +1,38 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 // @ts-ignore
-import { useNavigation } from "expo-router";
+import { useNavigation, usePathname, useRouter } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRefresh } from "../context/RefreshContext";
 
 const THEME_PRIMARY = "#4F46E5";
 
 interface TopNavBarProps {
   title?: string;
+  showBack?: boolean;
 }
 
-export default function TopNavBar({ title = "Home" }: TopNavBarProps) {
+export default function TopNavBar({ title = "Home", showBack = false }: TopNavBarProps) {
   const navigation = useNavigation();
+  const router = useRouter();
+
+  const { triggerRefresh } = useRefresh();
+  const handleReload = () => {
+    // This will increment the global refresh signal
+    triggerRefresh();
+  };
 
   return (
     <View style={styles.container}>
-      {/* Left: Menu Button */}
-      <TouchableOpacity onPress={() => (navigation as any).openDrawer()} style={styles.iconButton}>
-        <Feather name="menu" size={24} color="#fff" />
-      </TouchableOpacity>
+      {/* Left: Menu / Back Button */}
+      {showBack ? (
+        <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
+          <Ionicons name="arrow-back" size={26} color="#fff" />
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity onPress={() => (navigation as any).openDrawer()} style={styles.iconButton}>
+          <Feather name="menu" size={24} color="#fff" />
+        </TouchableOpacity>
+      )}
 
       {/* Center: Title */}
       <View style={styles.titleGroup}>
@@ -27,8 +42,8 @@ export default function TopNavBar({ title = "Home" }: TopNavBarProps) {
 
       {/* Right: Actions */}
       <View style={styles.actionGroup}>
-        <TouchableOpacity style={styles.iconButton}>
-          <Ionicons name="reload-circle-outline" size={28} color="#fff" />
+        <TouchableOpacity onPress={handleReload} style={styles.iconButton}>
+          <Ionicons name="refresh" size={28} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconButton}>
           <Ionicons name="headset-outline" size={26} color="#fff" />

@@ -27,7 +27,7 @@
 
 //       // Pass token to backend for authentication
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -151,7 +151,7 @@
 //       const token = await getToken();
 
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -279,7 +279,7 @@
 //       const token = await getToken();
 
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -454,7 +454,7 @@
 //       const token = await getToken();
 
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -661,7 +661,7 @@
 //       const token = await getToken();
 
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -912,7 +912,7 @@
 //       }
 
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -1184,7 +1184,7 @@
 //       }
 
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -1532,7 +1532,7 @@
 //       }
 
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -1900,7 +1900,7 @@
 //       }
 
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -2275,7 +2275,7 @@
 //       const token = await getToken();
 
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -2710,7 +2710,7 @@
 //       const token = await getToken();
 
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -3172,7 +3172,7 @@
 //       const token = await getToken();
 
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         {
 //           headers: {
 //             "Content-Type": "application/json",
@@ -3661,7 +3661,7 @@
 //     try {
 //       const token = await getToken();
 //       const res = await fetch(
-//         "https://billing-backend-sable.vercel.app/api/billing/list",
+//         "https://billing.kravy.in/api/billing/list",
 //         { headers: { Authorization: `Bearer ${token}` } }
 //       );
 
@@ -4094,6 +4094,7 @@
 
 // ⭐ MODERN & STYLISH BILL LIST SCREEN (FULL UPDATED UI)
 
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   View,
@@ -4103,10 +4104,13 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   TextInput,
+  RefreshControl,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { useRefresh } from "../../context/RefreshContext";
 
 // -------------------------------------------------------------
 // DATE FORMATTER
@@ -4141,6 +4145,8 @@ const isYesterday = (d) => {
 export default function BillListScreen() {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn } = useUser();
+  const router = useRouter();
+  const { refreshSignal, triggerRefresh } = useRefresh();
 
   const [bills, setBills] = useState([]);
   const [filteredBills, setFilteredBills] = useState([]);
@@ -4164,37 +4170,59 @@ export default function BillListScreen() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  const [refreshing, setRefreshing] = useState(false);
+
   // -------------------------------------------------------------
   // FETCH BILLS + RELOAD
   // -------------------------------------------------------------
-  const fetchBills = async () => {
-    if (!isLoaded || !isSignedIn) return;
+  const fetchBills = async (silent = false) => {
+    if (!isLoaded || !isSignedIn) {
+      setBills([]);
+      setFilteredBills([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
 
-    setLoading(true);
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+
     try {
       const token = await getToken();
       const res = await fetch(
-        "https://billing-backend-sable.vercel.app/api/billing/list",
+        "https://billing.kravy.in/api/bill-manager",
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      const data = await res.json();
-      setBills(data.bills);
-      setFilteredBills(data.bills);
-      setPage(1);
+      if (res.ok) {
+        const data = await res.json();
+        const onlySales = (data.bills || []).filter(b => b.isHeld !== true);
+        setBills(onlySales);
+        setFilteredBills(onlySales);
+      } else {
+        console.warn(`Deepsale fetch failed: ${res.status}`);
+      }
     } catch {
       setError("Error fetching bills.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    setLoading(false);
   };
 
   const reloadPage = () => {
-    fetchBills();
+    fetchBills(true); // Call silently to avoid full-screen loader
   };
 
   useEffect(() => {
     fetchBills();
   }, [isLoaded, isSignedIn]);
+
+  useEffect(() => {
+    if (refreshSignal > 0) {
+      fetchBills(true);
+    }
+  }, [refreshSignal]);
 
   // -------------------------------------------------------------
   // FILTERING LOGIC
@@ -4205,13 +4233,13 @@ export default function BillListScreen() {
     // Search
     if (search.trim()) {
       temp = temp.filter((b) => {
-        const productMatch = b.products?.some((p) =>
-          (p.product?.name || "").toLowerCase().includes(search.toLowerCase())
+        const productMatch = b.items?.some((p) =>
+          (p.name || "").toLowerCase().includes(search.toLowerCase())
         );
 
         return (
-          b.id.toLowerCase().includes(search.toLowerCase()) ||
-          (b.customer?.name || "").toLowerCase().includes(search.toLowerCase()) ||
+          (b.billNumber || "").toLowerCase().includes(search.toLowerCase()) ||
+          (b.customerName || "").toLowerCase().includes(search.toLowerCase()) ||
           productMatch
         );
       });
@@ -4278,25 +4306,24 @@ export default function BillListScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F7FA" }}>
       {/* -------------------------------------------------------------
-         RELOAD BUTTON
-      ------------------------------------------------------------- */}
-      <TouchableOpacity onPress={reloadPage}>
-        <LinearGradient colors={["#6C63FF", "#4E43E3"]} style={styles.reloadBtn}>
-          <Text style={styles.reloadText}>⟳ Reload Bills</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-
-      {/* -------------------------------------------------------------
          HEADER WITH GRADIENT
       ------------------------------------------------------------- */}
       <LinearGradient colors={["#6C63FF", "#4E43E3"]} style={styles.header}>
-        <Text style={styles.headerTitle}>Bills & Transactions</Text>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={26} color="white" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Bills & Transactions</Text>
+          <TouchableOpacity onPress={triggerRefresh} style={styles.headerReloadBtn}>
+            <Ionicons name="refresh" size={26} color="white" />
+          </TouchableOpacity>
+        </View>
 
         {/* Search Bar */}
         <View style={styles.searchWrapper}>
           <TextInput
             placeholder="Search Bill ID / Customer / Item"
-            placeholderTextColor="#ccc"
+            placeholderTextColor="#eee"
             value={search}
             onChangeText={setSearch}
             style={styles.searchInput}
@@ -4455,21 +4482,24 @@ export default function BillListScreen() {
         data={paginatedData}
         keyExtractor={(i) => i.id}
         contentContainerStyle={{ paddingBottom: 80 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={reloadPage} colors={["#6C63FF"]} />
+        }
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <Text style={styles.billId}>🧾 {item.id}</Text>
+            <Text style={styles.billId}>🧾 {item.billNumber}</Text>
             <Text style={styles.customer}>
-              👤 {item.customer?.name || "No Customer"}
+              👤 {item.customerName || "No Customer"}
             </Text>
             <Text style={styles.total}>₹ {item.total}</Text>
             <Text style={styles.date}>{formatBillDate(item.createdAt)}</Text>
 
             <View style={styles.itemsBox}>
-              {item.products?.map((p, i) => (
+              {item.items?.map((p, i) => (
                 <View key={i} style={styles.itemRow}>
-                  <Text style={styles.itemName}>{p.product?.name}</Text>
+                  <Text style={styles.itemName}>{p.name}</Text>
                   <Text style={styles.itemQty}>x{p.quantity}</Text>
-                  <Text style={styles.itemRate}>₹{p.rate}</Text>
+                  <Text style={styles.itemRate}>₹{p.price}</Text>
                   <Text style={styles.itemTotal}>₹{p.total}</Text>
                 </View>
               ))}
@@ -4517,18 +4547,6 @@ export default function BillListScreen() {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  reloadBtn: {
-    margin: 12,
-    padding: 12,
-    borderRadius: 12,
-  },
-  reloadText: {
-    color: "white",
-    fontWeight: "700",
-    textAlign: "center",
-    fontSize: 16,
-  },
-
   header: {
     paddingTop: 50,
     paddingBottom: 20,
@@ -4537,12 +4555,24 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 25,
     elevation: 10,
   },
-
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 15,
+  },
+  backButton: {
+    padding: 5,
+  },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "700",
     color: "white",
-    marginBottom: 12,
+    flex: 1,
+    textAlign: "center",
+  },
+  headerReloadBtn: {
+    padding: 5,
   },
 
   searchWrapper: {

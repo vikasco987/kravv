@@ -16,6 +16,7 @@ export default function TabsLayout() {
     if (pathname.includes("Inventory")) return "Inventory";
     if (pathname.includes("Client")) return "Customers & Parties";
     if (pathname.includes("Printer")) return "Printer Setup";
+    if (pathname.includes("setting")) return "Settings";
     return "App";
   };
 
@@ -104,6 +105,20 @@ export default function TabsLayout() {
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "print" : "print-outline") as any}
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+          name="setting"
+          options={{
+            title: "Settings",
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons
+                name={(focused ? "settings" : "settings-outline") as any}
                 size={size}
                 color={color}
               />

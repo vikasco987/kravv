@@ -1,5 +1,6 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -8,31 +9,22 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
+    RefreshControl
 } from "react-native";
+import { useRefresh } from "../../context/RefreshContext";
 
-// --- Constants for Styling ---
 const COLORS = {
-    primary: '#5D3FD3', // Deep Purple (Brand Color)
-    secondary: '#FFC107', // Gold/Amber for accents
-    background: '#F0F2F5', // Light gray background for contrast
+    primary: '#5D3FD3',
+    secondary: '#FFC107',
+    background: '#F0F2F5',
     card: '#FFFFFF',
-    text: '#1F2937', // Darker text for readability
+    text: '#1F2937',
     lightText: '#6B7280',
     borderColor: '#E5E7EB',
-    success: '#10B981', // More vibrant green
+    success: '#10B981',
 };
 
-const FONT_SIZE = {
-    title: 24,
-    header: 18,
-    subHeader: 14,
-    body: 12,
-};
-
-// --- Custom Components ---
-
-// Stat Component
 const SalesStat = ({ label, value, icon, color, isMain = false }) => (
     <View style={enhancedStyles.statContainer}>
         <Ionicons name={icon} size={isMain ? 28 : 20} color={color} />
@@ -40,7 +32,7 @@ const SalesStat = ({ label, value, icon, color, isMain = false }) => (
             enhancedStyles.statValue,
             {
                 color: isMain ? COLORS.text : COLORS.lightText,
-                fontSize: isMain ? FONT_SIZE.header : FONT_SIZE.subHeader,
+                fontSize: isMain ? 18 : 14,
                 fontWeight: isMain ? '700' : '500'
             }
         ]}>
@@ -50,7 +42,6 @@ const SalesStat = ({ label, value, icon, color, isMain = false }) => (
     </View>
 );
 
-// Card Component for Monthly Data
 const MonthlySalesCard = ({ monthLabel, numberOfBills, totalSales }) => (
     <View style={enhancedStyles.card}>
         <View style={enhancedStyles.cardHeader}>
@@ -58,14 +49,12 @@ const MonthlySalesCard = ({ monthLabel, numberOfBills, totalSales }) => (
             <Text style={enhancedStyles.cardMonthLabel}>{monthLabel}</Text>
         </View>
         <View style={enhancedStyles.cardBody}>
-            {/* Stat 1: Bills */}
             <SalesStat
                 label="Bills Count"
                 value={numberOfBills.toLocaleString()}
                 icon="receipt-outline"
                 color={COLORS.lightText}
             />
-            {/* Stat 2: Total Sales (Main Highlight) */}
             <SalesStat
                 label="Monthly Sales"
                 value={`₹${totalSales.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
@@ -77,20 +66,17 @@ const MonthlySalesCard = ({ monthLabel, numberOfBills, totalSales }) => (
     </View>
 );
 
-// New Component for the Table View
-const TableListView = ({ data }) => (
+const TableListView = ({ data, refreshing, onRefresh }) => (
     <View style={enhancedStyles.tableContainer}>
-        {/* Table Header */}
         <View style={enhancedStyles.tableHeaderRow}>
             <Text style={[enhancedStyles.tableCellHeader, { flex: 3 }]}>Month</Text>
             <Text style={enhancedStyles.tableCellHeader}>Bills</Text>
             <Text style={[enhancedStyles.tableCellHeader, { flex: 2, textAlign: 'right' }]}>Sales</Text>
         </View>
-
-        {/* Table Rows */}
         <FlatList
             data={data}
             keyExtractor={(item) => item.sortKey}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
             renderItem={({ item }) => (
                 <View style={enhancedStyles.tableRow}>
                     <Text style={[enhancedStyles.tableCell, { flex: 3, textAlign: 'left', fontWeight: 'bold' }]}>{item.monthLabel}</Text>
@@ -105,22 +91,21 @@ const TableListView = ({ data }) => (
                     <Text style={enhancedStyles.emptyText}>No monthly sales found for Table View.</Text>
                 </View>
             )}
-            contentContainerStyle={data.length === 0 ? { flexGrow: 1, justifyContent: 'center' } : {}}
         />
     </View>
 );
 
-// --- Main Screen Component ---
 export default function MonthlySalesScreen() {
     const { getToken } = useAuth();
     const { isLoaded, isSignedIn } = useUser();
+    const router = useRouter();
+    const { refreshSignal, triggerRefresh } = useRefresh();
 
     const [monthlySales, setMonthlySales] = useState([]);
     const [loading, setLoading] = useState(true);
-    // State to manage the view: 'card' or 'table'
+    const [refreshing, setRefreshing] = useState(false);
     const [viewMode, setViewMode] = useState('card');
 
-    // Memoize the calculation of total grand sales
     const totalGrandSales = useMemo(() => {
         return monthlySales.reduce((sum, item) => sum + item.totalSales, 0);
     }, [monthlySales]);
@@ -129,242 +114,130 @@ export default function MonthlySalesScreen() {
         const grouped = {};
         bills.forEach((bill) => {
             const date = new Date(bill.createdAt);
-
             const sortKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-
-            const monthLabel = date.toLocaleDateString('en-IN', {
-                year: 'numeric',
-                month: 'short',
-            });
-
+            const monthLabel = date.toLocaleDateString('en-IN', { year: 'numeric', month: 'short' });
             if (!grouped[sortKey]) grouped[sortKey] = { sortKey, monthLabel, numberOfBills: 0, totalSales: 0 };
             grouped[sortKey].numberOfBills += 1;
-            grouped[sortKey].totalSales += bill.grandTotal;
+            grouped[sortKey].totalSales += (bill.total || 0);
         });
-
-        return Object.values(grouped).sort((a, b) => (a.sortKey < b.sortKey ? 1 : -1));
+        return Object.values(grouped).sort((a, b) => b.sortKey.localeCompare(a.sortKey));
     };
 
-    const fetchBills = async () => {
-        if (!isLoaded || !isSignedIn) return;
-        setLoading(true);
+    const fetchBills = async (silent = false) => {
+        if (!isLoaded || !isSignedIn) {
+            setMonthlySales([]);
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
         try {
+            if (silent) setRefreshing(true);
+            else setLoading(true);
             const token = await getToken();
-            const res = await fetch("https://billing-backend-sable.vercel.app/api/billing/list", {
-                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            const res = await fetch("https://billing.kravy.in/api/bill-manager", {
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             });
-            const data = await res.json();
-            if (res.ok && data.bills) setMonthlySales(groupSalesByMonth(data.bills));
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.bills) {
+                    setMonthlySales(groupSalesByMonth(data.bills.filter(b => b.isHeld !== true)));
+                }
+            }
         } catch (err) {
-            console.error(err);
+            console.warn("MonthlySales Fetch Error:", err.message);
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     };
 
     useEffect(() => { fetchBills(); }, [isLoaded, isSignedIn]);
 
+    useEffect(() => {
+        if (refreshSignal > 0) {
+            fetchBills(true);
+        }
+    }, [refreshSignal]);
+
     if (loading) return <ActivityIndicator size="large" color={COLORS.primary} style={{ flex: 1, justifyContent: "center" }} />;
 
     return (
         <SafeAreaView style={enhancedStyles.container}>
-            {/* Header with stronger visual hierarchy */}
             <View style={enhancedStyles.pageHeader}>
-                <Text style={enhancedStyles.title}>
-                    <Ionicons name="trending-up-sharp" size={FONT_SIZE.title} color={COLORS.primary} />
-                    {" Monthly Sales"}
-                </Text>
-                <Text style={enhancedStyles.totalSalesLabel}>All Time Grand Total</Text>
-                <Text style={enhancedStyles.totalSalesValue}>
-                    ₹{totalGrandSales.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                <View style={enhancedStyles.headerTopRow}>
+                    <TouchableOpacity onPress={() => router.back()} style={enhancedStyles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+                    </TouchableOpacity>
+                    <Text style={enhancedStyles.title}>Monthly Sales Report 📊</Text>
+                    <TouchableOpacity onPress={triggerRefresh} style={enhancedStyles.reloadButton}>
+                        <Ionicons name="refresh" size={26} color={COLORS.primary} />
+                    </TouchableOpacity>
+                </View>
+                <Text style={enhancedStyles.subtitle}>
+                    All Time Revenue: <Text style={enhancedStyles.totalSalesValue}>₹{totalGrandSales.toLocaleString('en-IN')}</Text>
                 </Text>
 
-                {/* Control Buttons (Refresh and Toggle) */}
                 <View style={enhancedStyles.controlButtons}>
-                    {/* Refresh Button */}
-                    <TouchableOpacity onPress={fetchBills} style={enhancedStyles.controlButton}>
-                        <Ionicons name="sync-circle-outline" size={30} color={COLORS.primary} />
-                    </TouchableOpacity>
-                    {/* View Toggle Button */}
-                    <TouchableOpacity
-                        onPress={() => setViewMode(viewMode === 'card' ? 'table' : 'card')}
-                        style={enhancedStyles.controlButton}
-                    >
-                        <Ionicons
-                            name={viewMode === 'card' ? "list-sharp" : "grid-sharp"}
-                            size={26}
-                            color={COLORS.primary}
-                        />
+                    <TouchableOpacity onPress={() => setViewMode(viewMode === 'card' ? 'table' : 'card')} style={enhancedStyles.modeButton}>
+                        <Ionicons name={viewMode === 'card' ? "list-outline" : "grid-outline"} size={22} color={COLORS.primary} />
+                        <Text style={enhancedStyles.modeText}>{viewMode === 'card' ? 'Table View' : 'Card View'}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
 
-            {/* Conditional Rendering based on viewMode */}
-            {viewMode === 'card' ? (
-                <FlatList
-                    data={monthlySales}
-                    keyExtractor={(item) => item.sortKey}
-                    renderItem={({ item }) => (
-                        <MonthlySalesCard
-                            monthLabel={item.monthLabel}
-                            numberOfBills={item.numberOfBills}
-                            totalSales={item.totalSales}
-                        />
-                    )}
-                    ListEmptyComponent={() => (
-                        <View style={enhancedStyles.emptyContainer}>
-                            <Ionicons name="sad-outline" size={50} color={COLORS.lightText} />
-                            <Text style={enhancedStyles.emptyText}>No monthly sales records found.</Text>
-                        </View>
-                    )}
-                    contentContainerStyle={monthlySales.length === 0 ? { flexGrow: 1, justifyContent: 'center' } : { paddingBottom: 20 }}
-                />
-            ) : (
-                <TableListView data={monthlySales} />
-            )}
+            <View style={{ flex: 1, paddingTop: 10 }}>
+                {viewMode === 'card' ? (
+                    <FlatList
+                        data={monthlySales}
+                        keyExtractor={(item) => item.sortKey}
+                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchBills(true)} colors={[COLORS.primary]} />}
+                        renderItem={({ item }) => (
+                            <MonthlySalesCard
+                                monthLabel={item.monthLabel}
+                                numberOfBills={item.numberOfBills}
+                                totalSales={item.totalSales}
+                            />
+                        )}
+                        ListEmptyComponent={() => (
+                            <View style={enhancedStyles.emptyContainer}>
+                                <Ionicons name="close-circle-outline" size={50} color={COLORS.lightText} />
+                                <Text style={enhancedStyles.emptyText}>No sales records found yet.</Text>
+                            </View>
+                        )}
+                    />
+                ) : (
+                    <TableListView data={monthlySales} refreshing={refreshing} onRefresh={() => fetchBills(true)} />
+                )}
+            </View>
         </SafeAreaView>
     );
 }
 
-// --- Enhanced Styles for Standard App Look ---
 const enhancedStyles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: COLORS.background,
-    },
-    pageHeader: {
-        padding: 20,
-        paddingTop: 15,
-        backgroundColor: COLORS.card,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.borderColor,
-        marginBottom: 10,
-    },
-    title: {
-        fontSize: FONT_SIZE.title,
-        fontWeight: '800', // Extra bold title
-        color: COLORS.text,
-        marginBottom: 10,
-        alignItems: 'center',
-    },
-    totalSalesLabel: {
-        fontSize: FONT_SIZE.subHeader,
-        color: COLORS.lightText,
-        fontWeight: '500',
-    },
-    totalSalesValue: {
-        fontSize: 28, // Large, prominent value
-        fontWeight: 'bold',
-        color: COLORS.success,
-        marginTop: 2,
-    },
-    controlButtons: {
-        position: 'absolute',
-        right: 20,
-        top: 15,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    controlButton: {
-        padding: 5,
-        marginLeft: 10,
-    },
-    // Card Styling (Modern Look)
-    card: {
-        backgroundColor: COLORS.card,
-        borderRadius: 12,
-        marginHorizontal: 15,
-        marginVertical: 8,
-        padding: 18,
-        shadowColor: COLORS.primary, // Primary color hint in shadow for depth
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingBottom: 10,
-        marginBottom: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.borderColor,
-    },
-    cardMonthLabel: {
-        fontSize: FONT_SIZE.header,
-        fontWeight: '700',
-        color: COLORS.text,
-    },
-    cardBody: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-    },
-    statContainer: {
-        alignItems: 'center',
-        padding: 5,
-        flex: 1,
-    },
-    statValue: {
-        // Defined inline in component for flexibility
-        marginTop: 5,
-        marginBottom: 2,
-    },
-    statLabel: {
-        fontSize: FONT_SIZE.body,
-        color: COLORS.lightText,
-        textTransform: 'uppercase', // Standard app label style
-        letterSpacing: 0.5,
-    },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 50,
-    },
-    emptyText: {
-        marginTop: 10,
-        fontSize: FONT_SIZE.header,
-        color: COLORS.lightText,
-    },
-    // --- Table Styles (New) ---
-    tableContainer: {
-        flex: 1,
-        backgroundColor: COLORS.card,
-        marginHorizontal: 15,
-        borderRadius: 8,
-        overflow: 'hidden', // Ensures borders/shadows look clean
-        borderWidth: 1,
-        borderColor: COLORS.borderColor,
-    },
-    tableHeaderRow: {
-        flexDirection: 'row',
-        paddingVertical: 12,
-        backgroundColor: COLORS.background,
-        borderBottomWidth: 2,
-        borderBottomColor: COLORS.borderColor,
-        paddingHorizontal: 10,
-    },
-    tableCellHeader: {
-        flex: 2,
-        fontWeight: '700',
-        fontSize: FONT_SIZE.subHeader,
-        color: COLORS.text,
-        textAlign: 'center',
-    },
-    tableRow: {
-        flexDirection: 'row',
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F7F7F7',
-        paddingHorizontal: 10,
-        alignItems: 'center',
-    },
-    tableCell: {
-        flex: 2,
-        fontSize: FONT_SIZE.body,
-        color: COLORS.text,
-        textAlign: 'center',
-        fontWeight: '500',
-    }
+    container: { flex: 1, backgroundColor: COLORS.background },
+    pageHeader: { padding: 16, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor, elevation: 2, paddingTop: 40 },
+    headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    backButton: { padding: 4 },
+    reloadButton: { padding: 4 },
+    title: { fontSize: 20, fontWeight: 'bold', color: COLORS.text, flex: 1, textAlign: 'center' },
+    subtitle: { fontSize: 16, color: COLORS.lightText, textAlign: 'center', marginBottom: 12 },
+    totalSalesValue: { fontWeight: 'bold', color: COLORS.success },
+    controlButtons: { flexDirection: 'row', justifyContent: 'center' },
+    modeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EDE9FE', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: '#DDD6FE' },
+    modeText: { marginLeft: 8, color: COLORS.primary, fontWeight: '600' },
+    card: { backgroundColor: COLORS.card, marginHorizontal: 16, marginVertical: 8, borderRadius: 12, padding: 16, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 10, marginBottom: 12 },
+    cardMonthLabel: { fontSize: 16, fontWeight: '600', color: COLORS.text },
+    cardBody: { flexDirection: 'row', justifyContent: 'space-around' },
+    statContainer: { alignItems: 'center' },
+    statValue: { marginTop: 4 },
+    statLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+    tableContainer: { flex: 1, backgroundColor: COLORS.card, margin: 16, borderRadius: 12, overflow: 'hidden', elevation: 2 },
+    tableHeaderRow: { flexDirection: 'row', backgroundColor: '#F9FAFB', padding: 12, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor },
+    tableCellHeader: { fontWeight: 'bold', color: COLORS.lightText, fontSize: 13, textTransform: 'uppercase' },
+    tableRow: { flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', alignItems: 'center' },
+    tableCell: { fontSize: 14, color: COLORS.text },
+    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100 },
+    emptyText: { marginTop: 12, fontSize: 16, color: COLORS.lightText },
 });

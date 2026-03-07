@@ -23,7 +23,7 @@
 //   const [reviewLink, setReviewLink] = useState("");
 
 //   // 👇 change this to your backend URL
-//   const BACKEND_URL = "https://billing-backend-sable.vercel.app";
+//   const BACKEND_URL = "https://billing.kravy.in";
 
 //   useEffect(() => {
 //     fetchCompany();
@@ -242,7 +242,7 @@
 //   const [upi, setUpi] = useState("");
 //   const [reviewLink, setReviewLink] = useState("");
 
-//   const BACKEND_URL = "https://billing-backend-sable.vercel.app";
+//   const BACKEND_URL = "https://billing.kravy.in";
 
 //   useEffect(() => {
 //     fetchCompany();
@@ -441,7 +441,7 @@ export default function CompanyInfoScreen() {
   const [state, setState] = useState("");
   const [pinCode, setPinCode] = useState("");
 
-  const BACKEND_URL = "https://billing-backend-sable.vercel.app";
+  const BACKEND_URL = "https://billing.kravy.in";
 
   useEffect(() => {
     fetchCompany();

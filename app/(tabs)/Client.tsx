@@ -13,7 +13,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  RefreshControl,
 } from "react-native";
+import { useRefresh } from "../../context/RefreshContext";
 
 // ✅ Import AddPartyScreen component
 import AddPartyScreen from "../party/AddPartyScreen";
@@ -74,29 +76,48 @@ export default function CustomersScreen() {
   const [activeTab, setActiveTab] = useState<"parties" | "categories">("parties");
   const [showAddPartyForm, setShowAddPartyForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { refreshSignal } = useRefresh();
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchParties = async () => {
+  const fetchParties = async (silent = false) => {
+    if (!isLoaded || !isSignedIn) {
+      setParties([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
-      setLoading(true);
+      if (silent) setRefreshing(true);
+      else setLoading(true);
       const token = isLoaded && isSignedIn ? await getToken() : null;
-      const res = await fetch("https://billing-backend-sable.vercel.app/api/parties", {
+      const res = await fetch("https://billing.kravy.in/api/parties", {
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
-      const data = await res.json();
+
       if (res.ok) {
+        const data = await res.json();
         setParties(data);
       } else {
-        console.error("Failed to fetch parties:", data.error);
+        const errorText = await res.text();
+        console.error("Failed to fetch parties:", errorText);
+        setParties([]);
       }
     } catch (err) {
       console.error("Error fetching parties:", err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    if (refreshSignal > 0) {
+      fetchParties(true);
+    }
+  }, [refreshSignal]);
 
   useEffect(() => {
     if (isLoaded) {
@@ -116,14 +137,7 @@ export default function CustomersScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.headerBar}>
-        <Ionicons name="people" size={28} color={THEME_PRIMARY} style={{ marginRight: 10 }} />
-        <View>
-          <Text style={styles.headerTitle}>Customers & Parties</Text>
-          <Text style={styles.infoDate}>{new Date().toLocaleDateString()}</Text>
-        </View>
-      </View>
+      {/* Search Filter */}
 
       {/* Tabs */}
       <View style={styles.tabContainer}>
@@ -166,6 +180,9 @@ export default function CustomersScreen() {
         <FlatList
           data={filteredParties}
           keyExtractor={(item) => item.id}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => fetchParties(true)} colors={[THEME_PRIMARY]} />
+          }
           renderItem={({ item }) => <PartyListItem item={item} onSelect={handleSelectParty} />}
           contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 100 }}
           ListEmptyComponent={

@@ -14,7 +14,7 @@ export default function ViewCompanyProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
 
   // 👇 replace this with your deployed backend URL
-  const BACKEND_URL = "https://billing-backend-sable.vercel.app";
+  const BACKEND_URL = "https://billing.kravy.in";
 
   const fetchProfile = async () => {
     try {

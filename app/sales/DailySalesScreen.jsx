@@ -1,11 +1,12 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, RefreshControl } from "react-native";
+import { useRefresh } from "../../context/RefreshContext";
 
-// --- Constants for Styling ---
 const COLORS = {
-  primary: '#007AFF', // Standard iOS Blue
+  primary: '#007AFF',
   background: '#F9F9F9',
   card: '#FFFFFF',
   text: '#333333',
@@ -14,15 +15,6 @@ const COLORS = {
   success: '#34C759',
 };
 
-const FONT_SIZE = {
-  header: 22,
-  subHeader: 16,
-  body: 14,
-};
-
-// --- Custom Components ---
-
-// Component for the Card View item (from previous response)
 const SalesCard = ({ date, numberOfBills, totalSales }) => (
   <View style={enhancedStyles.card}>
     <View style={enhancedStyles.cardHeader}>
@@ -44,20 +36,17 @@ const SalesStat = ({ label, value, icon, color, isMain = false }) => (
   </View>
 );
 
-// New Component for the Table View
-const TableListView = ({ data }) => (
+const TableListView = ({ data, refreshing, onRefresh }) => (
   <View style={enhancedStyles.tableContainer}>
-    {/* Table Header */}
     <View style={enhancedStyles.tableHeaderRow}>
       <Text style={[enhancedStyles.tableCellHeader, { flex: 3 }]}>Date</Text>
       <Text style={enhancedStyles.tableCellHeader}>Bills</Text>
       <Text style={[enhancedStyles.tableCellHeader, { flex: 2, textAlign: 'right' }]}>Sales</Text>
     </View>
-
-    {/* Table Rows */}
     <FlatList
       data={data}
       keyExtractor={(item) => item.id || item.date}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
       renderItem={({ item }) => (
         <View style={enhancedStyles.tableRow}>
           <Text style={[enhancedStyles.tableCell, { flex: 3 }]}>{item.date}</Text>
@@ -76,15 +65,15 @@ const TableListView = ({ data }) => (
   </View>
 );
 
-
-// --- Main Screen Component ---
 export default function DailySalesScreen() {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn } = useUser();
+  const router = useRouter();
+  const { refreshSignal, triggerRefresh } = useRefresh();
 
   const [dailySales, setDailySales] = useState([]);
   const [loading, setLoading] = useState(true);
-  // State to manage the view: 'card' or 'table'
+  const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState('card');
 
   const totalGrandSales = dailySales.reduce((sum, item) => sum + item.totalSales, 0);
@@ -98,230 +87,130 @@ export default function DailySalesScreen() {
         month: 'short',
         day: 'numeric',
       });
-
-      if (!grouped[dateKey]) grouped[dateKey] = { id: dateKey, date: dateDisplay, numberOfBills: 0, totalSales: 0 };
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = { id: dateKey, date: dateDisplay, numberOfBills: 0, totalSales: 0 };
+      }
       grouped[dateKey].numberOfBills += 1;
-      grouped[dateKey].totalSales += bill.grandTotal;
+      grouped[dateKey].totalSales += (bill.total || 0);
     });
-
     return Object.values(grouped).sort((a, b) => b.id.localeCompare(a.id));
   };
 
-  const fetchBills = async () => {
-    if (!isLoaded || !isSignedIn) return;
-    setLoading(true);
+  const fetchBills = async (silent = false) => {
+    if (!isLoaded || !isSignedIn) {
+      setDailySales([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
+      if (silent) setRefreshing(true);
+      else setLoading(true);
       const token = await getToken();
-      const res = await fetch("https://billing-backend-sable.vercel.app/api/billing/list", {
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      const res = await fetch("https://billing.kravy.in/api/bill-manager", {
+        headers: { Authorization: `Bearer ${token}` }
       });
+
       if (res.ok) {
         const data = await res.json();
-        if (data && data.bills) setDailySales(groupSalesByDate(data.bills));
-      } else {
-        console.warn(`Server returned status: ${res.status}`);
+        if (data.bills) {
+          setDailySales(groupSalesByDate(data.bills.filter(b => b.isHeld !== true)));
+        }
       }
     } catch (err) {
       console.warn("DailySales Fetch Error:", err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => { fetchBills(); }, [isLoaded, isSignedIn]);
 
+  useEffect(() => {
+    if (refreshSignal > 0) {
+      fetchBills(true);
+    }
+  }, [refreshSignal]);
+
   if (loading) return <ActivityIndicator size="large" color={COLORS.primary} style={{ flex: 1, justifyContent: "center" }} />;
 
   return (
     <SafeAreaView style={enhancedStyles.container}>
-      {/* Header and Controls */}
       <View style={enhancedStyles.pageHeader}>
-        <Text style={enhancedStyles.title}>Daily Sales Report 📈</Text>
+        <View style={enhancedStyles.headerTopRow}>
+          <TouchableOpacity onPress={() => router.back()} style={enhancedStyles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          </TouchableOpacity>
+          <Text style={enhancedStyles.title}>Daily Sales Report 📈</Text>
+          <TouchableOpacity onPress={triggerRefresh} style={enhancedStyles.reloadButton}>
+            <Ionicons name="refresh" size={26} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
         <Text style={enhancedStyles.subtitle}>
           All Time Sales: <Text style={enhancedStyles.totalSalesValue}>₹{totalGrandSales.toLocaleString('en-IN')}</Text>
         </Text>
 
-        {/* Toggle and Refresh Buttons */}
         <View style={enhancedStyles.controlButtons}>
-          {/* Refresh Button */}
-          <TouchableOpacity onPress={fetchBills} style={enhancedStyles.refreshButton}>
-            <Ionicons name="refresh-circle-outline" size={24} color={COLORS.primary} />
-          </TouchableOpacity>
-          {/* View Toggle Button */}
-          <TouchableOpacity
-            onPress={() => setViewMode(viewMode === 'card' ? 'table' : 'card')}
-            style={enhancedStyles.toggleButton}
-          >
-            <Ionicons
-              name={viewMode === 'card' ? "grid-outline" : "list-outline"}
-              size={24}
-              color={COLORS.primary}
-            />
+          <TouchableOpacity onPress={() => setViewMode(viewMode === 'card' ? 'table' : 'card')} style={enhancedStyles.modeButton}>
+            <Ionicons name={viewMode === 'card' ? "list-outline" : "grid-outline"} size={22} color={COLORS.primary} />
+            <Text style={enhancedStyles.modeText}>{viewMode === 'card' ? 'Table View' : 'Card View'}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Conditional Rendering based on viewMode */}
-      {viewMode === 'card' ? (
-        <FlatList
-          data={dailySales}
-          keyExtractor={(item) => item.id || item.date}
-          renderItem={({ item }) => (
-            <SalesCard
-              date={item.date}
-              numberOfBills={item.numberOfBills}
-              totalSales={item.totalSales}
-            />
-          )}
-          ListEmptyComponent={() => (
-            <View style={enhancedStyles.emptyContainer}>
-              <Ionicons name="close-circle-outline" size={50} color={COLORS.lightText} />
-              <Text style={enhancedStyles.emptyText}>No sales records found yet.</Text>
-            </View>
-          )}
-          contentContainerStyle={dailySales.length === 0 ? { flexGrow: 1, justifyContent: 'center' } : {}}
-        />
-      ) : (
-        <TableListView data={dailySales} />
-      )}
+      <View style={{ flex: 1, paddingTop: 10 }}>
+        {viewMode === 'card' ? (
+          <FlatList
+            data={dailySales}
+            keyExtractor={(item) => item.id || item.date}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchBills(true)} colors={[COLORS.primary]} />}
+            renderItem={({ item }) => (
+              <SalesCard
+                date={item.date}
+                numberOfBills={item.numberOfBills}
+                totalSales={item.totalSales}
+              />
+            )}
+            ListEmptyComponent={() => (
+              <View style={enhancedStyles.emptyContainer}>
+                <Ionicons name="close-circle-outline" size={50} color={COLORS.lightText} />
+                <Text style={enhancedStyles.emptyText}>No sales records found yet.</Text>
+              </View>
+            )}
+          />
+        ) : (
+          <TableListView data={dailySales} refreshing={refreshing} onRefresh={() => fetchBills(true)} />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
 
-// --- Enhanced Styles ---
 const enhancedStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  pageHeader: {
-    padding: 20,
-    paddingBottom: 45, // Extra space for floating buttons
-    backgroundColor: COLORS.card,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderColor,
-    marginBottom: 10,
-  },
-  title: {
-    fontSize: FONT_SIZE.header,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  subtitle: {
-    fontSize: FONT_SIZE.subHeader,
-    color: COLORS.lightText,
-    marginTop: 5,
-  },
-  totalSalesValue: {
-    fontWeight: 'bold',
-    color: COLORS.success,
-  },
-  controlButtons: {
-    position: 'absolute',
-    right: 20,
-    bottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  refreshButton: {
-    padding: 5,
-  },
-  toggleButton: {
-    marginLeft: 10,
-    padding: 5,
-  },
-  // Card Styling (from previous response)
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    marginHorizontal: 15,
-    marginVertical: 8,
-    padding: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderColor,
-    marginBottom: 10,
-  },
-  cardDate: {
-    fontSize: FONT_SIZE.subHeader,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  cardBody: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  statContainer: {
-    alignItems: 'center',
-    padding: 5,
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 18,
-    marginTop: 5,
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontSize: FONT_SIZE.body,
-    color: COLORS.lightText,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 50,
-  },
-  emptyText: {
-    marginTop: 10,
-    fontSize: FONT_SIZE.subHeader,
-    color: COLORS.lightText,
-  },
-  // --- New Table Styles ---
-  tableContainer: {
-    flex: 1,
-    backgroundColor: COLORS.card,
-    marginHorizontal: 15,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.borderColor,
-  },
-  tableHeaderRow: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-    backgroundColor: COLORS.background,
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.borderColor,
-    paddingHorizontal: 10,
-  },
-  tableCellHeader: {
-    flex: 2,
-    fontWeight: '700',
-    fontSize: FONT_SIZE.body,
-    color: COLORS.text,
-    textAlign: 'center',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-    paddingHorizontal: 10,
-  },
-  tableCell: {
-    flex: 2,
-    fontSize: FONT_SIZE.body,
-    color: COLORS.text,
-    textAlign: 'center',
-    fontWeight: '500',
-  }
+  container: { flex: 1, backgroundColor: COLORS.background },
+  pageHeader: { padding: 16, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor, elevation: 2, paddingTop: 40 },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  backButton: { padding: 4 },
+  reloadButton: { padding: 4 },
+  title: { fontSize: 20, fontWeight: 'bold', color: COLORS.text, flex: 1, textAlign: 'center' },
+  subtitle: { fontSize: 16, color: COLORS.lightText, textAlign: 'center', marginBottom: 15 },
+  totalSalesValue: { fontWeight: 'bold', color: COLORS.success },
+  controlButtons: { flexDirection: 'row', justifyContent: 'center' },
+  modeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F7FF', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: '#D0E7FF' },
+  modeText: { marginLeft: 8, color: COLORS.primary, fontWeight: '600' },
+  card: { backgroundColor: COLORS.card, marginHorizontal: 16, marginVertical: 8, borderRadius: 12, padding: 16, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', paddingBottom: 10, marginBottom: 12 },
+  cardDate: { fontSize: 16, fontWeight: '600', color: COLORS.text },
+  cardBody: { flexDirection: 'row', justifyContent: 'space-around' },
+  statContainer: { alignItems: 'center' },
+  statValue: { fontSize: 18, marginTop: 4 },
+  statLabel: { fontSize: 12, color: '#999', marginTop: 2, textTransform: 'uppercase' },
+  tableContainer: { flex: 1, backgroundColor: COLORS.card, margin: 16, borderRadius: 12, overflow: 'hidden', elevation: 2 },
+  tableHeaderRow: { flexDirection: 'row', backgroundColor: '#F8F9FA', padding: 12, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor },
+  tableCellHeader: { fontWeight: 'bold', color: COLORS.lightText, fontSize: 13, textTransform: 'uppercase' },
+  tableRow: { flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', alignItems: 'center' },
+  tableCell: { fontSize: 14, color: COLORS.text },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100 },
+  emptyText: { marginTop: 12, fontSize: 16, color: COLORS.lightText },
 });

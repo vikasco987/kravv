@@ -63,7 +63,7 @@ export default function AddPartyScreen({
             console.log("Payload sent:", payload);
 
             const response = await fetch(
-                "https://billing-backend-sable.vercel.app/api/parties",
+                "https://billing.kravy.in/api/parties",
                 {
                     method: "POST",
                     headers: {

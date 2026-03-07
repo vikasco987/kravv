@@ -67,16 +67,23 @@ export default function BillPage() {
   }, [params.cart]);
 
   const fetchParties = async () => {
+    if (!isLoaded || !isSignedIn) return;
     try {
       const token = isLoaded && isSignedIn ? await getToken() : null;
-      const res = await fetch("https://billing-backend-sable.vercel.app/api/parties", {
+      const res = await fetch("https://billing.kravy.in/api/parties", {
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
-      const data = await res.json();
-      if (res.ok) setParties(data);
+      if (res.ok) {
+        const data = await res.json();
+        setParties(data);
+      } else {
+        const errorText = await res.text();
+        console.error("Fetch parties error response:", errorText);
+        setParties([]);
+      }
     } catch (err) {
       console.error("Fetch parties error:", err);
     }
@@ -152,7 +159,7 @@ export default function BillPage() {
     try {
       const token = isLoaded && isSignedIn ? await getToken() : null;
       const response = await fetch(
-        "https://billing-backend-sable.vercel.app/api/parties",
+        "https://billing.kravy.in/api/parties",
         {
           method: "POST",
           headers: {
@@ -168,8 +175,8 @@ export default function BillPage() {
         }
       );
 
-      const data = await response.json();
       if (response.ok) {
+        const data = await response.json();
         Alert.alert("✅ Success", "Customer added successfully!");
         setSelectedParty(data);
         fetchParties();
@@ -178,7 +185,9 @@ export default function BillPage() {
         setBillingAddress("");
         setDob(null);
       } else {
-        Alert.alert("Error", data.error || "Failed to add customer.");
+        const errorText = await response.text();
+        console.error("Add customer error response:", errorText);
+        Alert.alert("Error", `Failed to add customer (Status: ${response.status})`);
       }
     } catch (err: any) {
       console.error(err);

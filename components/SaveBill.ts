@@ -9,7 +9,7 @@ export type CartItem = {
   quantity: number;
 };
 
-const API_BASE = "https://billing-backend-sable.vercel.app";
+const API_BASE = "https://billing.kravy.in";
 
 /* ------------------ SAVE BILL (NO PRINT EVER) ------------------ */
 export async function SaveBill(
@@ -19,6 +19,7 @@ export async function SaveBill(
   options?: {
     paymentMode?: string;
     notes?: string;
+    billId?: string; // Add this for Smart Update
   }
 ) {
   if (!token || !cartItems.length) return;
@@ -42,30 +43,43 @@ export async function SaveBill(
 
     const total = products.reduce((s, p) => s + p.total, 0);
 
-    await fetch(`${API_BASE}/api/billing`, {
-      method: "POST",
+    const subtotalVal = Number((total / 1.05).toFixed(2));
+    
+    // Smart Update: Use PUT if billId exists
+    const method = options?.billId ? "PUT" : "POST";
+    const url = options?.billId 
+      ? `${API_BASE}/api/bill-manager/${options.billId}`
+      : `${API_BASE}/api/bill-manager`;
+
+    const res = await fetch(url, {
+      method: method,
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        userClerkId,
-        billNo,
-        products,
-        total,
-        grandTotal: total,
-        gst: 0,
-        discount: 0,
-        paymentMode: options?.paymentMode || "CASH",
-        paymentStatus: "PAID",
-        notes: options?.notes || "",
-        date: date.toISOString(),
+        items: products,
+        subtotal: subtotalVal,
+        total: total,
+        paymentMode: options?.paymentMode === "UPI" || options?.paymentMode === "Card" ? options.paymentMode : "Cash",
+        paymentStatus: "Paid",
+        isHeld: false,
+        upiTxnRef: null,
+        customerName: "Walk-in",
+        customerPhone: null,
       }),
     });
 
-    ToastAndroid.show("💾 Bill Saved Successfully", ToastAndroid.SHORT);
+    const data = await res.json();
 
-    return { status: "saved", billNo, total };
+    if (!res.ok) {
+        console.log("❌ Save failed:", data);
+        ToastAndroid.show(`❌ Save failed: ${data.error || "Unknown error"}`, ToastAndroid.SHORT);
+        return { status: "error", error: data.error };
+    }
+
+    ToastAndroid.show("💾 Bill Saved Successfully", ToastAndroid.SHORT);
+    return { status: "saved", billNo: data.bill?.billNumber || billNo, total, data };
   } catch (err) {
     console.log("❌ SaveBill Error:", err);
     ToastAndroid.show("❌ Failed to save bill", ToastAndroid.SHORT);

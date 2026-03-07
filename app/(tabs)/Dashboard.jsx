@@ -11,7 +11,9 @@ import {
     Text,
     TouchableOpacity,
     View,
+    RefreshControl,
 } from "react-native";
+import { useRefresh } from "../../context/RefreshContext";
 
 const { width } = Dimensions.get("window");
 
@@ -64,24 +66,37 @@ export default function SalesDashboard() {
 
     const [stats, setStats] = useState({ daily: 0, weekly: 0, monthly: 0 });
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const { refreshSignal } = useRefresh();
 
     const fetchStats = async () => {
-        if (!isLoaded || !isSignedIn) return;
+        if (!isLoaded || !isSignedIn) {
+            setStats({ daily: 0, weekly: 0, monthly: 0 });
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
         try {
-            setLoading(true);
+            if (stats.daily === 0) setLoading(true);
+            else setRefreshing(true);
             const token = await getToken();
-            const res = await fetch("https://billing-backend-sable.vercel.app/api/billing/list", {
+            const res = await fetch("https://billing.kravy.in/api/bill-manager", {
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             });
-            const data = await res.json();
 
-            if (res.ok && data.bills) {
-                calculateStats(data.bills);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.bills) {
+                    calculateStats(data.bills);
+                }
+            } else {
+                console.warn(`Dashboard fetch failed: ${res.status}`);
             }
         } catch (err) {
             console.error("Dashboard Stats Fetch Error:", err);
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     };
 
@@ -101,9 +116,11 @@ export default function SalesDashboard() {
         let weekly = 0;
         let monthly = 0;
 
-        bills.forEach(bill => {
+        const onlySales = (bills || []).filter(b => b.isHeld !== true);
+
+        onlySales.forEach(bill => {
             const billDate = new Date(bill.createdAt);
-            const total = bill.grandTotal || 0;
+            const total = bill.total || 0;
 
             if (billDate >= startOfToday) daily += total;
             if (billDate >= startOfWeek) weekly += total;
@@ -117,6 +134,12 @@ export default function SalesDashboard() {
         fetchStats();
     }, [isLoaded, isSignedIn]);
 
+    useEffect(() => {
+        if (refreshSignal > 0) {
+            fetchStats();
+        }
+    }, [refreshSignal]);
+
     const menuItems = [
         { title: "Daily Sales", path: "/sales/DailySalesScreen", icon: "sunny", color: COLORS.primary, subtitle: "Track today's performance" },
         { title: "Weekly Sales", path: "/sales/WeeklySalesScreen", icon: "calendar", color: COLORS.secondary, subtitle: "7-day revenue trends" },
@@ -126,7 +149,12 @@ export default function SalesDashboard() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView 
+                contentContainerStyle={styles.scrollContent}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={fetchStats} colors={[COLORS.primary]} />
+                }
+            >
 
                 {/* Sales Summary Cards */}
                 <View style={styles.summaryContainer}>
