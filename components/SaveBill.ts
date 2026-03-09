@@ -1,5 +1,5 @@
-// @ts-ignore
 import { ToastAndroid } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type CartItem = {
   id: string;
@@ -73,12 +73,47 @@ export async function SaveBill(
     const data = await res.json();
 
     if (!res.ok) {
-        console.log("❌ Save failed:", data);
+        console.log("ℹ️ Save failed info:", data);
         ToastAndroid.show(`❌ Save failed: ${data.error || "Unknown error"}`, ToastAndroid.SHORT);
         return { status: "error", error: data.error };
     }
 
-    ToastAndroid.show("💾 Bill Saved Successfully", ToastAndroid.SHORT);
+    // ✅ SUCCESS: Aggressive Cleanup
+    try {
+      const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
+      const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
+      
+      const billData = data.bill || data;
+      const newId = billData._id || billData.id;
+      const newNo = billData.billNumber;
+
+      // 1. Hide the original held ID (if any)
+      if (options?.billId && !hiddenIds.includes(options.billId)) {
+        hiddenIds.push(options.billId);
+      }
+
+      // 2. Hide the newly created bill info from Hold list just in case
+      if (newId && !hiddenIds.includes(newId)) hiddenIds.push(newId);
+      if (newNo && !hiddenIds.includes(newNo)) hiddenIds.push(newNo);
+
+      await AsyncStorage.setItem('@hidden_bill_ids', JSON.stringify(hiddenIds));
+
+      // 3. Remove from local held_orders array
+      const localData = await AsyncStorage.getItem('@held_orders');
+      if (localData) {
+        let orders = JSON.parse(localData);
+        if (options?.billId) orders = orders.filter((o: any) => o.id !== options.billId);
+        if (newId) orders = orders.filter((o: any) => o.id !== newId);
+        await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
+      }
+
+      // 4. Clear resume markers
+      await AsyncStorage.removeItem('@resume_cart');
+      await AsyncStorage.removeItem('@resume_cart_id');
+    } catch (err) {
+      console.log("ℹ️ Cleanup ignored:", err);
+    }
+
     return { status: "saved", billNo: data.bill?.billNumber || billNo, total, data };
   } catch (err) {
     console.log("❌ SaveBill Error:", err);

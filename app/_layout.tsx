@@ -12,8 +12,11 @@ import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import * as WebBrowser from "expo-web-browser";
 import CustomDrawerContent from "../components/CustomDrawer";
 import { RefreshProvider } from "../context/RefreshContext";
+
+WebBrowser.maybeCompleteAuthSession();
 
 // Clerk token cache
 const tokenCache = {
@@ -66,32 +69,11 @@ function AuthRedirect() {
   useEffect(() => {
     if (!ready || !isLoaded) return;
 
-    if (!isSignedIn) {
-      // In guest mode, no forced redirects
-      return;
+    if (isSignedIn && session?.id && session.id !== lastSessionId) {
+      setLastSessionId(session.id);
+      console.log("🚀 [AuthRedirect] Session active, navigating to menu");
+      router.replace("/(tabs)/menu");
     }
-
-    const checkToken = async () => {
-      const retries = 5;
-      const delay = 500;
-      let token: string | null = null;
-
-      for (let i = 0; i < retries; i++) {
-        token = await getToken({ skipCache: true });
-        if (token) break;
-        await new Promise((res) => setTimeout(res, delay));
-      }
-
-      if (!token) return;
-
-      if (session?.id && session.id !== lastSessionId) {
-        setLastSessionId(session.id);
-        if (Platform.OS === "web") window.location.reload();
-        else router.replace("/(tabs)/menu");
-      }
-    };
-
-    checkToken();
   }, [ready, isLoaded, isSignedIn, session?.id]);
 
   if (!isLoaded || !ready) {

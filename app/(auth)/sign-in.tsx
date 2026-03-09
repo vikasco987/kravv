@@ -1,5 +1,8 @@
 "use client";
-import { useOAuth } from "@clerk/clerk-expo";
+import { useClerk, useOAuth } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React from "react";
@@ -16,111 +19,211 @@ WebBrowser.maybeCompleteAuthSession(); // ✅ important
 
 export default function SignInScreen() {
   const router = useRouter();
+  const { setActive } = useClerk();
   const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = React.useCallback(async () => {
     try {
-      const { createdSessionId, setActive } = await startOAuthFlow();
-      if (createdSessionId) {
-        await setActive({ session: createdSessionId });
-        router.replace("/(tabs)/menu");
+      await WebBrowser.warmUpAsync();
+      const { createdSessionId, setActive: setSessionActive } = await startOAuthFlow({
+        redirectUrl: Linking.createURL("/oauth-native-callback", { scheme: "kravv" }),
+      });
+
+      const setSession = setSessionActive || setActive;
+      if (createdSessionId && setSession) {
+        await setSession({ session: createdSessionId });
+        console.log("✅ Google sign-in: SetActive completed");
       }
     } catch (err) {
       console.error("❌ Google sign-in error:", err);
+    } finally {
+      await WebBrowser.coolDownAsync();
     }
-  };
+  }, [startOAuthFlow, setActive]);
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+    <LinearGradient
+      colors={['#FF5F6D', '#FFC371']}
+      style={styles.container}
+    >
+      <StatusBar barStyle="light-content" />
 
-      {/* Logo */}
-      <Image
-        source={require("../../assets/images/image.png")}
-        style={styles.logo}
-        resizeMode="contain"
-      />
+      {/* Decorative Bottom Wave/Curve */}
+      <View style={styles.bottomWave} />
 
-      {/* Title */}
-      <Text style={styles.title}>Welcome to MyBillingApp</Text>
-      <Text style={styles.subtitle}>
-        Smart billing. Simplified workflow. Sign in to continue 🚀
-      </Text>
-
-      {/* Google Sign-In Button */}
-      <TouchableOpacity style={styles.googleBtn} onPress={handleGoogleSignIn}>
-        <Image
-          source={{
-            uri: "https://upload.wikimedia.org/wikipedia/commons/4/4e/Google_%22G%22_Logo.svg",
-          }}
-          style={styles.googleIcon}
-        />
-        <Text style={styles.googleText}>Continue with Google</Text>
+      {/* Back Button */}
+      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <View style={styles.backButtonCircle}>
+          <Ionicons name="arrow-back" size={24} color="#FF5F6D" />
+        </View>
       </TouchableOpacity>
 
-      {/* Footer */}
-      <Text style={styles.footer}>
-        By signing in, you agree to our{" "}
-        <Text style={{ fontWeight: "600", color: "#555" }}>Terms</Text> &{" "}
-        <Text style={{ fontWeight: "600", color: "#555" }}>Privacy Policy</Text>.
-      </Text>
-    </View>
+      {/* Content Container */}
+      <View style={styles.content}>
+        {/* Logo */}
+        <Image
+          source={require("../../assets/images/custom_logo.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        {/* Brand Name with Stylized Effect */}
+        <View style={styles.brandContainer}>
+          <Text style={styles.brandName}>KRAVY</Text>
+          <LinearGradient
+            colors={['#FFFFFF', '#FFD700', '#FFFFFF']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.brandUnderline}
+          />
+        </View>
+
+        {/* Title */}
+        <Text style={styles.title}>Welcome to MyBillingApp</Text>
+        <Text style={styles.subtitle}>
+          Smart billing. Simplified workflow. Sign in to continue 🚀
+        </Text>
+
+        {/* Google Sign-In Button */}
+        <TouchableOpacity style={styles.googleBtn} onPress={handleGoogleSignIn}>
+          <Image
+            source={{
+              uri: "https://upload.wikimedia.org/wikipedia/commons/4/4e/Google_%22G%22_Logo.svg",
+            }}
+            style={styles.googleIcon}
+          />
+          <Text style={styles.googleText}>Continue with Google</Text>
+        </TouchableOpacity>
+
+        {/* Footer */}
+        <Text style={styles.footer}>
+          By signing in, you agree to our{" "}
+          <Text style={{ fontWeight: "700", color: "#c94c4cff" }}>Terms</Text> &{" "}
+          <Text style={{ fontWeight: "700", color: "#c94c4cff" }}>Privacy Policy</Text>.
+        </Text>
+      </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  content: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 30,
-    backgroundColor: "#e0f7ff", // very light blue
+    zIndex: 2,
+  },
+  bottomWave: {
+    position: 'absolute',
+    bottom: -150,
+    left: -50,
+    right: -50,
+    height: 400,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 300,
+    borderTopRightRadius: 300,
+    opacity: 0.9,
+    transform: [{ scaleX: 1.5 }],
+    zIndex: 1,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10,
+  },
+  backButtonCircle: {
+    width: 45,
+    height: 45,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   logo: {
-    width: 180,
-    height: 180,
-    marginBottom: 25,
+    width: 120,
+    height: 120,
+    borderRadius: 25,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    marginBottom: 20,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+  },
+  brandContainer: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  brandName: {
+    fontSize: 40,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 8,
+    textShadowColor: 'rgba(255, 215, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 15,
+  },
+  brandUnderline: {
+    width: 60,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 8,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "800",
-    color: "#007acc", // darker blue for contrast
+    color: "#fff",
     textAlign: "center",
-    marginBottom: 12,
+    marginBottom: 10,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   subtitle: {
     fontSize: 16,
-    color: "#005f99", // slightly darker
+    color: "rgba(255, 255, 255, 0.9)",
     textAlign: "center",
     marginBottom: 40,
+    paddingHorizontal: 10,
   },
   googleBtn: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#fff",
     borderRadius: 50,
-    paddingVertical: 14,
-    paddingHorizontal: 25,
-    elevation: 5,
+    paddingVertical: 16,
+    paddingHorizontal: 30,
+    elevation: 8,
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
     marginBottom: 20,
   },
   googleIcon: {
     width: 24,
     height: 24,
-    marginRight: 12,
+    marginRight: 15,
   },
   googleText: {
-    color: "#000",
+    color: "#333",
     fontWeight: "700",
     fontSize: 16,
   },
   footer: {
-    fontSize: 12,
-    color: "#555",
+    fontSize: 13,
+    color: "#c94c4c",
     textAlign: "center",
-    marginTop: 50,
+    marginTop: 40,
+    fontWeight: '600',
   },
 });

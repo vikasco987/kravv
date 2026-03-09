@@ -72,7 +72,6 @@ export async function ensurePrinterConnected() {
       return null;
     }
 
-    ToastAndroid.show(`✅ Connected: ${printer.name}`, ToastAndroid.SHORT);
     return connectedPrinter;
   } catch (err) {
     console.log("Printer connect error:", err);
@@ -98,7 +97,7 @@ export async function printBill(text: string) {
     await connectedPrinter?.write(new Uint8Array([0x1b, 0x64, 0x03])); // ESC d 3
     await connectedPrinter?.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00])); // GS V B 0
 
-    ToastAndroid.show("🧾 Bill Printed!", ToastAndroid.SHORT);
+    await connectedPrinter?.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00])); // GS V B 0
   } catch (err) {
     console.log("Print error:", err);
     ToastAndroid.show("❌ Print failed", ToastAndroid.SHORT);
@@ -134,14 +133,19 @@ export async function SimpleBill(
     const total = products.reduce((sum, p) => sum + p.total, 0);
     const paymentMode = options?.paymentMode || "CASH";
 
-    const companyName = "Magic Scale";
+    const companyName = companyInfo?.companyName || "KRAVY Billing";
     const companyAddress = companyInfo?.companyAddress || "New Delhi, India";
     const companyPhone = companyInfo?.companyPhone || "";
+    // @ts-ignore
+    const companyTagline = companyInfo?.businessTagLine || "";
+    const gstNumber = companyInfo?.gstNumber || "";
 
     // --- Bill Formatting ---
     const centeredCompanyName = centerText(companyName.toUpperCase(), 32);
+    const centeredTagline = companyTagline ? centerText(companyTagline, 32) : '';
     const centeredAddress = centerText(companyAddress, 32);
     const centeredPhone = companyPhone ? centerText(`PH: ${companyPhone}`, 32) : '';
+    const centeredGst = gstNumber ? centerText(`GST: ${gstNumber}`, 32) : '';
 
     // Item List: Name (12) | Qty (3) | Price (6) | Total (7) = 28 + separators
     const itemsText = products
@@ -160,9 +164,9 @@ export async function SimpleBill(
     const billText =
       `${line('=')}
 ${centeredCompanyName}
-${centeredAddress}
+${centeredTagline ? centeredTagline + '\n' : ''}${centeredAddress}
 ${centeredPhone}
-${line('-')}
+${centeredGst ? centeredGst + '\n' : ''}${line('-')}
 Bill No: ${billNo}
 Date: ${date.toLocaleString()}
 ${customerDetails}
@@ -177,19 +181,16 @@ ${line('-')}
 ${centerText("Thank You! Visit Again 🙏", 32)}
 `;
 
-    // Print instantly
-    await printBill(billText);
-
-    // Save bill in backend
-    const subtotalVal = Number((total / 1.05).toFixed(2));
+    // --- Faster Execution: Print & Save in Parallel ---
+    const printPromise = printBill(billText);
     
-    // Smart Update Logic
+    const subtotalVal = Number((total / 1.05).toFixed(2));
     const method = options?.billId ? "PUT" : "POST";
     const url = options?.billId 
       ? `https://billing.kravy.in/api/bill-manager/${options.billId}`
       : "https://billing.kravy.in/api/bill-manager";
 
-    const res = await fetch(url, {
+    const savePromise = fetch(url, {
       method: method,
       headers: {
         "Content-Type": "application/json",
@@ -208,6 +209,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
       }),
     });
 
+    const [_, res] = await Promise.all([printPromise, savePromise]);
     const data = await res.json();
 
     if (!res.ok) {
@@ -215,7 +217,42 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
       ToastAndroid.show(`⚠️ Save failed: ${data.error || "Unknown error"}`, ToastAndroid.SHORT);
       return { status: "error", error: data.error };
     } else {
-      ToastAndroid.show("✅ Bill saved!", ToastAndroid.SHORT);
+      // ✅ SUCCESS: Aggressive Cleanup
+      try {
+        const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
+        const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
+        
+        // 1. Hide the original held ID (if any)
+        if (options?.billId && !hiddenIds.includes(options.billId)) {
+          hiddenIds.push(options.billId);
+        }
+
+        // 2. Hide the newly created bill info from Hold list just in case
+        const billData = data.bill || data;
+        const newId = billData._id || billData.id;
+        const newNo = billData.billNumber;
+
+        if (newId && !hiddenIds.includes(newId)) hiddenIds.push(newId);
+        if (newNo && !hiddenIds.includes(newNo)) hiddenIds.push(newNo);
+
+        await AsyncStorage.setItem('@hidden_bill_ids', JSON.stringify(hiddenIds));
+
+        // 3. Remove from local held_orders array
+        const localData = await AsyncStorage.getItem('@held_orders');
+        if (localData) {
+          let orders = JSON.parse(localData);
+          if (options?.billId) orders = orders.filter((o: any) => o.id !== options.billId);
+          if (newId) orders = orders.filter((o: any) => o.id !== newId);
+          await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
+        }
+
+        // 4. Clear resume markers
+        await AsyncStorage.removeItem('@resume_cart');
+        await AsyncStorage.removeItem('@resume_cart_id');
+      } catch (e) {
+        console.log("ℹ️ Cleanup error ignored:", e);
+      }
+
       return { 
         status: "success", 
         data: data.bill || data, 

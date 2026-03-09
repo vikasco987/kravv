@@ -7,7 +7,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -68,6 +67,8 @@ export default function MenuScreen() {
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Card">("Cash");
   const [received, setReceived] = useState(false);
   const [isCartModalVisible, setIsCartModalVisible] = useState(false);
+  const [isClearModalVisible, setIsClearModalVisible] = useState(false);
+  const [showClearSuccess, setShowClearSuccess] = useState(false);
   const [heldCount, setHeldCount] = useState(0);
   const [isHoldModalVisible, setIsHoldModalVisible] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
@@ -272,6 +273,12 @@ export default function MenuScreen() {
             });
             setCart(newCart);
             await AsyncStorage.removeItem('@resume_cart');
+
+            const id = await AsyncStorage.getItem('@resume_cart_id');
+            if (id) {
+              setActiveOrderId(id);
+              await AsyncStorage.removeItem('@resume_cart_id');
+            }
             ToastAndroid.show("Order Loaded from Hold List", ToastAndroid.SHORT);
           }
         } catch (error) {
@@ -345,21 +352,18 @@ export default function MenuScreen() {
   };
 
   const clearCart = () => {
-    Alert.alert(
-      "Clear Cart",
-      "Are you sure you want to remove all items?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear All",
-          style: "destructive",
-          onPress: () => {
-            setCart({});
-            setIsCartModalVisible(false);
-          }
-        },
-      ]
-    );
+    setIsClearModalVisible(true);
+  };
+
+  const handleConfirmClear = () => {
+    setCart({});
+    setActiveOrderId(null);
+    setIsCartModalVisible(false);
+    setIsClearModalVisible(false);
+    setShowClearSuccess(true);
+    setTimeout(() => {
+      setShowClearSuccess(false);
+    }, 2000);
   };
 
   const totalItems = Object.values(cart).reduce((sum, i) => sum + i.quantity, 0);
@@ -568,18 +572,26 @@ export default function MenuScreen() {
           ref={flatListRef}
           data={filteredMenus}
           keyExtractor={(cat) => cat.id}
-          contentContainerStyle={{ paddingBottom: 350 }}
+          contentContainerStyle={{ paddingBottom: 450 }} // Increased for even better scrolling
+          initialNumToRender={20} // Render more categories initially
+          maxToRenderPerBatch={20}
+          windowSize={21}
+          removeClippedSubviews={false} // Helps with scrolling to non-rendered items
           onScrollToIndexFailed={(info) => {
-            const wait = new Promise((resolve) => setTimeout(resolve, 500));
-            wait.then(() => {
+            // Robust fallback: Scroll to estimated offset first to force rendering, then to exact index
+            const estimatedOffset = info.averageItemLength * info.index;
+            flatListRef.current?.scrollToOffset({ offset: estimatedOffset, animated: false });
+
+            setTimeout(() => {
               if (flatListRef.current) {
                 try {
                   flatListRef.current.scrollToIndex({ index: info.index, animated: true });
                 } catch (e) {
-                  console.warn("Scroll to index fallback failed:", e);
+                  // Final fallback if scrollToIndex still fails
+                  flatListRef.current.scrollToOffset({ offset: estimatedOffset, animated: true });
                 }
               }
-            });
+            }, 100);
           }}
           renderItem={({ item: cat }) => (
             <View>
@@ -747,7 +759,7 @@ export default function MenuScreen() {
               onPress={() =>
                 router.push({
                   pathname: "/party/bill",
-                  params: { cart: JSON.stringify(cart), paymentMethod },
+                  params: { cart: JSON.stringify(cart), paymentMethod, heldOrderId: activeOrderId },
                 })
               }
             >
@@ -769,6 +781,7 @@ export default function MenuScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selected Items ({totalItems})</Text>
               <TouchableOpacity onPress={() => setIsCartModalVisible(false)}>
@@ -910,6 +923,60 @@ export default function MenuScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Clear All Confirmation Modal */}
+      <Modal
+        transparent={true}
+        visible={isClearModalVisible}
+        animationType="fade"
+        onRequestClose={() => setIsClearModalVisible(false)}
+      >
+        <View style={styles.modalOverlayCentered}>
+          <View style={[styles.modalContentCentered, { backgroundColor: '#ceddd2ff' }]}>
+            <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+              <View style={[styles.trashCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
+                <Ionicons name="trash-outline" size={40} color="#EF4444" />
+              </View>
+              <Text style={[styles.successTitleText, { color: '#EF4444' }]}>Clear All Items?</Text>
+              <Text style={styles.successDetailText}>Are you sure you want to remove all items from your cart?</Text>
+
+              <View style={{ flexDirection: 'row', marginTop: 24, width: '100%', justifyContent: 'space-between' }}>
+                <TouchableOpacity
+                  style={styles.confirmCancelBtn}
+                  onPress={() => setIsClearModalVisible(false)}
+                >
+                  <Text style={{ color: '#4B5563', fontWeight: 'bold', fontSize: 16 }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.confirmDeleteBtn}
+                  onPress={handleConfirmClear}
+                >
+                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Clear All</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Clear Success Modal */}
+      <Modal
+        transparent={true}
+        visible={showClearSuccess}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlayCentered}>
+          <View style={[styles.modalContentCentered, { backgroundColor: '#ceddd2ff' }]}>
+            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+              <View style={[styles.successCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
+                <Ionicons name="trash-bin-outline" size={40} color="#EF4444" />
+              </View>
+              <Text style={[styles.successTitleText, { color: '#EF4444' }]}>Cleared!</Text>
+              <Text style={styles.successDetailText}>Cart has been cleared successfully.</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -988,7 +1055,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
-  cartBar: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", padding: 12, borderTopWidth: 1, borderColor: "#E5E7EB", zIndex: 999, elevation: 20 },
+  cartBar: { position: "absolute", bottom: 0, left: 65, right: 0, backgroundColor: "#fff", padding: 12, borderTopWidth: 1, borderColor: "#E5E7EB", zIndex: 999, elevation: 20 },
   summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   viewItemsButton: { backgroundColor: THEME_PRIMARY, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   viewItemsText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
@@ -1009,8 +1076,8 @@ const styles = StyleSheet.create({
   printBillText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 
   // --- MODAL STYLES ---
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' },
+  modalOverlay: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end', marginLeft: 55, paddingBottom: 80, paddingHorizontal: 15 },
+  modalContent: { backgroundColor: '#fff', borderRadius: 24, padding: 20, maxHeight: '85%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
   cartItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
@@ -1031,8 +1098,9 @@ const styles = StyleSheet.create({
   // --- NEW BOTTOM MODAL STYLES ---
   bottomModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'transparent',
     justifyContent: 'flex-end',
+    marginLeft: 65,
   },
   bottomModalContent: {
     backgroundColor: '#FFF',
@@ -1048,6 +1116,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
     borderRadius: 3,
     marginBottom: 20,
+    alignSelf: 'center',
   },
   holdCircle: {
     width: 80,
@@ -1142,5 +1211,55 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     fontSize: 18,
     fontWeight: '600',
+  },
+  modalOverlayCentered: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginLeft: 65,
+  },
+  modalContentCentered: {
+    backgroundColor: '#fff',
+    borderRadius: 32,
+    padding: 24,
+    width: '100%',
+  },
+  trashCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 2,
+  },
+  successTitleText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  successDetailText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  confirmDeleteBtn: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#EF4444',
+    borderRadius: 20,
+    marginLeft: 8,
+    alignItems: 'center',
+  },
+  confirmCancelBtn: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 20,
+    marginRight: 8,
+    alignItems: 'center',
   },
 });

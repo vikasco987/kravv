@@ -9,6 +9,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -19,6 +20,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { SimpleBill } from "../../utils/SimpleBill";
 import CompanyInfoScreen from "./info";
 
@@ -51,6 +53,12 @@ export default function BillPage() {
   const [dob, setDob] = useState<Date | null>(null);
   const [showPicker, setShowPicker] = useState(false);
   const [showCompanyInfo, setShowCompanyInfo] = useState(false);
+  const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
+  const [isWarningModalVisible, setIsWarningModalVisible] = useState(false);
+  const [isCustSuccessVisible, setIsCustSuccessVisible] = useState(false);
+  const [isCustWarningVisible, setIsCustWarningVisible] = useState(false);
+  const [isCustErrorVisible, setIsCustErrorVisible] = useState(false);
+  const [custErrorMessage, setCustErrorMessage] = useState("");
 
   const [parties, setParties] = useState<Party[]>([]);
   const [showPartyDropdown, setShowPartyDropdown] = useState(false);
@@ -121,7 +129,7 @@ export default function BillPage() {
   const handlePrintAndSave = async () => {
     if (!cart.length) return ToastAndroid.show("🛒 Cart empty!", ToastAndroid.SHORT);
     if (!selectedParty && (!customerName || !phone)) {
-      Alert.alert("Missing Info", "Please select or add a customer first.");
+      setIsWarningModalVisible(true);
       return;
     }
 
@@ -135,12 +143,17 @@ export default function BillPage() {
         phone: selectedParty?.phone || phone,
         paymentMode: "CASH",
         notes: "Printed via Bluetooth",
+        billId: params.heldOrderId as string, // Pass the held ID to convert it to a real bill
       });
 
       if (result?.status === "success") {
-        ToastAndroid.show("✅ Bill Printed & Saved!", ToastAndroid.SHORT);
-        clearCart();
-        setSelectedParty(null);
+        setIsSuccessModalVisible(true);
+        setTimeout(() => {
+          setIsSuccessModalVisible(false);
+          clearCart();
+          setSelectedParty(null);
+          router.replace("/(tabs)/menu");
+        }, 2000);
       } else {
         ToastAndroid.show("⚠️ Failed to print or save bill", ToastAndroid.SHORT);
       }
@@ -152,7 +165,7 @@ export default function BillPage() {
 
   const handleAddCustomer = async () => {
     if (!customerName || !phone) {
-      Alert.alert("Missing Fields", "Please enter name and phone number.");
+      setIsCustWarningVisible(true);
       return;
     }
 
@@ -177,7 +190,8 @@ export default function BillPage() {
 
       if (response.ok) {
         const data = await response.json();
-        Alert.alert("✅ Success", "Customer added successfully!");
+        setIsCustSuccessVisible(true);
+        setTimeout(() => setIsCustSuccessVisible(false), 2000);
         setSelectedParty(data);
         fetchParties();
         setCustomerName("");
@@ -186,12 +200,20 @@ export default function BillPage() {
         setDob(null);
       } else {
         const errorText = await response.text();
-        console.error("Add customer error response:", errorText);
-        Alert.alert("Error", `Failed to add customer (Status: ${response.status})`);
+        // Changed to console.log to avoid red-line error logs for the user
+        console.log("ℹ️ Add customer info:", errorText);
+        try {
+          const errData = JSON.parse(errorText);
+          setCustErrorMessage(errData.error || "This action could not be completed.");
+        } catch {
+          setCustErrorMessage("Failed to add customer. Please check your connection.");
+        }
+        setIsCustErrorVisible(true);
       }
     } catch (err: any) {
-      console.error(err);
-      Alert.alert("Error", err.message || "Something went wrong.");
+      console.log("⚠️ Fetch error:", err.message);
+      setCustErrorMessage("Network error. Please try again.");
+      setIsCustErrorVisible(true);
     }
   };
 
@@ -349,6 +371,206 @@ export default function BillPage() {
           <Text style={styles.clearCart}>🗑️ Clear Cart</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Success Modal */}
+      <Modal
+        transparent={true}
+        visible={isSuccessModalVisible}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlayCentered}>
+          <View style={styles.modalContentCentered}>
+            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+              <View style={styles.successCircle}>
+                <Ionicons name="checkmark-sharp" size={40} color="#10B981" />
+              </View>
+              <Text style={styles.successTitleText}>Bill Saved!</Text>
+              <Text style={styles.successDetailText}>Your bill has been successfully printed and saved.</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Warning Modal (Missing Info) */}
+      <Modal
+        transparent={true}
+        visible={isWarningModalVisible}
+        animationType="fade"
+        onRequestClose={() => setIsWarningModalVisible(false)}
+      >
+        <View style={styles.modalOverlayCentered}>
+          <View style={[styles.modalContentCentered, { backgroundColor: '#FFFBEB' }]}>
+            <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+              {/* Yellow Line with Name */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 20 }}>
+                <View style={{ flex: 1, height: 1.5, backgroundColor: '#FDE68A' }} />
+                <Text style={{ marginHorizontal: 10, color: '#D97706', fontWeight: 'bold', fontSize: 12, letterSpacing: 1 }}>WARNING</Text>
+                <View style={{ flex: 1, height: 1.5, backgroundColor: '#FDE68A' }} />
+              </View>
+
+              <View style={[styles.warningCircle, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
+                <Ionicons name="alert-circle-outline" size={40} color="#D97706" />
+              </View>
+              <Text style={[styles.successTitleText, { color: '#D97706' }]}>Missing Info</Text>
+              <Text style={styles.successDetailText}>Please select or add a customer detail first to continue billing.</Text>
+              
+              {/* Bottom Yellow Line with Name */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginTop: 25, marginBottom: 5 }}>
+                <View style={{ flex: 1, height: 1.5, backgroundColor: '#FDE68A' }} />
+                <Text style={{ marginHorizontal: 10, color: '#D97706', fontWeight: 'bold', fontSize: 10, letterSpacing: 2 }}>KRAVY-BILLING</Text>
+                <View style={{ flex: 1, height: 1.5, backgroundColor: '#FDE68A' }} />
+              </View>
+
+              <TouchableOpacity 
+                style={[styles.confirmCancelBtn, { backgroundColor: '#D97706', marginTop: 15, width: '100%', marginRight: 0, flex: 0 }]}
+                onPress={() => setIsWarningModalVisible(false)}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Customer Add Warning Modal */}
+      <Modal
+        transparent={true}
+        visible={isCustWarningVisible}
+        animationType="fade"
+        onRequestClose={() => setIsCustWarningVisible(false)}
+      >
+        <View style={styles.modalOverlayCentered}>
+          <View style={[styles.modalContentCentered, { backgroundColor: '#FFFBEB' }]}>
+            <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+              <View style={[styles.warningCircle, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
+                <Ionicons name="alert-circle-outline" size={40} color="#D97706" />
+              </View>
+              <Text style={[styles.successTitleText, { color: '#D97706' }]}>Missing Fields</Text>
+              <Text style={styles.successDetailText}>Please enter the customer's name and phone number to save.</Text>
+              
+              <TouchableOpacity 
+                style={[styles.confirmCancelBtn, { backgroundColor: '#D97706', marginTop: 24, width: '100%', marginRight: 0, flex: 0 }]}
+                onPress={() => setIsCustWarningVisible(false)}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Customer Add Success Modal */}
+      <Modal
+        transparent={true}
+        visible={isCustSuccessVisible}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlayCentered}>
+          <View style={styles.modalContentCentered}>
+            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+              <View style={styles.successCircle}>
+                <Ionicons name="person-add-outline" size={40} color="#10B981" />
+              </View>
+              <Text style={styles.successTitleText}>Success!</Text>
+              <Text style={styles.successDetailText}>Customer details have been saved successfully.</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Premium Customer Add Error Modal */}
+      <Modal
+        transparent={true}
+        visible={isCustErrorVisible}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setIsCustErrorVisible(false)}
+      >
+        <View style={styles.modalOverlayCentered}>
+          <View style={[styles.modalContentCentered, { 
+            backgroundColor: '#FFF', 
+            padding: 24,
+            borderWidth: 1,
+            borderColor: '#FEE2E2',
+            shadowColor: '#DC2626',
+            shadowOpacity: 0.1,
+            shadowRadius: 20
+          }]}>
+            <View style={{ alignItems: 'center' }}>
+              {/* Top Header Design */}
+              <View style={{ 
+                width: 60, 
+                height: 60, 
+                borderRadius: 30, 
+                backgroundColor: '#FEF2F2', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                marginBottom: 20,
+                borderWidth: 4,
+                borderColor: '#FFF5F5'
+              }}>
+                <Ionicons name="alert-circle" size={36} color="#DC2626" />
+              </View>
+
+              <Text style={{ 
+                fontSize: 22, 
+                fontWeight: '800', 
+                color: '#1F2937', 
+                marginBottom: 10,
+                textAlign: 'center' 
+              }}>Duplicate Record Found</Text>
+
+              <View style={{ 
+                backgroundColor: '#FEF2F2', 
+                padding: 15, 
+                borderRadius: 12, 
+                width: '100%',
+                marginBottom: 25,
+                borderLeftWidth: 4,
+                borderLeftColor: '#DC2626'
+              }}>
+                <Text style={{ 
+                  color: '#991B1B', 
+                  fontSize: 14, 
+                  lineHeight: 20,
+                  fontWeight: '500' 
+                }}>
+                  {custErrorMessage === "Phone already exists" 
+                    ? "This phone number is already registered in your database. Please search for the existing customer instead." 
+                    : custErrorMessage}
+                </Text>
+              </View>
+
+              <TouchableOpacity 
+                activeOpacity={0.8}
+                style={{ 
+                  backgroundColor: '#DC2626', 
+                  width: '100%', 
+                  paddingVertical: 16, 
+                  borderRadius: 14,
+                  alignItems: 'center',
+                  shadowColor: '#DC2626',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 5
+                }}
+                onPress={() => setIsCustErrorVisible(false)}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>DISMISS</Text>
+              </TouchableOpacity>
+              
+              <Text style={{ 
+                marginTop: 20, 
+                fontSize: 11, 
+                color: '#9CA3AF', 
+                fontWeight: '600',
+                letterSpacing: 1 
+              }}>KRAVY BILLING SYSTEM</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -465,4 +687,62 @@ const styles = StyleSheet.create({
   },
   printBtnText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
   clearCart: { textAlign: "center", color: "#9ca3af", marginTop: 10 },
+  // Success Modal Styles
+  modalOverlayCentered: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  modalContentCentered: {
+    backgroundColor: '#fff',
+    borderRadius: 32,
+    padding: 24,
+    width: '100%',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  successCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#D1FAE5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  warningCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 2,
+  },
+  successTitleText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#10B981',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  successDetailText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  confirmCancelBtn: {
+    padding: 16,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 20,
+    marginRight: 8,
+    alignItems: 'center',
+  },
 });
