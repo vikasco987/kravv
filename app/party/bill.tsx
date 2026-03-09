@@ -4,11 +4,11 @@ import { Feather } from "@expo/vector-icons";
 // @ts-ignore
 import DateTimePicker from "@react-native-community/datetimepicker";
 // @ts-ignore
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   Modal,
   Platform,
   ScrollView,
@@ -20,7 +20,6 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { SimpleBill } from "../../utils/SimpleBill";
 import CompanyInfoScreen from "./info";
 
@@ -413,7 +412,7 @@ export default function BillPage() {
               </View>
               <Text style={[styles.successTitleText, { color: '#D97706' }]}>Missing Info</Text>
               <Text style={styles.successDetailText}>Please select or add a customer detail first to continue billing.</Text>
-              
+
               {/* Bottom Yellow Line with Name */}
               <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginTop: 25, marginBottom: 5 }}>
                 <View style={{ flex: 1, height: 1.5, backgroundColor: '#FDE68A' }} />
@@ -421,7 +420,7 @@ export default function BillPage() {
                 <View style={{ flex: 1, height: 1.5, backgroundColor: '#FDE68A' }} />
               </View>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.confirmCancelBtn, { backgroundColor: '#D97706', marginTop: 15, width: '100%', marginRight: 0, flex: 0 }]}
                 onPress={() => setIsWarningModalVisible(false)}
               >
@@ -447,8 +446,8 @@ export default function BillPage() {
               </View>
               <Text style={[styles.successTitleText, { color: '#D97706' }]}>Missing Fields</Text>
               <Text style={styles.successDetailText}>Please enter the customer's name and phone number to save.</Text>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[styles.confirmCancelBtn, { backgroundColor: '#D97706', marginTop: 24, width: '100%', marginRight: 0, flex: 0 }]}
                 onPress={() => setIsCustWarningVisible(false)}
               >
@@ -487,8 +486,8 @@ export default function BillPage() {
         onRequestClose={() => setIsCustErrorVisible(false)}
       >
         <View style={styles.modalOverlayCentered}>
-          <View style={[styles.modalContentCentered, { 
-            backgroundColor: '#FFF', 
+          <View style={[styles.modalContentCentered, {
+            backgroundColor: '#FFF',
             padding: 24,
             borderWidth: 1,
             borderColor: '#FEE2E2',
@@ -498,12 +497,12 @@ export default function BillPage() {
           }]}>
             <View style={{ alignItems: 'center' }}>
               {/* Top Header Design */}
-              <View style={{ 
-                width: 60, 
-                height: 60, 
-                borderRadius: 30, 
-                backgroundColor: '#FEF2F2', 
-                justifyContent: 'center', 
+              <View style={{
+                width: 60,
+                height: 60,
+                borderRadius: 30,
+                backgroundColor: '#FEF2F2',
+                justifyContent: 'center',
                 alignItems: 'center',
                 marginBottom: 20,
                 borderWidth: 4,
@@ -512,41 +511,41 @@ export default function BillPage() {
                 <Ionicons name="alert-circle" size={36} color="#DC2626" />
               </View>
 
-              <Text style={{ 
-                fontSize: 22, 
-                fontWeight: '800', 
-                color: '#1F2937', 
+              <Text style={{
+                fontSize: 22,
+                fontWeight: '800',
+                color: '#1F2937',
                 marginBottom: 10,
-                textAlign: 'center' 
+                textAlign: 'center'
               }}>Duplicate Record Found</Text>
 
-              <View style={{ 
-                backgroundColor: '#FEF2F2', 
-                padding: 15, 
-                borderRadius: 12, 
+              <View style={{
+                backgroundColor: '#FEF2F2',
+                padding: 15,
+                borderRadius: 12,
                 width: '100%',
                 marginBottom: 25,
                 borderLeftWidth: 4,
                 borderLeftColor: '#DC2626'
               }}>
-                <Text style={{ 
-                  color: '#991B1B', 
-                  fontSize: 14, 
+                <Text style={{
+                  color: '#991B1B',
+                  fontSize: 14,
                   lineHeight: 20,
-                  fontWeight: '500' 
+                  fontWeight: '500'
                 }}>
-                  {custErrorMessage === "Phone already exists" 
-                    ? "This phone number is already registered in your database. Please search for the existing customer instead." 
+                  {custErrorMessage === "Phone already exists"
+                    ? "This phone number is already registered in your database. Please search for the existing customer instead."
                     : custErrorMessage}
                 </Text>
               </View>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 activeOpacity={0.8}
-                style={{ 
-                  backgroundColor: '#DC2626', 
-                  width: '100%', 
-                  paddingVertical: 16, 
+                style={{
+                  backgroundColor: '#DC2626',
+                  width: '100%',
+                  paddingVertical: 16,
                   borderRadius: 14,
                   alignItems: 'center',
                   shadowColor: '#DC2626',
@@ -559,13 +558,13 @@ export default function BillPage() {
               >
                 <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>DISMISS</Text>
               </TouchableOpacity>
-              
-              <Text style={{ 
-                marginTop: 20, 
-                fontSize: 11, 
-                color: '#9CA3AF', 
+
+              <Text style={{
+                marginTop: 20,
+                fontSize: 11,
+                color: '#9CA3AF',
                 fontWeight: '600',
-                letterSpacing: 1 
+                letterSpacing: 1
               }}>KRAVY BILLING SYSTEM</Text>
             </View>
           </View>
