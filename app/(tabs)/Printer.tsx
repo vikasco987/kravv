@@ -312,7 +312,7 @@ Thank You\n\n\n`;
               <Ionicons name="bluetooth" size={40} color="#D97706" />
             </View>
             <Text style={[styles.modalTitle, { color: '#D97706' }]}>Bluetooth is Off</Text>
-            <Text style={styles.modalDetail}>Please turn on your phone's Bluetooth to scan and connect to a printer.</Text>
+            <Text style={styles.modalDetail}>Please turn on your phone&apos;s Bluetooth to scan and connect to a printer.</Text>
             
             <View style={styles.bottomLineBox}>
                <View style={[styles.line, { backgroundColor: '#FDE68A' }]} />
@@ -340,7 +340,7 @@ Thank You\n\n\n`;
               <Ionicons name="search" size={40} color="#4F46E5" />
             </View>
             <Text style={[styles.modalTitle, { color: '#4F46E5' }]}>No Devices Found</Text>
-            <Text style={styles.modalDetail}>Ensure your thermal printer is turned on and paired in your phone's Bluetooth settings.</Text>
+            <Text style={styles.modalDetail}>Ensure your thermal printer is turned on and paired in your phone&apos;s Bluetooth settings.</Text>
 
             <View style={styles.bottomLineBox}>
                <View style={[styles.line, { backgroundColor: '#D1D5DB' }]} />

@@ -636,7 +636,7 @@ export default function MenuScreen() {
                   No items found in your menu
                 </Text>
                 <Text style={{ marginTop: 8, color: '#9CA3AF', fontSize: 14, textAlign: 'center' }}>
-                  Try refreshing or add new items from the "Item" button above.
+                  Try refreshing or add new items from the &quot;Item&quot; button above.
                 </Text>
                 <TouchableOpacity
                   onPress={() => fetchMenus(true)}

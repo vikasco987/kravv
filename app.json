@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Kravy",
-    "slug": "Kravy",
+    "name": "kravy",
+    "slug": "kravy",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/custom_logo.png",
+    "icon": "./assets/images/kravlogo.png",
     "scheme": "kravy",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,10 +13,10 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/custom_logo.png",
-        "backgroundImage": "./assets/images/custom_logo.png",
-        "monochromeImage": "./assets/images/custom_logo.png"
+        "backgroundColor": "#1e3a8a",
+        "foregroundImage": "./assets/images/kravlogo.png",
+        "backgroundImage": "./assets/images/kravlogo.png",
+        "monochromeImage": "./assets/images/kravlogo.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -36,14 +36,14 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/custom_logo.png"
+      "favicon": "./assets/images/kravlogo.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/custom_logo.png",
+          "image": "./assets/images/kravlogo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
@@ -72,7 +72,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "57ea8ea7-aff2-45d2-9129-0e4545bf531f"
+        "projectId": "056e27e8-d1c0-4d4d-8107-06eeae9b91af"
       }
     },
     "owner": "vikash111s-organization"

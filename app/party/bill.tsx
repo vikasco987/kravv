@@ -445,7 +445,7 @@ export default function BillPage() {
                 <Ionicons name="alert-circle-outline" size={40} color="#D97706" />
               </View>
               <Text style={[styles.successTitleText, { color: '#D97706' }]}>Missing Fields</Text>
-              <Text style={styles.successDetailText}>Please enter the customer's name and phone number to save.</Text>
+              <Text style={styles.successDetailText}>Please enter the customer&apos;s name and phone number to save.</Text>
 
               <TouchableOpacity
                 style={[styles.confirmCancelBtn, { backgroundColor: '#D97706', marginTop: 24, width: '100%', marginRight: 0, flex: 0 }]}

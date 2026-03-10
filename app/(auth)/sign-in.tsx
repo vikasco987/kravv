@@ -25,9 +25,12 @@ export default function SignInScreen() {
   const handleGoogleSignIn = React.useCallback(async () => {
     try {
       await WebBrowser.warmUpAsync();
-      const { createdSessionId, setActive: setSessionActive } = await startOAuthFlow({
-        redirectUrl: Linking.createURL("/oauth-native-callback", { scheme: "kravy" }),
-      });
+      const { createdSessionId, setActive: setSessionActive } =
+        await startOAuthFlow({
+          redirectUrl: Linking.createURL("/oauth-native-callback", {
+            scheme: "kravy",
+          }),
+        });
 
       const setSession = setSessionActive || setActive;
       if (createdSessionId && setSession) {
@@ -42,10 +45,7 @@ export default function SignInScreen() {
   }, [startOAuthFlow, setActive]);
 
   return (
-    <LinearGradient
-      colors={['#FF5F6D', '#FFC371']}
-      style={styles.container}
-    >
+    <LinearGradient colors={["#FF5F6D", "#FFC371"]} style={styles.container}>
       <StatusBar barStyle="light-content" />
 
       {/* Decorative Bottom Wave/Curve */}
@@ -62,7 +62,7 @@ export default function SignInScreen() {
       <View style={styles.content}>
         {/* Logo */}
         <Image
-          source={require("../../assets/images/custom_logo.png")}
+          source={require("../../assets/images/kravlogo.png")}
           style={styles.logo}
           resizeMode="contain"
         />
@@ -70,7 +70,7 @@ export default function SignInScreen() {
         <View style={styles.brandContainer}>
           <Text style={styles.brandName}>KRAVY</Text>
           <LinearGradient
-            colors={['#FFFFFF', '#FFD700', '#FFFFFF']}
+            colors={["#FFFFFF", "#FFD700", "#FFFFFF"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.brandUnderline}
@@ -98,7 +98,10 @@ export default function SignInScreen() {
         <Text style={styles.footer}>
           By signing in, you agree to our{" "}
           <Text style={{ fontWeight: "700", color: "#c94c4cff" }}>Terms</Text> &{" "}
-          <Text style={{ fontWeight: "700", color: "#c94c4cff" }}>Privacy Policy</Text>.
+          <Text style={{ fontWeight: "700", color: "#c94c4cff" }}>
+            Privacy Policy
+          </Text>
+          .
         </Text>
       </View>
     </LinearGradient>
@@ -117,12 +120,12 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   bottomWave: {
-    position: 'absolute',
+    position: "absolute",
     bottom: -150,
     left: -50,
     right: -50,
     height: 400,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 300,
     borderTopRightRadius: 300,
     opacity: 0.9,
@@ -130,7 +133,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   backButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     left: 20,
     zIndex: 10,
@@ -139,11 +142,11 @@ const styles = StyleSheet.create({
     width: 45,
     height: 45,
     borderRadius: 25,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
@@ -152,24 +155,23 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 25,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
+    overflow: "hidden",
     marginBottom: 20,
     elevation: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowRadius: 15,
   },
   brandContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 30,
   },
   brandName: {
     fontSize: 40,
-    fontWeight: '900',
-    color: '#FFFFFF',
+    fontWeight: "900",
+    color: "#FFFFFF",
     letterSpacing: 8,
-    textShadowColor: 'rgba(255, 215, 0, 0.4)',
+    textShadowColor: "rgba(255, 215, 0, 0.4)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 15,
   },
@@ -185,7 +187,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "center",
     marginBottom: 10,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowColor: "rgba(0, 0, 0, 0.1)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
@@ -224,6 +226,6 @@ const styles = StyleSheet.create({
     color: "#c94c4c",
     textAlign: "center",
     marginTop: 40,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
