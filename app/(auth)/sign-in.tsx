@@ -26,7 +26,7 @@ export default function SignInScreen() {
     try {
       await WebBrowser.warmUpAsync();
       const { createdSessionId, setActive: setSessionActive } = await startOAuthFlow({
-        redirectUrl: Linking.createURL("/oauth-native-callback", { scheme: "kravv" }),
+        redirectUrl: Linking.createURL("/oauth-native-callback", { scheme: "kravy" }),
       });
 
       const setSession = setSessionActive || setActive;

@@ -37,6 +37,9 @@ export default function ItemsPage() {
     const [showCategorySuccess, setShowCategorySuccess] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const [showClearSuccess, setShowClearSuccess] = useState(false);
+    const [showError, setShowError] = useState(false);
+    const [errorModalTitle, setErrorModalTitle] = useState("");
+    const [errorModalDetail, setErrorModalDetail] = useState("");
 
     const [newItem, setNewItem] = useState({
         name: "",
@@ -135,13 +138,17 @@ export default function ItemsPage() {
     const handleAddCategory = () => {
         const trimmedName = newCategoryName.trim();
         if (!trimmedName) {
-            Alert.alert("Error", "Please enter a category name.");
+            setErrorModalTitle("Missing Name");
+            setErrorModalDetail("Please enter a category name.");
+            setShowError(true);
             return;
         }
 
         // Case-insensitive check for existing categories
         if (categories.some(cat => cat.name.toLowerCase() === trimmedName.toLowerCase())) {
-            Alert.alert("Duplicate", "This category already exists.");
+            setErrorModalTitle("Duplicate");
+            setErrorModalDetail("This category already exists.");
+            setShowError(true);
             return;
         }
 
@@ -166,7 +173,9 @@ export default function ItemsPage() {
             // Request permissions
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== 'granted') {
-                Alert.alert("Permission Required", "We need your permission to access the gallery to select an image.");
+                setErrorModalTitle("Permission Required");
+                setErrorModalDetail("We need your permission to access the gallery to select an image.");
+                setShowError(true);
                 return;
             }
 
@@ -182,10 +191,9 @@ export default function ItemsPage() {
             }
         } catch (error) {
             console.error("ImagePicker Error:", error);
-            Alert.alert(
-                "Error",
-                "There was a problem opening the gallery. Please rebuild the app (npx expo run:android)."
-            );
+            setErrorModalTitle("Gallery Error");
+            setErrorModalDetail("There was a problem opening the gallery. Please rebuild the app (npx expo run:android).");
+            setShowError(true);
         }
     };
 
@@ -232,22 +240,30 @@ export default function ItemsPage() {
     const handleSaveItem = async () => {
         // Validation
         if (!newItem.name) {
-            Alert.alert("Missing Name", "Please enter the item name.");
+            setErrorModalTitle("Missing Name");
+            setErrorModalDetail("Please enter the item name.");
+            setShowError(true);
             return;
         }
 
         if (!newItem.price) {
-            Alert.alert("Missing Price", "Please enter the item price.");
+            setErrorModalTitle("Missing Price");
+            setErrorModalDetail("Please enter the item price.");
+            setShowError(true);
             return;
         }
 
         if (!newItem.categoryId) {
-            Alert.alert("Missing Category", "Please select a category.");
+            setErrorModalTitle("Missing Category");
+            setErrorModalDetail("Please select a category.");
+            setShowError(true);
             return;
         }
 
         if (!newItem.imageUrl) {
-            Alert.alert("Missing Image", "Please select an image.");
+            setErrorModalTitle("Missing Image");
+            setErrorModalDetail("Please select an image.");
+            setShowError(true);
             return;
         }
 
@@ -261,7 +277,9 @@ export default function ItemsPage() {
                     finalImageUrl = await uploadImageToCloudinary(newItem.imageUrl);
                 } catch (uploadError: any) {
                     console.error("Cloudinary Upload Error:", uploadError);
-                    Alert.alert("Upload Failed");
+                    setErrorModalTitle("Upload Failed");
+                    setErrorModalDetail("Could not upload image to Cloudinary.");
+                    setShowError(true);
                     setIsSaving(false);
                     return;
                 }
@@ -285,18 +303,30 @@ export default function ItemsPage() {
                 });
 
                 const catText = await createCatRes.text();
-                if (!createCatRes.ok) {
-                    throw new Error(`Category API Error (${createCatRes.status}): ${catText}. (Maybe wrong URL for category creation?)`);
+                let catData: any = {};
+                try {
+                    catData = JSON.parse(catText);
+                } catch (e) {
+                    console.log("Category response is not JSON:", catText);
                 }
 
-                try {
-                    const catData = JSON.parse(catText);
-                    finalCategoryId = catData.id || catData._id || catData.data?._id || catData.data?.id;
+                // If success or specifically "Already exists"
+                if (createCatRes.ok || catData.message === "Category already exists") {
+                    finalCategoryId = catData.id || catData._id || catData.category?.id || catData.category?._id || catData.data?._id || catData.data?.id;
+                    
                     if (!finalCategoryId) {
-                        throw new Error(`Could not find category ID in response: ${catText}`);
+                        setErrorModalTitle("Category Error");
+                        setErrorModalDetail(`Could not find category ID in response: ${catText}`);
+                        setShowError(true);
+                        setIsSaving(false);
+                        return;
                     }
-                } catch (e) {
-                    throw new Error(`Invalid category JSON response from backend: ${catText}`);
+                } else {
+                    setErrorModalTitle("Category Failed");
+                    setErrorModalDetail(catData.message || catData.error || `Category API Error (${createCatRes.status})`);
+                    setShowError(true);
+                    setIsSaving(false);
+                    return;
                 }
             }
 
@@ -336,15 +366,15 @@ export default function ItemsPage() {
                     setShowSuccess(false);
                 }, 2000);
             } else {
-                Alert.alert(
-                    "Error",
-                    (data.error || data.message || "Failed to save item to database") +
-                    ` (Status: ${response.status})`
-                );
+                setErrorModalTitle("Save Failed");
+                setErrorModalDetail(data.error || data.message || "Failed to save item to database");
+                setShowError(true);
             }
         } catch (error: any) {
             console.error("Save Error:", error);
-            Alert.alert("Error", error.message || "Something went wrong while saving.");
+            setErrorModalTitle("Process Error");
+            setErrorModalDetail(error.message || "Something went wrong while saving.");
+            setShowError(true);
         } finally {
             setIsSaving(false);
         }
@@ -648,6 +678,33 @@ export default function ItemsPage() {
                             </View>
                             <Text style={styles.successTitleText}>Category Created!</Text>
                             <Text style={styles.successDetailText}>Category added to local list.</Text>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ERROR MODAL */}
+            <Modal
+                transparent={true}
+                visible={showError}
+                animationType="fade"
+                onRequestClose={() => setShowError(false)}
+            >
+                <View style={styles.modalOverlayCentered}>
+                    <View style={styles.modalContentCentered}>
+                        <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+                            <View style={[styles.successCircle, { backgroundColor: '#FFEEF2', borderColor: '#FFD1DC' }]}>
+                                <Ionicons name="alert-circle" size={45} color="#F43F5E" />
+                            </View>
+                            <Text style={[styles.successTitleText, { color: '#F43F5E' }]}>{errorModalTitle}</Text>
+                            <Text style={styles.successDetailText}>{errorModalDetail}</Text>
+                            
+                            <TouchableOpacity 
+                                style={[styles.saveBtn, { width: '100%', marginTop: 24, backgroundColor: '#F43F5E', shadowColor: '#F43F5E' }]}
+                                onPress={() => setShowError(false)}
+                            >
+                                <Text style={styles.saveBtnText}>Try Again</Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
                 </View>

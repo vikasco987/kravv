@@ -27,7 +27,7 @@ export default function CustomDrawerContent(props: any) {
       <DrawerItem
         label="Dashboard"
         icon={({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />}
-        onPress={() => props.navigation.navigate("(tabs)")}
+        onPress={() => props.navigation.navigate("(tabs)", { screen: "Dashboard" })}
       />
 
       <DrawerItem
