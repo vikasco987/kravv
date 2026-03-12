@@ -410,6 +410,7 @@
 
 import { useAuth } from "@clerk/clerk-expo";
 import React, { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -418,10 +419,16 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Image,
+  Modal,
 } from "react-native";
+import * as ImagePicker from 'expo-image-picker';
+import { rf, s, vs } from "../../utils/responsive";
+import { Feather, Ionicons } from "@expo/vector-icons";
 
 export default function CompanyInfoScreen() {
   const { getToken } = useAuth(); // 👈 Clerk token fetcher
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [company, setCompany] = useState<any>(null);
 
@@ -440,6 +447,32 @@ export default function CompanyInfoScreen() {
   const [businessAddress, setBusinessAddress] = useState("");
   const [state, setState] = useState("");
   const [pinCode, setPinCode] = useState("");
+  const [currentStep, setCurrentStep] = useState(1);
+
+  // Custom Modal States
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalType, setModalType] = useState<"success" | "error" | "warning">("success");
+  const [modalContent, setModalContent] = useState({ title: "", message: "" });
+
+  const showStatus = (type: "success" | "error" | "warning", title: string, message: string) => {
+    setModalType(type);
+    setModalContent({ title, message });
+    setModalVisible(true);
+  };
+
+  const pickImage = async () => {
+    // No permissions request is necessary for launching the image library
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setProfileImage(result.assets[0].uri);
+    }
+  };
 
   const BACKEND_URL = "https://billing.kravy.in";
 
@@ -461,7 +494,7 @@ export default function CompanyInfoScreen() {
       const data = await res.json();
       console.log("📡 Fetched company data:", data);
 
-      if (res.ok) {
+      if (res.ok && data) {
         setCompany(data);
         setBusinessType(data.businessType || "");
         setBusinessName(data.businessName || "");
@@ -491,7 +524,7 @@ export default function CompanyInfoScreen() {
   // 🔹 Save company data
   const handleSave = async () => {
     if (!businessType || !businessName || !contactName || !contactPhone || !contactEmail) {
-      Alert.alert("Missing Fields", "Please fill all required fields.");
+      showStatus("warning", "Fields Required", "Please fill all required business and contact fields.");
       return;
     }
 
@@ -529,10 +562,10 @@ export default function CompanyInfoScreen() {
       console.log("📡 POST response:", data);
 
       if (res.ok) {
-        Alert.alert("✅ Success", "Company info saved!");
-        setCompany(data);
+        showStatus("success", "Profile Saved!", "Your business profile has been updated successfully.");
+        // We'll handle navigation inside the modal's close action or useEffect
       } else {
-        Alert.alert("❌ Error", data.error || "Failed to save profile");
+        showStatus("error", "Save Failed", data.error || "Something went wrong while saving.");
       }
     } catch (err) {
       console.error("❌ Save error:", err);
@@ -549,41 +582,181 @@ export default function CompanyInfoScreen() {
       </View>
     );
 
+  const renderStepIndicator = () => {
+    return (
+      <View style={styles.stepIndicatorContainer}>
+        {[1, 2, 3, 4].map((step) => (
+          <View key={step} style={styles.stepWrapper}>
+            <View style={[
+              styles.stepCircle,
+              currentStep >= step ? styles.stepCircleActive : styles.stepCircleInactive
+            ]}>
+              <Text style={[
+                styles.stepText,
+                currentStep >= step ? styles.stepTextActive : styles.stepTextInactive
+              ]}>{step}</Text>
+            </View>
+            {step < 4 && <View style={[
+              styles.stepLine,
+              currentStep > step ? styles.stepLineActive : styles.stepLineInactive
+            ]} />}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const nextStep = () => {
+    if (currentStep === 1 && (!businessType || !businessName)) {
+      return showStatus("warning", "Missing Info", "Business Name and Type are required to proceed.");
+    }
+    if (currentStep === 2 && (!contactName || !contactPhone || !contactEmail)) {
+      return showStatus("warning", "Contact Missing", "Please provide contact details for your business.");
+    }
+    if (currentStep < 4) setCurrentStep(currentStep + 1);
+  };
+
+  const prevStep = () => {
+    if (currentStep > 1) setCurrentStep(currentStep - 1);
+  };
+
+  const renderContent = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <View style={styles.stepCard}>
+            <Text style={styles.stepTitle}>🏢 Business Identity</Text>
+            {renderInput("Business Type*", businessType, setBusinessType)}
+            {renderInput("Business Name*", businessName, setBusinessName)}
+            {renderInput("Tagline", businessTagline, setBusinessTagline)}
+          </View>
+        );
+      case 2:
+        return (
+          <View style={styles.stepCard}>
+            <Text style={styles.stepTitle}>👤 Contact Details</Text>
+            {renderInput("Contact Person*", contactName, setContactName)}
+            {renderInput("Phone*", contactPhone, setContactPhone)}
+            {renderInput("Email*", contactEmail, setContactEmail)}
+          </View>
+        );
+      case 3:
+        return (
+          <View style={styles.stepCard}>
+            <Text style={styles.stepTitle}>📍 Address & Tax</Text>
+            {renderInput("GST Number", gstNumber, setGstNumber)}
+            {renderInput("Business Address", businessAddress, setBusinessAddress)}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>{renderInput("State", state, setState)}</View>
+              <View style={{ flex: 1 }}>{renderInput("PIN Code", pinCode, setPinCode)}</View>
+            </View>
+          </View>
+        );
+      case 4:
+        return (
+          <View style={styles.stepCard}>
+            <Text style={styles.stepTitle}>🖼️ Branding & Payments</Text>
+            {renderInput("UPI ID", upi, setUpi)}
+            {renderInput("Google Review Link", reviewLink, setReviewLink)}
+            
+            <View style={{ marginBottom: vs(15) }}>
+              <Text style={styles.label as any}>Profile Image / Logo</Text>
+              <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+                {profileImage ? (
+                  <Image source={{ uri: profileImage }} style={styles.previewImage} />
+                ) : (
+                  <View style={styles.imagePlaceholder}>
+                    <Feather name="camera" size={rf(30)} color="#ccc" />
+                    <Text style={{ color: '#999', marginTop: vs(5) }}>Upload Photo</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+            {renderInput("Signature URL (Image Link)", signature, setSignature)}
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
-    <ScrollView contentContainerStyle={{ padding: 20 }}>
-      <Text style={{ fontSize: 24, fontWeight: "bold", marginBottom: 20, textAlign: "center" }}>
-        🏢 Company Info
-      </Text>
-
-      {renderInput("Business Type*", businessType, setBusinessType)}
-      {renderInput("Business Name*", businessName, setBusinessName)}
-      {renderInput("Tagline", businessTagline, setBusinessTagline)}
-      {renderInput("Contact Person*", contactName, setContactName)}
-      {renderInput("Phone*", contactPhone, setContactPhone)}
-      {renderInput("Email*", contactEmail, setContactEmail)}
-      {renderInput("UPI", upi, setUpi)}
-      {renderInput("Google Review Link", reviewLink, setReviewLink)}
-      {renderInput("Profile Image URL", profileImage, setProfileImage)}
-      {renderInput("Logo URL", logo, setLogo)}
-      {renderInput("Signature URL", signature, setSignature)}
-      {renderInput("GST Number", gstNumber, setGstNumber)}
-      {renderInput("Address", businessAddress, setBusinessAddress)}
-      {renderInput("State", state, setState)}
-      {renderInput("PIN Code", pinCode, setPinCode)}
-
-      <TouchableOpacity onPress={handleSave} style={styles.button as any}>
-        <Text style={styles.buttonText as any}>{company ? "Update Info" : "Save Info"}</Text>
+    <ScrollView contentContainerStyle={{ padding: s(20), paddingBottom: vs(50), backgroundColor: '#F8FAFC' }}>
+      <TouchableOpacity style={styles.topBackButton} onPress={() => router.back()}>
+        <Ionicons name="arrow-back" size={rf(22)} color="#1E293B" />
       </TouchableOpacity>
+
+      <View style={styles.mainHeader}>
+        <Text style={styles.mainTitle}>Setup Profile</Text>
+        <Text style={styles.mainSubtitle}>Let's build your professional presence</Text>
+      </View>
+
+      {renderStepIndicator()}
+
+      {renderContent()}
+
+      <View style={styles.navButtons}>
+        {currentStep > 1 && (
+          <TouchableOpacity onPress={prevStep} style={[styles.navBtn, styles.backBtn]}>
+            <Text style={styles.backBtnText}>Back</Text>
+          </TouchableOpacity>
+        )}
+        
+        {currentStep < 4 ? (
+          <TouchableOpacity onPress={nextStep} style={[styles.navBtn, styles.nextBtn, { flex: currentStep === 1 ? 1 : 1.5 }]}>
+            <Text style={styles.nextBtnText}>Continue</Text>
+            <Feather name="arrow-right" size={rf(18)} color="#fff" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={handleSave} style={[styles.navBtn, styles.saveBtn]}>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.nextBtnText}>Save Profile</Text>}
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* --- PREMIUM STATUS MODAL --- */}
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={[
+              styles.iconCircle,
+              { backgroundColor: modalType === 'success' ? '#DEF7EC' : modalType === 'error' ? '#FDE8E8' : '#FEF3C7' }
+            ]}>
+              <Feather 
+                name={modalType === 'success' ? 'check-circle' : modalType === 'error' ? 'x-circle' : 'alert-triangle'} 
+                size={rf(40)} 
+                color={modalType === 'success' ? '#0E9F6E' : modalType === 'error' ? '#F05252' : '#D97706'} 
+              />
+            </View>
+            <Text style={styles.modalTitle}>{modalContent.title}</Text>
+            <Text style={styles.modalMessage}>{modalContent.message}</Text>
+            <TouchableOpacity 
+              style={[
+                styles.modalBtn,
+                { backgroundColor: modalType === 'success' ? '#0E9F6E' : modalType === 'error' ? '#F05252' : '#D97706' }
+              ]}
+              onPress={() => {
+                setModalVisible(false);
+                if (modalType === 'success') {
+                  router.replace("/party/profile" as any);
+                }
+              }}
+            >
+              <Text style={styles.modalBtnText}>Okay, Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
 
 function renderInput(label, value, setValue) {
   return (
-    <View style={{ marginBottom: 15 }}>
+    <View style={{ marginBottom: vs(15) }}>
       <Text style={styles.label as any}>{label}</Text>
       <TextInput
-        style={styles.input}
+        style={styles.input as any}
         value={value}
         onChangeText={setValue}
         placeholder={label}
@@ -594,20 +767,225 @@ function renderInput(label, value, setValue) {
 }
 
 const styles = {
-  label: { fontWeight: "bold", marginBottom: 5 },
+  label: { fontWeight: "bold" as const, marginBottom: vs(5), fontSize: rf(14) },
   input: {
     borderWidth: 1,
     borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: s(8),
+    padding: s(12),
     backgroundColor: "white",
+    fontSize: rf(14),
   },
   button: {
     backgroundColor: "#4f46e5",
-    padding: 15,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 10,
+    padding: s(15),
+    borderRadius: s(10),
+    alignItems: "center" as const,
+    marginTop: vs(10),
   },
-  buttonText: { color: "white", fontWeight: "bold", fontSize: 16 },
+  buttonText: { color: "white", fontWeight: "bold" as const, fontSize: rf(16) },
+  imagePicker: {
+    width: '100%' as any,
+    height: vs(150),
+    backgroundColor: '#fff',
+    borderRadius: s(12),
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderStyle: 'dashed' as const,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    overflow: 'hidden' as const,
+    marginTop: vs(5),
+  },
+  previewImage: {
+    width: '100%' as any,
+    height: '100%' as any,
+    resizeMode: 'cover' as const,
+  },
+  imagePlaceholder: {
+    alignItems: 'center' as const,
+  },
+  topBackButton: {
+    width: s(40),
+    height: s(40),
+    borderRadius: s(20),
+    backgroundColor: '#fff',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    marginTop: vs(40),
+    marginBottom: vs(10),
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  // New Professional Styles
+  mainHeader: {
+    marginTop: vs(20),
+    marginBottom: vs(30),
+  },
+  mainTitle: {
+    fontSize: rf(32),
+    fontWeight: '800' as const,
+    color: '#0F172A',
+  },
+  mainSubtitle: {
+    fontSize: rf(14),
+    color: '#64748B',
+    marginTop: vs(5),
+  },
+  stepIndicatorContainer: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: vs(30),
+    paddingHorizontal: s(10),
+  },
+  stepWrapper: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    flex: 1,
+  },
+  stepCircle: {
+    width: s(34),
+    height: s(34),
+    borderRadius: s(17),
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    borderWidth: 2,
+  },
+  stepCircleActive: {
+    backgroundColor: '#4f46e5',
+    borderColor: '#4f46e5',
+  },
+  stepCircleInactive: {
+    backgroundColor: '#fff',
+    borderColor: '#E2E8F0',
+  },
+  stepText: {
+    fontSize: rf(14),
+    fontWeight: '700' as const,
+  },
+  stepTextActive: {
+    color: '#fff',
+  },
+  stepTextInactive: {
+    color: '#94A3B8',
+  },
+  stepLine: {
+    height: 2,
+    flex: 1,
+    marginHorizontal: s(5),
+  },
+  stepLineActive: {
+    backgroundColor: '#4f46e5',
+  },
+  stepLineInactive: {
+    backgroundColor: '#E2E8F0',
+  },
+  stepCard: {
+    backgroundColor: '#fff',
+    padding: s(24),
+    borderRadius: s(24),
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
+    elevation: 5,
+    marginBottom: vs(30),
+  },
+  stepTitle: {
+    fontSize: rf(20),
+    fontWeight: '700' as const,
+    color: '#1E293B',
+    marginBottom: vs(20),
+  },
+  navButtons: {
+    flexDirection: 'row' as const,
+    gap: s(15),
+  },
+  navBtn: {
+    height: vs(56),
+    borderRadius: s(16),
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    flexDirection: 'row' as const,
+    gap: s(10),
+  },
+  backBtn: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  nextBtn: {
+    backgroundColor: '#4f46e5',
+  },
+  saveBtn: {
+    flex: 2,
+    backgroundColor: '#10b981',
+  },
+  backBtnText: {
+    color: '#64748B',
+    fontWeight: '600' as const,
+    fontSize: rf(16),
+  },
+  nextBtnText: {
+    color: '#fff',
+    fontWeight: '700' as const,
+    fontSize: rf(16),
+  },
+  // --- Modal Styles ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    padding: s(20),
+  },
+  modalContent: {
+    width: '90%' as any,
+    backgroundColor: '#fff',
+    borderRadius: s(30),
+    padding: s(30),
+    alignItems: 'center' as const,
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+  },
+  iconCircle: {
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    marginBottom: vs(20),
+  },
+  modalTitle: {
+    fontSize: rf(22),
+    fontWeight: '800' as const,
+    color: '#1E293B',
+    marginBottom: vs(10),
+    textAlign: 'center' as const,
+  },
+  modalMessage: {
+    fontSize: rf(15),
+    color: '#64748B',
+    textAlign: 'center' as const,
+    lineHeight: vs(22),
+    marginBottom: vs(30),
+  },
+  modalBtn: {
+    width: '100%' as any,
+    height: vs(54),
+    borderRadius: s(18),
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    elevation: 4,
+  },
+  modalBtnText: {
+    color: '#fff',
+    fontWeight: '700' as const,
+    fontSize: rf(16),
+  },
 };

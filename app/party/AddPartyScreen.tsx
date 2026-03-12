@@ -13,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
 
 export default function AddPartyScreen({
     onSuccess,
@@ -105,7 +106,7 @@ export default function AddPartyScreen({
     return (
         <ScrollView
             contentContainerStyle={{
-                padding: 20,
+                padding: s(20),
                 backgroundColor: "#F0F4FF",
                 minHeight: "100%",
             }}
@@ -113,10 +114,10 @@ export default function AddPartyScreen({
             {/* Back Button */}
             <TouchableOpacity
                 onPress={handleBack}
-                style={{ flexDirection: "row", alignItems: "center", marginBottom: 15 }}
+                style={{ flexDirection: "row", alignItems: "center", marginBottom: vs(15) }}
             >
-                <Ionicons name="arrow-back" size={26} color="#4f46e5" />
-                <Text style={{ fontSize: 17, color: "#4f46e5", marginLeft: 6 }}>
+                <Ionicons name="arrow-back" size={rf(26)} color="#4f46e5" />
+                <Text style={{ fontSize: rf(17), color: "#4f46e5", marginLeft: s(6) }}>
                     Back
                 </Text>
             </TouchableOpacity>
@@ -125,8 +126,8 @@ export default function AddPartyScreen({
             <View
                 style={{
                     backgroundColor: "white",
-                    padding: 20,
-                    borderRadius: 15,
+                    padding: s(20),
+                    borderRadius: s(15),
                     shadowColor: "#000",
                     shadowOpacity: 0.2,
                     shadowRadius: 8,
@@ -135,10 +136,10 @@ export default function AddPartyScreen({
             >
                 <Text
                     style={{
-                        fontSize: 26,
+                        fontSize: rf(26),
                         fontWeight: "bold",
                         textAlign: "center",
-                        marginBottom: 20,
+                        marginBottom: vs(20),
                         color: "#4f46e5",
                     }}
                 >
@@ -147,7 +148,7 @@ export default function AddPartyScreen({
 
                 {/* Inputs */}
                 <View style={styles.inputContainer as any}>
-                    <Ionicons name="person-circle" size={22} color="#4f46e5" />
+                    <Ionicons name="person-circle" size={rf(22)} color="#4f46e5" />
                     <TextInput
                         value={customerName}
                         onChangeText={setCustomerName}
@@ -158,7 +159,7 @@ export default function AddPartyScreen({
                 </View>
 
                 <View style={styles.inputContainer as any}>
-                    <Ionicons name="call" size={22} color="#4f46e5" />
+                    <Ionicons name="call" size={rf(22)} color="#4f46e5" />
                     <TextInput
                         value={phone}
                         onChangeText={setPhone}
@@ -227,28 +228,28 @@ const styles = {
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: "#eef2ff",
-        padding: 12,
-        borderRadius: 10,
-        marginBottom: 15,
+        padding: s(12),
+        borderRadius: s(10),
+        marginBottom: vs(15),
         borderWidth: 1,
         borderColor: "#d0d7ff",
     },
     input: {
         flex: 1,
-        marginLeft: 10,
-        fontSize: 16,
+        marginLeft: s(10),
+        fontSize: rf(16),
         color: "black",
     },
     button: {
         backgroundColor: "#4f46e5",
-        padding: 15,
-        borderRadius: 12,
+        padding: s(15),
+        borderRadius: s(12),
         alignItems: "center",
-        marginTop: 20,
+        marginTop: vs(20),
     },
     buttonText: {
         color: "white",
         fontWeight: "bold",
-        fontSize: 18,
+        fontSize: rf(18),
     },
 };

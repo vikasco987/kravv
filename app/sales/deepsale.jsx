@@ -4110,6 +4110,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
 
 // -------------------------------------------------------------
@@ -4299,7 +4300,7 @@ export default function BillListScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#6C63FF" />
-        <Text style={{ marginTop: 10, fontSize: 16 }}>Loading Bills...</Text>
+        <Text style={{ marginTop: vs(10), fontSize: rf(16) }}>Loading Bills...</Text>
       </View>
     );
 
@@ -4311,11 +4312,11 @@ export default function BillListScreen() {
       <LinearGradient colors={["#6C63FF", "#4E43E3"]} style={styles.header}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={26} color="white" />
+            <Ionicons name="arrow-back" size={rf(26)} color="white" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Bills & Transactions</Text>
           <TouchableOpacity onPress={triggerRefresh} style={styles.headerReloadBtn}>
-            <Ionicons name="refresh" size={26} color="white" />
+            <Ionicons name="refresh" size={rf(26)} color="white" />
           </TouchableOpacity>
         </View>
 
@@ -4548,60 +4549,60 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
 
   header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 18,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
+    paddingTop: vs(50),
+    paddingBottom: vs(20),
+    paddingHorizontal: s(18),
+    borderBottomLeftRadius: s(25),
+    borderBottomRightRadius: s(25),
     elevation: 10,
   },
   headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 15,
+    marginBottom: vs(15),
   },
   backButton: {
-    padding: 5,
+    padding: s(5),
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: rf(20),
     fontWeight: "700",
     color: "white",
     flex: 1,
     textAlign: "center",
   },
   headerReloadBtn: {
-    padding: 5,
+    padding: s(5),
   },
 
   searchWrapper: {
     backgroundColor: "rgba(255,255,255,0.25)",
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingHorizontal: s(15),
+    paddingVertical: vs(10),
+    borderRadius: s(10),
   },
 
   searchInput: {
     color: "#fff",
-    fontSize: 17,
+    fontSize: rf(17),
     fontWeight: "500",
   },
 
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 8,
-    paddingHorizontal: 10,
+    marginTop: vs(8),
+    paddingHorizontal: s(10),
   },
 
   chip: {
     backgroundColor: "#EDEDED",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 25,
-    marginRight: 8,
-    marginBottom: 8,
+    paddingVertical: vs(6),
+    paddingHorizontal: s(12),
+    borderRadius: s(25),
+    marginRight: s(8),
+    marginBottom: vs(8),
   },
 
   chipActive: {
@@ -4610,7 +4611,7 @@ const styles = StyleSheet.create({
 
   chipText: {
     color: "#333",
-    fontSize: 13,
+    fontSize: rf(13),
     fontWeight: "600",
   },
 
@@ -4620,74 +4621,74 @@ const styles = StyleSheet.create({
 
   dateRangeBtn: {
     backgroundColor: "#EEE",
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    marginRight: 10,
+    paddingVertical: vs(7),
+    paddingHorizontal: s(14),
+    borderRadius: s(20),
+    marginRight: s(10),
   },
 
   dateRangeText: {
-    fontSize: 13,
+    fontSize: rf(13),
     fontWeight: "600",
     color: "#444",
   },
 
   clearBtn: {
     backgroundColor: "red",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 25,
+    paddingVertical: vs(6),
+    paddingHorizontal: s(12),
+    borderRadius: s(25),
   },
 
   card: {
-    margin: 12,
-    padding: 15,
+    margin: s(12),
+    padding: s(15),
     backgroundColor: "rgba(255,255,255,0.85)",
-    borderRadius: 14,
+    borderRadius: s(14),
     elevation: 4,
   },
 
-  billId: { fontSize: 15, fontWeight: "700" },
-  customer: { fontSize: 14, marginTop: 5 },
-  total: { fontSize: 18, fontWeight: "700", marginTop: 5, color: "#6C63FF" },
-  date: { fontSize: 12, color: "#666", marginBottom: 10 },
+  billId: { fontSize: rf(15), fontWeight: "700" },
+  customer: { fontSize: rf(14), marginTop: vs(5) },
+  total: { fontSize: rf(18), fontWeight: "700", marginTop: vs(5), color: "#6C63FF" },
+  date: { fontSize: rf(12), color: "#666", marginBottom: vs(10) },
 
   itemsBox: {
     backgroundColor: "#F1F1F1",
-    padding: 10,
-    borderRadius: 10,
+    padding: s(10),
+    borderRadius: s(10),
   },
 
   itemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 4,
+    marginBottom: vs(4),
   },
 
-  itemName: { flex: 2, fontWeight: "600" },
-  itemQty: { flex: 1, textAlign: "center" },
-  itemRate: { flex: 1, textAlign: "right" },
-  itemTotal: { flex: 1, textAlign: "right", fontWeight: "700" },
+  itemName: { flex: 2, fontWeight: "600", fontSize: rf(14) },
+  itemQty: { flex: 1, textAlign: "center", fontSize: rf(14) },
+  itemRate: { flex: 1, textAlign: "right", fontSize: rf(14) },
+  itemTotal: { flex: 1, textAlign: "right", fontWeight: "700", fontSize: rf(14) },
 
   paginationRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: 15,
+    padding: s(15),
     backgroundColor: "#fff",
     elevation: 4,
   },
 
   pageBtn: {
     backgroundColor: "#6C63FF",
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 25,
+    paddingHorizontal: s(18),
+    paddingVertical: vs(8),
+    borderRadius: s(25),
   },
 
-  pageText: { color: "white", fontWeight: "700" },
+  pageText: { color: "white", fontWeight: "700", fontSize: rf(14) },
 
   pageNumber: {
-    fontSize: 16,
+    fontSize: rf(16),
     fontWeight: "700",
   },
 });

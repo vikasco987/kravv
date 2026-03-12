@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
-    Dimensions,
     SafeAreaView,
     ScrollView,
     StyleSheet,
@@ -13,9 +12,9 @@ import {
     View,
     RefreshControl,
 } from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
 
-const { width } = Dimensions.get("window");
 
 // --- Constants ---
 const COLORS = {
@@ -33,7 +32,7 @@ const COLORS = {
 const SalesSummaryCard = ({ label, amount, icon, color }) => (
     <View style={[styles.summaryCard, { borderLeftColor: color }]}>
         <View style={[styles.summaryIconContainer, { backgroundColor: color + '15' }]}>
-            <Ionicons name={icon} size={22} color={color} />
+            <Ionicons name={icon} size={rf(22)} color={color} />
         </View>
         <View>
             <Text style={styles.summaryLabel}>{label}</Text>
@@ -49,13 +48,13 @@ const DashboardMenuItem = ({ title, iconName, path, router, color, subtitle }) =
         onPress={() => router.push(path)}
     >
         <View style={[styles.menuIconContainer, { backgroundColor: color + '10' }]}>
-            <Ionicons name={iconName} size={28} color={color} />
+            <Ionicons name={iconName} size={rf(28)} color={color} />
         </View>
         <View style={{ flex: 1 }}>
             <Text style={styles.menuTitle}>{title}</Text>
             <Text style={styles.menuSubtitle}>{subtitle}</Text>
         </View>
-        <Feather name="chevron-right" size={20} color="#CBD5E1" />
+        <Feather name="chevron-right" size={rf(20)} color="#CBD5E1" />
     </TouchableOpacity>
 );
 
@@ -211,29 +210,29 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.background,
     },
     scrollContent: {
-        padding: 20,
-        paddingTop: 10,
+        padding: s(20),
+        paddingTop: vs(10),
     },
     sectionTitle: {
-        fontSize: 18,
+        fontSize: rf(18),
         fontWeight: '800',
         color: COLORS.text,
-        marginBottom: 15,
+        marginBottom: vs(15),
     },
     summaryContainer: {
-        marginBottom: 25,
+        marginBottom: vs(25),
     },
     statsRow: {
         flexDirection: 'column',
-        gap: 12,
+        gap: vs(12),
     },
     summaryCard: {
         backgroundColor: COLORS.card,
-        borderRadius: 16,
-        padding: 16,
+        borderRadius: s(16),
+        padding: s(16),
         flexDirection: 'row',
         alignItems: 'center',
-        borderLeftWidth: 4,
+        borderLeftWidth: s(4),
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
@@ -241,34 +240,34 @@ const styles = StyleSheet.create({
         elevation: 2,
     },
     summaryIconContainer: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
+        width: s(44),
+        height: s(44),
+        borderRadius: s(12),
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 15,
+        marginRight: s(15),
     },
     summaryLabel: {
-        fontSize: 13,
+        fontSize: rf(12),
         color: COLORS.textLight,
         fontWeight: '600',
-        marginBottom: 2,
+        marginBottom: vs(2),
     },
     summaryAmount: {
-        fontSize: 20,
-        fontWeight: 'Bold',
+        fontSize: rf(20),
+        fontWeight: 'bold',
         color: COLORS.text,
     },
     analyticsSection: {
-        marginBottom: 25,
+        marginBottom: vs(25),
     },
     menuGrid: {
-        gap: 12,
+        gap: vs(12),
     },
     menuItem: {
         backgroundColor: COLORS.card,
-        borderRadius: 16,
-        padding: 16,
+        borderRadius: s(16),
+        padding: s(16),
         flexDirection: 'row',
         alignItems: 'center',
         shadowColor: '#000',
@@ -278,31 +277,31 @@ const styles = StyleSheet.create({
         elevation: 2,
     },
     menuIconContainer: {
-        width: 54,
-        height: 54,
-        borderRadius: 16,
+        width: s(54),
+        height: s(54),
+        borderRadius: s(16),
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16,
+        marginRight: s(16),
     },
     menuTitle: {
-        fontSize: 16,
+        fontSize: rf(16),
         fontWeight: '700',
         color: COLORS.text,
     },
     menuSubtitle: {
-        fontSize: 12,
+        fontSize: rf(12),
         color: COLORS.textLight,
-        marginTop: 2,
+        marginTop: vs(2),
     },
     quickActionCard: {
         backgroundColor: COLORS.primary,
-        borderRadius: 20,
-        padding: 20,
+        borderRadius: s(20),
+        padding: s(20),
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: 10,
+        marginTop: vs(10),
         shadowColor: COLORS.primary,
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.2,
@@ -311,21 +310,21 @@ const styles = StyleSheet.create({
     },
     quickActionTitle: {
         color: COLORS.white,
-        fontSize: 18,
+        fontSize: rf(18),
         fontWeight: 'bold',
     },
     quickActionSub: {
         color: 'rgba(255,255,255,0.7)',
-        fontSize: 14,
-        marginTop: 2,
+        fontSize: rf(14),
+        marginTop: vs(2),
     },
     quickActionButton: {
         backgroundColor: 'rgba(255,255,255,0.2)',
-        padding: 10,
-        borderRadius: 12,
+        padding: s(10),
+        borderRadius: s(12),
     },
     loaderContainer: {
-        height: 100,
+        height: vs(100),
         justifyContent: 'center',
         alignItems: 'center',
     }

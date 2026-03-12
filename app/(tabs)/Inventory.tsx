@@ -16,6 +16,7 @@ import {
   View,
   RefreshControl
 } from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
 
 const THEME_PRIMARY = "#4F46E5"; // Indigo
 const THEME_SUCCESS = "#10B981"; // Green
@@ -146,7 +147,7 @@ export default function InventoryScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={THEME_PRIMARY} />
-        <Text style={{ marginTop: 10 }}>Loading inventory...</Text>
+        <Text style={{ marginTop: vs(10), fontSize: rf(14) }}>Loading inventory...</Text>
       </View>
     );
 
@@ -190,14 +191,14 @@ export default function InventoryScreen() {
 
       {/* Inventory List */}
       <ScrollView 
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: vs(120) }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => fetchInventory(true)} colors={[THEME_PRIMARY]} />
         }
       >
         {activeTab === "inventory" ? (
           inventory.length === 0 ? (
-            <Text style={{ textAlign: "center", color: "#6B7280" }}>
+            <Text style={{ textAlign: "center", color: "#6B7280", marginTop: vs(20), fontSize: rf(14) }}>
               No items in inventory.
             </Text>
           ) : (
@@ -246,13 +247,13 @@ const InventoryCard = ({
           onPress={() => onUpdateStock(item.id, -1)}
           style={[styles.actionBtn, styles.minusBtn]}
         >
-          <Feather name="minus" size={16} color={THEME_DANGER} />
+          <Feather name="minus" size={rf(16)} color={THEME_DANGER} />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => onUpdateStock(item.id, 1)}
           style={[styles.actionBtn, styles.plusBtn]}
         >
-          <Feather name="plus" size={16} color={THEME_SUCCESS} />
+          <Feather name="plus" size={rf(16)} color={THEME_SUCCESS} />
         </TouchableOpacity>
       </View>
     </View>
@@ -264,44 +265,44 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   tabContainer: {
     flexDirection: "row",
-    padding: 10,
+    padding: s(10),
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
   tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginRight: 10,
+    paddingVertical: vs(8),
+    paddingHorizontal: s(16),
+    borderRadius: s(20),
+    marginRight: s(10),
   },
   activeTab: { backgroundColor: THEME_PRIMARY },
-  tabText: { color: "#4B5563", fontWeight: "600" },
+  tabText: { color: "#4B5563", fontWeight: "600", fontSize: rf(14) },
   activeTabText: { color: "#fff" },
   card: {
     flexDirection: "row",
     backgroundColor: "#fff",
-    margin: 10,
-    borderRadius: 12,
-    padding: 12,
+    margin: s(10),
+    borderRadius: s(12),
+    padding: s(12),
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 2,
   },
-  itemImage: { width: 80, height: 80, borderRadius: 8 },
-  cardContent: { flex: 1, marginLeft: 15 },
-  itemName: { fontSize: 16, fontWeight: "bold", color: "#111827" },
-  itemStock: { fontSize: 13, color: "#6B7280", marginTop: 4 },
-  itemPrice: { fontSize: 14, fontWeight: "600", color: THEME_PRIMARY, marginTop: 4 },
+  itemImage: { width: s(80), height: s(80), borderRadius: s(8) },
+  cardContent: { flex: 1, marginLeft: s(15) },
+  itemName: { fontSize: rf(16), fontWeight: "bold", color: "#111827" },
+  itemStock: { fontSize: rf(13), color: "#6B7280", marginTop: vs(4) },
+  itemPrice: { fontSize: rf(14), fontWeight: "600", color: THEME_PRIMARY, marginTop: vs(4) },
   stockActions: {
     flexDirection: "row",
-    marginTop: 10,
-    gap: 15,
+    marginTop: vs(10),
+    gap: s(15),
   },
   actionBtn: {
-    padding: 6,
-    borderRadius: 8,
+    padding: s(6),
+    borderRadius: s(8),
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",

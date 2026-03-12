@@ -11,6 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
 
 const COLORS = {
     primary: '#4F46E5', // Indigo
@@ -61,7 +62,7 @@ export default function SettingScreen() {
                 <View style={styles.card}>
                     <View style={styles.userInfo}>
                         <View style={styles.avatarContainer}>
-                            <Ionicons name={"person-circle" as any} size={80} color={COLORS.primary} />
+                            <Ionicons name={"person-circle" as any} size={rf(80)} color={COLORS.primary} />
                         </View>
                         <View style={styles.userText}>
                             <Text style={styles.userName}>{user ? `${user.firstName || 'User'}` : "Guest Account"}</Text>
@@ -77,10 +78,10 @@ export default function SettingScreen() {
                                 activeOpacity={0.8}
                             >
                                 <View style={styles.buttonIconBackground}>
-                                    <Ionicons name={"log-in-outline" as any} size={22} color={COLORS.primary} />
+                                    <Ionicons name={"log-in-outline" as any} size={rf(22)} color={COLORS.primary} />
                                 </View>
                                 <Text style={styles.buttonText}>Sign In</Text>
-                                <Ionicons name={"chevron-forward" as any} size={20} color={COLORS.white} style={{ marginLeft: 'auto' }} />
+                                <Ionicons name={"chevron-forward" as any} size={rf(20)} color={COLORS.white} style={{ marginLeft: 'auto' }} />
                             </TouchableOpacity>
                         ) : (
                             <TouchableOpacity
@@ -89,10 +90,10 @@ export default function SettingScreen() {
                                 activeOpacity={0.8}
                             >
                                 <View style={[styles.buttonIconBackground, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                                    <Ionicons name={"log-out-outline" as any} size={22} color={COLORS.white} />
+                                    <Ionicons name={"log-out-outline" as any} size={rf(22)} color={COLORS.white} />
                                 </View>
                                 <Text style={styles.buttonText}>Sign Out</Text>
-                                <Ionicons name={"chevron-forward" as any} size={20} color={COLORS.white} style={{ marginLeft: 'auto' }} />
+                                <Ionicons name={"chevron-forward" as any} size={rf(20)} color={COLORS.white} style={{ marginLeft: 'auto' }} />
                             </TouchableOpacity>
                         )}
                     </View>
@@ -100,7 +101,7 @@ export default function SettingScreen() {
 
                 <View style={styles.infoBox}>
                     <View style={styles.infoIconContainer}>
-                        <Ionicons name={"information-circle" as any} size={24} color={COLORS.primary} />
+                        <Ionicons name={"information-circle" as any} size={rf(24)} color={COLORS.primary} />
                     </View>
                     <View style={styles.infoTextContainer}>
                         <Text style={styles.infoTitle}>Why sign in?</Text>
@@ -108,6 +109,22 @@ export default function SettingScreen() {
                             Signing in allows you to sync your sales data, manage inventory across devices, and keep your business records safe.
                         </Text>
                     </View>
+                </View>
+
+                {/* Business Section */}
+                <View style={[styles.card, { marginTop: vs(20) }]}>
+                    <Text style={[styles.infoTitle, { marginBottom: vs(15) }]}>Business Management</Text>
+                    <TouchableOpacity
+                        style={[styles.button, { backgroundColor: COLORS.white, borderWidth: 1, borderColor: '#E5E7EB', elevation: 0, shadowOpacity: 0 }]}
+                        onPress={() => router.push("/party/profile" as any)}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.buttonIconBackground, { backgroundColor: COLORS.primary + '15' }]}>
+                            <Ionicons name={"business-outline" as any} size={rf(22)} color={COLORS.primary} />
+                        </View>
+                        <Text style={[styles.buttonText, { color: COLORS.text, fontSize: rf(16) }]}>Business Profile</Text>
+                        <Ionicons name={"chevron-forward" as any} size={rf(20)} color={COLORS.textLight} style={{ marginLeft: 'auto' }} />
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.footer}>
@@ -125,29 +142,29 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.background,
     },
     scrollContent: {
-        padding: 20,
-        paddingTop: 30,
+        padding: s(20),
+        paddingTop: vs(30),
     },
     header: {
-        marginBottom: 30,
-        paddingHorizontal: 10,
+        marginBottom: vs(30),
+        paddingHorizontal: s(10),
     },
     title: {
-        fontSize: 34,
+        fontSize: rf(34),
         fontWeight: '800',
         color: COLORS.text,
         letterSpacing: -0.5,
     },
     subtitle: {
-        fontSize: 16,
+        fontSize: rf(16),
         color: COLORS.textLight,
-        marginTop: 6,
+        marginTop: vs(6),
         fontWeight: '500',
     },
     card: {
         backgroundColor: COLORS.card,
-        borderRadius: 28,
-        padding: 24,
+        borderRadius: s(28),
+        padding: s(24),
         shadowColor: COLORS.primary,
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.08,
@@ -158,13 +175,13 @@ const styles = StyleSheet.create({
     },
     userInfo: {
         alignItems: 'center',
-        marginBottom: 35,
+        marginBottom: vs(35),
     },
     avatarContainer: {
-        marginBottom: 16,
+        marginBottom: vs(16),
         backgroundColor: COLORS.primary + '10',
-        borderRadius: 60,
-        padding: 10,
+        borderRadius: s(60),
+        padding: s(10),
         borderWidth: 4,
         borderColor: '#fff',
     },
@@ -172,14 +189,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     userName: {
-        fontSize: 24,
+        fontSize: rf(24),
         fontWeight: '800',
         color: COLORS.text,
     },
     userEmail: {
-        fontSize: 14,
+        fontSize: rf(14),
         color: COLORS.textLight,
-        marginTop: 6,
+        marginTop: vs(6),
         textAlign: 'center',
         fontWeight: '500',
     },
@@ -189,9 +206,9 @@ const styles = StyleSheet.create({
     button: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 18,
-        paddingHorizontal: 20,
-        borderRadius: 20,
+        paddingVertical: vs(18),
+        paddingHorizontal: s(20),
+        borderRadius: s(20),
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
@@ -200,9 +217,9 @@ const styles = StyleSheet.create({
     },
     buttonIconBackground: {
         backgroundColor: '#fff',
-        padding: 8,
-        borderRadius: 12,
-        marginRight: 15,
+        padding: s(8),
+        borderRadius: s(12),
+        marginRight: s(15),
     },
     signInButton: {
         backgroundColor: COLORS.primary,
@@ -212,55 +229,55 @@ const styles = StyleSheet.create({
     },
     buttonText: {
         color: COLORS.white,
-        fontSize: 18,
+        fontSize: rf(18),
         fontWeight: '700',
     },
     infoBox: {
         flexDirection: 'row',
-        marginTop: 40,
-        padding: 24,
+        marginTop: vs(40),
+        padding: s(24),
         backgroundColor: '#fff',
-        borderRadius: 24,
+        borderRadius: s(24),
         alignItems: 'flex-start',
-        gap: 16,
+        gap: s(16),
         borderWidth: 1,
         borderColor: '#E5E7EB',
     },
     infoIconContainer: {
         backgroundColor: COLORS.primary + '10',
-        padding: 10,
-        borderRadius: 14,
+        padding: s(10),
+        borderRadius: s(14),
     },
     infoTextContainer: {
         flex: 1,
     },
     infoTitle: {
-        fontSize: 17,
+        fontSize: rf(17),
         fontWeight: '700',
         color: COLORS.text,
-        marginBottom: 4,
+        marginBottom: vs(4),
     },
     infoText: {
-        fontSize: 14,
+        fontSize: rf(14),
         color: COLORS.textLight,
-        lineHeight: 22,
+        lineHeight: rf(22),
         fontWeight: '400',
     },
     footer: {
-        marginTop: 50,
+        marginTop: vs(50),
         alignItems: 'center',
-        marginBottom: 30,
+        marginBottom: vs(30),
     },
     versionText: {
-        fontSize: 14,
+        fontSize: rf(14),
         color: COLORS.text,
         fontWeight: '700',
         opacity: 0.8,
     },
     versionNumber: {
-        fontSize: 12,
+        fontSize: rf(12),
         color: COLORS.textLight,
-        marginTop: 4,
+        marginTop: vs(4),
         fontWeight: '500',
     }
 });

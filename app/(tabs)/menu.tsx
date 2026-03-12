@@ -7,7 +7,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Image,
   Modal,
@@ -18,8 +17,10 @@ import {
   // @ts-ignore
   ToastAndroid,
   TouchableOpacity,
-  View
+  View,
+  Dimensions
 } from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
 
 // Fixed imports based on project structure
 import { SaveBill } from "../../components/SaveBill";
@@ -51,13 +52,12 @@ const THEME_DANGER = "#DC2626";
 const COLOR_BG_LIGHT = "#F9FAFB";
 const COLOR_BG_DARK = "#FFFFFF";
 const KOT_BUTTON_COLOR = "#6366F1";
-const CATEGORY_COLUMN_WIDTH = 80;
+const CATEGORY_COLUMN_WIDTH = s(80);
 
 export default function MenuScreen() {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
-  const screenWidth = Dimensions.get("window").width;
 
   const [menus, setMenus] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -473,8 +473,8 @@ export default function MenuScreen() {
       ToastAndroid.show("Failed to hold order", ToastAndroid.SHORT);
     }
   };
-  const numColumns = screenWidth < 700 ? 3 : 4;
-  const itemWidth = (screenWidth - CATEGORY_COLUMN_WIDTH - 24) / numColumns;
+  const { width: SCREEN_WIDTH } = Dimensions.get('window');
+  const itemWidth = (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32)) / 3;
 
   if (loading)
     return (
@@ -498,13 +498,13 @@ export default function MenuScreen() {
             {refreshing ? (
               <ActivityIndicator size="small" color={THEME_PRIMARY} />
             ) : (
-              <Ionicons name="refresh" size={22} color={THEME_PRIMARY} />
+              <Ionicons name="refresh" size={rf(22)} color={THEME_PRIMARY} />
             )}
           </TouchableOpacity>
         </View>
         <View style={styles.headerActionGroup}>
           <TouchableOpacity style={styles.integratedActionButton} onPress={() => router.push("/party/items")}>
-            <Feather name="plus" size={16} color="#FFF" style={{ marginRight: 4 }} />
+            <Feather name="plus" size={rf(16)} color="#FFF" style={{ marginRight: s(4) }} />
             <Text style={styles.integratedButtonText}>Item</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -517,7 +517,7 @@ export default function MenuScreen() {
             style={[styles.integratedActionButton, { position: 'relative' }]}
             onPress={() => router.push("/party/hold")}
           >
-            <Ionicons name="timer-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
+            <Ionicons name="timer-outline" size={rf(16)} color="#FFF" style={{ marginRight: s(4) }} />
             <Text style={styles.integratedButtonText}>HOLD</Text>
             {heldCount > 0 && (
               <View style={styles.headerBadge}>
@@ -531,7 +531,7 @@ export default function MenuScreen() {
       {/* --- ENHANCED SEARCH BAR --- */}
       <View style={styles.searchSection}>
         <View style={styles.searchBarContainer}>
-          <Feather name="search" size={20} color="#4B5563" style={{ marginLeft: 12 }} />
+          <Feather name="search" size={rf(20)} color="#4B5563" style={{ marginLeft: s(12) }} />
           <TextInput
             placeholder="Search name, category, or price..."
             placeholderTextColor="#9CA3AF"
@@ -542,8 +542,8 @@ export default function MenuScreen() {
             autoCorrect={false}
           />
           {searchQuery !== "" && (
-            <TouchableOpacity onPress={() => setSearchQuery("")} style={{ padding: 10 }}>
-              <Ionicons name="close-circle" size={20} color="#4B5563" />
+            <TouchableOpacity onPress={() => setSearchQuery("")} style={{ padding: s(10) }}>
+              <Ionicons name="close-circle" size={rf(20)} color="#4B5563" />
             </TouchableOpacity>
           )}
         </View>
@@ -605,7 +605,7 @@ export default function MenuScreen() {
                         <View>
                           <Image
                             source={{ uri: item.imageUrl?.startsWith("http") ? item.imageUrl : "https://via.placeholder.com/80?text=No+Image" }}
-                            style={styles.itemImage}
+                            style={[styles.itemImage, { width: itemWidth - s(12), height: itemWidth - s(12) }]}
                             resizeMode="cover"
                           />
                           {quantity > 0 && (
@@ -986,20 +986,15 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   row: { flex: 1, flexDirection: "row" },
 
-  // --- SEARCH STYLES ---
-  searchSection: {
-    paddingHorizontal: 15,
-    paddingBottom: 12,
-    backgroundColor: COLOR_BG_LIGHT
-  },
+  searchSection: { paddingHorizontal: s(15), paddingVertical: vs(5) },
   searchBarContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    backgroundColor: "#fff",
+    borderRadius: s(25),
     borderWidth: 1.5,
     borderColor: "#E5E7EB",
-    height: 50,
+    height: vs(50),
     elevation: 3,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -1008,42 +1003,42 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    paddingHorizontal: 12,
-    fontSize: 16,
+    paddingHorizontal: s(12),
+    fontSize: rf(16),
     color: "#000000",
     fontWeight: "500",
     height: "100%",
   },
 
   categoryColumn: { width: CATEGORY_COLUMN_WIDTH, backgroundColor: COLOR_BG_DARK, borderRightWidth: 1, borderColor: "#E5E7EB" },
-  categoryButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 6, marginVertical: 3, backgroundColor: THEME_PRIMARY, borderRadius: 8, marginHorizontal: 4 },
-  categoryText: { fontWeight: "600", color: "#fff", marginLeft: 3, fontSize: 10, textAlign: 'center' },
-  categoryHeader: { fontSize: 11, fontWeight: "bold", backgroundColor: "#E0E7FF", padding: 3, marginTop: 10, borderRadius: 6, textAlign: "center", color: THEME_PRIMARY, marginHorizontal: 10 },
-  gridContainer: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 4, marginTop: 5 },
-  gridItem: { backgroundColor: COLOR_BG_DARK, borderRadius: 10, padding: 6, margin: 4, alignItems: "center", elevation: 2 },
-  itemImage: { width: 80, height: 80, borderRadius: 8, marginBottom: 4 },
-  itemName: { fontSize: 13, fontWeight: "600", textAlign: "center", color: "#111", marginBottom: 2 },
-  bottomRow: { width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
-  itemPrice: { fontSize: 11, color: THEME_DANGER, fontWeight: "bold" },
-  quantityBox: { backgroundColor: THEME_SECONDARY, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  quantityText: { color: "#fff", fontWeight: "bold", fontSize: 10 },
-  minusIcon: { position: "absolute", top: 0, right: 0, backgroundColor: THEME_DANGER, borderRadius: 10, padding: 2, zIndex: 10 },
+  categoryButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: vs(6), marginVertical: vs(3), backgroundColor: THEME_PRIMARY, borderRadius: s(8), marginHorizontal: s(4) },
+  categoryText: { fontWeight: "600", color: "#fff", marginLeft: s(3), fontSize: rf(10), textAlign: 'center' },
+  categoryHeader: { fontSize: rf(11), fontWeight: "bold", backgroundColor: "#E0E7FF", padding: s(3), marginTop: vs(10), borderRadius: s(6), textAlign: "center", color: THEME_PRIMARY, marginHorizontal: s(10) },
+  gridContainer: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: s(4), marginTop: vs(5) },
+  gridItem: { backgroundColor: COLOR_BG_DARK, borderRadius: s(10), padding: s(6), margin: s(4), alignItems: "center", elevation: 2 },
+  itemImage: { width: s(80), height: s(80), borderRadius: s(8), marginBottom: vs(4) },
+  itemName: { fontSize: rf(13), fontWeight: "600", textAlign: "center", color: "#111", marginBottom: vs(2) },
+  bottomRow: { width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: vs(4) },
+  itemPrice: { fontSize: rf(11), color: THEME_DANGER, fontWeight: "bold" },
+  quantityBox: { backgroundColor: THEME_SECONDARY, paddingHorizontal: s(6), paddingVertical: vs(2), borderRadius: s(6) },
+  quantityText: { color: "#fff", fontWeight: "bold", fontSize: rf(10) },
+  minusIcon: { position: "absolute", top: 0, right: 0, backgroundColor: THEME_DANGER, borderRadius: s(10), padding: s(2), zIndex: 10 },
 
-  integratedHeaderBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 15, paddingTop: 10, paddingBottom: 5 },
-  headerTitle: { fontSize: 22, fontWeight: "bold", color: "#1F2937" },
-  refreshIconButton: { marginLeft: 10, padding: 5 },
-  headerActionGroup: { flexDirection: "row", backgroundColor: THEME_PRIMARY, borderRadius: 10, padding: 4 },
-  integratedActionButton: { flexDirection: "row", alignItems: "center", paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, marginHorizontal: 2, position: 'relative' },
-  integratedButtonText: { fontSize: 13, fontWeight: "700", color: "#FFF" },
+  integratedHeaderBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: s(15), paddingTop: vs(10), paddingBottom: vs(5) },
+  headerTitle: { fontSize: rf(22), fontWeight: "bold", color: "#1F2937" },
+  refreshIconButton: { marginLeft: s(10), padding: s(5) },
+  headerActionGroup: { flexDirection: "row", backgroundColor: THEME_PRIMARY, borderRadius: s(10), padding: s(4) },
+  integratedActionButton: { flexDirection: "row", alignItems: "center", paddingVertical: vs(6), paddingHorizontal: s(10), borderRadius: s(8), marginHorizontal: s(2), position: 'relative' },
+  integratedButtonText: { fontSize: rf(13), fontWeight: "700", color: "#FFF" },
 
   headerBadge: {
     position: 'absolute',
-    top: -6,
-    right: -4,
+    top: vs(-6),
+    right: s(-4),
     backgroundColor: THEME_DANGER,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+    borderRadius: s(10),
+    minWidth: s(18),
+    height: vs(18),
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
@@ -1051,108 +1046,108 @@ const styles = StyleSheet.create({
   },
   headerBadgeText: {
     color: '#FFF',
-    fontSize: 9,
+    fontSize: rf(9),
     fontWeight: '900',
   },
 
-  cartBar: { position: "absolute", bottom: 0, left: 65, right: 0, backgroundColor: "#fff", padding: 12, borderTopWidth: 1, borderColor: "#E5E7EB", zIndex: 999, elevation: 20 },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  viewItemsButton: { backgroundColor: THEME_PRIMARY, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  viewItemsText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+  cartBar: { position: "absolute", bottom: 0, left: s(65), right: 0, backgroundColor: "#fff", padding: s(12), borderTopWidth: 1, borderColor: "#E5E7EB", zIndex: 999, elevation: 20 },
+  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: vs(10) },
+  viewItemsButton: { backgroundColor: THEME_PRIMARY, flexDirection: 'row', alignItems: 'center', paddingHorizontal: s(12), paddingVertical: vs(6), borderRadius: s(20) },
+  viewItemsText: { color: '#fff', fontWeight: 'bold', fontSize: rf(13) },
 
   receivedContainer: { flexDirection: "row", alignItems: "center" },
-  receivedCheckbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: THEME_PRIMARY, marginRight: 6, justifyContent: "center", alignItems: "center" },
-  receivedText: { fontSize: 12, fontWeight: "500" },
-  paymentSelector: { flexDirection: "row", justifyContent: "space-between", backgroundColor: "#F3F4F6", borderRadius: 8, marginBottom: 10, padding: 4 },
-  paymentOption: { flex: 1, alignItems: "center", paddingVertical: 5, marginHorizontal: 2, borderRadius: 6, borderWidth: 1, borderColor: THEME_PRIMARY },
+  receivedCheckbox: { width: s(18), height: s(18), borderRadius: s(4), borderWidth: 1.5, borderColor: THEME_PRIMARY, marginRight: s(6), justifyContent: "center", alignItems: "center" },
+  receivedText: { fontSize: rf(12), fontWeight: "500" },
+  paymentSelector: { flexDirection: "row", justifyContent: "space-between", backgroundColor: "#F3F4F6", borderRadius: s(8), marginBottom: vs(10), padding: s(4) },
+  paymentOption: { flex: 1, alignItems: "center", paddingVertical: vs(5), marginHorizontal: s(2), borderRadius: s(6), borderWidth: 1, borderColor: THEME_PRIMARY },
   paymentSelected: { backgroundColor: THEME_PRIMARY },
-  paymentText: { color: THEME_PRIMARY, fontWeight: "600", fontSize: 11 },
-  actionButtonsRow: { flexDirection: "row", justifyContent: "space-between", gap: 6 },
-  saveBillButton: { flex: 0.8, backgroundColor: "#2563EB", borderRadius: 8, paddingVertical: 10, alignItems: "center", flexDirection: "row", justifyContent: "center" },
-  printKotButton: { flex: 0.8, backgroundColor: KOT_BUTTON_COLOR, borderRadius: 8, paddingVertical: 10, alignItems: "center", flexDirection: "row", justifyContent: "center" },
-  printBillButton: { flex: 0.8, backgroundColor: THEME_DANGER, borderRadius: 8, paddingVertical: 10, alignItems: "center", flexDirection: "row", justifyContent: "center" },
-  primaryButton: { flex: 1.2, backgroundColor: THEME_SECONDARY, borderRadius: 8, paddingVertical: 10, alignItems: "center", flexDirection: "row", justifyContent: "center" },
-  primaryButtonText: { color: "#fff", fontWeight: "900", fontSize: 15 },
-  printBillText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  paymentText: { color: THEME_PRIMARY, fontWeight: "600", fontSize: rf(11) },
+  actionButtonsRow: { flexDirection: "row", justifyContent: "space-between", gap: s(6) },
+  saveBillButton: { flex: 0.8, backgroundColor: "#2563EB", borderRadius: s(8), paddingVertical: vs(10), alignItems: "center", flexDirection: "row", justifyContent: "center" },
+  printKotButton: { flex: 0.8, backgroundColor: KOT_BUTTON_COLOR, borderRadius: s(8), paddingVertical: vs(10), alignItems: "center", flexDirection: "row", justifyContent: "center" },
+  printBillButton: { flex: 0.8, backgroundColor: THEME_DANGER, borderRadius: s(8), paddingVertical: vs(10), alignItems: "center", flexDirection: "row", justifyContent: "center" },
+  primaryButton: { flex: 1.2, backgroundColor: THEME_SECONDARY, borderRadius: s(8), paddingVertical: vs(10), alignItems: "center", flexDirection: "row", justifyContent: "center" },
+  primaryButtonText: { color: "#fff", fontWeight: "900", fontSize: rf(15) },
+  printBillText: { color: "#fff", fontWeight: "700", fontSize: rf(13) },
 
   // --- MODAL STYLES ---
-  modalOverlay: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end', marginLeft: 55, paddingBottom: 80, paddingHorizontal: 15 },
-  modalContent: { backgroundColor: '#fff', borderRadius: 24, padding: 20, maxHeight: '85%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
-  cartItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  cartItemName: { fontSize: 15, fontWeight: '600', color: '#111' },
-  cartItemPrice: { fontSize: 12, color: '#6B7280' },
+  modalOverlay: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end', marginLeft: s(55), paddingBottom: vs(80), paddingHorizontal: s(15) },
+  modalContent: { backgroundColor: '#fff', borderRadius: s(18), padding: s(20), maxHeight: '85%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(20) },
+  modalTitle: { fontSize: rf(18), fontWeight: 'bold', color: '#1F2937' },
+  cartItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: vs(12), borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  cartItemName: { fontSize: rf(15), fontWeight: '600', color: '#111' },
+  cartItemPrice: { fontSize: rf(12), color: '#6B7280' },
   cartItemActions: { flexDirection: 'row', alignItems: 'center' },
-  cartItemTotal: { fontWeight: 'bold', fontSize: 14, marginRight: 15, width: 60, textAlign: 'right' },
-  qtyControls: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 8, padding: 2 },
-  qtyBtn: { padding: 4 },
-  qtyVal: { paddingHorizontal: 8, fontWeight: 'bold', fontSize: 14 },
-  modalFooter: { marginTop: 20, paddingTop: 15, borderTopWidth: 2, borderTopColor: '#F3F4F6' },
-  modalTotalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
-  modalTotalLabel: { fontSize: 18, fontWeight: 'bold' },
-  modalTotalValue: { fontSize: 20, fontWeight: '900', color: THEME_PRIMARY },
-  clearAllButton: { backgroundColor: THEME_DANGER, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 10 },
-  clearAllText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  cartItemTotal: { fontWeight: 'bold', fontSize: rf(14), marginRight: s(15), width: s(60), textAlign: 'right' },
+  qtyControls: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: s(8), padding: s(2) },
+  qtyBtn: { padding: s(4) },
+  qtyVal: { paddingHorizontal: s(8), fontWeight: 'bold', fontSize: rf(14) },
+  modalFooter: { marginTop: vs(20), paddingTop: vs(15), borderTopWidth: 2, borderTopColor: '#F3F4F6' },
+  modalTotalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: vs(15) },
+  modalTotalLabel: { fontSize: rf(18), fontWeight: 'bold' },
+  modalTotalValue: { fontSize: rf(20), fontWeight: '900', color: THEME_PRIMARY },
+  clearAllButton: { backgroundColor: THEME_DANGER, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: vs(12), borderRadius: s(10) },
+  clearAllText: { color: '#fff', fontWeight: 'bold', fontSize: rf(14) },
 
   // --- NEW BOTTOM MODAL STYLES ---
   bottomModalOverlay: {
     flex: 1,
     backgroundColor: 'transparent',
     justifyContent: 'flex-end',
-    marginLeft: 65,
+    marginLeft: s(65),
   },
   bottomModalContent: {
     backgroundColor: '#FFF',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: 24,
+    borderTopLeftRadius: s(32),
+    borderTopRightRadius: s(32),
+    padding: s(24),
     alignItems: 'center',
-    paddingBottom: 40,
+    paddingBottom: vs(40),
   },
   modalHandle: {
-    width: 40,
-    height: 5,
+    width: s(40),
+    height: vs(5),
     backgroundColor: '#E5E7EB',
-    borderRadius: 3,
-    marginBottom: 20,
+    borderRadius: s(3),
+    marginBottom: vs(20),
     alignSelf: 'center',
   },
   holdCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
     backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: vs(20),
     borderWidth: 2,
     borderColor: '#4F46E5',
   },
   successCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
     backgroundColor: '#D1FAE5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: vs(20),
     borderWidth: 1,
     borderColor: '#A7F3D0',
   },
   bottomModalTitle: {
-    fontSize: 24,
+    fontSize: rf(24),
     fontWeight: 'bold',
     color: '#111827',
-    marginBottom: 12,
+    marginBottom: vs(12),
   },
   bottomModalSubtext: {
-    fontSize: 16,
+    fontSize: rf(16),
     color: '#6B7280',
     textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-    paddingHorizontal: 10,
+    marginBottom: vs(24),
+    lineHeight: rf(22),
+    paddingHorizontal: s(10),
   },
   holdInfoBox: {
     flexDirection: 'row',
@@ -1160,35 +1155,35 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: s(20),
+    padding: s(16),
     width: '100%',
-    marginBottom: 24,
+    marginBottom: vs(24),
   },
   holdOrderText: {
-    fontSize: 18,
+    fontSize: rf(18),
     fontWeight: 'bold',
     color: '#111827',
   },
   holdSummaryText: {
-    fontSize: 14,
+    fontSize: rf(14),
     color: '#6B7280',
-    marginTop: 4,
+    marginTop: vs(4),
   },
   holdTotalText: {
-    fontSize: 22,
+    fontSize: rf(22),
     fontWeight: 'bold',
     color: '#4F46E5',
   },
   confirmHoldBtn: {
     width: '100%',
     backgroundColor: '#4F46E5',
-    paddingVertical: 18,
-    borderRadius: 20,
+    paddingVertical: vs(18),
+    borderRadius: s(20),
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: vs(12),
     elevation: 8,
     shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 4 },
@@ -1197,69 +1192,69 @@ const styles = StyleSheet.create({
   },
   confirmHoldText: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: rf(18),
     fontWeight: 'bold',
   },
   modalCancelBtn: {
     width: '100%',
     backgroundColor: '#F3F4F6',
-    paddingVertical: 18,
-    borderRadius: 20,
+    paddingVertical: vs(18),
+    borderRadius: s(20),
     alignItems: 'center',
   },
   modalCancelText: {
     color: '#4B5563',
-    fontSize: 18,
+    fontSize: rf(18),
     fontWeight: '600',
   },
   modalOverlayCentered: {
     flex: 1,
     backgroundColor: 'transparent',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    marginLeft: 65,
+    paddingHorizontal: s(20),
+    marginLeft: s(65),
   },
   modalContentCentered: {
     backgroundColor: '#fff',
-    borderRadius: 32,
-    padding: 24,
+    borderRadius: s(32),
+    padding: s(24),
     width: '100%',
   },
   trashCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: vs(20),
     borderWidth: 2,
   },
   successTitleText: {
-    fontSize: 24,
+    fontSize: rf(24),
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: vs(8),
     textAlign: 'center',
   },
   successDetailText: {
-    fontSize: 16,
+    fontSize: rf(16),
     color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: rf(22),
   },
   confirmDeleteBtn: {
     flex: 1,
-    padding: 16,
+    padding: s(16),
     backgroundColor: '#EF4444',
-    borderRadius: 20,
-    marginLeft: 8,
+    borderRadius: s(20),
+    marginLeft: s(8),
     alignItems: 'center',
   },
   confirmCancelBtn: {
     flex: 1,
-    padding: 16,
+    padding: s(16),
     backgroundColor: '#F3F4F6',
-    borderRadius: 20,
-    marginRight: 8,
+    borderRadius: s(20),
+    marginRight: s(8),
     alignItems: 'center',
   },
 });

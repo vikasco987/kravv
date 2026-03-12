@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View, RefreshControl } from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
 
 const COLORS = {
@@ -18,7 +19,7 @@ const COLORS = {
 const SalesCard = ({ date, numberOfBills, totalSales }) => (
   <View style={enhancedStyles.card}>
     <View style={enhancedStyles.cardHeader}>
-      <Ionicons name="calendar-outline" size={20} color={COLORS.primary} style={{ marginRight: 8 }} />
+      <Ionicons name="calendar-outline" size={rf(20)} color={COLORS.primary} style={{ marginRight: s(8) }} />
       <Text style={enhancedStyles.cardDate}>{date}</Text>
     </View>
     <View style={enhancedStyles.cardBody}>
@@ -30,7 +31,7 @@ const SalesCard = ({ date, numberOfBills, totalSales }) => (
 
 const SalesStat = ({ label, value, icon, color, isMain = false }) => (
   <View style={enhancedStyles.statContainer}>
-    <Ionicons name={icon} size={isMain ? 24 : 18} color={color} />
+    <Ionicons name={icon} size={isMain ? rf(24) : rf(18)} color={color} />
     <Text style={[enhancedStyles.statValue, { color: isMain ? COLORS.text : COLORS.lightText, fontWeight: isMain ? 'bold' : '500' }]}>{value}</Text>
     <Text style={enhancedStyles.statLabel}>{label}</Text>
   </View>
@@ -140,11 +141,11 @@ export default function DailySalesScreen() {
       <View style={enhancedStyles.pageHeader}>
         <View style={enhancedStyles.headerTopRow}>
           <TouchableOpacity onPress={() => router.back()} style={enhancedStyles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            <Ionicons name="arrow-back" size={rf(24)} color={COLORS.text} />
           </TouchableOpacity>
           <Text style={enhancedStyles.title}>Daily Sales Report 📈</Text>
           <TouchableOpacity onPress={triggerRefresh} style={enhancedStyles.reloadButton}>
-            <Ionicons name="refresh" size={26} color={COLORS.primary} />
+            <Ionicons name="refresh" size={rf(26)} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
         <Text style={enhancedStyles.subtitle}>
@@ -153,7 +154,7 @@ export default function DailySalesScreen() {
 
         <View style={enhancedStyles.controlButtons}>
           <TouchableOpacity onPress={() => setViewMode(viewMode === 'card' ? 'table' : 'card')} style={enhancedStyles.modeButton}>
-            <Ionicons name={viewMode === 'card' ? "list-outline" : "grid-outline"} size={22} color={COLORS.primary} />
+            <Ionicons name={viewMode === 'card' ? "list-outline" : "grid-outline"} size={rf(22)} color={COLORS.primary} />
             <Text style={enhancedStyles.modeText}>{viewMode === 'card' ? 'Table View' : 'Card View'}</Text>
           </TouchableOpacity>
         </View>
@@ -174,7 +175,7 @@ export default function DailySalesScreen() {
             )}
             ListEmptyComponent={() => (
               <View style={enhancedStyles.emptyContainer}>
-                <Ionicons name="close-circle-outline" size={50} color={COLORS.lightText} />
+                <Ionicons name="close-circle-outline" size={rf(50)} color={COLORS.lightText} />
                 <Text style={enhancedStyles.emptyText}>No sales records found yet.</Text>
               </View>
             )}
@@ -189,28 +190,28 @@ export default function DailySalesScreen() {
 
 const enhancedStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  pageHeader: { padding: 16, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor, elevation: 2, paddingTop: 40 },
-  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  backButton: { padding: 4 },
-  reloadButton: { padding: 4 },
-  title: { fontSize: 20, fontWeight: 'bold', color: COLORS.text, flex: 1, textAlign: 'center' },
-  subtitle: { fontSize: 16, color: COLORS.lightText, textAlign: 'center', marginBottom: 15 },
+  pageHeader: { padding: s(16), backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor, elevation: 2, paddingTop: vs(40) },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: vs(12) },
+  backButton: { padding: s(4) },
+  reloadButton: { padding: s(4) },
+  title: { fontSize: rf(20), fontWeight: 'bold', color: COLORS.text, flex: 1, textAlign: 'center' },
+  subtitle: { fontSize: rf(16), color: COLORS.lightText, textAlign: 'center', marginBottom: vs(15) },
   totalSalesValue: { fontWeight: 'bold', color: COLORS.success },
   controlButtons: { flexDirection: 'row', justifyContent: 'center' },
-  modeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F7FF', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: '#D0E7FF' },
-  modeText: { marginLeft: 8, color: COLORS.primary, fontWeight: '600' },
-  card: { backgroundColor: COLORS.card, marginHorizontal: 16, marginVertical: 8, borderRadius: 12, padding: 16, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', paddingBottom: 10, marginBottom: 12 },
-  cardDate: { fontSize: 16, fontWeight: '600', color: COLORS.text },
+  modeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F7FF', paddingVertical: vs(8), paddingHorizontal: s(16), borderRadius: s(20), borderWidth: 1, borderColor: '#D0E7FF' },
+  modeText: { marginLeft: s(8), color: COLORS.primary, fontWeight: '600', fontSize: rf(14) },
+  card: { backgroundColor: COLORS.card, marginHorizontal: s(16), marginVertical: vs(8), borderRadius: s(12), padding: s(16), elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F0F0F0', paddingBottom: vs(10), marginBottom: vs(12) },
+  cardDate: { fontSize: rf(16), fontWeight: '600', color: COLORS.text },
   cardBody: { flexDirection: 'row', justifyContent: 'space-around' },
   statContainer: { alignItems: 'center' },
-  statValue: { fontSize: 18, marginTop: 4 },
-  statLabel: { fontSize: 12, color: '#999', marginTop: 2, textTransform: 'uppercase' },
-  tableContainer: { flex: 1, backgroundColor: COLORS.card, margin: 16, borderRadius: 12, overflow: 'hidden', elevation: 2 },
-  tableHeaderRow: { flexDirection: 'row', backgroundColor: '#F8F9FA', padding: 12, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor },
-  tableCellHeader: { fontWeight: 'bold', color: COLORS.lightText, fontSize: 13, textTransform: 'uppercase' },
-  tableRow: { flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', alignItems: 'center' },
-  tableCell: { fontSize: 14, color: COLORS.text },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100 },
-  emptyText: { marginTop: 12, fontSize: 16, color: COLORS.lightText },
+  statValue: { fontSize: rf(18), marginTop: vs(4) },
+  statLabel: { fontSize: rf(11), color: '#999', marginTop: vs(2), textTransform: 'uppercase' },
+  tableContainer: { flex: 1, backgroundColor: COLORS.card, margin: s(16), borderRadius: s(12), overflow: 'hidden', elevation: 2 },
+  tableHeaderRow: { flexDirection: 'row', backgroundColor: '#F8F9FA', padding: s(12), borderBottomWidth: 1, borderBottomColor: COLORS.borderColor },
+  tableCellHeader: { fontWeight: 'bold', color: COLORS.lightText, fontSize: rf(13), textTransform: 'uppercase' },
+  tableRow: { flexDirection: 'row', padding: s(12), borderBottomWidth: 1, borderBottomColor: '#F0F0F0', alignItems: 'center' },
+  tableCell: { fontSize: rf(14), color: COLORS.text },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: vs(100) },
+  emptyText: { marginTop: vs(12), fontSize: rf(16), color: COLORS.lightText },
 });

@@ -139,15 +139,33 @@ export async function SimpleBill(
     // @ts-ignore
     const companyTagline = companyInfo?.businessTagLine || "";
     const gstNumber = companyInfo?.gstNumber || "";
+    const logoUrl = companyInfo?.logoUrl || "";
+    const upi = companyInfo?.upi || "";
 
-    // --- Bill Formatting ---
-    const centeredCompanyName = centerText(companyName.toUpperCase(), 32);
-    const centeredTagline = companyTagline ? centerText(companyTagline, 32) : '';
-    const centeredAddress = centerText(companyAddress, 32);
-    const centeredPhone = companyPhone ? centerText(`PH: ${companyPhone}`, 32) : '';
-    const centeredGst = gstNumber ? centerText(`GST: ${gstNumber}`, 32) : '';
+    // --- GST Calculation ---
+    const GST_RATE = 0.05; // 5%
+    const subtotalCalc = Number((total / (1 + GST_RATE)).toFixed(2));
+    const gstAmount = Number((total - subtotalCalc).toFixed(2));
 
-    // Item List: Name (12) | Qty (3) | Price (6) | Total (7) = 28 + separators
+    // --- Final Bill Text ---
+    // We will build the text part normally, but the print loop will handle ESC/POS alignment
+    const headerLines = [
+      companyName.toUpperCase(),
+      companyTagline,
+      companyAddress,
+      companyPhone ? `PH: ${companyPhone}` : '',
+      gstNumber ? `GSTIN: ${gstNumber}` : '',
+    ].filter(l => l.length > 0);
+
+    const productsLine = line('-');
+    const doubleLine = line('=');
+
+    const customerDetails =
+      options?.phone && options.phone.trim().length > 0
+        ? `Customer: ${options.customerName || "Walk-in"}\nPh: ${options.phone}`
+        : `Customer: ${options.customerName || "Walk-in"}`;
+
+    // Item List
     const itemsText = products
       .map(
         (i) =>
@@ -155,18 +173,8 @@ export async function SimpleBill(
       )
       .join("\n");
 
-    const customerDetails =
-      options?.phone && options.phone.trim().length > 0
-        ? `Customer: ${options.customerName || "Walk-in"}\nPh: ${options.phone}`
-        : `Customer: ${options.customerName || "Walk-in"}`;
-
-    // --- Final Bill Text (no top blank lines) ---
-    const billText =
-      `${line('=')}
-${centeredCompanyName}
-${centeredTagline ? centeredTagline + '\n' : ''}${centeredAddress}
-${centeredPhone}
-${centeredGst ? centeredGst + '\n' : ''}${line('-')}
+    const bodyText =
+      `${line('-')}
 Bill No: ${billNo}
 Date: ${date.toLocaleString()}
 ${customerDetails}
@@ -176,15 +184,96 @@ Item         Qty  Price   Total
 ${line('-')}
 ${itemsText}
 ${line('-')}
-TOTAL: ${`₹${total.toFixed(2)}`.padStart(25)}
+Subtotal:${`₹${subtotalCalc.toFixed(2)}`.padStart(21)}
+GST (5%):${`₹${gstAmount.toFixed(2)}`.padStart(21)}
 ${line('-')}
+GRAND TOTAL:${`₹${total.toFixed(2)}`.padStart(18)}
+${line('-')}
+${centerText("Payment: " + paymentMode, 32)}
+${line('-')}
+${upi ? centerText("Scan & Pay", 32) + "\n" : ""}
 ${centerText("Thank You! Visit Again 🙏", 32)}
 `;
 
     // --- Faster Execution: Print & Save in Parallel ---
-    const printPromise = printBill(billText);
+    const printPromise = (async () => {
+      try {
+        if (!connectedPrinter) {
+          const printer = await ensurePrinterConnected();
+          if (!printer) return;
+        }
+
+        // 1. Initialize Printer & Set Alignment
+        await connectedPrinter?.write(new Uint8Array([0x1B, 0x40])); // ESC @ (Initialize)
+        
+        const encoder = new TextEncoder();
+        
+        // --- ESC/POS COMMANDS ---
+        const ALIGN_CENTER = new Uint8Array([0x1B, 0x61, 0x01]);
+        const ALIGN_LEFT = new Uint8Array([0x1B, 0x61, 0x00]);
+        const SIZE_LARGE = new Uint8Array([0x1B, 0x21, 0x30]); // Double height & width
+        const SIZE_NORMAL = new Uint8Array([0x1B, 0x21, 0x00]);
+
+        // Clear top margin
+        await connectedPrinter?.write(encoder.encode("\n"));
+
+        // Start Alignment
+        await connectedPrinter?.write(ALIGN_CENTER);
+        
+        // Print Business Name (Large & Bold)
+        await connectedPrinter?.write(SIZE_LARGE);
+        await connectedPrinter?.write(encoder.encode(companyName.toUpperCase() + "\n"));
+        await connectedPrinter?.write(SIZE_NORMAL);
+
+        // Logo Placeholder or Info
+        if (logoUrl) {
+            // Ideally convert image to bits here. For now, stylized header.
+            await connectedPrinter?.write(encoder.encode("--------------------------\n"));
+        }
+
+        // Print Tagline & Info
+        const headerInfo = headerLines.slice(1).join("\n") + "\n";
+        await connectedPrinter?.write(encoder.encode(headerInfo));
+        
+        // Reset to Left for Body
+        await connectedPrinter?.write(ALIGN_LEFT);
+        
+        // Print Body items
+        const cleanBody = bodyText.replace(/[^\x00-\x7F]/g, "");
+        await connectedPrinter?.write(encoder.encode(cleanBody));
+
+        // If UPI is available, print QR Code
+        if (upi) {
+          const upiUrl = `upi://pay?pa=${upi}&pn=${encodeURIComponent(companyName)}&am=${total.toFixed(2)}&cu=INR&tn=Bill_${billNo}`;
+          
+          // ESC/POS QR Code commands
+          const size = upiUrl.length + 3;
+          const pL = size % 256;
+          const pH = Math.floor(size / 256);
+
+          const qrCommands = new Uint8Array([
+            0x1B, 0x61, 0x01,                         // Align center
+            0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00,    // Function 167: Set model
+            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x06,          // Function 169: Set size (6)
+            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30,          // Function 171: Set error correction
+            0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30, ...Array.from(upiUrl).map(c => c.charCodeAt(0)), // Function 180: Store data
+            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30,          // Function 181: Print QR
+            0x0A,                                     // New line
+            ...Array.from(centerText(`UPI: ${upi}`, 32)).map(c => c.charCodeAt(0)),
+            0x0A, 0x0A                                // Padding
+          ]);
+          await connectedPrinter?.write(qrCommands);
+        }
+
+        // Feed 3 lines & cut paper
+        await connectedPrinter?.write(new Uint8Array([0x1b, 0x64, 0x03])); // ESC d 3
+        await connectedPrinter?.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00])); // GS V B 0
+      } catch (err) {
+        console.log("Print error in SimpleBill:", err);
+      }
+    })();
     
-    const subtotalVal = Number((total / 1.05).toFixed(2));
+    const subtotalVal = subtotalCalc;
     const method = options?.billId ? "PUT" : "POST";
     const url = options?.billId 
       ? `https://billing.kravy.in/api/bill-manager/${options.billId}`

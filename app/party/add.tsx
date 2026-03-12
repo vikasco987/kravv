@@ -12,6 +12,7 @@ import {
     TextInput,
     TouchableOpacity
 } from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
 
 export default function AddPartyScreen({
     onSuccess,
@@ -105,21 +106,21 @@ export default function AddPartyScreen({
     };
 
     return (
-        <ScrollView contentContainerStyle={{ padding: 20 }}>
+        <ScrollView contentContainerStyle={{ padding: s(20) }}>
             <TouchableOpacity
                 onPress={handleBack}
-                style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}
+                style={{ flexDirection: "row", alignItems: "center", marginBottom: vs(10) }}
             >
-                <Ionicons name="arrow-back" size={24} color="#4f46e5" />
-                <Text style={{ fontSize: 16, color: "#4f46e5", marginLeft: 5 }}>Back</Text>
+                <Ionicons name="arrow-back" size={rf(24)} color="#4f46e5" />
+                <Text style={{ fontSize: rf(16), color: "#4f46e5", marginLeft: s(5) }}>Back</Text>
             </TouchableOpacity>
 
             <Text
                 style={{
-                    fontSize: 24,
+                    fontSize: rf(24),
                     fontWeight: "bold",
                     textAlign: "center",
-                    marginBottom: 20,
+                    marginBottom: vs(20),
                 }}
             >
                 ➕ Add New Customer
@@ -153,7 +154,7 @@ export default function AddPartyScreen({
                 onPress={() => setShowPicker(true)}
                 style={[styles.input, { justifyContent: "center" }]}
             >
-                <Text>{dob ? dob.toDateString() : "Select DOB"}</Text>
+                <Text style={{ fontSize: rf(14) }}>{dob ? dob.toDateString() : "Select DOB"}</Text>
             </TouchableOpacity>
 
             {showPicker && (
@@ -182,21 +183,22 @@ const styles = StyleSheet.create({
     input: {
         borderWidth: 1,
         borderColor: "#ccc",
-        borderRadius: 8,
-        padding: 12,
-        marginBottom: 15,
+        borderRadius: s(8),
+        padding: s(12),
+        marginBottom: vs(15),
         backgroundColor: "white",
+        fontSize: rf(14),
     },
     button: {
         backgroundColor: "#4f46e5",
-        padding: 15,
-        borderRadius: 10,
+        padding: s(15),
+        borderRadius: s(10),
         alignItems: "center",
-        marginTop: 10,
+        marginTop: vs(10),
     },
     buttonText: {
         color: "white",
         fontWeight: "bold",
-        fontSize: 16,
+        fontSize: rf(16),
     },
 });

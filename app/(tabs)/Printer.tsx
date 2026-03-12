@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
 // @ts-ignore
 import RNBluetoothClassic from "react-native-bluetooth-classic";
 
@@ -231,29 +232,29 @@ Thank You\n\n\n`;
           <Text style={styles.headerTitle}>Printer Setup</Text>
           <Text style={styles.headerSubtitle}>Connect your Bluetooth Thermal Printer</Text>
         </View>
-        <Ionicons name="print-outline" size={40} color="#fff" style={styles.headerIcon} />
+        <Ionicons name="print-outline" size={rf(40)} color="#fff" style={styles.headerIcon} />
       </LinearGradient>
 
       <View style={styles.actionRow}>
         <TouchableOpacity style={[styles.mainBtn, { backgroundColor: '#10B981' }]} onPress={scanDevices} disabled={isLoading}>
-          <Ionicons name="search" size={20} color="#fff" />
+          <Ionicons name="search" size={rf(20)} color="#fff" />
           <Text style={styles.btnText}>Scan Devices</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.mainBtn, { backgroundColor: '#4F46E5' }]} onPress={printSample} disabled={!connectedDevice || isLoading}>
-          <Ionicons name="document-text-outline" size={20} color="#fff" />
+          <Ionicons name="document-text-outline" size={rf(20)} color="#fff" />
           <Text style={styles.btnText}>Print Test</Text>
         </TouchableOpacity>
       </View>
 
       <Text style={styles.sectionTitle}>Bonded Devices</Text>
       
-      {isLoading && <ActivityIndicator size="large" color="#4F46E5" style={{ marginVertical: 20 }} />}
+      {isLoading && <ActivityIndicator size="large" color="#4F46E5" style={{ marginVertical: vs(20) }} />}
 
       <ScrollView style={styles.deviceList}>
         {devices.length === 0 && !isLoading && (
           <View style={styles.emptyState}>
-            <Ionicons name="bluetooth-outline" size={48} color="#D1D5DB" />
+            <Ionicons name="bluetooth-outline" size={rf(48)} color="#D1D5DB" />
             <Text style={styles.emptyText}>No devices detected. Tap Scan.</Text>
           </View>
         )}
@@ -269,7 +270,7 @@ Thank You\n\n\n`;
             <View style={styles.deviceIconBox}>
               <Ionicons 
                 name={connectedDevice?.address === d.address ? "checkmark-circle" : "bluetooth"} 
-                size={24} 
+                size={rf(24)} 
                 color={connectedDevice?.address === d.address ? "#10B981" : "#4F46E5"} 
               />
             </View>
@@ -284,7 +285,7 @@ Thank You\n\n\n`;
 
       {connectedDevice && (
         <TouchableOpacity style={styles.disconnectBtn} onPress={disconnectDevice}>
-          <Ionicons name="close-circle-outline" size={18} color="#EF4444" />
+          <Ionicons name="close-circle-outline" size={rf(18)} color="#EF4444" />
           <Text style={styles.disconnectText}>Disconnect Printer</Text>
         </TouchableOpacity>
       )}
@@ -309,7 +310,7 @@ Thank You\n\n\n`;
               <View style={[styles.line, { backgroundColor: '#FDE68A' }]} />
             </View>
             <View style={styles.iconCircleWarning}>
-              <Ionicons name="bluetooth" size={40} color="#D97706" />
+              <Ionicons name="bluetooth" size={rf(40)} color="#D97706" />
             </View>
             <Text style={[styles.modalTitle, { color: '#D97706' }]}>Bluetooth is Off</Text>
             <Text style={styles.modalDetail}>Please turn on your phone&apos;s Bluetooth to scan and connect to a printer.</Text>
@@ -337,7 +338,7 @@ Thank You\n\n\n`;
               <View style={[styles.line, { backgroundColor: '#D1D5DB' }]} />
             </View>
             <View style={styles.iconCircleInfo}>
-              <Ionicons name="search" size={40} color="#4F46E5" />
+              <Ionicons name="search" size={rf(40)} color="#4F46E5" />
             </View>
             <Text style={[styles.modalTitle, { color: '#4F46E5' }]}>No Devices Found</Text>
             <Text style={styles.modalDetail}>Ensure your thermal printer is turned on and paired in your phone&apos;s Bluetooth settings.</Text>
@@ -361,58 +362,58 @@ Thank You\n\n\n`;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F9FAFB" },
   header: {
-    paddingTop: 60,
-    paddingBottom: 40,
-    paddingHorizontal: 25,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    paddingTop: vs(60),
+    paddingBottom: vs(40),
+    paddingHorizontal: s(25),
+    borderBottomLeftRadius: s(30),
+    borderBottomRightRadius: s(30),
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     elevation: 8,
   },
   headerContent: { flex: 1 },
-  headerTitle: { fontSize: 28, fontWeight: "bold", color: "#fff" },
-  headerSubtitle: { fontSize: 14, color: "rgba(255,255,255,0.8)", marginTop: 4 },
+  headerTitle: { fontSize: rf(28), fontWeight: "bold", color: "#fff" },
+  headerSubtitle: { fontSize: rf(14), color: "rgba(255,255,255,0.8)", marginTop: vs(4) },
   headerIcon: { opacity: 0.9 },
   actionRow: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginTop: -25,
-    gap: 12,
+    paddingHorizontal: s(20),
+    marginTop: vs(-25),
+    gap: s(12),
   },
   mainBtn: {
     flex: 1,
-    height: 55,
-    borderRadius: 16,
+    height: vs(55),
+    borderRadius: s(16),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: s(8),
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  btnText: { color: '#fff', fontWeight: 'bold', fontSize: rf(15) },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: rf(18),
     fontWeight: "bold",
     color: "#374151",
-    marginTop: 30,
-    marginHorizontal: 20,
-    marginBottom: 10,
+    marginTop: vs(30),
+    marginHorizontal: s(20),
+    marginBottom: vs(10),
   },
-  deviceList: { flex: 1, paddingHorizontal: 20 },
+  deviceList: { flex: 1, paddingHorizontal: s(20) },
   deviceCard: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: s(16),
+    padding: s(16),
+    marginBottom: vs(12),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: s(12),
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
@@ -421,50 +422,50 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF2FF',
   },
   deviceIconBox: {
-    width: 45,
-    height: 45,
-    borderRadius: 12,
+    width: s(45),
+    height: s(45),
+    borderRadius: s(12),
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  deviceName: { fontSize: 16, fontWeight: "600", color: "#111827" },
-  deviceAddress: { fontSize: 12, color: "#6B7280", marginTop: 2 },
-  connectedStatus: { fontSize: 12, color: "#10B981", fontWeight: "bold" },
+  deviceName: { fontSize: rf(16), fontWeight: "600", color: "#111827" },
+  deviceAddress: { fontSize: rf(12), color: "#6B7280", marginTop: vs(2) },
+  connectedStatus: { fontSize: rf(12), color: "#10B981", fontWeight: "bold" },
   emptyState: {
     alignItems: 'center',
-    marginTop: 40,
-    gap: 10,
+    marginTop: vs(40),
+    gap: vs(10),
   },
-  emptyText: { color: '#9CA3AF', fontSize: 14 },
+  emptyText: { color: '#9CA3AF', fontSize: rf(14) },
   disconnectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    padding: 15,
+    gap: s(6),
+    padding: s(15),
   },
   disconnectText: { color: '#EF4444', fontWeight: '600' },
   logSection: {
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
-    padding: 15,
-    height: 140,
+    padding: s(15),
+    height: vs(140),
   },
-  logTitle: { fontSize: 12, fontWeight: 'bold', color: '#9CA3AF', marginBottom: 5, textTransform: 'uppercase' },
+  logTitle: { fontSize: rf(12), fontWeight: 'bold', color: '#9CA3AF', marginBottom: vs(5), textTransform: 'uppercase' },
   logBox: { flex: 1 },
-  logText: { fontSize: 11, color: "#6B7280", marginBottom: 2 },
+  logText: { fontSize: rf(11), color: "#6B7280", marginBottom: vs(2) },
   // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
-    paddingHorizontal: 25,
+    paddingHorizontal: s(25),
   },
   modalContent: {
-    borderRadius: 32,
-    padding: 24,
+    borderRadius: s(32),
+    padding: s(24),
     alignItems: 'center',
     width: '100%',
     elevation: 20,
@@ -473,48 +474,48 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    marginBottom: 20,
+    marginBottom: vs(20),
   },
   line: { flex: 1, height: 1.5 },
-  lineLabel: { marginHorizontal: 10, color: '#6B7280', fontWeight: 'bold', fontSize: 12, letterSpacing: 1 },
+  lineLabel: { marginHorizontal: s(10), color: '#6B7280', fontWeight: 'bold', fontSize: rf(12), letterSpacing: 1 },
   iconCircleWarning: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
     backgroundColor: '#FEF3C7',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: vs(20),
     borderWidth: 2,
     borderColor: '#FDE68A',
   },
   iconCircleInfo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
     backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: vs(20),
     borderWidth: 2,
     borderColor: '#C7D2FE',
   },
-  modalTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
-  modalDetail: { fontSize: 15, color: '#6B7280', textAlign: 'center', lineHeight: 22 },
+  modalTitle: { fontSize: rf(22), fontWeight: 'bold', marginBottom: vs(10), textAlign: 'center' },
+  modalDetail: { fontSize: rf(15), color: '#6B7280', textAlign: 'center', lineHeight: rf(22) },
   bottomLineBox: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    marginTop: 25,
-    marginBottom: 5,
+    marginTop: vs(25),
+    marginBottom: vs(5),
   },
-  bottomLineLabel: { marginHorizontal: 10, color: '#9CA3AF', fontWeight: 'bold', fontSize: 10, letterSpacing: 2 },
+  bottomLineLabel: { marginHorizontal: s(10), color: '#9CA3AF', fontWeight: 'bold', fontSize: rf(10), letterSpacing: 2 },
   modalBtn: {
     width: '100%',
-    paddingVertical: 16,
-    borderRadius: 18,
+    paddingVertical: vs(16),
+    borderRadius: s(18),
     alignItems: 'center',
-    marginTop: 15,
+    marginTop: vs(15),
   },
-  modalBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 18 },
+  modalBtnText: { color: '#fff', fontWeight: 'bold', fontSize: rf(18) },
 });

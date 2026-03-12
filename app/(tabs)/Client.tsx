@@ -15,6 +15,7 @@ import {
   View,
   RefreshControl,
 } from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
 
 // ✅ Import AddPartyScreen component
@@ -22,7 +23,6 @@ import AddPartyScreen from "../party/AddPartyScreen";
 
 const THEME_PRIMARY = "#4F46E5";
 const COLOR_BG_LIGHT = "#F5F5F5";
-const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 type Party = {
   id: string;
@@ -52,16 +52,16 @@ const PartyListItem: React.FC<{ item: Party; onSelect: (party: Party) => void }>
       <View style={styles.balanceIndicator}>
         <Text style={styles.balanceText}>₹{item.balance ? item.balance.toFixed(0) : 0}</Text>
       </View>
-      <Ionicons name="call-outline" size={20} color="#FFD700" style={styles.icon} />
-      <Ionicons name="logo-whatsapp" size={20} color="#25D366" style={styles.icon} />
+      <Ionicons name="call-outline" size={rf(20)} color="#FFD700" style={styles.icon} />
+      <Ionicons name="logo-whatsapp" size={rf(20)} color="#25D366" style={styles.icon} />
       <Ionicons
         name={item.isFavorite ? "star" : "star-outline"}
-        size={20}
+        size={rf(20)}
         color="#FFC107"
         style={styles.icon}
       />
       {item.hasCheckedOut && (
-        <Ionicons name="checkmark-circle" size={20} color="#10B981" style={styles.icon} />
+        <Ionicons name="checkmark-circle" size={rf(20)} color="#10B981" style={styles.icon} />
       )}
     </View>
   </TouchableOpacity>
@@ -161,7 +161,7 @@ export default function CustomersScreen() {
 
       {/* Search Filter */}
       <View style={styles.filterContainer}>
-        <Ionicons name="search" size={20} color="#6B7280" style={styles.searchIcon} />
+        <Ionicons name="search" size={rf(20)} color="#6B7280" style={styles.searchIcon} />
         <TextInput
           value={searchTerm}
           onChangeText={setSearchTerm}
@@ -184,17 +184,17 @@ export default function CustomersScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={() => fetchParties(true)} colors={[THEME_PRIMARY]} />
           }
           renderItem={({ item }) => <PartyListItem item={item} onSelect={handleSelectParty} />}
-          contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: s(15), paddingBottom: vs(100) }}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={64} color="#D1D5DB" />
+              <Ionicons name="people-outline" size={rf(64)} color="#D1D5DB" />
               <Text style={styles.emptyText}>No customers found</Text>
             </View>
           }
         />
       ) : (
         <View style={styles.emptyContainer}>
-          <Ionicons name="folder-open-outline" size={64} color="#D1D5DB" />
+          <Ionicons name="folder-open-outline" size={rf(64)} color="#D1D5DB" />
           <Text style={styles.emptyText}>Categories feature coming soon...</Text>
         </View>
       )}
@@ -204,7 +204,7 @@ export default function CustomersScreen() {
         style={styles.fab}
         onPress={() => setShowAddPartyForm(true)}
       >
-        <Feather name="plus-circle" size={22} color="#fff" />
+        <Feather name="plus-circle" size={rf(22)} color="#fff" />
         <Text style={styles.fabText}>ADD CUSTOMER</Text>
       </TouchableOpacity>
 
@@ -234,24 +234,24 @@ const styles = StyleSheet.create({
   headerBar: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 15,
+    padding: s(15),
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderColor: "#E5E7EB",
-    paddingTop: 50,
+    paddingTop: vs(50),
   },
-  headerTitle: { fontSize: 20, fontWeight: "bold", color: "#1F2937" },
-  infoDate: { fontSize: 13, color: "#6B7280" },
+  headerTitle: { fontSize: rf(20), fontWeight: "bold", color: "#1F2937" },
+  infoDate: { fontSize: rf(13), color: "#6B7280" },
   tabContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
     backgroundColor: "#E5E7EB",
-    marginHorizontal: 15,
-    marginVertical: 10,
-    borderRadius: 12,
-    padding: 4,
+    marginHorizontal: s(15),
+    marginVertical: vs(10),
+    borderRadius: s(12),
+    padding: s(4),
   },
-  tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
+  tab: { flex: 1, paddingVertical: vs(10), alignItems: "center", borderRadius: s(10) },
   activeTab: {
     backgroundColor: "#fff",
     elevation: 2,
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  tabText: { color: "#4B5563", fontWeight: "600" },
+  tabText: { color: "#4B5563", fontWeight: "600", fontSize: rf(14) },
   activeTabText: { color: THEME_PRIMARY, fontWeight: "bold" },
   filterContainer: {
     flexDirection: "row",
@@ -267,16 +267,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#D1D5DB",
-    borderRadius: 12,
-    marginHorizontal: 15,
-    marginBottom: 10,
-    paddingHorizontal: 12,
+    borderRadius: s(12),
+    marginHorizontal: s(15),
+    marginBottom: vs(10),
+    paddingHorizontal: s(12),
   },
-  searchIcon: { marginRight: 8 },
+  searchIcon: { marginRight: s(8) },
   filterInput: {
     flex: 1,
-    paddingVertical: 12,
-    fontSize: 16,
+    paddingVertical: vs(12),
+    fontSize: rf(16),
     color: "#1F2937",
   },
   partyRow: {
@@ -284,54 +284,54 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 12,
-    marginVertical: 6,
+    padding: s(15),
+    borderRadius: s(12),
+    marginVertical: vs(6),
     elevation: 2,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 5,
   },
   partyInfo: { flex: 1 },
-  partyName: { fontSize: 18, fontWeight: "bold", color: "#1F2937", marginBottom: 2 },
-  partyPhone: { fontSize: 14, color: "#6B7280" },
-  billingType: { fontSize: 12, color: "#9CA3AF", marginTop: 4 },
-  iconGroup: { flexDirection: "row", alignItems: "center", paddingLeft: 10 },
-  icon: { marginLeft: 8 },
+  partyName: { fontSize: rf(18), fontWeight: "bold", color: "#1F2937", marginBottom: vs(2) },
+  partyPhone: { fontSize: rf(14), color: "#6B7280" },
+  billingType: { fontSize: rf(12), color: "#9CA3AF", marginTop: vs(4) },
+  iconGroup: { flexDirection: "row", alignItems: "center", paddingLeft: s(10) },
+  icon: { marginLeft: s(8) },
   balanceIndicator: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: s(8),
+    paddingVertical: vs(4),
+    borderRadius: s(8),
     backgroundColor: "#EEF2FF",
-    marginRight: 10,
+    marginRight: s(10),
   },
-  balanceText: { fontSize: 13, fontWeight: "bold", color: THEME_PRIMARY },
+  balanceText: { fontSize: rf(13), fontWeight: "bold", color: THEME_PRIMARY },
   fab: {
     position: "absolute",
-    bottom: 30,
-    right: 30,
+    bottom: vs(30),
+    right: s(30),
     flexDirection: "row",
     backgroundColor: THEME_PRIMARY,
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 30,
+    paddingVertical: vs(15),
+    paddingHorizontal: s(20),
+    borderRadius: s(30),
     elevation: 8,
     shadowColor: THEME_PRIMARY,
     shadowOpacity: 0.3,
     shadowRadius: 10,
     alignItems: "center",
   },
-  fabText: { color: "#fff", fontWeight: "bold", fontSize: 16, marginLeft: 8 },
+  fabText: { color: "#fff", fontWeight: "bold", fontSize: rf(16), marginLeft: s(8) },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 100,
+    marginTop: vs(100),
   },
   emptyText: {
-    marginTop: 10,
-    fontSize: 16,
+    marginTop: vs(10),
+    fontSize: rf(16),
     color: "#9CA3AF",
   },
 });

@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
 
 type Product = {
   productId: string;
@@ -63,7 +64,7 @@ export default function SalesScreen() {
         <Text>Total: ₹{item.total.toFixed(2)}</Text>
         <Text>Status: {item.paymentStatus}</Text>
 
-        <Text style={{ marginTop: 5, fontWeight: "bold" }}>Items:</Text>
+        <Text style={{ marginTop: vs(5), fontWeight: "bold", fontSize: rf(14) }}>Items:</Text>
         {item.items && Array.isArray(item.items) && item.items.map((p, index) => (
           <View key={index} style={styles.productRow}>
             <Text style={styles.productName}>
@@ -85,7 +86,7 @@ export default function SalesScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={rf(24)} color="#000" />
         </TouchableOpacity>
         <Text style={styles.title}>Sales Records</Text>
       </View>
@@ -93,7 +94,7 @@ export default function SalesScreen() {
         data={sales}
         keyExtractor={(item) => item.billNumber}
         renderItem={renderItem}
-        contentContainerStyle={{ paddingBottom: 50 }}
+        contentContainerStyle={{ paddingBottom: vs(50) }}
       />
     </View>
   );
@@ -104,20 +105,20 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    paddingTop: 40,
+    padding: s(16),
+    paddingTop: vs(40),
     borderBottomWidth: 1,
     borderColor: '#eee',
   },
   backButton: {
-    marginRight: 16,
+    marginRight: s(16),
   },
-  title: { fontSize: 22, fontWeight: "bold" },
-  item: { padding: 12, borderBottomWidth: 1, borderColor: "#ccc", marginBottom: 8 },
-  billNo: { fontWeight: "bold" },
-  productRow: { flexDirection: "row", justifyContent: "space-between", marginVertical: 2 },
-  productName: { flex: 2 },
-  productQty: { flex: 1, textAlign: "center" },
-  productPrice: { flex: 1, textAlign: "center" },
-  productTotal: { flex: 1, textAlign: "right", fontWeight: "bold" },
+  title: { fontSize: rf(22), fontWeight: "bold" },
+  item: { padding: s(12), borderBottomWidth: 1, borderColor: "#ccc", marginBottom: vs(8) },
+  billNo: { fontWeight: "bold", fontSize: rf(14) },
+  productRow: { flexDirection: "row", justifyContent: "space-between", marginVertical: vs(2) },
+  productName: { flex: 2, fontSize: rf(12) },
+  productQty: { flex: 1, textAlign: "center", fontSize: rf(12) },
+  productPrice: { flex: 1, textAlign: "center", fontSize: rf(12) },
+  productTotal: { flex: 1, textAlign: "right", fontWeight: "bold", fontSize: rf(12) },
 });

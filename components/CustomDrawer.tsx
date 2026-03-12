@@ -4,12 +4,15 @@ import { useClerk, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore
 import { DrawerContentScrollView, DrawerItem } from "@react-navigation/drawer";
+import { useRouter } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { rf, s, vs } from "../utils/responsive";
 
 export default function CustomDrawerContent(props: any) {
   const { user } = useUser();
   const { signOut } = useClerk();
+  const router = useRouter();
 
   const COLORS = {
     primary: '#4F46E5',
@@ -19,7 +22,7 @@ export default function CustomDrawerContent(props: any) {
   return (
     <DrawerContentScrollView {...props}>
       <View style={styles.header}>
-        <Ionicons name="person-circle-outline" size={70} color="#fff" />
+        <Ionicons name="person-circle-outline" size={rf(70)} color="#fff" />
         <Text style={styles.welcome}>{user ? `Hi, ${user.firstName || 'User'}` : "WELCOME GUEST"}</Text>
         {user && <Text style={styles.userId}>User ID: {user.id}</Text>}
       </View>
@@ -56,7 +59,7 @@ export default function CustomDrawerContent(props: any) {
         <DrawerItem
           label="Sign In"
           icon={({ color, size }) => <Ionicons name="log-in-outline" size={size} color={COLORS.primary} />}
-          onPress={() => props.navigation.navigate("(auth)/sign-in")}
+          onPress={() => router.push("/(auth)/sign-in")}
           labelStyle={{ color: COLORS.primary, fontWeight: 'bold' }}
         />
       ) : (
@@ -65,7 +68,7 @@ export default function CustomDrawerContent(props: any) {
           icon={({ color, size }) => <Ionicons name="log-out-outline" size={size} color={COLORS.danger} />}
           onPress={async () => {
             await signOut();
-            props.navigation.replace("(auth)/sign-in");
+            router.replace("/(auth)/sign-in");
           }}
           labelStyle={{ color: COLORS.danger }}
         />
@@ -77,9 +80,9 @@ export default function CustomDrawerContent(props: any) {
 const styles = StyleSheet.create({
   header: {
     backgroundColor: "#4F46E5",
-    padding: 20,
+    padding: s(20),
     alignItems: "center",
   },
-  welcome: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-  userId: { color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 4 },
+  welcome: { color: "#fff", fontSize: rf(18), fontWeight: "bold" },
+  userId: { color: "rgba(255,255,255,0.8)", fontSize: rf(12), marginTop: vs(4) },
 });

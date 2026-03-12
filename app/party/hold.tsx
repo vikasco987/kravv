@@ -16,6 +16,7 @@ import {
     RefreshControl,
     Modal
 } from 'react-native';
+import { rf, s, vs } from '../../utils/responsive';
 import { useRefresh } from '../../context/RefreshContext';
 
 type HeldOrder = {
@@ -291,7 +292,7 @@ export default function HoldScreen() {
             >
                 <View style={styles.selectionRow}>
                     <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
-                        {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                        {isSelected && <Ionicons name="checkmark" size={rf(14)} color="#FFF" />}
                     </View>
                     <View style={{ flex: 1 }}>
                         <View style={styles.orderHeader}>
@@ -319,14 +320,14 @@ export default function HoldScreen() {
                                 style={[styles.actionBtn, styles.deleteBtn]}
                                 onPress={() => deleteHoldOrder(item.id, item)}
                             >
-                                <Feather name="trash-2" size={16} color="#DC2626" />
+                                <Feather name="trash-2" size={rf(16)} color="#DC2626" />
                                 <Text style={styles.deleteBtnText}>Delete</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.actionBtn, styles.resumeBtn]}
                                 onPress={() => resumeOrder(item)}
                             >
-                                <Feather name="play" size={16} color="#FFF" />
+                                <Feather name="play" size={rf(16)} color="#FFF" />
                                 <Text style={styles.resumeBtnText}>Resume</Text>
                             </TouchableOpacity>
                         </View>
@@ -340,7 +341,7 @@ export default function HoldScreen() {
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#1F2937" />
+                    <Ionicons name="arrow-back" size={rf(24)} color="#1F2937" />
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>
                     <Text style={styles.headerTitle}>Hold Orders</Text>
@@ -351,7 +352,7 @@ export default function HoldScreen() {
                     <TouchableOpacity onPress={toggleSelectAll} style={styles.headerActionIcon}>
                         <Ionicons 
                             name={selectedOrders.length === heldOrders.length ? "checkbox" : "square-outline"} 
-                            size={24} 
+                            size={rf(24)} 
                             color="#4F46E5" 
                         />
                     </TouchableOpacity>
@@ -359,12 +360,12 @@ export default function HoldScreen() {
 
                 {selectedOrders.length > 0 && (
                     <TouchableOpacity onPress={confirmBulkDelete} style={styles.headerActionIcon}>
-                        <Ionicons name="trash" size={24} color="#EF4444" />
+                        <Ionicons name="trash" size={rf(24)} color="#EF4444" />
                     </TouchableOpacity>
                 )}
 
                 <TouchableOpacity onPress={triggerRefresh} style={styles.reloadButton}>
-                    <Ionicons name="refresh" size={24} color="#4F46E5" />
+                    <Ionicons name="refresh" size={rf(24)} color="#4F46E5" />
                 </TouchableOpacity>
             </View>
 
@@ -383,7 +384,7 @@ export default function HoldScreen() {
                     contentContainerStyle={styles.listContent}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Feather name="pause-circle" size={64} color="#D1D5DB" />
+                            <Feather name="pause-circle" size={rf(64)} color="#D1D5DB" />
                             <Text style={styles.emptyText}>No hold orders</Text>
                         </View>
                     }
@@ -439,8 +440,8 @@ export default function HoldScreen() {
                                     style={styles.confirmDeleteBtn}
                                     onPress={confirmDeleteOrder}
                                 >
-                                    <Ionicons name="trash" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                                    <Text style={styles.confirmDeleteText}>Yes, Delete Order</Text>
+                                    <Ionicons name="trash" size={rf(18)} color="#FFF" style={{ marginRight: s(8) }} />
+                                    <Text style={styles.confirmButtonText}>Yes, Delete Order</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
@@ -481,7 +482,7 @@ export default function HoldScreen() {
                         ) : (
                             <>
                                 <View style={styles.resumeCircle}>
-                                    <Ionicons name="play" size={32} color="#4F46E5" />
+                                    <Ionicons name="play" size={rf(32)} color="#4F46E5" />
                                 </View>
 
                                 <Text style={styles.modalTitle}>Resume Order?</Text>
@@ -502,7 +503,7 @@ export default function HoldScreen() {
                                         </View>
 
                                         <View style={styles.warningBox}>
-                                            <Ionicons name="flash" size={20} color="#B45309" style={{ marginRight: 10 }} />
+                                            <Ionicons name="flash" size={rf(20)} color="#B45309" style={{ marginRight: s(10) }} />
                                             <Text style={styles.warningText}>
                                                 Active cart items will be replaced. Only this order will be loaded.
                                             </Text>
@@ -514,8 +515,8 @@ export default function HoldScreen() {
                                     style={styles.confirmResumeBtn}
                                     onPress={confirmResumeOrder}
                                 >
-                                    <Ionicons name="play" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                                    <Text style={styles.confirmDeleteText}>Yes, Resume Order</Text>
+                                    <Ionicons name="play" size={rf(18)} color="#FFF" style={{ marginRight: s(8) }} />
+                                    <Text style={styles.confirmButtonText}>Yes, Resume Order</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
@@ -565,7 +566,7 @@ export default function HoldScreen() {
                                 </Text>
 
                                 <View style={styles.bulkDetailsBox}>
-                                    <Ionicons name="layers-outline" size={24} color="#EF4444" style={{ marginRight: 15 }} />
+                                    <Ionicons name="layers-outline" size={rf(24)} color="#EF4444" style={{ marginRight: s(15) }} />
                                     <View style={{ flex: 1 }}>
                                         <Text style={styles.bulkCountText}>{selectedOrders.length} Orders Selected</Text>
                                         <Text style={styles.bulkTotalText}>
@@ -578,8 +579,8 @@ export default function HoldScreen() {
                                     style={styles.confirmDeleteBtn}
                                     onPress={executeBulkDelete}
                                 >
-                                    <Ionicons name="trash" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                                    <Text style={styles.confirmDeleteText}>Yes, Delete All Selected</Text>
+                                    <Ionicons name="trash" size={rf(18)} color="#FFF" style={{ marginRight: s(8) }} />
+                                    <Text style={styles.confirmButtonText}>Yes, Delete All Selected</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
@@ -599,43 +600,43 @@ export default function HoldScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F3F4F6' },
-    header: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FFF', elevation: 2, marginTop: 25 },
+    header: { flexDirection: 'row', alignItems: 'center', padding: s(16), backgroundColor: '#FFF', elevation: 2, marginTop: vs(25) },
     backButton: {
-        padding: 5,
-        marginRight: 15,
+        padding: s(5),
+        marginRight: s(15),
     },
     reloadButton: {
-        padding: 8,
+        padding: s(8),
     },
-    headerTitle: { fontSize: 20, fontWeight: 'bold' },
-    headerSubtitle: { fontSize: 12, color: '#6B7280' },
+    headerTitle: { fontSize: rf(20), fontWeight: 'bold' },
+    headerSubtitle: { fontSize: rf(12), color: '#6B7280' },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    listContent: { padding: 16 },
-    orderCard: { backgroundColor: '#FFF', borderRadius: 12, padding: 16, marginBottom: 16, elevation: 2 },
-    orderHeader: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 10, marginBottom: 10 },
-    orderId: { fontWeight: 'bold', fontSize: 16 },
-    orderTime: { fontSize: 11, color: '#9CA3AF' },
-    totalBadge: { backgroundColor: '#EEF2FF', padding: 4, borderRadius: 6 },
+    listContent: { padding: s(16) },
+    orderCard: { backgroundColor: '#FFF', borderRadius: s(12), padding: s(16), marginBottom: vs(16), elevation: 2 },
+    orderHeader: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: vs(10), marginBottom: vs(10) },
+    orderId: { fontWeight: 'bold', fontSize: rf(16) },
+    orderTime: { fontSize: rf(11), color: '#9CA3AF' },
+    totalBadge: { backgroundColor: '#EEF2FF', padding: s(4), borderRadius: s(6) },
     totalText: { color: '#4F46E5', fontWeight: 'bold' },
-    itemsList: { marginBottom: 15 },
-    itemText: { fontSize: 14, color: '#374151' },
-    cardActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
-    actionBtn: { flexDirection: 'row', alignItems: 'center', padding: 8, borderRadius: 6 },
+    itemsList: { marginBottom: vs(15) },
+    itemText: { fontSize: rf(14), color: '#374151' },
+    cardActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: s(10) },
+    actionBtn: { flexDirection: 'row', alignItems: 'center', padding: s(8), borderRadius: s(6) },
     deleteBtn: { backgroundColor: '#FEF2F2' },
-    deleteBtnText: { color: '#DC2626', marginLeft: 5, fontWeight: '600' },
+    deleteBtnText: { color: '#DC2626', marginLeft: s(5), fontWeight: '600' },
     resumeBtn: { backgroundColor: '#4F46E5' },
-    resumeBtnText: { color: '#FFF', marginLeft: 5, fontWeight: '600' },
-    emptyContainer: { alignItems: 'center', marginTop: 100 },
-    emptyText: { color: '#9CA3AF', marginTop: 10 },
+    resumeBtnText: { color: '#FFF', marginLeft: s(5), fontWeight: '600' },
+    emptyContainer: { alignItems: 'center', marginTop: vs(100) },
+    emptyText: { color: '#9CA3AF', marginTop: vs(10) },
     selectionRow: { flexDirection: 'row', alignItems: 'flex-start' },
     checkbox: {
-        width: 22,
-        height: 22,
-        borderRadius: 11,
+        width: s(22),
+        height: s(22),
+        borderRadius: s(11),
         borderWidth: 2,
         borderColor: '#D1D5DB',
-        marginRight: 12,
-        marginTop: 10,
+        marginRight: s(12),
+        marginTop: vs(10),
         justifyContent: 'center',
         alignItems: 'center'
     },
@@ -649,8 +650,8 @@ const styles = StyleSheet.create({
         borderWidth: 1.5
     },
     headerActionIcon: {
-        padding: 8,
-        marginLeft: 5
+        padding: s(8),
+        marginLeft: s(5)
     },
 
 
@@ -662,65 +663,65 @@ const styles = StyleSheet.create({
     },
     modalContent: {
         backgroundColor: '#FFF',
-        borderTopLeftRadius: 32,
-        borderTopRightRadius: 32,
-        padding: 24,
+        borderTopLeftRadius: s(32),
+        borderTopRightRadius: s(32),
+        padding: s(24),
         alignItems: 'center',
-        paddingBottom: 40,
+        paddingBottom: vs(40),
     },
     modalHandle: {
-        width: 40,
-        height: 5,
+        width: s(40),
+        height: vs(5),
         backgroundColor: '#E5E7EB',
-        borderRadius: 3,
-        marginBottom: 20,
+        borderRadius: s(3),
+        marginBottom: vs(20),
     },
     trashCircle: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+        width: s(80),
+        height: s(80),
+        borderRadius: s(40),
         backgroundColor: '#FEE2E2',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: vs(20),
         borderWidth: 1,
         borderColor: '#FECACA',
     },
     successCircle: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+        width: s(80),
+        height: s(80),
+        borderRadius: s(40),
         backgroundColor: '#D1FAE5',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: vs(20),
         borderWidth: 1,
         borderColor: '#A7F3D0',
     },
     resumeCircle: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+        width: s(80),
+        height: s(80),
+        borderRadius: s(40),
         backgroundColor: '#D1FAE5',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: vs(20),
         borderWidth: 2,
         borderColor: '#10B981',
     },
     modalTitle: {
-        fontSize: 24,
+        fontSize: rf(24),
         fontWeight: 'bold',
         color: '#111827',
-        marginBottom: 12,
+        marginBottom: vs(12),
     },
     modalSubtext: {
-        fontSize: 16,
+        fontSize: rf(16),
         color: '#6B7280',
         textAlign: 'center',
-        marginBottom: 24,
-        lineHeight: 22,
-        paddingHorizontal: 10,
+        marginBottom: vs(24),
+        lineHeight: rf(22),
+        paddingHorizontal: s(10),
     },
     orderDetailsBox: {
         flexDirection: 'row',
@@ -728,10 +729,10 @@ const styles = StyleSheet.create({
         backgroundColor: '#F9FAFB',
         borderWidth: 1,
         borderColor: '#E5E7EB',
-        borderRadius: 20,
-        padding: 16,
+        borderRadius: s(20),
+        padding: s(16),
         width: '100%',
-        marginBottom: 24,
+        marginBottom: vs(24),
     },
     resumeInfoBox: {
         flexDirection: 'row',
@@ -739,10 +740,10 @@ const styles = StyleSheet.create({
         backgroundColor: '#ECFDF5',
         borderWidth: 1,
         borderColor: '#10B981',
-        borderRadius: 20,
-        padding: 16,
+        borderRadius: s(20),
+        padding: s(16),
         width: '100%',
-        marginBottom: 16,
+        marginBottom: vs(16),
     },
     warningBox: {
         flexDirection: 'row',
@@ -750,98 +751,96 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFBEB',
         borderWidth: 1,
         borderColor: '#FDE68A',
-        borderRadius: 15,
-        padding: 12,
+        borderRadius: s(15),
+        padding: s(12),
         width: '100%',
-        marginBottom: 24,
+        marginBottom: vs(24),
     },
     warningText: {
         flex: 1,
-        fontSize: 14,
+        fontSize: rf(14),
         color: '#B45309',
         fontWeight: '500',
     },
     orderIdText: {
-        fontSize: 18,
+        fontSize: rf(18),
         fontWeight: 'bold',
         color: '#111827',
     },
     orderSummaryText: {
-        fontSize: 14,
+        fontSize: rf(14),
         color: '#6B7280',
-        marginTop: 4,
+        marginTop: vs(4),
     },
     orderTotalText: {
-        fontSize: 22,
+        fontSize: rf(22),
         fontWeight: 'bold',
         color: '#4F46E5',
     },
     confirmDeleteBtn: {
         width: '100%',
         backgroundColor: '#EF4444',
-        paddingVertical: 18,
-        borderRadius: 20,
+        paddingVertical: vs(18),
+        borderRadius: s(20),
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: vs(12),
         elevation: 8,
         shadowColor: '#EF4444',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 10,
     },
+    confirmButtonText: {
+        color: '#FFF',
+        fontSize: rf(18),
+        fontWeight: 'bold',
+    },
+    cancelBtn: {
+        width: '100%',
+        paddingVertical: vs(15),
+        alignItems: 'center',
+    },
+    cancelBtnText: {
+        fontSize: rf(16),
+        color: '#9CA3AF',
+        fontWeight: '600',
+    },
     confirmResumeBtn: {
         width: '100%',
         backgroundColor: '#047857',
-        paddingVertical: 18,
-        borderRadius: 20,
+        paddingVertical: vs(18),
+        borderRadius: s(20),
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: vs(12),
         elevation: 8,
         shadowColor: '#047857',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 10,
     },
-    confirmDeleteText: {
-        color: '#FFF',
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    cancelBtn: {
-        width: '100%',
-        backgroundColor: '#F3F4F6',
-        paddingVertical: 18,
-        borderRadius: 20,
-        alignItems: 'center',
-    },
-    cancelBtnText: {
-        color: '#4B5563',
-        fontSize: 18,
-        fontWeight: '600',
-    },
     bulkDetailsBox: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FEF2F2',
+        backgroundColor: '#F9FAFB',
         borderWidth: 1,
-        borderColor: '#FECACA',
-        borderRadius: 20,
-        padding: 20,
+        borderColor: '#E5E7EB',
+        borderRadius: s(20),
+        padding: s(16),
         width: '100%',
-        marginBottom: 24,
+        marginBottom: vs(24),
     },
     bulkCountText: {
-        fontSize: 18,
+        fontSize: rf(18),
         fontWeight: 'bold',
-        color: '#991B1B',
+        color: '#111827',
     },
     bulkTotalText: {
-        fontSize: 14,
-        color: '#B91C1C',
-        marginTop: 2,
+        fontSize: rf(14),
+        color: '#6B7280',
+        marginTop: vs(4),
     },
 });

@@ -9,6 +9,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  Image,
   Modal,
   Platform,
   ScrollView,
@@ -20,6 +21,8 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { getRecentCompanyProfile } from "../../services/companyService";
+import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill } from "../../utils/SimpleBill";
 import CompanyInfoScreen from "./info";
 
@@ -61,6 +64,18 @@ export default function BillPage() {
 
   const [parties, setParties] = useState<Party[]>([]);
   const [showPartyDropdown, setShowPartyDropdown] = useState(false);
+  const [company, setCompany] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchCompany = async () => {
+      const token = await getToken();
+      if (token) {
+        const data = await getRecentCompanyProfile(token);
+        setCompany(data);
+      }
+    };
+    fetchCompany();
+  }, [getToken]);
 
   useEffect(() => {
     if (params.cart) {
@@ -100,10 +115,16 @@ export default function BillPage() {
     fetchParties();
   }, [isLoaded, isSignedIn]);
 
-  const subtotal = cart.reduce(
+  const subtotalRaw = cart.reduce(
     (sum, item) => sum + (item.price || 0) * item.quantity,
     0
   );
+
+  // Inclusive GST Calculation
+  const GST_RATE = 0.05;
+  const subtotalExcl = Number((subtotalRaw / (1 + GST_RATE)).toFixed(2));
+  const gstAmount = Number((subtotalRaw - subtotalExcl).toFixed(2));
+  const totalDue = subtotalRaw;
 
   const increaseQty = (id: string) =>
     setCart((prev) =>
@@ -225,7 +246,7 @@ export default function BillPage() {
       >
         <Text style={styles.headerTitle}>🧾 Billing Dashboard</Text>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Feather name="x" size={20} color="#fff" />
+          <Feather name="x" size={rf(20)} color="#fff" />
         </TouchableOpacity>
       </LinearGradient>
 
@@ -238,7 +259,7 @@ export default function BillPage() {
           <Text style={styles.label}>🏢 Company Information</Text>
           <Feather
             name={showCompanyInfo ? "chevron-up" : "chevron-down"}
-            size={20}
+            size={rf(20)}
             color="#4f46e5"
           />
         </TouchableOpacity>
@@ -255,7 +276,7 @@ export default function BillPage() {
           <Text>{selectedParty ? selectedParty.name : "Select Existing Customer"}</Text>
           <Feather
             name={showPartyDropdown ? "chevron-up" : "chevron-down"}
-            size={18}
+            size={rf(18)}
             color="#4f46e5"
           />
         </TouchableOpacity>
@@ -329,35 +350,55 @@ export default function BillPage() {
       </View>
 
       {/* Cart Items */}
-      <Text style={styles.sectionTitle}>🛍️ Cart Summary</Text>
-      {cart.map((item) => (
-        <View key={item.id} style={styles.itemCard}>
-          <View style={{ flex: 2 }}>
-            <Text style={styles.itemName}>{item.name}</Text>
-            <Text style={styles.itemPrice}>₹{item.price}</Text>
+      <View style={styles.card}>
+        {company?.logoUrl && (
+          <View style={{ alignItems: 'center', marginBottom: vs(10) }}>
+            <Image 
+              source={{ uri: company.logoUrl }} 
+              style={{ width: s(60), height: s(60), borderRadius: s(30), resizeMode: 'contain' }} 
+            />
+            {company.companyName && (
+              <Text style={{ fontSize: rf(20), fontWeight: 'bold', marginTop: vs(5) }}>{company.companyName}</Text>
+            )}
+            {company.gstNumber && (
+              <Text style={{ fontSize: rf(12), color: '#666' }}>GSTIN: {company.gstNumber}</Text>
+            )}
           </View>
-          <View style={styles.qtyContainer}>
-            <TouchableOpacity onPress={() => decreaseQty(item.id)}>
-              <Feather name="minus-circle" size={22} color="#4ade80" />
-            </TouchableOpacity>
-            <Text style={styles.qtyText}>{item.quantity}</Text>
-            <TouchableOpacity onPress={() => increaseQty(item.id)}>
-              <Feather name="plus-circle" size={22} color="#4ade80" />
-            </TouchableOpacity>
+        )}
+        <Text style={[styles.sectionTitle, { marginLeft: 0, marginTop: 0, marginBottom: vs(10) }]}>🛍️ Cart Summary</Text>
+        {cart.map((item) => (
+          <View key={item.id} style={[styles.itemCard, { marginHorizontal: 0, paddingHorizontal: 0, elevation: 0, shadowOpacity: 0 }]}>
+            <View style={{ flex: 2 }}>
+              <Text style={styles.itemName}>{item.name}</Text>
+              <Text style={styles.itemPrice}>₹{item.price}</Text>
+            </View>
+            <View style={styles.qtyContainer}>
+              <TouchableOpacity onPress={() => decreaseQty(item.id)}>
+                <Feather name="minus-circle" size={rf(20)} color="#4ade80" />
+              </TouchableOpacity>
+              <Text style={styles.qtyText}>{item.quantity}</Text>
+              <TouchableOpacity onPress={() => increaseQty(item.id)}>
+                <Feather name="plus-circle" size={rf(20)} color="#4ade80" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.itemTotal}>₹{(item.price || 0) * item.quantity}</Text>
           </View>
-          <Text style={styles.itemTotal}>₹{(item.price || 0) * item.quantity}</Text>
-        </View>
-      ))}
+        ))}
+      </View>
 
       {/* Footer Section */}
       <View style={styles.footer}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryText}>Subtotal</Text>
-          <Text style={styles.summaryValue}>₹{subtotal}</Text>
+          <Text style={styles.summaryValue}>₹{subtotalExcl.toFixed(2)}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryText}>GST (5%)</Text>
+          <Text style={styles.summaryValue}>₹{gstAmount.toFixed(2)}</Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.totalLabel}>Total Due</Text>
-          <Text style={styles.totalValue}>₹{subtotal}</Text>
+          <Text style={styles.totalValue}>₹{totalDue.toFixed(2)}</Text>
         </View>
 
         {cart.length > 0 && (
@@ -379,9 +420,9 @@ export default function BillPage() {
       >
         <View style={styles.modalOverlayCentered}>
           <View style={styles.modalContentCentered}>
-            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+            <View style={{ alignItems: 'center', paddingVertical: vs(20) }}>
               <View style={styles.successCircle}>
-                <Ionicons name="checkmark-sharp" size={40} color="#10B981" />
+                <Ionicons name="checkmark-sharp" size={rf(40)} color="#10B981" />
               </View>
               <Text style={styles.successTitleText}>Bill Saved!</Text>
               <Text style={styles.successDetailText}>Your bill has been successfully printed and saved.</Text>
@@ -408,23 +449,23 @@ export default function BillPage() {
               </View>
 
               <View style={[styles.warningCircle, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-                <Ionicons name="alert-circle-outline" size={40} color="#D97706" />
+                <Ionicons name="alert-circle-outline" size={rf(40)} color="#D97706" />
               </View>
               <Text style={[styles.successTitleText, { color: '#D97706' }]}>Missing Info</Text>
               <Text style={styles.successDetailText}>Please select or add a customer detail first to continue billing.</Text>
 
               {/* Bottom Yellow Line with Name */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginTop: 25, marginBottom: 5 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginTop: vs(25), marginBottom: vs(5) }}>
                 <View style={{ flex: 1, height: 1.5, backgroundColor: '#FDE68A' }} />
-                <Text style={{ marginHorizontal: 10, color: '#D97706', fontWeight: 'bold', fontSize: 10, letterSpacing: 2 }}>KRAVY-BILLING</Text>
+                <Text style={{ marginHorizontal: s(10), color: '#D97706', fontWeight: 'bold', fontSize: rf(10), letterSpacing: 2 }}>KRAVY-BILLING</Text>
                 <View style={{ flex: 1, height: 1.5, backgroundColor: '#FDE68A' }} />
               </View>
 
               <TouchableOpacity
-                style={[styles.confirmCancelBtn, { backgroundColor: '#D97706', marginTop: 15, width: '100%', marginRight: 0, flex: 0 }]}
+                style={[styles.confirmCancelBtn, { backgroundColor: '#D97706', marginTop: vs(15), width: '100%', marginRight: 0, flex: 0 }]}
                 onPress={() => setIsWarningModalVisible(false)}
               >
-                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>OK</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: rf(18) }}>OK</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -442,16 +483,16 @@ export default function BillPage() {
           <View style={[styles.modalContentCentered, { backgroundColor: '#FFFBEB' }]}>
             <View style={{ alignItems: 'center', paddingVertical: 10 }}>
               <View style={[styles.warningCircle, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-                <Ionicons name="alert-circle-outline" size={40} color="#D97706" />
+                <Ionicons name="alert-circle-outline" size={rf(40)} color="#D97706" />
               </View>
               <Text style={[styles.successTitleText, { color: '#D97706' }]}>Missing Fields</Text>
               <Text style={styles.successDetailText}>Please enter the customer&apos;s name and phone number to save.</Text>
 
               <TouchableOpacity
-                style={[styles.confirmCancelBtn, { backgroundColor: '#D97706', marginTop: 24, width: '100%', marginRight: 0, flex: 0 }]}
+                style={[styles.confirmCancelBtn, { backgroundColor: '#D97706', marginTop: vs(24), width: '100%', marginRight: 0, flex: 0 }]}
                 onPress={() => setIsCustWarningVisible(false)}
               >
-                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>OK</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: rf(18) }}>OK</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -466,9 +507,9 @@ export default function BillPage() {
       >
         <View style={styles.modalOverlayCentered}>
           <View style={styles.modalContentCentered}>
-            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+            <View style={{ alignItems: 'center', paddingVertical: vs(20) }}>
               <View style={styles.successCircle}>
-                <Ionicons name="person-add-outline" size={40} color="#10B981" />
+                <Ionicons name="person-add-outline" size={rf(40)} color="#10B981" />
               </View>
               <Text style={styles.successTitleText}>Success!</Text>
               <Text style={styles.successDetailText}>Customer details have been saved successfully.</Text>
@@ -497,18 +538,18 @@ export default function BillPage() {
           }]}>
             <View style={{ alignItems: 'center' }}>
               {/* Top Header Design */}
-              <View style={{
-                width: 60,
-                height: 60,
-                borderRadius: 30,
+                <View style={{
+                width: s(60),
+                height: s(60),
+                borderRadius: s(30),
                 backgroundColor: '#FEF2F2',
                 justifyContent: 'center',
                 alignItems: 'center',
-                marginBottom: 20,
+                marginBottom: vs(20),
                 borderWidth: 4,
                 borderColor: '#FFF5F5'
               }}>
-                <Ionicons name="alert-circle" size={36} color="#DC2626" />
+                <Ionicons name="alert-circle" size={rf(36)} color="#DC2626" />
               </View>
 
               <Text style={{
@@ -577,64 +618,64 @@ export default function BillPage() {
 // --- Styles ---
 const styles = StyleSheet.create({
   headerGradient: {
-    paddingTop: 50,
-    paddingBottom: 25,
-    paddingHorizontal: 20,
+    paddingTop: vs(50),
+    paddingBottom: vs(25),
+    paddingHorizontal: s(20),
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  headerTitle: { fontSize: 22, fontWeight: "bold", color: "#fff" },
+  headerTitle: { fontSize: rf(22), fontWeight: "bold", color: "#fff" },
   closeButton: {
     backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 50,
-    padding: 8,
+    borderRadius: s(50),
+    padding: s(8),
   },
   card: {
-    margin: 15,
+    margin: s(15),
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: s(16),
+    padding: s(16),
     shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
   },
-  label: { fontSize: 16, fontWeight: "600", color: "#111" },
+  label: { fontSize: rf(16), fontWeight: "600", color: "#111" },
   expandHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   input: {
     borderWidth: 1,
     borderColor: "#ddd",
-    borderRadius: 10,
-    padding: 12,
-    marginVertical: 6,
+    borderRadius: s(10),
+    padding: s(12),
+    marginVertical: vs(6),
     backgroundColor: "#fafafa",
 
   },
   addBtn: {
     backgroundColor: "#4f46e5",
-    paddingVertical: 14,
-    borderRadius: 10,
-    marginTop: 8,
+    paddingVertical: vs(14),
+    borderRadius: s(10),
+    marginTop: vs(8),
     alignItems: "center",
   },
-  addBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  addBtnText: { color: "#fff", fontWeight: "bold", fontSize: rf(16) },
   selectBox: {
     borderWidth: 1,
     borderColor: "#ddd",
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: s(10),
+    padding: s(12),
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginVertical: 8,
+    marginVertical: vs(8),
   },
-  dropdown: { borderWidth: 1, borderColor: "#ddd", borderRadius: 8, maxHeight: 200 },
-  dropdownItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  dropdown: { borderWidth: 1, borderColor: "#ddd", borderRadius: s(8), maxHeight: vs(200) },
+  dropdownItem: { padding: s(12), borderBottomWidth: 1, borderBottomColor: "#eee" },
   sectionTitle: {
-    marginLeft: 20,
-    marginTop: 10,
-    fontSize: 18,
+    marginLeft: s(20),
+    marginTop: vs(10),
+    fontSize: rf(18),
     fontWeight: "bold",
     color: "#374151",
   },
@@ -642,61 +683,61 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     backgroundColor: "#fff",
-    padding: 14,
-    marginHorizontal: 15,
-    marginVertical: 6,
-    borderRadius: 14,
+    padding: s(14),
+    marginHorizontal: s(15),
+    marginVertical: vs(6),
+    borderRadius: s(14),
     shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 2,
     alignItems: "center",
   },
-  itemName: { fontSize: 15, fontWeight: "600", color: "#111" },
-  itemPrice: { fontSize: 13, color: "#6b7280", marginTop: 2 },
+  itemName: { fontSize: rf(15), fontWeight: "600", color: "#111" },
+  itemPrice: { fontSize: rf(13), color: "#6b7280", marginTop: vs(2) },
   qtyContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: s(8),
   },
-  qtyText: { fontSize: 16, fontWeight: "bold" },
-  itemTotal: { fontSize: 16, fontWeight: "bold", color: "#ef4444" },
+  qtyText: { fontSize: rf(16), fontWeight: "bold" },
+  itemTotal: { fontSize: rf(16), fontWeight: "bold", color: "#ef4444" },
   footer: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    marginTop: 20,
+    borderTopLeftRadius: s(20),
+    borderTopRightRadius: s(20),
+    padding: s(20),
+    marginTop: vs(20),
     shadowColor: "#000",
     shadowOpacity: 0.1,
     elevation: 5,
   },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", marginVertical: 4 },
-  summaryText: { fontSize: 16, color: "#374151" },
-  summaryValue: { fontSize: 16, fontWeight: "600" },
-  totalLabel: { fontSize: 18, fontWeight: "bold", color: "#111" },
-  totalValue: { fontSize: 18, fontWeight: "bold", color: "#ef4444" },
+  summaryRow: { flexDirection: "row", justifyContent: "space-between", marginVertical: vs(4) },
+  summaryText: { fontSize: rf(16), color: "#374151" },
+  summaryValue: { fontSize: rf(16), fontWeight: "600" },
+  totalLabel: { fontSize: rf(18), fontWeight: "bold", color: "#111" },
+  totalValue: { fontSize: rf(18), fontWeight: "bold", color: "#ef4444" },
   printBtn: {
     backgroundColor: "#10b981",
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingVertical: vs(16),
+    borderRadius: s(12),
     alignItems: "center",
-    marginTop: 12,
+    marginTop: vs(12),
   },
-  printBtnText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-  clearCart: { textAlign: "center", color: "#9ca3af", marginTop: 10 },
+  printBtnText: { color: "#fff", fontSize: rf(18), fontWeight: "bold" },
+  clearCart: { textAlign: "center", color: "#9ca3af", marginTop: vs(10) },
   // Success Modal Styles
   modalOverlayCentered: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: s(20),
   },
   modalContentCentered: {
     backgroundColor: '#fff',
-    borderRadius: 32,
-    padding: 24,
+    borderRadius: s(32),
+    padding: s(24),
     width: '100%',
     elevation: 8,
     shadowColor: '#000',
@@ -705,43 +746,43 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
   },
   successCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
     backgroundColor: '#D1FAE5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: vs(20),
     borderWidth: 1,
     borderColor: '#A7F3D0',
   },
   warningCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: vs(20),
     borderWidth: 2,
   },
   successTitleText: {
-    fontSize: 24,
+    fontSize: rf(24),
     fontWeight: 'bold',
     color: '#10B981',
-    marginBottom: 8,
+    marginBottom: vs(8),
     textAlign: 'center',
   },
   successDetailText: {
-    fontSize: 16,
+    fontSize: rf(16),
     color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: rf(22),
   },
   confirmCancelBtn: {
-    padding: 16,
+    padding: s(16),
     backgroundColor: '#F3F4F6',
-    borderRadius: 20,
-    marginRight: 8,
+    borderRadius: s(20),
+    marginRight: s(8),
     alignItems: 'center',
   },
 });

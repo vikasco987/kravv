@@ -12,6 +12,7 @@ import {
     View,
     RefreshControl
 } from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
 
 const COLORS = {
@@ -27,12 +28,12 @@ const COLORS = {
 
 const SalesStat = ({ label, value, icon, color, isMain = false }) => (
     <View style={enhancedStyles.statContainer}>
-        <Ionicons name={icon} size={isMain ? 28 : 20} color={color} />
+        <Ionicons name={icon} size={isMain ? rf(28) : rf(20)} color={color} />
         <Text style={[
             enhancedStyles.statValue,
             {
                 color: isMain ? COLORS.text : COLORS.lightText,
-                fontSize: isMain ? 18 : 14,
+                fontSize: isMain ? rf(18) : rf(14),
                 fontWeight: isMain ? '700' : '500'
             }
         ]}>
@@ -45,7 +46,7 @@ const SalesStat = ({ label, value, icon, color, isMain = false }) => (
 const MonthlySalesCard = ({ monthLabel, numberOfBills, totalSales }) => (
     <View style={enhancedStyles.card}>
         <View style={enhancedStyles.cardHeader}>
-            <Ionicons name="calendar-sharp" size={20} color={COLORS.primary} style={{ marginRight: 10 }} />
+            <Ionicons name="calendar-sharp" size={rf(20)} color={COLORS.primary} style={{ marginRight: s(10) }} />
             <Text style={enhancedStyles.cardMonthLabel}>{monthLabel}</Text>
         </View>
         <View style={enhancedStyles.cardBody}>
@@ -167,11 +168,11 @@ export default function MonthlySalesScreen() {
             <View style={enhancedStyles.pageHeader}>
                 <View style={enhancedStyles.headerTopRow}>
                     <TouchableOpacity onPress={() => router.back()} style={enhancedStyles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+                        <Ionicons name="arrow-back" size={rf(24)} color={COLORS.text} />
                     </TouchableOpacity>
                     <Text style={enhancedStyles.title}>Monthly Sales Report 📊</Text>
                     <TouchableOpacity onPress={triggerRefresh} style={enhancedStyles.reloadButton}>
-                        <Ionicons name="refresh" size={26} color={COLORS.primary} />
+                        <Ionicons name="refresh" size={rf(26)} color={COLORS.primary} />
                     </TouchableOpacity>
                 </View>
                 <Text style={enhancedStyles.subtitle}>
@@ -180,7 +181,7 @@ export default function MonthlySalesScreen() {
 
                 <View style={enhancedStyles.controlButtons}>
                     <TouchableOpacity onPress={() => setViewMode(viewMode === 'card' ? 'table' : 'card')} style={enhancedStyles.modeButton}>
-                        <Ionicons name={viewMode === 'card' ? "list-outline" : "grid-outline"} size={22} color={COLORS.primary} />
+                        <Ionicons name={viewMode === 'card' ? "list-outline" : "grid-outline"} size={rf(22)} color={COLORS.primary} />
                         <Text style={enhancedStyles.modeText}>{viewMode === 'card' ? 'Table View' : 'Card View'}</Text>
                     </TouchableOpacity>
                 </View>
@@ -201,7 +202,7 @@ export default function MonthlySalesScreen() {
                         )}
                         ListEmptyComponent={() => (
                             <View style={enhancedStyles.emptyContainer}>
-                                <Ionicons name="close-circle-outline" size={50} color={COLORS.lightText} />
+                                <Ionicons name="close-circle-outline" size={rf(50)} color={COLORS.lightText} />
                                 <Text style={enhancedStyles.emptyText}>No sales records found yet.</Text>
                             </View>
                         )}
@@ -216,28 +217,28 @@ export default function MonthlySalesScreen() {
 
 const enhancedStyles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
-    pageHeader: { padding: 16, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor, elevation: 2, paddingTop: 40 },
-    headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-    backButton: { padding: 4 },
-    reloadButton: { padding: 4 },
-    title: { fontSize: 20, fontWeight: 'bold', color: COLORS.text, flex: 1, textAlign: 'center' },
-    subtitle: { fontSize: 16, color: COLORS.lightText, textAlign: 'center', marginBottom: 12 },
+    pageHeader: { padding: s(16), backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor, elevation: 2, paddingTop: vs(40) },
+    headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: vs(12) },
+    backButton: { padding: s(4) },
+    reloadButton: { padding: s(4) },
+    title: { fontSize: rf(20), fontWeight: 'bold', color: COLORS.text, flex: 1, textAlign: 'center' },
+    subtitle: { fontSize: rf(16), color: COLORS.lightText, textAlign: 'center', marginBottom: vs(12) },
     totalSalesValue: { fontWeight: 'bold', color: COLORS.success },
     controlButtons: { flexDirection: 'row', justifyContent: 'center' },
-    modeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EDE9FE', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: '#DDD6FE' },
-    modeText: { marginLeft: 8, color: COLORS.primary, fontWeight: '600' },
-    card: { backgroundColor: COLORS.card, marginHorizontal: 16, marginVertical: 8, borderRadius: 12, padding: 16, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-    cardHeader: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 10, marginBottom: 12 },
-    cardMonthLabel: { fontSize: 16, fontWeight: '600', color: COLORS.text },
+    modeButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EDE9FE', paddingVertical: vs(8), paddingHorizontal: s(16), borderRadius: s(20), borderWidth: 1, borderColor: '#DDD6FE' },
+    modeText: { marginLeft: s(8), color: COLORS.primary, fontWeight: '600', fontSize: rf(14) },
+    card: { backgroundColor: COLORS.card, marginHorizontal: s(16), marginVertical: vs(8), borderRadius: s(12), padding: s(16), elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: vs(10), marginBottom: vs(12) },
+    cardMonthLabel: { fontSize: rf(16), fontWeight: '600', color: COLORS.text },
     cardBody: { flexDirection: 'row', justifyContent: 'space-around' },
     statContainer: { alignItems: 'center' },
-    statValue: { marginTop: 4 },
-    statLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
-    tableContainer: { flex: 1, backgroundColor: COLORS.card, margin: 16, borderRadius: 12, overflow: 'hidden', elevation: 2 },
-    tableHeaderRow: { flexDirection: 'row', backgroundColor: '#F9FAFB', padding: 12, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor },
-    tableCellHeader: { fontWeight: 'bold', color: COLORS.lightText, fontSize: 13, textTransform: 'uppercase' },
-    tableRow: { flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', alignItems: 'center' },
-    tableCell: { fontSize: 14, color: COLORS.text },
-    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100 },
-    emptyText: { marginTop: 12, fontSize: 16, color: COLORS.lightText },
+    statValue: { marginTop: vs(4) },
+    statLabel: { fontSize: rf(11), color: '#9CA3AF', marginTop: vs(2), textTransform: 'uppercase', letterSpacing: 0.5 },
+    tableContainer: { flex: 1, backgroundColor: COLORS.card, margin: s(16), borderRadius: s(12), overflow: 'hidden', elevation: 2 },
+    tableHeaderRow: { flexDirection: 'row', backgroundColor: '#F9FAFB', padding: s(12), borderBottomWidth: 1, borderBottomColor: COLORS.borderColor },
+    tableCellHeader: { fontWeight: 'bold', color: COLORS.lightText, fontSize: rf(13), textTransform: 'uppercase' },
+    tableRow: { flexDirection: 'row', padding: s(12), borderBottomWidth: 1, borderBottomColor: '#F3F4F6', alignItems: 'center' },
+    tableCell: { fontSize: rf(14), color: COLORS.text },
+    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: vs(100) },
+    emptyText: { marginTop: vs(12), fontSize: rf(16), color: COLORS.lightText },
 });

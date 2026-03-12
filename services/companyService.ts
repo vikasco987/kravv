@@ -11,8 +11,8 @@ export const getRecentCompanyProfile = async (token: string) => {
 
     const data = await res.json();
 
-    if (!res.ok) {
-      console.warn("⚠️ [CompanyService] No company profile found:", data);
+    if (!res.ok || !data) {
+      console.log("ℹ️ [CompanyService] No profile found yet, using defaults.");
       return null;
     }
 
@@ -22,9 +22,11 @@ export const getRecentCompanyProfile = async (token: string) => {
       companyPhone: data.contactPersonPhone || "+91-9999999999",
       contactPerson: data.contactPersonName || "Walk-in",
       gstNumber: data.gstNumber || "",
-      logoUrl: data.logoUrl || "",
+      logoUrl: data.profileImageUrl || data.logoUrl || "",
       signatureUrl: data.signatureUrl || "",
       businessTagLine: data.businessTagLine || "",
+      upi: data.upi || "",
+      upiId: data.upiId || "",
     };
   } catch (err) {
     console.error("❌ getRecentCompanyProfile Error:", err);
