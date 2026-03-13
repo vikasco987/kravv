@@ -21,6 +21,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getRecentCompanyProfile } from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill } from "../../utils/SimpleBill";
@@ -115,16 +116,67 @@ export default function BillPage() {
     fetchParties();
   }, [isLoaded, isSignedIn]);
 
-  const subtotalRaw = cart.reduce(
-    (sum, item) => sum + (item.price || 0) * item.quantity,
-    0
-  );
+  const [calc, setCalc] = useState({ 
+    subtotalExcl: 0, 
+    gstAmount: 0, 
+    discountAmount: 0, 
+    serviceChargeAmount: 0, 
+    totalDue: 0,
+    isTaxEnabled: false,
+    taxRate: 5,
+    isDiscountEnabled: false,
+    discountRate: 0,
+    isServiceChargeEnabled: false,
+    serviceChargeRate: 0
+  });
 
-  // Inclusive GST Calculation
-  const GST_RATE = 0.05;
-  const subtotalExcl = Number((subtotalRaw / (1 + GST_RATE)).toFixed(2));
-  const gstAmount = Number((subtotalRaw - subtotalExcl).toFixed(2));
-  const totalDue = subtotalRaw;
+  useEffect(() => {
+    const calculateFinal = async () => {
+      const settings = await AsyncStorage.multiGet([
+        'tax_enabled', 'tax_rate', 
+        'discount_enabled', 'discount_rate',
+        'service_charge_enabled', 'service_charge_rate'
+      ]);
+      
+      const sMap: Record<string, string | null> = {};
+      settings.forEach(([key, val]) => sMap[key] = val);
+
+      const isTaxEnabled = sMap['tax_enabled'] === 'true';
+      const taxRate = parseFloat(sMap['tax_rate'] || "5.00");
+      const isDiscountEnabled = sMap['discount_enabled'] === 'true';
+      const discountRate = parseFloat(sMap['discount_rate'] || "0.00");
+      const isServiceChargeEnabled = sMap['service_charge_enabled'] === 'true';
+      const serviceChargeRate = parseFloat(sMap['service_charge_rate'] || "0.00");
+
+      const baseTotal = cart.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+      
+      const discountAmount = isDiscountEnabled ? (baseTotal * (discountRate / 100)) : 0;
+      const afterDiscount = baseTotal - discountAmount;
+      
+      const serviceChargeAmount = isServiceChargeEnabled ? (afterDiscount * (serviceChargeRate / 100)) : 0;
+      const subtotalWithSC = afterDiscount + serviceChargeAmount;
+
+      const gstRateDecimal = isTaxEnabled ? (taxRate / 100) : 0;
+      const subtotalExcl = Number((subtotalWithSC / (1 + gstRateDecimal)).toFixed(2));
+      const gstAmount = Number((subtotalWithSC - subtotalExcl).toFixed(2));
+      const totalDue = subtotalWithSC;
+
+      setCalc({
+        subtotalExcl,
+        gstAmount,
+        discountAmount,
+        serviceChargeAmount,
+        totalDue,
+        isTaxEnabled,
+        taxRate,
+        isDiscountEnabled,
+        discountRate,
+        isServiceChargeEnabled,
+        serviceChargeRate
+      });
+    };
+    calculateFinal();
+  }, [cart]);
 
   const increaseQty = (id: string) =>
     setCart((prev) =>
@@ -390,15 +442,33 @@ export default function BillPage() {
       <View style={styles.footer}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryText}>Subtotal</Text>
-          <Text style={styles.summaryValue}>₹{subtotalExcl.toFixed(2)}</Text>
+          <Text style={styles.summaryValue}>₹{calc.subtotalExcl.toFixed(2)}</Text>
         </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryText}>GST (5%)</Text>
-          <Text style={styles.summaryValue}>₹{gstAmount.toFixed(2)}</Text>
-        </View>
+
+        {calc.isTaxEnabled && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>GST ({calc.taxRate}%)</Text>
+            <Text style={styles.summaryValue}>₹{calc.gstAmount.toFixed(2)}</Text>
+          </View>
+        )}
+
+        {calc.isDiscountEnabled && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>Discount ({calc.discountRate}%)</Text>
+            <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₹{calc.discountAmount.toFixed(2)}</Text>
+          </View>
+        )}
+
+        {calc.isServiceChargeEnabled && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>S. Charge ({calc.serviceChargeRate}%)</Text>
+            <Text style={styles.summaryValue}>₹{calc.serviceChargeAmount.toFixed(2)}</Text>
+          </View>
+        )}
+
         <View style={styles.summaryRow}>
           <Text style={styles.totalLabel}>Total Due</Text>
-          <Text style={styles.totalValue}>₹{totalDue.toFixed(2)}</Text>
+          <Text style={styles.totalValue}>₹{calc.totalDue.toFixed(2)}</Text>
         </View>
 
         {cart.length > 0 && (

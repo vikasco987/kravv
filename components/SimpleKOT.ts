@@ -31,7 +31,7 @@ async function ensurePrinterConnected() {
 }
 
 /* ---------- MAIN KOT FUNCTION ---------- */
-export async function SimpleKOT(cartItems: any[], token: string, userClerkId: string) {
+export async function SimpleKOT(cartItems: any[], token: string, userClerkId: string, tableNumber?: string | null) {
     try {
         const printer = await ensurePrinterConnected();
         if (!printer) {
@@ -47,6 +47,9 @@ export async function SimpleKOT(cartItems: any[], token: string, userClerkId: st
         kotText += "\n" + centerText("KITCHEN ORDER TICKET") + "\n";
         kotText += line("-") + "\n";
         kotText += `KOT No: ${kotNo}\n`;
+        if (tableNumber) {
+            kotText += `Table: ${tableNumber}\n`;
+        }
         kotText += `Date: ${date.toLocaleString()}\n`;
         kotText += line("-") + "\n";
 
@@ -60,7 +63,7 @@ export async function SimpleKOT(cartItems: any[], token: string, userClerkId: st
 
         await printer.write(kotText);
 
-        ToastAndroid.show("🍽️ KOT Printed!", ToastAndroid.SHORT);
+        ToastAndroid.show("🍽️ KOT Printed!" + (tableNumber ? ` (Table ${tableNumber})` : ""), ToastAndroid.SHORT);
         return true;
     } catch (err) {
         console.log("KOT ERROR:", err);

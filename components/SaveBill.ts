@@ -43,7 +43,12 @@ export async function SaveBill(
 
     const total = products.reduce((s, p) => s + p.total, 0);
 
-    const subtotalVal = Number((total / 1.05).toFixed(2));
+    // --- Load Tax Settings ---
+    const isTaxEnabled = (await AsyncStorage.getItem('tax_enabled')) === 'true';
+    const taxRate = parseFloat((await AsyncStorage.getItem('tax_rate')) || "5.00");
+    const gstRateDecimal = isTaxEnabled ? (taxRate / 100) : 0;
+    
+    const subtotalVal = Number((total / (1 + gstRateDecimal)).toFixed(2));
     
     // Smart Update: Use PUT if billId exists
     const method = options?.billId ? "PUT" : "POST";

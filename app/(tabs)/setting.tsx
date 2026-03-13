@@ -1,5 +1,5 @@
 import { useClerk, useUser } from "@clerk/clerk-expo";
-import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -8,32 +8,106 @@ import {
     ScrollView,
     StyleSheet,
     Text,
-    TouchableOpacity,
     View,
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
-const COLORS = {
-    primary: '#4F46E5', // Indigo
-    secondary: '#10B981', // Emerald
-    accent: '#F59E0B', // Amber
-    danger: '#EF4444',  // Red
+// Import Settings Components
+import { UserProfileCard } from "../../components/settings/UserProfileCard";
+import { WhySignInBox } from "../../components/settings/WhySignInBox";
+import { BusinessManagementCard } from "../../components/settings/BusinessManagementCard";
+import { TaxDiscountsCard } from "../../components/settings/TaxDiscountsCard";
+import { AppFeaturesCard } from "../../components/settings/AppFeaturesCard";
+import { TaxDiscountsModal } from "../../components/settings/TaxDiscountsModal";
+import { KOTTablesModal } from "../../components/settings/KOTTablesModal";
+import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
+import { SuccessFeedback } from "../../components/settings/SuccessFeedback";
+
+const LOCAL_COLORS = {
     background: '#F9FAFB',
-    card: '#FFFFFF',
+    primary: '#4F46E5',
     text: '#111827',
     textLight: '#6B7280',
-    white: '#FFFFFF',
 };
 
 export default function SettingScreen() {
     const { signOut } = useClerk();
     const { user, isLoaded } = useUser();
     const router = useRouter();
+    const [loginModalVisible, setLoginModalVisible] = React.useState(false);
+
+    // Tax & Discounts States
+    const [taxEnabled, setTaxEnabled] = React.useState(false);
+    const [perProductTax, setPerProductTax] = React.useState(false);
+    const [taxRate, setTaxRate] = React.useState("0.00");
+
+    const [discountEnabled, setDiscountEnabled] = React.useState(false);
+    const [discountRate, setDiscountRate] = React.useState("0.00");
+
+    const [serviceChargeEnabled, setServiceChargeEnabled] = React.useState(false);
+    const [serviceChargeRate, setServiceChargeRate] = React.useState("0.00");
+
+    const [taxModalVisible, setTaxModalVisible] = React.useState(false);
+    const [kotModalVisible, setKotModalVisible] = React.useState(false);
+    const [successModalVisible, setSuccessModalVisible] = React.useState(false);
+    const [successMessage, setSuccessMessage] = React.useState("");
+
+    // App Features States
+    const [kotEnabled, setKotEnabled] = React.useState(false);
+    const [tableBookingEnabled, setTableBookingEnabled] = React.useState(false);
+
+    React.useEffect(() => {
+        loadSettings();
+    }, []);
+
+    const loadSettings = async () => {
+        try {
+            const settings = await AsyncStorage.multiGet([
+                'tax_enabled', 'tax_per_product', 'tax_rate',
+                'discount_enabled', 'discount_rate',
+                'service_charge_enabled', 'service_charge_rate',
+                'kot_enabled', 'table_booking_enabled'
+            ]);
+
+            settings.forEach(([key, value]) => {
+                if (value !== null) {
+                    switch (key) {
+                        case 'tax_enabled': setTaxEnabled(value === 'true'); break;
+                        case 'tax_per_product': setPerProductTax(value === 'true'); break;
+                        case 'tax_rate': setTaxRate(value); break;
+                        case 'discount_enabled': setDiscountEnabled(value === 'true'); break;
+                        case 'discount_rate': setDiscountRate(value); break;
+                        case 'service_charge_enabled': setServiceChargeEnabled(value === 'true'); break;
+                        case 'service_charge_rate': setServiceChargeRate(value); break;
+                        case 'kot_enabled': setKotEnabled(value === 'true'); break;
+                        case 'table_booking_enabled': setTableBookingEnabled(value === 'true'); break;
+                    }
+                }
+            });
+        } catch (e) {
+            console.error("Failed to load settings:", e);
+        }
+    };
+
+    const saveSetting = async (key: string, value: string | boolean, label: string) => {
+        try {
+            await AsyncStorage.setItem(key, String(value));
+            const message = (typeof value === 'boolean' && !value) 
+                ? `${label} disabled successfully!` 
+                : `${label} updated successfully!`;
+            
+            setSuccessMessage(message);
+            setSuccessModalVisible(true);
+            setTimeout(() => setSuccessModalVisible(false), 2000);
+        } catch (e) {
+            console.error(`Failed to save ${key}:`, e);
+        }
+    };
 
     if (!isLoaded) {
         return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={LOCAL_COLORS.primary} />
             </View>
         );
     }
@@ -48,7 +122,16 @@ export default function SettingScreen() {
     };
 
     const handleSignIn = () => {
+        setLoginModalVisible(false);
         router.push("/(auth)/sign-in" as any);
+    };
+
+    const handleBusinessProfilePress = () => {
+        if (user) {
+            router.push("/party/profile" as any);
+        } else {
+            setLoginModalVisible(true);
+        }
     };
 
     return (
@@ -59,78 +142,72 @@ export default function SettingScreen() {
                     <Text style={styles.subtitle}>Manage your account and preferences</Text>
                 </View>
 
-                <View style={styles.card}>
-                    <View style={styles.userInfo}>
-                        <View style={styles.avatarContainer}>
-                            <Ionicons name={"person-circle" as any} size={rf(80)} color={COLORS.primary} />
-                        </View>
-                        <View style={styles.userText}>
-                            <Text style={styles.userName}>{user ? `${user.firstName || 'User'}` : "Guest Account"}</Text>
-                            <Text style={styles.userEmail}>{user?.primaryEmailAddress?.emailAddress || "Sign in to access all features"}</Text>
-                        </View>
-                    </View>
+                {/* User Profile Section */}
+                <UserProfileCard 
+                    user={user} 
+                    onSignIn={handleSignIn} 
+                    onSignOut={handleSignOut} 
+                />
 
-                    <View style={styles.buttonContainer}>
-                        {!user ? (
-                            <TouchableOpacity
-                                style={[styles.button, styles.signInButton]}
-                                onPress={handleSignIn}
-                                activeOpacity={0.8}
-                            >
-                                <View style={styles.buttonIconBackground}>
-                                    <Ionicons name={"log-in-outline" as any} size={rf(22)} color={COLORS.primary} />
-                                </View>
-                                <Text style={styles.buttonText}>Sign In</Text>
-                                <Ionicons name={"chevron-forward" as any} size={rf(20)} color={COLORS.white} style={{ marginLeft: 'auto' }} />
-                            </TouchableOpacity>
-                        ) : (
-                            <TouchableOpacity
-                                style={[styles.button, styles.signOutButton]}
-                                onPress={handleSignOut}
-                                activeOpacity={0.8}
-                            >
-                                <View style={[styles.buttonIconBackground, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                                    <Ionicons name={"log-out-outline" as any} size={rf(22)} color={COLORS.white} />
-                                </View>
-                                <Text style={styles.buttonText}>Sign Out</Text>
-                                <Ionicons name={"chevron-forward" as any} size={rf(20)} color={COLORS.white} style={{ marginLeft: 'auto' }} />
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                </View>
-
-                <View style={styles.infoBox}>
-                    <View style={styles.infoIconContainer}>
-                        <Ionicons name={"information-circle" as any} size={rf(24)} color={COLORS.primary} />
-                    </View>
-                    <View style={styles.infoTextContainer}>
-                        <Text style={styles.infoTitle}>Why sign in?</Text>
-                        <Text style={styles.infoText}>
-                            Signing in allows you to sync your sales data, manage inventory across devices, and keep your business records safe.
-                        </Text>
-                    </View>
-                </View>
+                {/* Why Sign In Info */}
+                <WhySignInBox />
 
                 {/* Business Section */}
-                <View style={[styles.card, { marginTop: vs(20) }]}>
-                    <Text style={[styles.infoTitle, { marginBottom: vs(15) }]}>Business Management</Text>
-                    <TouchableOpacity
-                        style={[styles.button, { backgroundColor: COLORS.white, borderWidth: 1, borderColor: '#E5E7EB', elevation: 0, shadowOpacity: 0 }]}
-                        onPress={() => router.push("/party/profile" as any)}
-                        activeOpacity={0.7}
-                    >
-                        <View style={[styles.buttonIconBackground, { backgroundColor: COLORS.primary + '15' }]}>
-                            <Ionicons name={"business-outline" as any} size={rf(22)} color={COLORS.primary} />
-                        </View>
-                        <Text style={[styles.buttonText, { color: COLORS.text, fontSize: rf(16) }]}>Business Profile</Text>
-                        <Ionicons name={"chevron-forward" as any} size={rf(20)} color={COLORS.textLight} style={{ marginLeft: 'auto' }} />
-                    </TouchableOpacity>
-                </View>
+                <BusinessManagementCard onPress={handleBusinessProfilePress} />
 
+                {/* Tax & Discounts Section */}
+                <TaxDiscountsCard onPress={() => setTaxModalVisible(true)} />
+
+                {/* App Features Section */}
+                <AppFeaturesCard onPress={() => setKotModalVisible(true)} />
+
+                {/* Footer */}
                 <View style={styles.footer}>
                     <Text style={styles.versionText}>Kravy - Smart Billing App</Text>
                     <Text style={styles.versionNumber}>Version 1.0.0 (Build 102)</Text>
                 </View>
+
+                {/* Modals */}
+                <TaxDiscountsModal 
+                    visible={taxModalVisible}
+                    onClose={() => setTaxModalVisible(false)}
+                    taxEnabled={taxEnabled}
+                    setTaxEnabled={setTaxEnabled}
+                    perProductTax={perProductTax}
+                    setPerProductTax={setPerProductTax}
+                    taxRate={taxRate}
+                    setTaxRate={setTaxRate}
+                    discountEnabled={discountEnabled}
+                    setDiscountEnabled={setDiscountEnabled}
+                    discountRate={discountRate}
+                    setDiscountRate={setDiscountRate}
+                    serviceChargeEnabled={serviceChargeEnabled}
+                    setServiceChargeEnabled={setServiceChargeEnabled}
+                    serviceChargeRate={serviceChargeRate}
+                    setServiceChargeRate={setServiceChargeRate}
+                    onSave={saveSetting}
+                />
+
+                <KOTTablesModal 
+                    visible={kotModalVisible}
+                    onClose={() => setKotModalVisible(false)}
+                    kotEnabled={kotEnabled}
+                    setKotEnabled={setKotEnabled}
+                    tableBookingEnabled={tableBookingEnabled}
+                    setTableBookingEnabled={setTableBookingEnabled}
+                    onSave={saveSetting}
+                />
+
+                <LoginRequiredModal 
+                    visible={loginModalVisible}
+                    onClose={() => setLoginModalVisible(false)}
+                    onSignIn={handleSignIn}
+                />
+
+                <SuccessFeedback 
+                    visible={successModalVisible}
+                    message={successMessage}
+                />
             </ScrollView>
         </SafeAreaView>
     );
@@ -139,145 +216,49 @@ export default function SettingScreen() {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: LOCAL_COLORS.background,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: LOCAL_COLORS.background,
     },
     scrollContent: {
         padding: s(20),
-        paddingTop: vs(30),
+        paddingTop: vs(20),
     },
     header: {
-        marginBottom: vs(30),
+        marginBottom: vs(15),
         paddingHorizontal: s(10),
     },
     title: {
-        fontSize: rf(34),
+        fontSize: rf(28),
         fontWeight: '800',
-        color: COLORS.text,
+        color: LOCAL_COLORS.text,
         letterSpacing: -0.5,
     },
     subtitle: {
-        fontSize: rf(16),
-        color: COLORS.textLight,
-        marginTop: vs(6),
-        fontWeight: '500',
-    },
-    card: {
-        backgroundColor: COLORS.card,
-        borderRadius: s(28),
-        padding: s(24),
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.08,
-        shadowRadius: 20,
-        elevation: 8,
-        borderWidth: 1,
-        borderColor: 'rgba(79, 70, 229, 0.05)',
-    },
-    userInfo: {
-        alignItems: 'center',
-        marginBottom: vs(35),
-    },
-    avatarContainer: {
-        marginBottom: vs(16),
-        backgroundColor: COLORS.primary + '10',
-        borderRadius: s(60),
-        padding: s(10),
-        borderWidth: 4,
-        borderColor: '#fff',
-    },
-    userText: {
-        alignItems: 'center',
-    },
-    userName: {
-        fontSize: rf(24),
-        fontWeight: '800',
-        color: COLORS.text,
-    },
-    userEmail: {
         fontSize: rf(14),
-        color: COLORS.textLight,
-        marginTop: vs(6),
-        textAlign: 'center',
+        color: LOCAL_COLORS.textLight,
+        marginTop: vs(4),
         fontWeight: '500',
-    },
-    buttonContainer: {
-        width: '100%',
-    },
-    button: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: vs(18),
-        paddingHorizontal: s(20),
-        borderRadius: s(20),
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 10,
-        elevation: 5,
-    },
-    buttonIconBackground: {
-        backgroundColor: '#fff',
-        padding: s(8),
-        borderRadius: s(12),
-        marginRight: s(15),
-    },
-    signInButton: {
-        backgroundColor: COLORS.primary,
-    },
-    signOutButton: {
-        backgroundColor: COLORS.danger,
-    },
-    buttonText: {
-        color: COLORS.white,
-        fontSize: rf(18),
-        fontWeight: '700',
-    },
-    infoBox: {
-        flexDirection: 'row',
-        marginTop: vs(40),
-        padding: s(24),
-        backgroundColor: '#fff',
-        borderRadius: s(24),
-        alignItems: 'flex-start',
-        gap: s(16),
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-    },
-    infoIconContainer: {
-        backgroundColor: COLORS.primary + '10',
-        padding: s(10),
-        borderRadius: s(14),
-    },
-    infoTextContainer: {
-        flex: 1,
-    },
-    infoTitle: {
-        fontSize: rf(17),
-        fontWeight: '700',
-        color: COLORS.text,
-        marginBottom: vs(4),
-    },
-    infoText: {
-        fontSize: rf(14),
-        color: COLORS.textLight,
-        lineHeight: rf(22),
-        fontWeight: '400',
     },
     footer: {
-        marginTop: vs(50),
+        marginTop: vs(30),
         alignItems: 'center',
         marginBottom: vs(30),
     },
     versionText: {
         fontSize: rf(14),
-        color: COLORS.text,
+        color: LOCAL_COLORS.text,
         fontWeight: '700',
         opacity: 0.8,
     },
     versionNumber: {
         fontSize: rf(12),
-        color: COLORS.textLight,
+        color: LOCAL_COLORS.textLight,
         marginTop: vs(4),
         fontWeight: '500',
-    }
+    },
 });

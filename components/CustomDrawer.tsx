@@ -39,14 +39,14 @@ export default function CustomDrawerContent(props: any) {
         onPress={() => props.navigation.navigate("(tabs)", { screen: "menu" })}
       />
       <DrawerItem
-        label="Sales Reports"
-        icon={({ color, size }) => <Ionicons name="stats-chart-outline" size={size} color={color} />}
-        onPress={() => props.navigation.navigate("sales/DailySalesScreen")}
+        label="Orders"
+        icon={({ color, size }) => <Ionicons name="list-outline" size={size} color={color} />}
+        onPress={() => props.navigation.navigate("(tabs)", { screen: "orders" })}
       />
       <DrawerItem
-        label="Inventory"
-        icon={({ color, size }) => <Ionicons name="cube-outline" size={size} color={color} />}
-        onPress={() => props.navigation.navigate("(tabs)", { screen: "Inventory" })}
+        label="Table QR Codes"
+        icon={({ color, size }) => <Ionicons name="qr-code-outline" size={size} color={color} />}
+        onPress={() => props.navigation.navigate("TableQrCodes")}
       />
 
       <DrawerItem

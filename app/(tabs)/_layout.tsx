@@ -13,7 +13,7 @@ export default function TabsLayout() {
   const getTitle = () => {
     if (pathname.includes("Dashboard")) return "Sales Dashboard";
     if (pathname.includes("menu")) return "POS Menu";
-    if (pathname.includes("Inventory")) return "Inventory";
+    if (pathname.includes("orders")) return "Live Orders";
     if (pathname.includes("Client")) return "Customers & Parties";
     if (pathname.includes("Printer")) return "Printer Setup";
     if (pathname.includes("setting")) return "Settings";
@@ -71,12 +71,12 @@ export default function TabsLayout() {
         />
 
         <Tabs.Screen
-          name="Inventory"
+          name="orders"
           options={{
-            title: "Inventory",
+            title: "Orders",
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
-                name={(focused ? "cube" : "cube-outline") as any}
+                name={(focused ? "list" : "list-outline") as any}
                 size={size}
                 color={color}
               />

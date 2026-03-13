@@ -142,10 +142,45 @@ export async function SimpleBill(
     const logoUrl = companyInfo?.logoUrl || "";
     const upi = companyInfo?.upi || "";
 
-    // --- GST Calculation ---
-    const GST_RATE = 0.05; // 5%
-    const subtotalCalc = Number((total / (1 + GST_RATE)).toFixed(2));
-    const gstAmount = Number((total - subtotalCalc).toFixed(2));
+    // --- Load Settings from AsyncStorage ---
+    const settings = await AsyncStorage.multiGet([
+      'tax_enabled', 'tax_rate', 
+      'discount_enabled', 'discount_rate',
+      'service_charge_enabled', 'service_charge_rate'
+    ]);
+    
+    const sMap: Record<string, string | null> = {};
+    settings.forEach(([key, val]) => sMap[key] = val);
+
+    const isTaxEnabled = sMap['tax_enabled'] === 'true';
+    const taxRatePercent = parseFloat(sMap['tax_rate'] || "5.00");
+    
+    const isDiscountEnabled = sMap['discount_enabled'] === 'true';
+    const discountRatePercent = parseFloat(sMap['discount_rate'] || "0.00");
+    
+    const isServiceChargeEnabled = sMap['service_charge_enabled'] === 'true';
+    const serviceChargeRatePercent = parseFloat(sMap['service_charge_rate'] || "0.00");
+
+    // --- Calculations ---
+    // 1. Initial Total from Cart
+    const baseTotal = products.reduce((sum, p) => sum + p.total, 0);
+    
+    // 2. Apply Discount (if enabled)
+    const discountAmount = isDiscountEnabled ? (baseTotal * (discountRatePercent / 100)) : 0;
+    const afterDiscount = baseTotal - discountAmount;
+    
+    // 3. Add Service Charge (if enabled)
+    const serviceChargeAmount = isServiceChargeEnabled ? (afterDiscount * (serviceChargeRatePercent / 100)) : 0;
+    const subtotalWithSC = afterDiscount + serviceChargeAmount;
+
+    // 4. Handle GST (Inclusive matching current pattern)
+    // subtotalCalc is the value before GST. 
+    // If tax enabled: subtotalCalc = subtotalWithSC / (1 + rate/100)
+    // If not: subtotalCalc = subtotalWithSC
+    const gstRateDecimal = isTaxEnabled ? (taxRatePercent / 100) : 0;
+    const subtotalCalc = Number((subtotalWithSC / (1 + gstRateDecimal)).toFixed(2));
+    const gstAmount = Number((subtotalWithSC - subtotalCalc).toFixed(2));
+    const finalTotal = subtotalWithSC;
 
     // --- Final Bill Text ---
     // We will build the text part normally, but the print loop will handle ESC/POS alignment
@@ -185,9 +220,8 @@ ${line('-')}
 ${itemsText}
 ${line('-')}
 Subtotal:${`₹${subtotalCalc.toFixed(2)}`.padStart(21)}
-GST (5%):${`₹${gstAmount.toFixed(2)}`.padStart(21)}
-${line('-')}
-GRAND TOTAL:${`₹${total.toFixed(2)}`.padStart(18)}
+${isTaxEnabled ? `GST (${taxRatePercent}%):${`₹${gstAmount.toFixed(2)}`.padStart(19)}\n` : ''}${isDiscountEnabled ? `Discount (${discountRatePercent}%):${`-₹${discountAmount.toFixed(2)}`.padStart(14)}\n` : ''}${isServiceChargeEnabled ? `S.Charge (${serviceChargeRatePercent}%):${`₹${serviceChargeAmount.toFixed(2)}`.padStart(14)}\n` : ''}${line('-')}
+GRAND TOTAL:${`₹${finalTotal.toFixed(2)}`.padStart(18)}
 ${line('-')}
 ${centerText("Payment: " + paymentMode, 32)}
 ${line('-')}
@@ -244,7 +278,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
 
         // If UPI is available, print QR Code
         if (upi) {
-          const upiUrl = `upi://pay?pa=${upi}&pn=${encodeURIComponent(companyName)}&am=${total.toFixed(2)}&cu=INR&tn=Bill_${billNo}`;
+          const upiUrl = `upi://pay?pa=${upi}&pn=${encodeURIComponent(companyName)}&am=${finalTotal.toFixed(2)}&cu=INR&tn=Bill_${billNo}`;
           
           // ESC/POS QR Code commands
           const size = upiUrl.length + 3;
@@ -288,7 +322,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
       body: JSON.stringify({
         items: products,
         subtotal: subtotalVal,
-        total: total,
+        total: finalTotal,
         paymentMode: options?.paymentMode === "UPI" || options?.paymentMode === "Card" ? options.paymentMode : "Cash",
         paymentStatus: "Paid",
         isHeld: false,
@@ -345,7 +379,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
       return { 
         status: "success", 
         data: data.bill || data, 
-        payload: { companyName, billNo: data.bill?.billNumber || billNo, total } 
+        payload: { companyName, billNo: data.bill?.billNumber || billNo, total: finalTotal } 
       };
     }
   } catch (err: any) {

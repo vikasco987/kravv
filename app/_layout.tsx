@@ -4,15 +4,15 @@ import { ClerkProvider, useAuth, useSession } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore
 import Constants from "expo-constants";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 // @ts-ignore
 import { Drawer } from "expo-router/drawer";
 // @ts-ignore
 import * as SecureStore from "expo-secure-store";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as WebBrowser from "expo-web-browser";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import CustomDrawerContent from "../components/CustomDrawer";
 import { RefreshProvider } from "../context/RefreshContext";
 
@@ -131,6 +131,13 @@ function AuthRedirect() {
         />
         <Drawer.Screen
           name="party/info"
+          options={{
+            drawerItemStyle: { display: 'none' },
+            headerShown: false,
+          }}
+        />
+        <Drawer.Screen
+          name="TableQrCodes"
           options={{
             drawerItemStyle: { display: 'none' },
             headerShown: false,

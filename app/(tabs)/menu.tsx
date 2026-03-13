@@ -1,6 +1,6 @@
 "use client";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from "expo-router";
@@ -8,25 +8,31 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
-  Image,
-  Modal,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   // @ts-ignore
   ToastAndroid,
-  TouchableOpacity,
   View,
   Dimensions
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
-// Fixed imports based on project structure
+// Project level imports
 import { SaveBill } from "../../components/SaveBill";
 import { SimpleKOT } from "../../components/SimpleKOT";
 import { useRefresh } from "../../context/RefreshContext";
 import { SimpleBill } from "../../utils/SimpleBill";
+
+// Menu Components
+import { MenuHeader } from "../../components/menu/MenuHeader";
+import { SearchBar } from "../../components/menu/SearchBar";
+import { CategorySidebar } from "../../components/menu/CategorySidebar";
+import { MenuItemCard } from "../../components/menu/MenuItemCard";
+import { CartBar } from "../../components/menu/CartBar";
+import { CartItemsModal } from "../../components/menu/CartItemsModal";
+import { TableSelectionModal } from "../../components/menu/TableSelectionModal";
+import { ConfirmHoldModal } from "../../components/menu/ConfirmHoldModal";
+import { ClearCartModal } from "../../components/menu/ClearCartModal";
 
 // --- TYPE DEFINITIONS ---
 type MenuItem = {
@@ -47,12 +53,9 @@ type CartItem = MenuItem & { quantity: number; editedPrice?: number; };
 
 // --- CONSTANTS ---
 const THEME_PRIMARY = "#4F46E5";
-const THEME_SECONDARY = "#10B981";
-const THEME_DANGER = "#DC2626";
 const COLOR_BG_LIGHT = "#F9FAFB";
-const COLOR_BG_DARK = "#FFFFFF";
-const KOT_BUTTON_COLOR = "#6366F1";
 const CATEGORY_COLUMN_WIDTH = s(80);
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function MenuScreen() {
   const { getToken } = useAuth();
@@ -75,21 +78,17 @@ export default function MenuScreen() {
   const [showHoldSuccess, setShowHoldSuccess] = useState(false);
   const { refreshSignal } = useRefresh();
 
+  // Settings states
+  const [kotEnabled, setKotEnabled] = useState(false);
+  const [tableBookingEnabled, setTableBookingEnabled] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [isTableModalVisible, setIsTableModalVisible] = useState(false);
+
   // @ts-ignore
   const flatListRef = useRef<any>(null);
 
-  // Load sounds using new expo-audio API (SDK 54+)
-  // Placeholder for sounds (files missing in assets folder)
   const addSound = { play: () => { } };
   const removeSound = { play: () => { } };
-
-  // const addSound = useAudioPlayer(require("../../assets/images/sounds/add.mp3"));
-  // const removeSound = useAudioPlayer(require("../../assets/images/sounds/remove.mp3"));
-
-  // Sounds are now managed by useAudioPlayer hook automatically
-  useEffect(() => {
-    // No explicit load needed for basic play in SDK 54+ with useAudioPlayer
-  }, []);
 
   const fetchMenus = async (isManualRefresh = false) => {
     try {
@@ -104,68 +103,34 @@ export default function MenuScreen() {
       }
 
       const token = await getToken();
-
-      console.log("Fetching menu from: https://billing.kravy.in/api/menu/view");
       const response = await fetch("https://billing.kravy.in/api/menu/view", {
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!response.ok) {
-        const errorBody = await response.text();
-        console.error(`❌ Backend Error (${response.status}):`, errorBody);
-
-        if (response.status === 500) {
-          ToastAndroid.show("Backend Error (500). Please check server logs.", ToastAndroid.LONG);
-        }
-
-        // --- FALLBACK TO CACHE ON ERROR ---
-        const cachedData = await AsyncStorage.getItem('@cached_menu');
-        if (cachedData) {
-          setMenus(JSON.parse(cachedData));
-          ToastAndroid.show("Backend Issue: Showing Cached Menu", ToastAndroid.LONG);
-        } else {
-          ToastAndroid.show("Server Error: " + response.status, ToastAndroid.LONG);
-          setMenus([]);
-        }
-        return;
-      }
-
-      let items = await response.json();
-
-      // Handle different response structures
-      let processedItems: any[] = [];
-
-      if (Array.isArray(items)) {
-        processedItems = items;
-      } else if (items && Array.isArray(items.menus)) {
-        // Nested structure: { menus: [ { name: 'Category', items: [...] } ] }
-        console.log("Processing nested categories from data.menus");
-        items.menus.forEach((cat: any) => {
-          const categoryRaw = {
-            id: cat.id || cat._id || "others",
-            name: cat.name || "Others"
-          };
-          if (Array.isArray(cat.items)) {
-            cat.items.forEach((item: any) => {
-              processedItems.push({
-                ...item,
-                category: categoryRaw // Inject category info for downstream grouping
-              });
-            });
-          }
-        });
-      } else if (items && Array.isArray(items.items)) {
-        processedItems = items.items;
-      } else {
-        console.error("❌ Unexpected response structure:", items);
         const cachedData = await AsyncStorage.getItem('@cached_menu');
         if (cachedData) setMenus(JSON.parse(cachedData));
         return;
       }
 
-      // Group items by category
+      let items = await response.json();
+      let processedItems: any[] = [];
+
+      if (Array.isArray(items)) {
+        processedItems = items;
+      } else if (items && Array.isArray(items.menus)) {
+        items.menus.forEach((cat: any) => {
+          const categoryRaw = { id: cat.id || cat._id || "others", name: cat.name || "Others" };
+          if (Array.isArray(cat.items)) {
+            cat.items.forEach((item: any) => {
+              processedItems.push({ ...item, category: categoryRaw });
+            });
+          }
+        });
+      } else if (items && Array.isArray(items.items)) {
+        processedItems = items.items;
+      }
+
       const categoryMap: Record<string, MenuCategory> = {};
       processedItems.forEach((item: any) => {
         const rawCat = item.category || { id: "others", name: "Others" };
@@ -192,26 +157,28 @@ export default function MenuScreen() {
           items: cat.items.sort((a, b) => a.name.localeCompare(b.name))
         }));
 
-      // SAVE TO CACHE FOR NEXT TIME
       await AsyncStorage.setItem('@cached_menu', JSON.stringify(sortedMenus));
       setMenus(sortedMenus);
 
     } catch (err: any) {
-      console.error("❌ Fetch Exception:", err);
       const cachedData = await AsyncStorage.getItem('@cached_menu');
-      if (cachedData) {
-        setMenus(JSON.parse(cachedData));
-        ToastAndroid.show("Offline: Loaded from Cache", ToastAndroid.SHORT);
-      } else {
-        ToastAndroid.show("Connection Error", ToastAndroid.SHORT);
-      }
+      if (cachedData) setMenus(JSON.parse(cachedData));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  // Initial load handled by useFocusEffect below
+  const fetchSettings = async () => {
+    try {
+      const kot = await AsyncStorage.getItem('kot_enabled');
+      const table = await AsyncStorage.getItem('table_booking_enabled');
+      setKotEnabled(kot === 'true');
+      setTableBookingEnabled(table === 'true');
+    } catch (e) {
+      console.error("Error fetching settings:", e);
+    }
+  };
 
   const fetchHeldCount = async () => {
     try {
@@ -225,7 +192,6 @@ export default function MenuScreen() {
       const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
       const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
 
-      // 1. Fetch from Backend
       const res = await fetch("https://billing.kravy.in/api/bill-manager?isHeld=true", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -235,14 +201,11 @@ export default function MenuScreen() {
         const data = await res.json();
         const bills = data.bills || [];
         const filteredBackend = bills.filter((b: any) =>
-          !hiddenIds.includes(b.billNumber) &&
-          !hiddenIds.includes(b._id) &&
-          !hiddenIds.includes(b.id)
+          !hiddenIds.includes(b.billNumber) && !hiddenIds.includes(b._id) && !hiddenIds.includes(b.id)
         );
         backendValidCount = filteredBackend.length;
       }
 
-      // 2. Local Count
       const localData = await AsyncStorage.getItem('@held_orders');
       let localValidCount = 0;
       if (localData) {
@@ -257,23 +220,20 @@ export default function MenuScreen() {
     }
   };
 
-  // Handle Resume Cart from Hold Page
   useFocusEffect(
     useCallback(() => {
       fetchMenus();
       fetchHeldCount();
+      fetchSettings();
       const checkResumeCart = async () => {
         try {
           const data = await AsyncStorage.getItem('@resume_cart');
           if (data) {
             const resumedItems = JSON.parse(data);
             const newCart: Record<string, CartItem> = {};
-            resumedItems.forEach((item: any) => {
-              newCart[item.id] = item;
-            });
+            resumedItems.forEach((item: any) => { newCart[item.id] = item; });
             setCart(newCart);
             await AsyncStorage.removeItem('@resume_cart');
-
             const id = await AsyncStorage.getItem('@resume_cart_id');
             if (id) {
               setActiveOrderId(id);
@@ -281,15 +241,12 @@ export default function MenuScreen() {
             }
             ToastAndroid.show("Order Loaded from Hold List", ToastAndroid.SHORT);
           }
-        } catch (error) {
-          console.error("Error loading resumed cart:", error);
-        }
+        } catch (error) { console.error("Error loading resumed cart:", error); }
       };
       checkResumeCart();
     }, [isLoaded, isSignedIn])
   );
 
-  // ---------- GLOBAL REFRESH LISTENER ----------
   useEffect(() => {
     if (refreshSignal > 0) {
       fetchMenus(true);
@@ -297,20 +254,15 @@ export default function MenuScreen() {
     }
   }, [refreshSignal]);
 
-  // ---------- SEARCH FILTER LOGIC ----------
   const filteredMenus = useMemo(() => {
     if (!searchQuery) return menus;
-
     const query = searchQuery.toLowerCase();
     return menus
       .map((cat) => {
         const categoryMatches = cat.name.toLowerCase().includes(query);
         const filteredItems = cat.items.filter(
-          (item) =>
-            item.name.toLowerCase().includes(query) ||
-            item.price?.toString().includes(query)
+          (item) => item.name.toLowerCase().includes(query) || item.price?.toString().includes(query)
         );
-
         if (categoryMatches || filteredItems.length > 0) {
           return { ...cat, items: categoryMatches ? cat.items : filteredItems };
         }
@@ -324,7 +276,6 @@ export default function MenuScreen() {
       ...prev,
       [item.id]: { ...item, quantity: (prev[item.id]?.quantity || 0) + 1 },
     }));
-    // @ts-ignore
     try { addSound?.play(); } catch { }
   };
 
@@ -339,43 +290,23 @@ export default function MenuScreen() {
       }
       return { ...prev, [item.id]: { ...existing, quantity: existing.quantity - 1 } };
     });
-    // @ts-ignore
     try { removeSound?.play(); } catch { }
   };
 
-  const deleteFromCart = (itemId: string) => {
-    setCart((prev) => {
-      const newCart = { ...prev };
-      delete newCart[itemId];
-      return newCart;
-    });
-  };
-
-  const clearCart = () => {
-    setIsClearModalVisible(true);
-  };
+  const clearCart = () => setIsClearModalVisible(true);
 
   const handleConfirmClear = () => {
     setCart({});
     setActiveOrderId(null);
+    setSelectedTable(null);
     setIsCartModalVisible(false);
     setIsClearModalVisible(false);
     setShowClearSuccess(true);
-    setTimeout(() => {
-      setShowClearSuccess(false);
-    }, 2000);
+    setTimeout(() => setShowClearSuccess(false), 2000);
   };
 
   const totalItems = Object.values(cart).reduce((sum, i) => sum + i.quantity, 0);
   const totalAmount = Object.values(cart).reduce((sum, i) => sum + ((i.editedPrice ?? i.price ?? 0) * i.quantity), 0);
-
-  const pauseOrder = async () => {
-    if (Object.keys(cart).length === 0) {
-      ToastAndroid.show("Cart is empty!", ToastAndroid.SHORT);
-      return;
-    }
-    setIsHoldModalVisible(true);
-  };
 
   const confirmPauseOrder = async () => {
     try {
@@ -383,600 +314,186 @@ export default function MenuScreen() {
       if (token && user?.id) {
         try {
           const method = activeOrderId ? "PUT" : "POST";
-          const url = activeOrderId
-            ? `https://billing.kravy.in/api/bill-manager/${activeOrderId}`
-            : "https://billing.kravy.in/api/bill-manager";
-
+          const url = activeOrderId ? `https://billing.kravy.in/api/bill-manager/${activeOrderId}` : "https://billing.kravy.in/api/bill-manager";
           const response = await fetch(url, {
             method: method,
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({
               items: Object.values(cart).map(i => ({
-                productId: i.id,
-                name: i.name,
-                quantity: i.quantity,
-                price: i.editedPrice ?? i.price ?? 0,
-                total: (i.editedPrice ?? i.price ?? 0) * i.quantity,
+                productId: i.id, name: i.name, quantity: i.quantity,
+                price: i.editedPrice ?? i.price ?? 0, total: (i.editedPrice ?? i.price ?? 0) * i.quantity,
               })),
-              subtotal: Number((totalAmount / 1.05).toFixed(2)),
-              total: totalAmount,
-              paymentMode: "Cash",
-              paymentStatus: "HELD",
-              isHeld: true,
-              customerName: "Walk-in Customer",
-              customerPhone: null,
+              subtotal: Number((totalAmount / 1.05).toFixed(2)), total: totalAmount,
+              paymentMode: "Cash", paymentStatus: "HELD", isHeld: true, customerName: "Walk-in Customer", customerPhone: null,
             }),
           });
 
           if (response.ok) {
             setShowHoldSuccess(true);
             setTimeout(() => {
-              setIsHoldModalVisible(false);
-              setShowHoldSuccess(false);
-              setCart({});
-              setActiveOrderId(null);
-              fetchHeldCount();
+              setIsHoldModalVisible(false); setShowHoldSuccess(false);
+              setCart({}); setActiveOrderId(null); fetchHeldCount();
             }, 2000);
-          } else {
-            const errorText = await response.text();
-            console.error(`Backend hold error:`, errorText);
-            await saveToLocalFallback();
-          }
-        } catch (fetchError) {
-          console.error("Network error during hold sync:", fetchError);
-          await saveToLocalFallback();
-        }
-      } else {
-        await saveToLocalFallback();
-      }
+          } else { await saveToLocalFallback(); }
+        } catch (fetchError) { await saveToLocalFallback(); }
+      } else { await saveToLocalFallback(); }
 
       async function saveToLocalFallback() {
         if (activeOrderId && activeOrderId.startsWith("BILL-")) {
-          // Updating local order
           const localData = await AsyncStorage.getItem('@held_orders');
           let orders = localData ? JSON.parse(localData) : [];
-          orders = orders.map((o: any) => o.id === activeOrderId ? {
-            ...o,
-            items: Object.values(cart),
-            total: totalAmount,
-            timestamp: new Date().toISOString()
-          } : o);
+          orders = orders.map((o: any) => o.id === activeOrderId ? { ...o, items: Object.values(cart), total: totalAmount, timestamp: new Date().toISOString() } : o);
           await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
         } else {
           const id = "BILL-" + Date.now();
-          const newOrder = {
-            id,
-            items: Object.values(cart),
-            total: totalAmount,
-            timestamp: new Date().toISOString()
-          };
+          const newOrder = { id, items: Object.values(cart), total: totalAmount, timestamp: new Date().toISOString() };
           const localData = await AsyncStorage.getItem('@held_orders');
           const orders = localData ? JSON.parse(localData) : [];
           orders.push(newOrder);
           await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
         }
-
         setShowHoldSuccess(true);
         setTimeout(() => {
-          setIsHoldModalVisible(false);
-          setShowHoldSuccess(false);
-          setCart({});
-          setActiveOrderId(null);
-          fetchHeldCount();
+          setIsHoldModalVisible(false); setShowHoldSuccess(false);
+          setCart({}); setActiveOrderId(null); fetchHeldCount();
         }, 2000);
       }
-    } catch (e) {
-      console.error("Hold process error:", e);
-      ToastAndroid.show("Failed to hold order", ToastAndroid.SHORT);
+    } catch (e) { ToastAndroid.show("Failed to hold order", ToastAndroid.SHORT); }
+  };
+
+  const handlePrintKot = async () => {
+    const token = await getToken();
+    await SimpleKOT(Object.values(cart), token!, user?.id!, selectedTable);
+  };
+
+  const handlePrintBill = async () => {
+    const token = await getToken();
+    const result = await SimpleBill(Object.values(cart), token!, user?.id!, { paymentMode: paymentMethod, billId: activeOrderId || undefined });
+    if (result?.status === "success") {
+      setCart({}); setActiveOrderId(null); setSelectedTable(null); fetchHeldCount();
     }
   };
-  const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+  const handleSaveBill = async () => {
+    const token = await getToken();
+    const result = await SaveBill(Object.values(cart), token!, user?.id!, { paymentMode: paymentMethod, billId: activeOrderId || undefined });
+    if (result?.status === "saved") {
+      setCart({}); setActiveOrderId(null); setSelectedTable(null); fetchHeldCount();
+    }
+  };
+
   const itemWidth = (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32)) / 3;
 
-  if (loading)
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={THEME_PRIMARY} />
-        <Text style={{ marginTop: 10 }}>Organizing Menu A-Z...</Text>
-      </View>
-    );
+  if (loading) return (
+    <View style={styles.center}><ActivityIndicator size="large" color={THEME_PRIMARY} /><Text style={{ marginTop: 10 }}>Organizing Menu A-Z...</Text></View>
+  );
 
   return (
     <View style={styles.container}>
-      {/* Header Bar */}
-      <View style={styles.integratedHeaderBar}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={styles.headerTitle}>Menu</Text>
-          <TouchableOpacity
-            style={styles.refreshIconButton}
-            onPress={() => fetchMenus(true)}
-            disabled={refreshing}
-          >
-            {refreshing ? (
-              <ActivityIndicator size="small" color={THEME_PRIMARY} />
-            ) : (
-              <Ionicons name="refresh" size={rf(22)} color={THEME_PRIMARY} />
-            )}
-          </TouchableOpacity>
-        </View>
-        <View style={styles.headerActionGroup}>
-          <TouchableOpacity style={styles.integratedActionButton} onPress={() => router.push("/party/items")}>
-            <Feather name="plus" size={rf(16)} color="#FFF" style={{ marginRight: s(4) }} />
-            <Text style={styles.integratedButtonText}>Item</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.integratedActionButton}
-            onPress={pauseOrder}
-          >
-            <Text style={styles.integratedButtonText}>Pause</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.integratedActionButton, { position: 'relative' }]}
-            onPress={() => router.push("/party/hold")}
-          >
-            <Ionicons name="timer-outline" size={rf(16)} color="#FFF" style={{ marginRight: s(4) }} />
-            <Text style={styles.integratedButtonText}>HOLD</Text>
-            {heldCount > 0 && (
-              <View style={styles.headerBadge}>
-                <Text style={styles.headerBadgeText}>{heldCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
+      <MenuHeader 
+        refreshing={refreshing} 
+        onFetchMenus={() => fetchMenus(true)} 
+        onAddItem={() => router.push("/party/items")}
+        onPauseOrder={() => Object.keys(cart).length === 0 ? ToastAndroid.show("Cart is empty!", ToastAndroid.SHORT) : setIsHoldModalVisible(true)}
+        onViewHeldOrders={() => router.push("/party/hold")}
+        heldCount={heldCount}
+      />
 
-      {/* --- ENHANCED SEARCH BAR --- */}
-      <View style={styles.searchSection}>
-        <View style={styles.searchBarContainer}>
-          <Feather name="search" size={rf(20)} color="#4B5563" style={{ marginLeft: s(12) }} />
-          <TextInput
-            placeholder="Search name, category, or price..."
-            placeholderTextColor="#9CA3AF"
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchQuery !== "" && (
-            <TouchableOpacity onPress={() => setSearchQuery("")} style={{ padding: s(10) }}>
-              <Ionicons name="close-circle" size={rf(20)} color="#4B5563" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+      <SearchBar 
+        searchQuery={searchQuery} 
+        onSearchChange={setSearchQuery} 
+        onClear={() => setSearchQuery("")} 
+      />
 
       <View style={styles.row}>
-        {/* Sidebar Categories */}
-        <ScrollView style={styles.categoryColumn} showsVerticalScrollIndicator={false}>
-          {filteredMenus.map((cat) => (
-            <TouchableOpacity
-              key={cat.id}
-              style={styles.categoryButton}
-              onPress={() => {
-                const index = filteredMenus.findIndex((c) => c.id === cat.id);
-                if (index >= 0) flatListRef.current?.scrollToIndex({ index, animated: true });
-              }}
-            >
-              <Ionicons name="fast-food-outline" size={12} color="#fff" />
-              <Text style={styles.categoryText}>{cat.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <CategorySidebar 
+          categories={filteredMenus} 
+          onCategoryPress={(cat, index) => flatListRef.current?.scrollToIndex({ index, animated: true })} 
+        />
 
-        {/* Item Grid */}
         <FlatList
           ref={flatListRef}
           data={filteredMenus}
           keyExtractor={(cat) => cat.id}
-          contentContainerStyle={{ paddingBottom: 450 }} // Increased for even better scrolling
-          initialNumToRender={20} // Render more categories initially
-          maxToRenderPerBatch={20}
-          windowSize={21}
-          removeClippedSubviews={false} // Helps with scrolling to non-rendered items
+          contentContainerStyle={{ paddingBottom: 450 }}
           onScrollToIndexFailed={(info) => {
-            // Robust fallback: Scroll to estimated offset first to force rendering, then to exact index
             const estimatedOffset = info.averageItemLength * info.index;
             flatListRef.current?.scrollToOffset({ offset: estimatedOffset, animated: false });
-
-            setTimeout(() => {
-              if (flatListRef.current) {
-                try {
-                  flatListRef.current.scrollToIndex({ index: info.index, animated: true });
-                } catch (e) {
-                  // Final fallback if scrollToIndex still fails
-                  flatListRef.current.scrollToOffset({ offset: estimatedOffset, animated: true });
-                }
-              }
-            }, 100);
+            setTimeout(() => flatListRef.current?.scrollToIndex({ index: info.index, animated: true }), 100);
           }}
           renderItem={({ item: cat }) => (
             <View>
               <Text style={styles.categoryHeader}>{cat.name}</Text>
               <View style={styles.gridContainer}>
-                {cat.items.map((item) => {
-                  const quantity = cart[item.id]?.quantity || 0;
-                  return (
-                    <View key={item.id} style={[styles.gridItem, { width: itemWidth }]}>
-                      <TouchableOpacity onPress={() => addToCart(item)} activeOpacity={0.8} style={{ width: "100%", alignItems: "center" }}>
-                        <View>
-                          <Image
-                            source={{ uri: item.imageUrl?.startsWith("http") ? item.imageUrl : "https://via.placeholder.com/80?text=No+Image" }}
-                            style={[styles.itemImage, { width: itemWidth - s(12), height: itemWidth - s(12) }]}
-                            resizeMode="cover"
-                          />
-                          {quantity > 0 && (
-                            <TouchableOpacity style={styles.minusIcon} onPress={() => removeFromCart(item)}>
-                              <Feather name="minus" size={12} color="#fff" />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                        <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
-                        <View style={styles.bottomRow}>
-                          <Text style={styles.itemPrice}>₹{item.price ?? "0"}</Text>
-                          {quantity > 0 && (
-                            <View style={styles.quantityBox}><Text style={styles.quantityText}>{quantity}</Text></View>
-                          )}
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
+                {cat.items.map((item) => (
+                  <MenuItemCard 
+                    key={item.id} 
+                    item={item} 
+                    itemWidth={itemWidth} 
+                    quantity={cart[item.id]?.quantity || 0}
+                    onAdd={addToCart} 
+                    onRemove={removeFromCart} 
+                  />
+                ))}
               </View>
             </View>
           )}
-          ListEmptyComponent={
-            !loading ? (
-              <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="fast-food-outline" size={80} color="#D1D5DB" />
-                <Text style={{ marginTop: 16, color: '#6B7280', fontSize: 18, fontWeight: '600', textAlign: 'center' }}>
-                  No items found in your menu
-                </Text>
-                <Text style={{ marginTop: 8, color: '#9CA3AF', fontSize: 14, textAlign: 'center' }}>
-                  Try refreshing or add new items from the &quot;Item&quot; button above.
-                </Text>
-                <TouchableOpacity
-                  onPress={() => fetchMenus(true)}
-                  style={{
-                    marginTop: 24,
-                    paddingHorizontal: 20,
-                    paddingVertical: 12,
-                    backgroundColor: THEME_PRIMARY,
-                    borderRadius: 10,
-                    flexDirection: 'row',
-                    alignItems: 'center'
-                  }}
-                >
-                  <Ionicons name="refresh" size={18} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>Refresh Menu</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null
-          }
         />
       </View>
 
-      {/* Cart Summary & Actions */}
       {totalItems > 0 && (
-        <View style={styles.cartBar}>
-          <View style={styles.summaryRow}>
-            <TouchableOpacity
-              style={styles.viewItemsButton}
-              onPress={() => setIsCartModalVisible(true)}
-            >
-              <Feather name="shopping-cart" size={16} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={styles.viewItemsText}>Items ({totalItems})</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.receivedContainer} onPress={() => setReceived(!received)}>
-              <View style={[styles.receivedCheckbox, received && { backgroundColor: THEME_PRIMARY }]}>
-                {received && <Ionicons name="checkmark-sharp" size={14} color="#fff" />}
-              </View>
-              <Text style={styles.receivedText}>Received</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.paymentSelector}>
-            {["Cash", "UPI", "Card"].map((method) => (
-              <TouchableOpacity
-                key={method}
-                style={[styles.paymentOption, paymentMethod === method && styles.paymentSelected]}
-                onPress={() => setPaymentMethod(method as any)}
-              >
-                <Text style={[styles.paymentText, paymentMethod === method && { color: "#fff", fontWeight: "700" }]}>{method}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-
-
-          <View style={styles.actionButtonsRow}>
-            {/* KOT */}
-            <TouchableOpacity style={styles.printKotButton} onPress={async () => {
-              const token = await getToken();
-              await SimpleKOT(Object.values(cart), token!, user?.id!);
-              ToastAndroid.show("KOT Printed!", ToastAndroid.SHORT);
-            }}>
-              <Feather name="file-text" size={16} color="#fff" />
-              <Text style={styles.printBillText}>KOT</Text>
-            </TouchableOpacity>
-
-            {/* BILL */}
-            <TouchableOpacity style={styles.printBillButton} onPress={async () => {
-              const token = await getToken();
-              const result = await SimpleBill(
-                Object.values(cart),
-                token!,
-                user?.id!,
-                {
-                  paymentMode: paymentMethod,
-                  billId: activeOrderId || undefined
-                }
-              );
-              if (result?.status === "success") {
-                setCart({});
-                setActiveOrderId(null);
-                fetchHeldCount();
-              }
-            }}>
-              <Feather name="printer" size={16} color="#fff" />
-              <Text style={styles.printBillText}>BILL</Text>
-            </TouchableOpacity>
-
-            {/* SAVE BILL */}
-            <TouchableOpacity
-              style={styles.saveBillButton}
-              onPress={async () => {
-                const token = await getToken();
-
-                const result = await SaveBill(
-                  Object.values(cart),
-                  token!,
-                  user?.id!,
-                  {
-                    paymentMode: paymentMethod,
-                    billId: activeOrderId || undefined
-                  }
-                );
-
-                if (result?.status === "saved") {
-                  setCart({});
-                  setActiveOrderId(null);
-                  fetchHeldCount();
-                }
-              }}
-            >
-              <Feather name="save" size={16} color="#fff" />
-              <Text style={styles.printBillText}>SAVE</Text>
-            </TouchableOpacity>
-
-            {/* NEXT / TOTAL */}
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() =>
-                router.push({
-                  pathname: "/party/bill",
-                  params: { cart: JSON.stringify(cart), paymentMethod, heldOrderId: activeOrderId },
-                })
-              }
-            >
-              <Text style={styles.primaryButtonText}>₹{totalAmount.toFixed(0)}</Text>
-              <Feather name="arrow-right" size={16} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-
-        </View>
+        <CartBar 
+          totalItems={totalItems} 
+          totalAmount={totalAmount} 
+          paymentMethod={paymentMethod} 
+          setPaymentMethod={setPaymentMethod}
+          received={received}
+          setReceived={setReceived}
+          onViewCart={() => setIsCartModalVisible(true)}
+          onPrintKot={handlePrintKot}
+          onPrintBill={handlePrintBill}
+          onSaveBill={handleSaveBill}
+          onProceed={() => router.push({ pathname: "/party/bill", params: { cart: JSON.stringify(cart), paymentMethod, heldOrderId: activeOrderId }})}
+          kotEnabled={kotEnabled}
+          tableBookingEnabled={tableBookingEnabled}
+          onSelectTable={() => setIsTableModalVisible(true)}
+          selectedTable={selectedTable}
+        />
       )}
 
-      {/* Cart Items Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
+      <CartItemsModal 
         visible={isCartModalVisible}
-        onRequestClose={() => setIsCartModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selected Items ({totalItems})</Text>
-              <TouchableOpacity onPress={() => setIsCartModalVisible(false)}>
-                <Ionicons name="close-circle" size={28} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
+        onClose={() => setIsCartModalVisible(false)}
+        cartItems={Object.values(cart)}
+        totalItems={totalItems}
+        totalAmount={totalAmount}
+        onAdd={addToCart}
+        onRemove={removeFromCart}
+        onClear={clearCart}
+      />
 
-            <FlatList
-              data={Object.values(cart)}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <View style={styles.cartItemRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cartItemName}>{item.name}</Text>
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <Text style={{ fontSize: 12 }}>₹</Text>
-                      <TextInput
-                        value={String(item.editedPrice ?? item.price ?? 0)}
-                        keyboardType="numeric"
-                        style={{
-                          borderBottomWidth: 1,
-                          borderColor: "#D1D5DB",
-                          minWidth: 60,
-                          marginLeft: 4,
-                          fontSize: 13,
-                          textAlign: "center",
-                          paddingVertical: 2,
-                        }}
-                        onChangeText={(val) => {
-                          const newPrice = Number(val) || 0;
-                          setCart((prev) => ({
-                            ...prev,
-                            [item.id]: {
-                              ...prev[item.id],
-                              editedPrice: newPrice,
-                            },
-                          }));
-                        }}
-                      />
-                      <Text style={{ fontSize: 12 }}> x {item.quantity}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.cartItemActions}>
-                    <Text style={styles.cartItemTotal}>
-                      ₹{((item.editedPrice ?? item.price ?? 0) * item.quantity).toFixed(2)}
-                    </Text>
+      <TableSelectionModal 
+        visible={isTableModalVisible}
+        onClose={() => setIsTableModalVisible(false)}
+        selectedTable={selectedTable}
+        onSelect={(table) => { setSelectedTable(table); setIsTableModalVisible(false); }}
+      />
 
-                    <View style={styles.qtyControls}>
-                      <TouchableOpacity style={styles.qtyBtn} onPress={() => removeFromCart(item)}>
-                        <Feather name="minus" size={16} color={THEME_PRIMARY} />
-                      </TouchableOpacity>
-                      <Text style={styles.qtyVal}>{item.quantity}</Text>
-                      <TouchableOpacity style={styles.qtyBtn} onPress={() => addToCart(item)}>
-                        <Feather name="plus" size={16} color={THEME_PRIMARY} />
-                      </TouchableOpacity>
-                    </View>
-                    <TouchableOpacity onPress={() => deleteFromCart(item.id)} style={{ marginLeft: 10 }}>
-                      <Feather name="trash-2" size={18} color={THEME_DANGER} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            />
-
-            <View style={styles.modalFooter}>
-              <View style={styles.modalTotalRow}>
-                <Text style={styles.modalTotalLabel}>Grand Total:</Text>
-                <Text style={styles.modalTotalValue}>₹{totalAmount.toFixed(2)}</Text>
-              </View>
-              <TouchableOpacity style={styles.clearAllButton} onPress={clearCart}>
-                <Feather name="trash" size={16} color="#fff" style={{ marginRight: 6 }} />
-                <Text style={styles.clearAllText}>Clear All Items</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Custom Hold Order Modal */}
-      <Modal
-        transparent={true}
+      <ConfirmHoldModal 
         visible={isHoldModalVisible}
-        animationType="slide"
-        onRequestClose={() => setIsHoldModalVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.bottomModalOverlay}
-          activeOpacity={1}
-          onPress={() => setIsHoldModalVisible(false)}
-        >
-          <View style={styles.bottomModalContent}>
-            <View style={styles.modalHandle} />
+        onClose={() => setIsHoldModalVisible(false)}
+        onConfirm={confirmPauseOrder}
+        totalAmount={totalAmount}
+        totalItems={totalItems}
+        showSuccess={showHoldSuccess}
+      />
 
-            {showHoldSuccess ? (
-              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <View style={styles.successCircle}>
-                  <Ionicons name="checkmark-sharp" size={40} color="#10B981" />
-                </View>
-                <Text style={[styles.bottomModalTitle, { color: '#10B981' }]}>Order Held!</Text>
-                <Text style={styles.bottomModalSubtext}>Order moved to the Hold List.</Text>
-              </View>
-            ) : (
-              <>
-                <View style={styles.holdCircle}>
-                  <Ionicons name="pause" size={32} color="#4F46E5" />
-                </View>
-
-                <Text style={styles.bottomModalTitle}>Hold Order?</Text>
-                <Text style={styles.bottomModalSubtext}>
-                  Are you sure you want to pause this order and move it to the Hold List?
-                </Text>
-
-                <View style={styles.holdInfoBox}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.holdOrderText}>Active Order</Text>
-                    <Text style={styles.holdSummaryText} numberOfLines={1}>
-                      {totalItems} items in cart
-                    </Text>
-                  </View>
-                  <Text style={styles.holdTotalText}>₹{totalAmount.toFixed(0)}</Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.confirmHoldBtn}
-                  onPress={confirmPauseOrder}
-                >
-                  <Ionicons name="pause" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.confirmHoldText}>Yes, Move to Hold</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={() => setIsHoldModalVisible(false)}
-                >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Clear All Confirmation Modal */}
-      <Modal
-        transparent={true}
+      <ClearCartModal 
         visible={isClearModalVisible}
-        animationType="fade"
-        onRequestClose={() => setIsClearModalVisible(false)}
-      >
-        <View style={styles.modalOverlayCentered}>
-          <View style={[styles.modalContentCentered, { backgroundColor: '#ceddd2ff' }]}>
-            <View style={{ alignItems: 'center', paddingVertical: 10 }}>
-              <View style={[styles.trashCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
-                <Ionicons name="trash-outline" size={40} color="#EF4444" />
-              </View>
-              <Text style={[styles.successTitleText, { color: '#EF4444' }]}>Clear All Items?</Text>
-              <Text style={styles.successDetailText}>Are you sure you want to remove all items from your cart?</Text>
-
-              <View style={{ flexDirection: 'row', marginTop: 24, width: '100%', justifyContent: 'space-between' }}>
-                <TouchableOpacity
-                  style={styles.confirmCancelBtn}
-                  onPress={() => setIsClearModalVisible(false)}
-                >
-                  <Text style={{ color: '#4B5563', fontWeight: 'bold', fontSize: 16 }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.confirmDeleteBtn}
-                  onPress={handleConfirmClear}
-                >
-                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Clear All</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Clear Success Modal */}
-      <Modal
-        transparent={true}
-        visible={showClearSuccess}
-        animationType="fade"
-      >
-        <View style={styles.modalOverlayCentered}>
-          <View style={[styles.modalContentCentered, { backgroundColor: '#ceddd2ff' }]}>
-            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-              <View style={[styles.successCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
-                <Ionicons name="trash-bin-outline" size={40} color="#EF4444" />
-              </View>
-              <Text style={[styles.successTitleText, { color: '#EF4444' }]}>Cleared!</Text>
-              <Text style={styles.successDetailText}>Cart has been cleared successfully.</Text>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setIsClearModalVisible(false)}
+        onConfirm={handleConfirmClear}
+        showSuccess={showClearSuccess}
+      />
     </View>
   );
 }
@@ -985,276 +502,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 20, backgroundColor: COLOR_BG_LIGHT },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   row: { flex: 1, flexDirection: "row" },
-
-  searchSection: { paddingHorizontal: s(15), paddingVertical: vs(5) },
-  searchBarContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: s(25),
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    height: vs(50),
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  searchInput: {
-    flex: 1,
-    paddingHorizontal: s(12),
-    fontSize: rf(16),
-    color: "#000000",
-    fontWeight: "500",
-    height: "100%",
-  },
-
-  categoryColumn: { width: CATEGORY_COLUMN_WIDTH, backgroundColor: COLOR_BG_DARK, borderRightWidth: 1, borderColor: "#E5E7EB" },
-  categoryButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: vs(6), marginVertical: vs(3), backgroundColor: THEME_PRIMARY, borderRadius: s(8), marginHorizontal: s(4) },
-  categoryText: { fontWeight: "600", color: "#fff", marginLeft: s(3), fontSize: rf(10), textAlign: 'center' },
   categoryHeader: { fontSize: rf(11), fontWeight: "bold", backgroundColor: "#E0E7FF", padding: s(3), marginTop: vs(10), borderRadius: s(6), textAlign: "center", color: THEME_PRIMARY, marginHorizontal: s(10) },
   gridContainer: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: s(4), marginTop: vs(5) },
-  gridItem: { backgroundColor: COLOR_BG_DARK, borderRadius: s(10), padding: s(6), margin: s(4), alignItems: "center", elevation: 2 },
-  itemImage: { width: s(80), height: s(80), borderRadius: s(8), marginBottom: vs(4) },
-  itemName: { fontSize: rf(13), fontWeight: "600", textAlign: "center", color: "#111", marginBottom: vs(2) },
-  bottomRow: { width: "100%", flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: vs(4) },
-  itemPrice: { fontSize: rf(11), color: THEME_DANGER, fontWeight: "bold" },
-  quantityBox: { backgroundColor: THEME_SECONDARY, paddingHorizontal: s(6), paddingVertical: vs(2), borderRadius: s(6) },
-  quantityText: { color: "#fff", fontWeight: "bold", fontSize: rf(10) },
-  minusIcon: { position: "absolute", top: 0, right: 0, backgroundColor: THEME_DANGER, borderRadius: s(10), padding: s(2), zIndex: 10 },
-
-  integratedHeaderBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: s(15), paddingTop: vs(10), paddingBottom: vs(5) },
-  headerTitle: { fontSize: rf(22), fontWeight: "bold", color: "#1F2937" },
-  refreshIconButton: { marginLeft: s(10), padding: s(5) },
-  headerActionGroup: { flexDirection: "row", backgroundColor: THEME_PRIMARY, borderRadius: s(10), padding: s(4) },
-  integratedActionButton: { flexDirection: "row", alignItems: "center", paddingVertical: vs(6), paddingHorizontal: s(10), borderRadius: s(8), marginHorizontal: s(2), position: 'relative' },
-  integratedButtonText: { fontSize: rf(13), fontWeight: "700", color: "#FFF" },
-
-  headerBadge: {
-    position: 'absolute',
-    top: vs(-6),
-    right: s(-4),
-    backgroundColor: THEME_DANGER,
-    borderRadius: s(10),
-    minWidth: s(18),
-    height: vs(18),
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFF',
-  },
-  headerBadgeText: {
-    color: '#FFF',
-    fontSize: rf(9),
-    fontWeight: '900',
-  },
-
-  cartBar: { position: "absolute", bottom: 0, left: s(65), right: 0, backgroundColor: "#fff", padding: s(12), borderTopWidth: 1, borderColor: "#E5E7EB", zIndex: 999, elevation: 20 },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: vs(10) },
-  viewItemsButton: { backgroundColor: THEME_PRIMARY, flexDirection: 'row', alignItems: 'center', paddingHorizontal: s(12), paddingVertical: vs(6), borderRadius: s(20) },
-  viewItemsText: { color: '#fff', fontWeight: 'bold', fontSize: rf(13) },
-
-  receivedContainer: { flexDirection: "row", alignItems: "center" },
-  receivedCheckbox: { width: s(18), height: s(18), borderRadius: s(4), borderWidth: 1.5, borderColor: THEME_PRIMARY, marginRight: s(6), justifyContent: "center", alignItems: "center" },
-  receivedText: { fontSize: rf(12), fontWeight: "500" },
-  paymentSelector: { flexDirection: "row", justifyContent: "space-between", backgroundColor: "#F3F4F6", borderRadius: s(8), marginBottom: vs(10), padding: s(4) },
-  paymentOption: { flex: 1, alignItems: "center", paddingVertical: vs(5), marginHorizontal: s(2), borderRadius: s(6), borderWidth: 1, borderColor: THEME_PRIMARY },
-  paymentSelected: { backgroundColor: THEME_PRIMARY },
-  paymentText: { color: THEME_PRIMARY, fontWeight: "600", fontSize: rf(11) },
-  actionButtonsRow: { flexDirection: "row", justifyContent: "space-between", gap: s(6) },
-  saveBillButton: { flex: 0.8, backgroundColor: "#2563EB", borderRadius: s(8), paddingVertical: vs(10), alignItems: "center", flexDirection: "row", justifyContent: "center" },
-  printKotButton: { flex: 0.8, backgroundColor: KOT_BUTTON_COLOR, borderRadius: s(8), paddingVertical: vs(10), alignItems: "center", flexDirection: "row", justifyContent: "center" },
-  printBillButton: { flex: 0.8, backgroundColor: THEME_DANGER, borderRadius: s(8), paddingVertical: vs(10), alignItems: "center", flexDirection: "row", justifyContent: "center" },
-  primaryButton: { flex: 1.2, backgroundColor: THEME_SECONDARY, borderRadius: s(8), paddingVertical: vs(10), alignItems: "center", flexDirection: "row", justifyContent: "center" },
-  primaryButtonText: { color: "#fff", fontWeight: "900", fontSize: rf(15) },
-  printBillText: { color: "#fff", fontWeight: "700", fontSize: rf(13) },
-
-  // --- MODAL STYLES ---
-  modalOverlay: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end', marginLeft: s(55), paddingBottom: vs(80), paddingHorizontal: s(15) },
-  modalContent: { backgroundColor: '#fff', borderRadius: s(18), padding: s(20), maxHeight: '85%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(20) },
-  modalTitle: { fontSize: rf(18), fontWeight: 'bold', color: '#1F2937' },
-  cartItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: vs(12), borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  cartItemName: { fontSize: rf(15), fontWeight: '600', color: '#111' },
-  cartItemPrice: { fontSize: rf(12), color: '#6B7280' },
-  cartItemActions: { flexDirection: 'row', alignItems: 'center' },
-  cartItemTotal: { fontWeight: 'bold', fontSize: rf(14), marginRight: s(15), width: s(60), textAlign: 'right' },
-  qtyControls: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: s(8), padding: s(2) },
-  qtyBtn: { padding: s(4) },
-  qtyVal: { paddingHorizontal: s(8), fontWeight: 'bold', fontSize: rf(14) },
-  modalFooter: { marginTop: vs(20), paddingTop: vs(15), borderTopWidth: 2, borderTopColor: '#F3F4F6' },
-  modalTotalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: vs(15) },
-  modalTotalLabel: { fontSize: rf(18), fontWeight: 'bold' },
-  modalTotalValue: { fontSize: rf(20), fontWeight: '900', color: THEME_PRIMARY },
-  clearAllButton: { backgroundColor: THEME_DANGER, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: vs(12), borderRadius: s(10) },
-  clearAllText: { color: '#fff', fontWeight: 'bold', fontSize: rf(14) },
-
-  // --- NEW BOTTOM MODAL STYLES ---
-  bottomModalOverlay: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    justifyContent: 'flex-end',
-    marginLeft: s(65),
-  },
-  bottomModalContent: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: s(32),
-    borderTopRightRadius: s(32),
-    padding: s(24),
-    alignItems: 'center',
-    paddingBottom: vs(40),
-  },
-  modalHandle: {
-    width: s(40),
-    height: vs(5),
-    backgroundColor: '#E5E7EB',
-    borderRadius: s(3),
-    marginBottom: vs(20),
-    alignSelf: 'center',
-  },
-  holdCircle: {
-    width: s(80),
-    height: s(80),
-    borderRadius: s(40),
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: vs(20),
-    borderWidth: 2,
-    borderColor: '#4F46E5',
-  },
-  successCircle: {
-    width: s(80),
-    height: s(80),
-    borderRadius: s(40),
-    backgroundColor: '#D1FAE5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: vs(20),
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  bottomModalTitle: {
-    fontSize: rf(24),
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: vs(12),
-  },
-  bottomModalSubtext: {
-    fontSize: rf(16),
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: vs(24),
-    lineHeight: rf(22),
-    paddingHorizontal: s(10),
-  },
-  holdInfoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: s(20),
-    padding: s(16),
-    width: '100%',
-    marginBottom: vs(24),
-  },
-  holdOrderText: {
-    fontSize: rf(18),
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  holdSummaryText: {
-    fontSize: rf(14),
-    color: '#6B7280',
-    marginTop: vs(4),
-  },
-  holdTotalText: {
-    fontSize: rf(22),
-    fontWeight: 'bold',
-    color: '#4F46E5',
-  },
-  confirmHoldBtn: {
-    width: '100%',
-    backgroundColor: '#4F46E5',
-    paddingVertical: vs(18),
-    borderRadius: s(20),
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: vs(12),
-    elevation: 8,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-  },
-  confirmHoldText: {
-    color: '#FFF',
-    fontSize: rf(18),
-    fontWeight: 'bold',
-  },
-  modalCancelBtn: {
-    width: '100%',
-    backgroundColor: '#F3F4F6',
-    paddingVertical: vs(18),
-    borderRadius: s(20),
-    alignItems: 'center',
-  },
-  modalCancelText: {
-    color: '#4B5563',
-    fontSize: rf(18),
-    fontWeight: '600',
-  },
-  modalOverlayCentered: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    paddingHorizontal: s(20),
-    marginLeft: s(65),
-  },
-  modalContentCentered: {
-    backgroundColor: '#fff',
-    borderRadius: s(32),
-    padding: s(24),
-    width: '100%',
-  },
-  trashCircle: {
-    width: s(80),
-    height: s(80),
-    borderRadius: s(40),
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: vs(20),
-    borderWidth: 2,
-  },
-  successTitleText: {
-    fontSize: rf(24),
-    fontWeight: 'bold',
-    marginBottom: vs(8),
-    textAlign: 'center',
-  },
-  successDetailText: {
-    fontSize: rf(16),
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: rf(22),
-  },
-  confirmDeleteBtn: {
-    flex: 1,
-    padding: s(16),
-    backgroundColor: '#EF4444',
-    borderRadius: s(20),
-    marginLeft: s(8),
-    alignItems: 'center',
-  },
-  confirmCancelBtn: {
-    flex: 1,
-    padding: s(16),
-    backgroundColor: '#F3F4F6',
-    borderRadius: s(20),
-    marginRight: s(8),
-    alignItems: 'center',
-  },
 });
