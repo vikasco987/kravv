@@ -66,10 +66,9 @@ export const ClearCartModal: React.FC<ClearCartModalProps> = ({
 const styles = StyleSheet.create({
     modalOverlayCentered: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'center',
-        paddingHorizontal: s(20),
-        marginLeft: s(65),
+        paddingHorizontal: s(30),
     },
     modalContentCentered: {
         backgroundColor: '#fff',

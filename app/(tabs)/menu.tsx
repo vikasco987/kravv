@@ -1,19 +1,18 @@
 "use client";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   StyleSheet,
   Text,
   // @ts-ignore
   ToastAndroid,
-  View,
-  Dimensions
+  View
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
@@ -24,15 +23,14 @@ import { useRefresh } from "../../context/RefreshContext";
 import { SimpleBill } from "../../utils/SimpleBill";
 
 // Menu Components
-import { MenuHeader } from "../../components/menu/MenuHeader";
-import { SearchBar } from "../../components/menu/SearchBar";
-import { CategorySidebar } from "../../components/menu/CategorySidebar";
-import { MenuItemCard } from "../../components/menu/MenuItemCard";
 import { CartBar } from "../../components/menu/CartBar";
 import { CartItemsModal } from "../../components/menu/CartItemsModal";
-import { TableSelectionModal } from "../../components/menu/TableSelectionModal";
-import { ConfirmHoldModal } from "../../components/menu/ConfirmHoldModal";
+import { CategorySidebar } from "../../components/menu/CategorySidebar";
 import { ClearCartModal } from "../../components/menu/ClearCartModal";
+import { ConfirmHoldModal } from "../../components/menu/ConfirmHoldModal";
+import { MenuHeader } from "../../components/menu/MenuHeader";
+import { MenuItemCard } from "../../components/menu/MenuItemCard";
+import { TableSelectionModal } from "../../components/menu/TableSelectionModal";
 
 // --- TYPE DEFINITIONS ---
 type MenuItem = {
@@ -65,7 +63,6 @@ export default function MenuScreen() {
   const [menus, setMenus] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Card">("Cash");
   const [received, setReceived] = useState(false);
@@ -76,7 +73,7 @@ export default function MenuScreen() {
   const [isHoldModalVisible, setIsHoldModalVisible] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [showHoldSuccess, setShowHoldSuccess] = useState(false);
-  const { refreshSignal } = useRefresh();
+  const { refreshSignal, searchQuery, setSearchQuery } = useRefresh();
 
   // Settings states
   const [kotEnabled, setKotEnabled] = useState(false);
@@ -390,25 +387,18 @@ export default function MenuScreen() {
 
   return (
     <View style={styles.container}>
-      <MenuHeader 
-        refreshing={refreshing} 
-        onFetchMenus={() => fetchMenus(true)} 
+      <MenuHeader
         onAddItem={() => router.push("/party/items")}
         onPauseOrder={() => Object.keys(cart).length === 0 ? ToastAndroid.show("Cart is empty!", ToastAndroid.SHORT) : setIsHoldModalVisible(true)}
         onViewHeldOrders={() => router.push("/party/hold")}
         heldCount={heldCount}
       />
 
-      <SearchBar 
-        searchQuery={searchQuery} 
-        onSearchChange={setSearchQuery} 
-        onClear={() => setSearchQuery("")} 
-      />
-
       <View style={styles.row}>
-        <CategorySidebar 
-          categories={filteredMenus} 
-          onCategoryPress={(cat, index) => flatListRef.current?.scrollToIndex({ index, animated: true })} 
+        <CategorySidebar
+          categories={filteredMenus}
+          onCategoryPress={(cat, index) => flatListRef.current?.scrollToIndex({ index, animated: true })}
+          cartVisible={totalItems > 0}
         />
 
         <FlatList
@@ -426,13 +416,13 @@ export default function MenuScreen() {
               <Text style={styles.categoryHeader}>{cat.name}</Text>
               <View style={styles.gridContainer}>
                 {cat.items.map((item) => (
-                  <MenuItemCard 
-                    key={item.id} 
-                    item={item} 
-                    itemWidth={itemWidth} 
+                  <MenuItemCard
+                    key={item.id}
+                    item={item}
+                    itemWidth={itemWidth}
                     quantity={cart[item.id]?.quantity || 0}
-                    onAdd={addToCart} 
-                    onRemove={removeFromCart} 
+                    onAdd={addToCart}
+                    onRemove={removeFromCart}
                   />
                 ))}
               </View>
@@ -442,10 +432,10 @@ export default function MenuScreen() {
       </View>
 
       {totalItems > 0 && (
-        <CartBar 
-          totalItems={totalItems} 
-          totalAmount={totalAmount} 
-          paymentMethod={paymentMethod} 
+        <CartBar
+          totalItems={totalItems}
+          totalAmount={totalAmount}
+          paymentMethod={paymentMethod}
           setPaymentMethod={setPaymentMethod}
           received={received}
           setReceived={setReceived}
@@ -453,7 +443,7 @@ export default function MenuScreen() {
           onPrintKot={handlePrintKot}
           onPrintBill={handlePrintBill}
           onSaveBill={handleSaveBill}
-          onProceed={() => router.push({ pathname: "/party/bill", params: { cart: JSON.stringify(cart), paymentMethod, heldOrderId: activeOrderId }})}
+          onProceed={() => router.push({ pathname: "/party/bill", params: { cart: JSON.stringify(cart), paymentMethod, heldOrderId: activeOrderId } })}
           kotEnabled={kotEnabled}
           tableBookingEnabled={tableBookingEnabled}
           onSelectTable={() => setIsTableModalVisible(true)}
@@ -461,7 +451,7 @@ export default function MenuScreen() {
         />
       )}
 
-      <CartItemsModal 
+      <CartItemsModal
         visible={isCartModalVisible}
         onClose={() => setIsCartModalVisible(false)}
         cartItems={Object.values(cart)}
@@ -472,14 +462,14 @@ export default function MenuScreen() {
         onClear={clearCart}
       />
 
-      <TableSelectionModal 
+      <TableSelectionModal
         visible={isTableModalVisible}
         onClose={() => setIsTableModalVisible(false)}
         selectedTable={selectedTable}
         onSelect={(table) => { setSelectedTable(table); setIsTableModalVisible(false); }}
       />
 
-      <ConfirmHoldModal 
+      <ConfirmHoldModal
         visible={isHoldModalVisible}
         onClose={() => setIsHoldModalVisible(false)}
         onConfirm={confirmPauseOrder}
@@ -488,7 +478,7 @@ export default function MenuScreen() {
         showSuccess={showHoldSuccess}
       />
 
-      <ClearCartModal 
+      <ClearCartModal
         visible={isClearModalVisible}
         onClose={() => setIsClearModalVisible(false)}
         onConfirm={handleConfirmClear}
@@ -499,7 +489,7 @@ export default function MenuScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 20, backgroundColor: COLOR_BG_LIGHT },
+  container: { flex: 1, paddingTop: vs(2), backgroundColor: COLOR_BG_LIGHT },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   row: { flex: 1, flexDirection: "row" },
   categoryHeader: { fontSize: rf(11), fontWeight: "bold", backgroundColor: "#E0E7FF", padding: s(3), marginTop: vs(10), borderRadius: s(6), textAlign: "center", color: THEME_PRIMARY, marginHorizontal: s(10) },

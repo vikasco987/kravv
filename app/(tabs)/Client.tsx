@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
   RefreshControl,
+  Linking,
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
@@ -78,6 +79,8 @@ export default function CustomersScreen() {
   const [loading, setLoading] = useState(true);
   const { refreshSignal } = useRefresh();
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedParty, setSelectedParty] = useState<Party | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   const fetchParties = async (silent = false) => {
     if (!isLoaded || !isSignedIn) {
@@ -126,7 +129,8 @@ export default function CustomersScreen() {
   }, [isLoaded, isSignedIn]);
 
   const handleSelectParty = (party: Party) => {
-    Alert.alert("Customer Details", `Name: ${party.name}\nPhone: ${party.phone}`);
+    setSelectedParty(party);
+    setShowDetailsModal(true);
   };
 
   const filteredParties = parties.filter(
@@ -223,6 +227,117 @@ export default function CustomersScreen() {
             }}
             onBack={() => setShowAddPartyForm(false)}
           />
+        </View>
+      </Modal>
+
+      {/* Modal for Customer Details */}
+      <Modal
+        visible={showDetailsModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowDetailsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.detailsModalContent}>
+            <View style={styles.detailsHeader}>
+              <View style={styles.avatarLarge}>
+                <Ionicons name="person" size={rf(40)} color={THEME_PRIMARY} />
+              </View>
+              <TouchableOpacity 
+                style={styles.closeModalBtn} 
+                onPress={() => setShowDetailsModal(false)}
+              >
+                <Ionicons name="close" size={rf(26)} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.detailsBody}>
+              <Text style={styles.detailsName}>{selectedParty?.name || "Unnamed Customer"}</Text>
+              <Text style={styles.detailsPhone}>{selectedParty?.phone}</Text>
+              
+              <View style={styles.detailsDivider} />
+              
+              <View style={styles.detailItem}>
+                <View style={styles.detailIconWrapper}>
+                  <Ionicons name="wallet-outline" size={rf(20)} color="#10B981" />
+                </View>
+                <View>
+                  <Text style={styles.detailLabel}>Current Balance</Text>
+                  <Text style={[styles.detailValue, { color: "#10B981" }]}>₹{selectedParty?.balance?.toFixed(2) || "0.00"}</Text>
+                </View>
+              </View>
+
+              <View style={styles.detailItem}>
+                <View style={styles.detailIconWrapper}>
+                  <Ionicons name="location-outline" size={rf(20)} color={THEME_PRIMARY} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.detailLabel}>Billing Address</Text>
+                  <Text style={styles.detailValue} numberOfLines={2}>
+                    {selectedParty?.address || "No address provided"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.detailItem}>
+                <View style={styles.detailIconWrapper}>
+                  <Ionicons name="calendar-outline" size={rf(20)} color="#F59E0B" />
+                </View>
+                <View>
+                  <Text style={styles.detailLabel}>Regular billing</Text>
+                  <Text style={styles.detailValue}>Since {selectedParty?.dob ? new Date(selectedParty.dob).toLocaleDateString() : "Founding"}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.detailsActions}>
+              <TouchableOpacity 
+                style={[styles.actionBtn, { backgroundColor: "#EEF2FF" }]}
+                onPress={() => {
+                  if (selectedParty?.phone) {
+                    Linking.openURL(`tel:${selectedParty.phone}`);
+                  }
+                }}
+              >
+                <Ionicons name="call" size={rf(20)} color={THEME_PRIMARY} />
+                <Text style={[styles.actionBtnText, { color: THEME_PRIMARY }]}>Call</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.actionBtn, { backgroundColor: "#F0FDF4" }]}
+                onPress={async () => {
+                  if (selectedParty?.phone) {
+                    // Clean phone number: remove any non-digit characters
+                    const cleanPhone = selectedParty.phone.replace(/\D/g, '');
+                    // Add 91 prefix if it's 10 digits
+                    const finalPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+                    const url = `https://wa.me/${finalPhone}`;
+                    
+                    try {
+                      const supported = await Linking.canOpenURL(url);
+                      if (supported) {
+                        await Linking.openURL(url);
+                      } else {
+                        Alert.alert("WhatsApp Not Found", "WhatsApp is not installed on this device.");
+                      }
+                    } catch (err) {
+                      // Fallback: direct browser link
+                      Linking.openURL(url);
+                    }
+                  }
+                }}
+              >
+                <Ionicons name="logo-whatsapp" size={rf(20)} color="#22C55E" />
+                <Text style={[styles.actionBtnText, { color: "#22C55E" }]}>WhatsApp</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.mainActionBtn}
+              onPress={() => setShowDetailsModal(false)}
+            >
+              <Text style={styles.mainActionBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </View>
@@ -333,5 +448,130 @@ const styles = StyleSheet.create({
     marginTop: vs(10),
     fontSize: rf(16),
     color: "#9CA3AF",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailsModalContent: {
+    width: '90%',
+    backgroundColor: '#fff',
+    borderRadius: s(32),
+    padding: s(24),
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  detailsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: vs(20),
+  },
+  avatarLarge: {
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
+    backgroundColor: "#EEF2FF",
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#fff',
+    elevation: 4,
+    shadowColor: THEME_PRIMARY,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  closeModalBtn: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    padding: s(5),
+  },
+  detailsBody: {
+    alignItems: 'center',
+    marginBottom: vs(25),
+  },
+  detailsName: {
+    fontSize: rf(24),
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: vs(4),
+  },
+  detailsPhone: {
+    fontSize: rf(16),
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  detailsDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: vs(20),
+  },
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: vs(18),
+    paddingHorizontal: s(10),
+  },
+  detailIconWrapper: {
+    width: s(42),
+    height: s(42),
+    borderRadius: s(12),
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: s(15),
+  },
+  detailLabel: {
+    fontSize: rf(12),
+    color: '#94A3B8',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  detailValue: {
+    fontSize: rf(15),
+    color: '#334155',
+    fontWeight: '700',
+    marginTop: vs(2),
+  },
+  detailsActions: {
+    flexDirection: 'row',
+    gap: s(12),
+    marginBottom: vs(20),
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: vs(14),
+    borderRadius: s(16),
+    gap: s(8),
+  },
+  actionBtnText: {
+    fontSize: rf(14),
+    fontWeight: '700',
+  },
+  mainActionBtn: {
+    backgroundColor: THEME_PRIMARY,
+    paddingVertical: vs(16),
+    borderRadius: s(18),
+    alignItems: 'center',
+    shadowColor: THEME_PRIMARY,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  mainActionBtnText: {
+    color: '#fff',
+    fontSize: rf(16),
+    fontWeight: '800',
   },
 });

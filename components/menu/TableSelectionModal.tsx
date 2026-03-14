@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, Pressable, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
-import { Ionicons } from "@expo/vector-icons";
-import { rf, s, vs } from "../../utils/responsive";
 import { useAuth } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { rf, s, vs } from "../../utils/responsive";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const THEME_PRIMARY = "#4F46E5";
@@ -105,7 +105,7 @@ export const TableSelectionModal: React.FC<TableSelectionModalProps> = ({
                                 </View>
                             )}
 
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.clearTableBtn}
                                 onPress={() => onSelect(null)}
                             >

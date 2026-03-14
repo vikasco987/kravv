@@ -5,13 +5,15 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useState } from "react";
 import {
-    Alert,
+    ActivityIndicator,
+    Modal,
     Platform,
     ScrollView,
+    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
@@ -31,6 +33,9 @@ export default function AddPartyScreen({
     const [dob, setDob] = useState<Date | null>(null);
     const [showPicker, setShowPicker] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [showError, setShowError] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
 
     const handleBack = () => onBack && onBack();
 
@@ -41,7 +46,8 @@ export default function AddPartyScreen({
 
     const handleSubmit = async () => {
         if (!customerName || !phone) {
-            Alert.alert("Missing Fields", "Please enter name and phone number.");
+            setErrorMessage("Please enter name and phone number.");
+            setShowError(true);
             return;
         }
 
@@ -49,7 +55,8 @@ export default function AddPartyScreen({
             setLoading(true);
             const token = isLoaded && isSignedIn ? await getToken() : null;
             if (!token) {
-                Alert.alert("Unauthorized", "Please log in again.");
+                setErrorMessage("Please log in again to add customers.");
+                setShowError(true);
                 return;
             }
 
@@ -59,8 +66,6 @@ export default function AddPartyScreen({
                 address: billingAddress.trim() || null,
                 dob: dob ? dob.toISOString() : null,
             };
-
-            console.log("Payload sent:", payload);
 
             const response = await fetch(
                 "https://billing.kravy.in/api/parties",
@@ -74,7 +79,6 @@ export default function AddPartyScreen({
                 }
             );
 
-            console.log("Server Status:", response.status);
             const text = await response.text();
             let data: any;
             try {
@@ -84,20 +88,24 @@ export default function AddPartyScreen({
             }
 
             if (response.ok) {
-                Alert.alert("✅ Success", "Party added successfully!");
+                setShowSuccess(true);
                 setCustomerName("");
                 setPhone("");
                 setBillingAddress("");
                 setDob(null);
-                onSuccess && onSuccess();
-                handleBack();
+
+                setTimeout(() => {
+                    setShowSuccess(false);
+                    onSuccess && onSuccess();
+                    handleBack();
+                }, 2000);
             } else {
-                console.warn("Server Error Response:", text);
-                Alert.alert("Error", data.error || "Failed to add party.");
+                setErrorMessage(data.error || "Failed to add party.");
+                setShowError(true);
             }
         } catch (err: any) {
-            console.warn("Network/Request Error:", err.message);
-            Alert.alert("Error", err.message || "Something went wrong.");
+            setErrorMessage(err.message || "Something went wrong.");
+            setShowError(true);
         } finally {
             setLoading(false);
         }
@@ -106,7 +114,9 @@ export default function AddPartyScreen({
     return (
         <ScrollView
             contentContainerStyle={{
-                padding: s(20),
+                paddingHorizontal: s(20),
+                paddingTop: vs(55),
+                paddingBottom: vs(30),
                 backgroundColor: "#F0F4FF",
                 minHeight: "100%",
             }}
@@ -114,7 +124,7 @@ export default function AddPartyScreen({
             {/* Back Button */}
             <TouchableOpacity
                 onPress={handleBack}
-                style={{ flexDirection: "row", alignItems: "center", marginBottom: vs(15) }}
+                style={{ flexDirection: "row", alignItems: "center", marginBottom: vs(25) }}
             >
                 <Ionicons name="arrow-back" size={rf(26)} color="#4f46e5" />
                 <Text style={{ fontSize: rf(17), color: "#4f46e5", marginLeft: s(6) }}>
@@ -214,16 +224,50 @@ export default function AddPartyScreen({
                     style={[styles.button, loading && { opacity: 0.6 }] as any}
                     disabled={loading}
                 >
-                    <Text style={styles.buttonText as any}>
-                        {loading ? "Saving..." : "Save Customer"}
-                    </Text>
+                    {loading ? (
+                        <ActivityIndicator color="white" />
+                    ) : (
+                        <Text style={styles.buttonText as any}>Save Customer</Text>
+                    )}
                 </TouchableOpacity>
             </View>
+
+            {/* Success Modal */}
+            <Modal transparent visible={showSuccess} animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.successCircle}>
+                            <Ionicons name="checkmark-sharp" size={rf(40)} color="#10B981" />
+                        </View>
+                        <Text style={styles.modalTitle}>Perfect!</Text>
+                        <Text style={styles.modalSubtitle}>Customer added to your party list.</Text>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Error Modal */}
+            <Modal transparent visible={showError} animationType="fade" onRequestClose={() => setShowError(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={[styles.successCircle, { backgroundColor: '#FFEEF2', borderColor: '#FFD1DC' }]}>
+                            <Ionicons name="alert-circle" size={rf(45)} color="#F43F5E" />
+                        </View>
+                        <Text style={[styles.modalTitle, { color: '#F43F5E' }]}>Oops!</Text>
+                        <Text style={styles.modalSubtitle}>{errorMessage}</Text>
+                        <TouchableOpacity
+                            style={[styles.button, { marginTop: vs(20), width: '100%', backgroundColor: '#F43F5E' }]}
+                            onPress={() => setShowError(false)}
+                        >
+                            <Text style={styles.buttonText}>Try Again</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </ScrollView>
     );
 }
 
-const styles = {
+const styles = StyleSheet.create({
     inputContainer: {
         flexDirection: "row",
         alignItems: "center",
@@ -252,4 +296,44 @@ const styles = {
         fontWeight: "bold",
         fontSize: rf(18),
     },
-};
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        width: '80%',
+        backgroundColor: 'white',
+        borderRadius: s(24),
+        padding: s(30),
+        alignItems: 'center',
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+    },
+    successCircle: {
+        width: s(70),
+        height: s(70),
+        borderRadius: s(35),
+        backgroundColor: '#D1FAE5',
+        borderWidth: 2,
+        borderColor: '#A7F3D0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: vs(15),
+    },
+    modalTitle: {
+        fontSize: rf(22),
+        fontWeight: 'bold',
+        color: '#1F2937',
+        marginBottom: vs(8),
+    },
+    modalSubtitle: {
+        fontSize: rf(14),
+        color: '#6B7280',
+        textAlign: 'center',
+    },
+});

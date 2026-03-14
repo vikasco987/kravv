@@ -12,18 +12,30 @@ const COLORS = {
 };
 
 interface BusinessManagementCardProps {
+    user: any;
     onPress: () => void;
+    onLoginRequired: () => void;
 }
 
 export const BusinessManagementCard: React.FC<BusinessManagementCardProps> = ({
+    user,
     onPress,
+    onLoginRequired,
 }) => {
+    const handlePress = () => {
+        if (user) {
+            onPress();
+        } else {
+            onLoginRequired();
+        }
+    };
+
     return (
         <View style={[styles.card, { marginTop: vs(12) }]}>
             <Text style={[styles.infoTitle, { marginBottom: vs(10) }]}>Business Management</Text>
             <TouchableOpacity
                 style={[styles.button, { backgroundColor: COLORS.white, borderWidth: 1, borderColor: "#E5E7EB", elevation: 0, shadowOpacity: 0 }]}
-                onPress={onPress}
+                onPress={handlePress}
                 activeOpacity={0.7}
             >
                 <View style={[styles.buttonIconBackground, { backgroundColor: COLORS.primary + "15" }]}>

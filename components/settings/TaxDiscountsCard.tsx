@@ -12,17 +12,29 @@ const COLORS = {
 };
 
 interface TaxDiscountsCardProps {
+    user: any;
     onPress: () => void;
+    onLoginRequired: () => void;
 }
 
 export const TaxDiscountsCard: React.FC<TaxDiscountsCardProps> = ({
+    user,
     onPress,
+    onLoginRequired,
 }) => {
+    const handlePress = () => {
+        if (user) {
+            onPress();
+        } else {
+            onLoginRequired();
+        }
+    };
+
     return (
         <View style={[styles.card, { marginTop: vs(12) }]}>
             <TouchableOpacity
                 style={styles.sectionHeader}
-                onPress={onPress}
+                onPress={handlePress}
                 activeOpacity={0.7}
             >
                 <View style={[styles.buttonIconBackground, { backgroundColor: COLORS.accent + "15" }]}>

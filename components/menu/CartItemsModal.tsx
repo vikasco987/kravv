@@ -1,6 +1,6 @@
-import React from 'react';
-import { Modal, View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
+import React from 'react';
+import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
 
 const THEME_PRIMARY = "#4F46E5";
@@ -102,17 +102,22 @@ export const CartItemsModal: React.FC<CartItemsModalProps> = ({
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'transparent',
+        backgroundColor: 'rgba(0,0,0,0.5)', // Dim background
         justifyContent: 'flex-end',
-        marginLeft: s(55),
-        paddingBottom: vs(80),
-        paddingHorizontal: s(15)
+        paddingBottom: vs(45), // Increased to lift higher from bottom system bar
     },
     modalContent: {
         backgroundColor: '#fff',
-        borderRadius: s(18),
+        borderTopLeftRadius: s(35),
+        borderTopRightRadius: s(35),
         padding: s(20),
-        maxHeight: '85%'
+        maxHeight: '75%', // Increased from 75% to 82% to go a bit higher
+        width: '100%',
+        elevation: 35,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -10 },
+        shadowOpacity: 0.2,
+        shadowRadius: 15,
     },
     modalHandle: {
         width: s(40),
@@ -129,9 +134,9 @@ const styles = StyleSheet.create({
         marginBottom: vs(20)
     },
     modalTitle: {
-        fontSize: rf(18),
-        fontWeight: 'bold',
-        color: '#1F2937'
+        fontSize: rf(22),
+        fontWeight: '900',
+        color: '#1E293B'
     },
     cartItemRow: {
         flexDirection: 'row',
@@ -141,9 +146,9 @@ const styles = StyleSheet.create({
         borderBottomColor: '#F3F4F6'
     },
     cartItemName: {
-        fontSize: rf(15),
-        fontWeight: '600',
-        color: '#111'
+        fontSize: rf(16),
+        fontWeight: '700',
+        color: '#1E293B'
     },
     cartItemPrice: {
         fontSize: rf(12),

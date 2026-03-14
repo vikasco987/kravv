@@ -12,19 +12,31 @@ const COLORS = {
 };
 
 interface AppFeaturesCardProps {
+    user: any;
     onPress: () => void;
+    onLoginRequired: () => void;
 }
 
 export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
+    user,
     onPress,
+    onLoginRequired,
 }) => {
+    const handlePress = () => {
+        if (user) {
+            onPress();
+        } else {
+            onLoginRequired();
+        }
+    };
+
     return (
         <View style={{ marginTop: vs(15), paddingHorizontal: s(10) }}>
             <Text style={styles.sectionTitle}>App Features</Text>
             <View style={[styles.card, { marginTop: vs(10) }]}>
                 <TouchableOpacity
                     style={styles.sectionHeader}
-                    onPress={onPress}
+                    onPress={handlePress}
                     activeOpacity={0.7}
                 >
                     <View style={[styles.buttonIconBackground, { backgroundColor: COLORS.secondary + "15" }]}>

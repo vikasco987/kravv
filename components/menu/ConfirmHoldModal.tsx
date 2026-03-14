@@ -84,9 +84,8 @@ export const ConfirmHoldModal: React.FC<ConfirmHoldModalProps> = ({
 const styles = StyleSheet.create({
     bottomModalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'flex-end',
-        marginLeft: s(65),
     },
     bottomModalContent: {
         backgroundColor: '#FFF',

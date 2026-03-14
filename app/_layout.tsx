@@ -69,10 +69,10 @@ function AuthRedirect() {
   useEffect(() => {
     if (!ready || !isLoaded) return;
 
+    // Only redirect to menu if we are at the root or just signed in and not yet on a screen
     if (isSignedIn && session?.id && session.id !== lastSessionId) {
       setLastSessionId(session.id);
-      console.log("🚀 [AuthRedirect] Session active, navigating to menu");
-      router.replace("/(tabs)/menu");
+      // Removed the forced router.replace("/(tabs)/menu") to allow navigation to other screens
     }
   }, [ready, isLoaded, isSignedIn, session?.id]);
 
@@ -136,13 +136,7 @@ function AuthRedirect() {
             headerShown: false,
           }}
         />
-        <Drawer.Screen
-          name="TableQrCodes"
-          options={{
-            drawerItemStyle: { display: 'none' },
-            headerShown: false,
-          }}
-        />
+
       </Drawer>
     </GestureHandlerRootView>
   );

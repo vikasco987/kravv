@@ -15,14 +15,20 @@ interface Category {
 interface CategorySidebarProps {
     categories: Category[];
     onCategoryPress: (category: Category, index: number) => void;
+    cartVisible?: boolean;
 }
 
 export const CategorySidebar: React.FC<CategorySidebarProps> = ({
     categories,
     onCategoryPress,
+    cartVisible,
 }) => {
     return (
-        <ScrollView style={styles.categoryColumn} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+            style={[styles.categoryColumn, cartVisible && { marginBottom: vs(210) }]} 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: vs(20) }}
+        >
             {categories.map((cat, index) => (
                 <TouchableOpacity
                     key={cat.id}

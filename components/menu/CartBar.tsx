@@ -120,20 +120,28 @@ const styles = StyleSheet.create({
     cartBar: {
         position: "absolute",
         bottom: 0,
-        left: s(65),
+        left: 0,
         right: 0,
         backgroundColor: "#fff",
-        padding: s(12),
-        borderTopWidth: 1,
-        borderColor: "#E5E7EB",
+        padding: s(10), // Reduced from s(15)
+        paddingBottom: vs(12), // Reduced from vs(25)
+        borderTopLeftRadius: s(25), // Adjusted
+        borderTopRightRadius: s(25),
+        borderTopWidth: 1.5,
+        borderLeftWidth: 1.5,
+        borderColor: "#4F46E533",
         zIndex: 999,
-        elevation: 20
+        elevation: 30,
+        shadowColor: "#4F46E5",
+        shadowOffset: { width: -5, height: -10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 15,
     },
     summaryRow: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: vs(10)
+        marginBottom: vs(6) // Reduced from vs(10)
     },
     viewItemsButton: {
         backgroundColor: THEME_PRIMARY,
@@ -169,19 +177,24 @@ const styles = StyleSheet.create({
     paymentSelector: {
         flexDirection: "row",
         justifyContent: "space-between",
-        backgroundColor: "#F3F4F6",
-        borderRadius: s(8),
-        marginBottom: vs(10),
-        padding: s(4)
+        backgroundColor: "#F8FAFC",
+        borderRadius: s(10),
+        marginBottom: vs(8), // Reduced from vs(15)
+        padding: s(4), // Reduced from s(6)
+        borderWidth: 1,
+        borderColor: "#E2E8F0"
     },
     paymentOption: {
         flex: 1,
+        flexDirection: 'row',
         alignItems: "center",
-        paddingVertical: vs(5),
+        justifyContent: 'center',
+        paddingVertical: vs(8), // Reduced from vs(12)
         marginHorizontal: s(2),
-        borderRadius: s(6),
+        borderRadius: s(8),
+        backgroundColor: '#fff',
         borderWidth: 1,
-        borderColor: "#4F46E5"
+        borderColor: "#E2E8F0"
     },
     paymentSelected: {
         backgroundColor: THEME_PRIMARY
@@ -196,50 +209,51 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         gap: s(6)
     },
-    saveBillButton: {
-        flex: 0.8,
-        backgroundColor: "#2563EB",
-        borderRadius: s(8),
-        paddingVertical: vs(10),
-        alignItems: "center",
-        flexDirection: "row",
-        justifyContent: "center"
-    },
     printKotButton: {
         flex: 0.8,
         backgroundColor: KOT_BUTTON_COLOR,
-        borderRadius: s(8),
-        paddingVertical: vs(10),
+        borderRadius: s(10),
+        paddingVertical: vs(10), // Reduced from vs(15)
         alignItems: "center",
         flexDirection: "row",
-        justifyContent: "center"
+        justifyContent: "center",
+    },
+    saveBillButton: {
+        flex: 0.8,
+        backgroundColor: "#2563EB",
+        borderRadius: s(10),
+        paddingVertical: vs(10), // Reduced from vs(15)
+        alignItems: "center",
+        flexDirection: "row",
+        justifyContent: "center",
     },
     printBillButton: {
         flex: 0.8,
         backgroundColor: THEME_DANGER,
-        borderRadius: s(8),
-        paddingVertical: vs(10),
+        borderRadius: s(10),
+        paddingVertical: vs(10), // Reduced from vs(15)
         alignItems: "center",
         flexDirection: "row",
-        justifyContent: "center"
+        justifyContent: "center",
     },
     primaryButton: {
         flex: 1.2,
         backgroundColor: THEME_SECONDARY,
-        borderRadius: s(8),
-        paddingVertical: vs(10),
+        borderRadius: s(10),
+        paddingVertical: vs(12), // Reduced from vs(16)
         alignItems: "center",
         flexDirection: "row",
-        justifyContent: "center"
-    },
-    primaryButtonText: {
-        color: "#fff",
-        fontWeight: "900",
-        fontSize: rf(15)
+        justifyContent: "center",
+        elevation: 4
     },
     printBillText: {
         color: "#fff",
         fontWeight: "700",
-        fontSize: rf(13)
+        fontSize: rf(11), // Slightly smaller
+    },
+    primaryButtonText: {
+        color: "#fff",
+        fontWeight: "900",
+        fontSize: rf(14) // Slightly smaller
     },
 });

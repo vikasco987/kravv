@@ -1,19 +1,19 @@
 import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState, useCallback } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Modal,
+  RefreshControl,
+  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  RefreshControl,
-  SafeAreaView
+  View
 } from "react-native";
-import { useRouter } from "expo-router";
 import { rf, s, vs } from "../../utils/responsive";
 
 const THEME_PRIMARY = "#4F46E5";
@@ -33,19 +33,57 @@ export default function OrderScreen() {
   const [isCreateTableVisible, setIsCreateTableVisible] = useState(false);
   const [newTableName, setNewTableName] = useState("");
 
+  const fetchInProgress = React.useRef(false);
+
   const fetchTables = useCallback(async () => {
+    if (fetchInProgress.current) return;
+    
     try {
+      fetchInProgress.current = true;
       const token = await getToken();
-      const response = await fetch("https://billing.kravy.in/api/tables", {
+      
+      // Fetch tables with cache-buster
+      const response = await fetch(`https://billing.kravy.in/api/tables?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      
       if (response.ok) {
-        const data = await response.json();
-        setTables(data || []);
+        const tablesData = await response.json();
+        const tablesArray = Array.isArray(tablesData) ? tablesData : (tablesData.tables || []);
+
+        // Fetch all orders with cache-buster to get accurate counts
+        const ordersResponse = await fetch(`https://billing.kravy.in/api/orders?t=${Date.now()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        let allOrders: any[] = [];
+        if (ordersResponse.ok) {
+          const oData = await ordersResponse.json();
+          allOrders = Array.isArray(oData) ? oData : (oData.orders || []);
+        }
+
+        const normalizedTables = tablesArray.map((t: any) => {
+          const tId = t.id || t._id || "";
+          const activeOrdersForTable = allOrders.filter((o: any) => {
+            const oTableId = String(o.tableId || 
+                             (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || 
+                             "");
+            return oTableId === String(tId);
+          });
+
+          return {
+            ...t,
+            id: tId || Math.random().toString(),
+            orderCount: activeOrdersForTable.length
+          };
+        });
+        
+        setTables(normalizedTables);
       }
     } catch (error) {
       console.error("Fetch tables error:", error);
     } finally {
+      fetchInProgress.current = false;
       setLoading(false);
       setRefreshing(false);
     }
@@ -73,11 +111,14 @@ export default function OrderScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchTables();
-    const interval = setInterval(fetchTables, 15000); // Poll every 15s to update counts
-    return () => clearInterval(interval);
-  }, [fetchTables]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchTables();
+      const interval = setInterval(fetchTables, 15000);
+      return () => clearInterval(interval);
+    }, [fetchTables])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -98,7 +139,7 @@ export default function OrderScreen() {
           <Text style={styles.headerTitle}>Live Orders</Text>
           <Text style={styles.headerSubtitle}>Tap a table to manage its orders</Text>
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.addButton}
           onPress={() => setIsCreateTableVisible(true)}
         >
@@ -121,22 +162,22 @@ export default function OrderScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME_PRIMARY} />
           }
           renderItem={({ item }) => (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.tableCard}
               onPress={() => navigateToTable(item)}
             >
               <View style={[styles.tableIcon, item.orderCount ? styles.activeTableIcon : null]}>
-                <Ionicons 
-                    name="restaurant-outline" 
-                    size={rf(26)} 
-                    color={item.orderCount ? "#fff" : THEME_PRIMARY} 
+                <Ionicons
+                  name="restaurant-outline"
+                  size={rf(26)}
+                  color={item.orderCount ? "#fff" : THEME_PRIMARY}
                 />
               </View>
               <Text style={styles.tableName}>{item.name}</Text>
               <View style={styles.statusBox}>
                 <View style={[styles.statusDot, { backgroundColor: item.orderCount ? "#10B981" : "#D1D5DB" }]} />
                 <Text style={styles.orderStatus}>
-                    {item.orderCount ? `${item.orderCount} Active Order${item.orderCount > 1 ? 's' : ''}` : "No Active Orders"}
+                  {item.orderCount ? `${item.orderCount} Active Order${item.orderCount > 1 ? 's' : ''}` : "No Active Orders"}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -168,14 +209,14 @@ export default function OrderScreen() {
               onChangeText={setNewTableName}
             />
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={styles.cancelBtn} 
+              <TouchableOpacity
+                style={styles.cancelBtn}
                 onPress={() => setIsCreateTableVisible(false)}
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.saveBtn} 
+              <TouchableOpacity
+                style={styles.saveBtn}
                 onPress={createTable}
               >
                 <Text style={styles.saveBtnText}>Create</Text>
@@ -191,9 +232,9 @@ export default function OrderScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F9FAFB" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     padding: s(20),
     backgroundColor: '#fff',
@@ -203,12 +244,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: rf(22), fontWeight: 'bold', color: '#111827' },
   headerSubtitle: { fontSize: rf(13), color: '#6B7280' },
-  addButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: THEME_PRIMARY, 
-    paddingVertical: vs(10), 
-    paddingHorizontal: s(15), 
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME_PRIMARY,
+    paddingVertical: vs(10),
+    paddingHorizontal: s(15),
     borderRadius: s(12),
     elevation: 3
   },
@@ -248,11 +289,11 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: '85%', backgroundColor: '#fff', padding: s(25), borderRadius: s(30), elevation: 10 },
   modalTitle: { fontSize: rf(20), fontWeight: 'bold', marginBottom: vs(20), color: '#111827' },
-  input: { 
-    borderWidth: 1, 
-    borderColor: '#E5E7EB', 
-    borderRadius: s(15), 
-    padding: s(15), 
+  input: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: s(15),
+    padding: s(15),
     marginBottom: vs(25),
     fontSize: rf(16),
     color: '#111827',

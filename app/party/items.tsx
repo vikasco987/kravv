@@ -19,6 +19,7 @@ import {
 } from "react-native";
 
 import { rf, s, vs } from "../../utils/responsive";
+import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
 
 const THEME_PRIMARY = "#4F46E5"; // Indigo
 const COLOR_BG = "#F9FAFB";
@@ -41,6 +42,7 @@ export default function ItemsPage() {
     const [showError, setShowError] = useState(false);
     const [errorModalTitle, setErrorModalTitle] = useState("");
     const [errorModalDetail, setErrorModalDetail] = useState("");
+    const [loginModalVisible, setLoginModalVisible] = useState(false);
 
     const [newItem, setNewItem] = useState({
         name: "",
@@ -137,6 +139,10 @@ export default function ItemsPage() {
     };
 
     const handleAddCategory = () => {
+        if (!isSignedIn) {
+            setLoginModalVisible(true);
+            return;
+        }
         const trimmedName = newCategoryName.trim();
         if (!trimmedName) {
             setErrorModalTitle("Missing Name");
@@ -168,6 +174,10 @@ export default function ItemsPage() {
     };
 
     const pickImage = async () => {
+        if (!isSignedIn) {
+            setLoginModalVisible(true);
+            return;
+        }
         try {
             const ImagePicker = require('expo-image-picker');
 
@@ -239,6 +249,10 @@ export default function ItemsPage() {
     };
 
     const handleSaveItem = async () => {
+        if (!isSignedIn) {
+            setLoginModalVisible(true);
+            return;
+        }
         // Validation
         if (!newItem.name) {
             setErrorModalTitle("Missing Name");
@@ -435,7 +449,13 @@ export default function ItemsPage() {
                         <View style={[styles.inputGroup, { flex: 1, marginLeft: s(8) }]}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(8) }}>
                                 <Text style={[styles.label, { marginBottom: 0 }]}>Category</Text>
-                                <TouchableOpacity onPress={() => setIsAddCatModalVisible(true)}>
+                                <TouchableOpacity onPress={() => {
+                                    if (!isSignedIn) {
+                                        setLoginModalVisible(true);
+                                    } else {
+                                        setIsAddCatModalVisible(true);
+                                    }
+                                }}>
                                     <View style={styles.addCategoryBtnSmall}>
                                         <Ionicons name="add" size={rf(16)} color={THEME_PRIMARY} />
                                     </View>
@@ -443,7 +463,13 @@ export default function ItemsPage() {
                             </View>
                             <TouchableOpacity
                                 style={styles.dropdownButton}
-                                onPress={() => setCategoryModalVisible(true)}
+                                onPress={() => {
+                                    if (!isSignedIn) {
+                                        setLoginModalVisible(true);
+                                    } else {
+                                        setCategoryModalVisible(true);
+                                    }
+                                }}
                             >
                                 <Text style={[
                                     styles.dropdownButtonText,
@@ -712,6 +738,15 @@ export default function ItemsPage() {
                     </View>
                 </View>
             </Modal>
+
+            <LoginRequiredModal
+                visible={loginModalVisible}
+                onClose={() => setLoginModalVisible(false)}
+                onSignIn={() => {
+                    setLoginModalVisible(false);
+                    router.push("/(auth)/sign-in");
+                }}
+            />
         </SafeAreaView>
     );
 }

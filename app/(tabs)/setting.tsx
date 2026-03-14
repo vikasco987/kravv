@@ -13,7 +13,6 @@ import {
 import { rf, s, vs } from "../../utils/responsive";
 
 // Import Settings Components
-import { UserProfileCard } from "../../components/settings/UserProfileCard";
 import { WhySignInBox } from "../../components/settings/WhySignInBox";
 import { BusinessManagementCard } from "../../components/settings/BusinessManagementCard";
 import { TaxDiscountsCard } from "../../components/settings/TaxDiscountsCard";
@@ -112,27 +111,12 @@ export default function SettingScreen() {
         );
     }
 
-    const handleSignOut = async () => {
-        try {
-            await signOut();
-            router.replace("/(auth)/sign-in");
-        } catch (error) {
-            console.error("Error signing out:", error);
-        }
-    };
 
     const handleSignIn = () => {
         setLoginModalVisible(false);
         router.push("/(auth)/sign-in" as any);
     };
 
-    const handleBusinessProfilePress = () => {
-        if (user) {
-            router.push("/party/profile" as any);
-        } else {
-            setLoginModalVisible(true);
-        }
-    };
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -142,24 +126,30 @@ export default function SettingScreen() {
                     <Text style={styles.subtitle}>Manage your account and preferences</Text>
                 </View>
 
-                {/* User Profile Section */}
-                <UserProfileCard 
-                    user={user} 
-                    onSignIn={handleSignIn} 
-                    onSignOut={handleSignOut} 
-                />
 
                 {/* Why Sign In Info */}
                 <WhySignInBox />
 
                 {/* Business Section */}
-                <BusinessManagementCard onPress={handleBusinessProfilePress} />
+                <BusinessManagementCard 
+                    user={user}
+                    onPress={() => router.push("/party/profile" as any)}
+                    onLoginRequired={() => setLoginModalVisible(true)}
+                />
 
                 {/* Tax & Discounts Section */}
-                <TaxDiscountsCard onPress={() => setTaxModalVisible(true)} />
+                <TaxDiscountsCard 
+                    user={user}
+                    onPress={() => setTaxModalVisible(true)} 
+                    onLoginRequired={() => setLoginModalVisible(true)}
+                />
 
                 {/* App Features Section */}
-                <AppFeaturesCard onPress={() => setKotModalVisible(true)} />
+                <AppFeaturesCard 
+                    user={user}
+                    onPress={() => setKotModalVisible(true)} 
+                    onLoginRequired={() => setLoginModalVisible(true)}
+                />
 
                 {/* Footer */}
                 <View style={styles.footer}>

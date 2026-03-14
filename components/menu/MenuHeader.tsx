@@ -1,14 +1,12 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Feather, Ionicons } from "@expo/vector-icons";
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
 
 const THEME_PRIMARY = "#4F46E5";
 const THEME_DANGER = "#DC2626";
 
 interface MenuHeaderProps {
-    refreshing: boolean;
-    onFetchMenus: () => void;
     onAddItem: () => void;
     onPauseOrder: () => void;
     onViewHeldOrders: () => void;
@@ -16,8 +14,6 @@ interface MenuHeaderProps {
 }
 
 export const MenuHeader: React.FC<MenuHeaderProps> = ({
-    refreshing,
-    onFetchMenus,
     onAddItem,
     onPauseOrder,
     onViewHeldOrders,
@@ -27,17 +23,6 @@ export const MenuHeader: React.FC<MenuHeaderProps> = ({
         <View style={styles.integratedHeaderBar}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={styles.headerTitle}>Menu</Text>
-                <TouchableOpacity
-                    style={styles.refreshIconButton}
-                    onPress={onFetchMenus}
-                    disabled={refreshing}
-                >
-                    {refreshing ? (
-                        <ActivityIndicator size="small" color={THEME_PRIMARY} />
-                    ) : (
-                        <Ionicons name="refresh" size={rf(22)} color={THEME_PRIMARY} />
-                    )}
-                </TouchableOpacity>
             </View>
             <View style={styles.headerActionGroup}>
                 <TouchableOpacity style={styles.integratedActionButton} onPress={onAddItem}>
@@ -73,8 +58,24 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         alignItems: "center",
         paddingHorizontal: s(15),
-        paddingTop: vs(10),
-        paddingBottom: vs(5)
+        paddingTop: vs(2),
+        paddingBottom: vs(2)
+    },
+    searchContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F1F5F9',
+        borderRadius: s(12),
+        paddingHorizontal: s(10),
+        height: vs(45),
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: rf(15),
+        color: '#1E293B',
+        marginLeft: s(8),
+        fontWeight: '500',
     },
     headerTitle: {
         fontSize: rf(22),

@@ -1,18 +1,18 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  SafeAreaView,
-  RefreshControl,
-  Alert
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  RefreshControl,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
 const THEME_PRIMARY = "#4F46E5";
@@ -40,20 +40,41 @@ export default function TableOrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const fetchInProgress = React.useRef(false);
+
   const fetchOrders = useCallback(async () => {
+    if (!tableId || fetchInProgress.current) return;
+    
     try {
-      if (!tableId) return;
+      fetchInProgress.current = true;
       const token = await getToken();
-      const response = await fetch(`https://billing.kravy.in/api/orders?tableId=${tableId}`, {
+      // Add timestamp to prevent caching
+      const response = await fetch(`https://billing.kravy.in/api/orders?tableId=${tableId}&t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      
       if (response.ok) {
         const data = await response.json();
-        setOrders(data || []);
+        const ordersArray = Array.isArray(data) ? data : (data.orders || []);
+        
+        // STRICT LOCAL FILTER: Only show orders that belong to this specific tableId
+        const filteredOrders = ordersArray.filter((o: any) => {
+          const oTableId = String(o.tableId || 
+                           (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || 
+                           "");
+          return oTableId === String(tableId);
+        });
+
+        const normalizedOrders = filteredOrders.map((o: any) => ({
+          ...o,
+          id: o.id || o._id || Math.random().toString()
+        }));
+        setOrders(normalizedOrders);
       }
     } catch (error) {
       console.error("Fetch orders error:", error);
     } finally {
+      fetchInProgress.current = false;
       setLoading(false);
       setRefreshing(false);
     }
@@ -124,7 +145,7 @@ export default function TableOrdersScreen() {
         <Text style={styles.totalText}>Total: ₹{item.total.toFixed(2)}</Text>
         <View style={styles.actionRow}>
           {item.status === "PENDING" && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.actionBtn, { backgroundColor: "#3B82F6" }]}
               onPress={() => updateOrderStatus(item.id, "PREPARING")}
             >
@@ -132,7 +153,7 @@ export default function TableOrdersScreen() {
             </TouchableOpacity>
           )}
           {item.status === "PREPARING" && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.actionBtn, { backgroundColor: "#10B981" }]}
               onPress={() => updateOrderStatus(item.id, "READY")}
             >
@@ -140,7 +161,7 @@ export default function TableOrdersScreen() {
             </TouchableOpacity>
           )}
           {item.status === "READY" && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.actionBtn, { backgroundColor: "#6B7280" }]}
               onPress={() => updateOrderStatus(item.id, "SERVED")}
             >
@@ -189,16 +210,17 @@ export default function TableOrdersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F9FAFB" },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    padding: s(20), 
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: vs(15),
+    paddingHorizontal: s(20),
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    paddingTop: vs(20)
+    paddingTop: vs(40)
   },
-  backBtn: { marginRight: s(15) },
+  backBtn: { marginRight: s(20) },
   headerTitle: { fontSize: rf(22), fontWeight: 'bold', color: '#111827' },
   headerSubtitle: { fontSize: rf(13), color: '#6B7280' },
   listContainer: { padding: s(15) },

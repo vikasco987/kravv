@@ -1,13 +1,18 @@
+import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs, usePathname } from "expo-router";
-import React from "react";
+import { Tabs, usePathname, useRouter } from "expo-router";
+import React, { useState } from "react";
 import "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import TopNavBar from "../../components/TopNavBar";
+import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
+  const router = useRouter();
+  const { isSignedIn } = useAuth();
+  const [loginModalVisible, setLoginModalVisible] = useState(false);
 
   // Dynamic title logic: matches file names
   const getTitle = () => {
@@ -82,6 +87,14 @@ export default function TabsLayout() {
               />
             ),
           }}
+          listeners={{
+            tabPress: (e: any) => {
+              if (!isSignedIn) {
+                e.preventDefault();
+                setLoginModalVisible(true);
+              }
+            },
+          }}
         />
 
         <Tabs.Screen
@@ -126,6 +139,15 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
+
+      <LoginRequiredModal 
+        visible={loginModalVisible}
+        onClose={() => setLoginModalVisible(false)}
+        onSignIn={() => {
+          setLoginModalVisible(false);
+          router.push("/(auth)/sign-in");
+        }}
+      />
     </>
   );
 }
