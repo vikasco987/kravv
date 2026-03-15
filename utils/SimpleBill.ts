@@ -173,14 +173,11 @@ export async function SimpleBill(
     const serviceChargeAmount = isServiceChargeEnabled ? (afterDiscount * (serviceChargeRatePercent / 100)) : 0;
     const subtotalWithSC = afterDiscount + serviceChargeAmount;
 
-    // 4. Handle GST (Inclusive matching current pattern)
-    // subtotalCalc is the value before GST. 
-    // If tax enabled: subtotalCalc = subtotalWithSC / (1 + rate/100)
-    // If not: subtotalCalc = subtotalWithSC
+    // 4. Handle GST (Exclusive)
     const gstRateDecimal = isTaxEnabled ? (taxRatePercent / 100) : 0;
-    const subtotalCalc = Number((subtotalWithSC / (1 + gstRateDecimal)).toFixed(2));
-    const gstAmount = Number((subtotalWithSC - subtotalCalc).toFixed(2));
-    const finalTotal = subtotalWithSC;
+    const subtotalCalc = subtotalWithSC;
+    const gstAmount = Number((subtotalCalc * gstRateDecimal).toFixed(2));
+    const finalTotal = subtotalCalc + gstAmount;
 
     // --- Final Bill Text ---
     // We will build the text part normally, but the print loop will handle ESC/POS alignment

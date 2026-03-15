@@ -25,7 +25,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getRecentCompanyProfile } from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill } from "../../utils/SimpleBill";
-import CompanyInfoScreen from "./info";
+
 
 type CartItem = {
   id: string;
@@ -55,7 +55,7 @@ export default function BillPage() {
   const [billingAddress, setBillingAddress] = useState("");
   const [dob, setDob] = useState<Date | null>(null);
   const [showPicker, setShowPicker] = useState(false);
-  const [showCompanyInfo, setShowCompanyInfo] = useState(false);
+
   const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
   const [isWarningModalVisible, setIsWarningModalVisible] = useState(false);
   const [isCustSuccessVisible, setIsCustSuccessVisible] = useState(false);
@@ -157,12 +157,12 @@ export default function BillPage() {
       const subtotalWithSC = afterDiscount + serviceChargeAmount;
 
       const gstRateDecimal = isTaxEnabled ? (taxRate / 100) : 0;
-      const subtotalExcl = Number((subtotalWithSC / (1 + gstRateDecimal)).toFixed(2));
-      const gstAmount = Number((subtotalWithSC - subtotalExcl).toFixed(2));
-      const totalDue = subtotalWithSC;
+      const subtotalValue = subtotalWithSC;
+      const gstAmount = Number((subtotalValue * gstRateDecimal).toFixed(2));
+      const totalDue = subtotalValue + gstAmount;
 
       setCalc({
-        subtotalExcl,
+        subtotalExcl: subtotalValue,
         gstAmount,
         discountAmount,
         serviceChargeAmount,
@@ -200,10 +200,7 @@ export default function BillPage() {
 
   const handlePrintAndSave = async () => {
     if (!cart.length) return ToastAndroid.show("🛒 Cart empty!", ToastAndroid.SHORT);
-    if (!selectedParty && (!customerName || !phone)) {
-      setIsWarningModalVisible(true);
-      return;
-    }
+
 
     try {
       const token = await getToken();
@@ -290,7 +287,7 @@ export default function BillPage() {
   };
 
   return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: "#f9fafb" }}>
+    <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: "#f9fafb", paddingBottom: vs(48) }}>
       {/* Header Gradient */}
       <LinearGradient
         colors={["#6366f1", "#8b5cf6"]}
@@ -302,21 +299,7 @@ export default function BillPage() {
         </TouchableOpacity>
       </LinearGradient>
 
-      {/* Company Info */}
-      <View style={styles.card}>
-        <TouchableOpacity
-          onPress={() => setShowCompanyInfo((prev) => !prev)}
-          style={styles.expandHeader}
-        >
-          <Text style={styles.label}>🏢 Company Information</Text>
-          <Feather
-            name={showCompanyInfo ? "chevron-up" : "chevron-down"}
-            size={rf(20)}
-            color="#4f46e5"
-          />
-        </TouchableOpacity>
-        {showCompanyInfo && <CompanyInfoScreen />}
-      </View>
+
 
       {/* Customer Section */}
       <View style={styles.card}>
