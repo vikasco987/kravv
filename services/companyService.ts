@@ -1,35 +1,42 @@
 const BACKEND_URL = "https://billing.kravy.in";
 
-// ✅ getRecentCompanyProfile ab sahi token le raha hai
-export const getRecentCompanyProfile = async (token: string) => {
+/**
+ * Fetch company profile data from backend.
+ */
+export async function getRecentCompanyProfile(token: string) {
   try {
-    if (!token) throw new Error("Clerk token missing in getRecentCompanyProfile!");
-
-    const res = await fetch(`${BACKEND_URL}/api/profile`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const data = await res.json();
-
-    if (!res.ok || !data) {
-      console.log("ℹ️ [CompanyService] No profile found yet, using defaults.");
+    if (!token) {
       return null;
     }
 
+    const res = await fetch(`${BACKEND_URL}/api/profile`, {
+      headers: { 
+        Authorization: `Bearer ${token}` 
+      },
+    });
+
+    const contentType = res.headers.get("content-type");
+    if (!res.ok || !contentType || !contentType.includes("application/json")) {
+      return null;
+    }
+
+    const data: any = await res.json();
+    if (!data) return null;
+
     return {
-      companyName: data.businessName || "KRAVY Billing",
-      companyAddress: data.businessAddress || "New Delhi, India",
-      companyPhone: data.contactPersonPhone || "+91-9999999999",
-      contactPerson: data.contactPersonName || "Walk-in",
-      gstNumber: data.gstNumber || "",
-      logoUrl: data.profileImageUrl || data.logoUrl || "",
-      signatureUrl: data.signatureUrl || "",
-      businessTagLine: data.businessTagLine || "",
-      upi: data.upi || "",
-      upiId: data.upiId || "",
+      companyName: (data.businessName as string) || "KRAVY Billing",
+      companyAddress: (data.businessAddress as string) || "New Delhi, India",
+      companyPhone: (data.contactPersonPhone as string) || "+91-9999999999",
+      contactPerson: (data.contactPersonName as string) || "Walk-in",
+      gstNumber: (data.gstNumber as string) || "",
+      logoUrl: (data.profileImageUrl as string) || (data.logoUrl as string) || "",
+      signatureUrl: (data.signatureUrl as string) || "",
+      businessTagLine: (data.businessTagLine as string) || "",
+      upi: (data.upi as string) || "",
+      upiId: (data.upiId as string) || "",
     };
   } catch (err) {
     console.error("❌ getRecentCompanyProfile Error:", err);
     return null;
   }
-};
+}

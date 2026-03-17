@@ -491,6 +491,14 @@ export default function CompanyInfoScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      const contentType = res.headers.get("content-type");
+      if (!res.ok || !contentType || !contentType.includes("application/json")) {
+        const text = await res.text();
+        console.warn(`ℹ️ [Info] Received non-JSON profile response. Status: ${res.status}. Body: ${text.slice(0, 50)}`);
+        setLoading(false);
+        return;
+      }
+
       const data = await res.json();
       console.log("📡 Fetched company data:", data);
 
@@ -558,7 +566,17 @@ export default function CompanyInfoScreen() {
         }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type");
+      let data: any = {};
+      
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error(`❌ [Info] Save failed with non-JSON response. Status: ${res.status}. Body: ${text.slice(0, 50)}`);
+        data = { error: `Server error (${res.status})` };
+      }
+      
       console.log("📡 POST response:", data);
 
       if (res.ok) {

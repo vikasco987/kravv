@@ -54,22 +54,28 @@ export default function TableOrdersScreen() {
       });
       
       if (response.ok) {
-        const data = await response.json();
-        const ordersArray = Array.isArray(data) ? data : (data.orders || []);
-        
-        // STRICT LOCAL FILTER: Only show orders that belong to this specific tableId
-        const filteredOrders = ordersArray.filter((o: any) => {
-          const oTableId = String(o.tableId || 
-                           (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || 
-                           "");
-          return oTableId === String(tableId);
-        });
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await response.json();
+          const ordersArray = Array.isArray(data) ? data : (data.orders || []);
+          
+          // STRICT LOCAL FILTER: Only show orders that belong to this specific tableId
+          const filteredOrders = ordersArray.filter((o: any) => {
+            const oTableId = String(o.tableId || 
+                             (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || 
+                             "");
+            return oTableId === String(tableId);
+          });
 
-        const normalizedOrders = filteredOrders.map((o: any) => ({
-          ...o,
-          id: o.id || o._id || Math.random().toString()
-        }));
-        setOrders(normalizedOrders);
+          const normalizedOrders = filteredOrders.map((o: any) => ({
+            ...o,
+            id: o.id || o._id || Math.random().toString()
+          }));
+          setOrders(normalizedOrders);
+        } else {
+          const text = await response.text();
+          console.warn(`ℹ️ [[tableId]] Received non-JSON for orders. Status: ${response.status}. Body: ${text.slice(0, 50)}`);
+        }
       }
     } catch (error) {
       console.error("Fetch orders error:", error);
@@ -97,11 +103,20 @@ export default function TableOrdersScreen() {
         },
         body: JSON.stringify({ orderId, status }),
       });
+
+      const contentType = response.headers.get("content-type");
       if (response.ok) {
         fetchOrders();
       } else {
-        const err = await response.json();
-        Alert.alert("Error", err.message || "Failed to update status");
+        let errMessage = "Failed to update status";
+        if (contentType && contentType.includes("application/json")) {
+          const err = await response.json();
+          errMessage = err.message || errMessage;
+        } else {
+          const text = await response.text();
+          console.error(`❌ [[tableId]] Update status failed with non-JSON. Status: ${response.status}. Body: ${text.slice(0, 50)}`);
+        }
+        Alert.alert("Error", errMessage);
       }
     } catch (error) {
       console.error("Update status error:", error);

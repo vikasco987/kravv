@@ -84,9 +84,15 @@ export default function SalesDashboard() {
             });
 
             if (res.ok) {
-                const data = await res.json();
-                if (data.bills) {
-                    calculateStats(data.bills);
+                const contentType = res.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    const data = await res.json();
+                    if (data.bills) {
+                        calculateStats(data.bills);
+                    }
+                } else {
+                    const text = await res.text();
+                    console.warn(`ℹ️ [Dashboard] Received non-JSON response. Status: ${res.status}. Body starts with: ${text.slice(0, 50)}`);
                 }
             } else {
                 console.warn(`Dashboard fetch failed: ${res.status}`);

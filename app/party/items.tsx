@@ -77,6 +77,13 @@ export default function ItemsPage() {
                 return;
             }
 
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                const text = await res.text();
+                console.warn(`ℹ️ [Items] Received non-JSON response for categories. Body starts with: ${text.slice(0, 50)}`);
+                return;
+            }
+
             let data = await res.json();
             let items: any[] = [];
             let directCategories: any[] = [];
@@ -275,19 +282,12 @@ export default function ItemsPage() {
             return;
         }
 
-        if (!newItem.imageUrl) {
-            setErrorModalTitle("Missing Image");
-            setErrorModalDetail("Please select an image.");
-            setShowError(true);
-            return;
-        }
-
         try {
             setIsSaving(true);
-            let finalImageUrl = newItem.imageUrl;
+            let finalImageUrl = newItem.imageUrl || "";
 
-            // 1. Upload to Cloudinary
-            if (newItem.imageUrl.startsWith("file://") || newItem.imageUrl.startsWith("content://")) {
+            // 1. Upload to Cloudinary if image exists and is local
+            if (newItem.imageUrl && (newItem.imageUrl.startsWith("file://") || newItem.imageUrl.startsWith("content://"))) {
                 try {
                     finalImageUrl = await uploadImageToCloudinary(newItem.imageUrl);
                 } catch (uploadError: any) {

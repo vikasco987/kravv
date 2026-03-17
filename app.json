@@ -7,7 +7,7 @@
     "icon": "./assets/images/kravlogo.png",
     "scheme": "kravy",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true
     },
@@ -72,6 +72,7 @@
     },
     "extra": {
       "router": {},
+      "clerkPublishableKey": "pk_test_bXVzaWNhbC1oZXJyaW5nLTgwLmNsZXJrLmFjY291bnRzLmRldiQ",
       "eas": {
         "projectId": "056e27e8-d1c0-4d4d-8107-06eeae9b91af"
       }

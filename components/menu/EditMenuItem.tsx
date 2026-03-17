@@ -1,0 +1,1228 @@
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
+import {
+    ArrowLeft,
+    ChevronRight,
+    Image as ImageIcon,
+    Plus,
+    Search,
+    Sparkles
+} from "lucide-react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    BackHandler,
+    Dimensions,
+    FlatList,
+    Image,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from "react-native";
+import { rf, s, vs } from "../../utils/responsive";
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const COLORS = {
+    PRIMARY: "#2563EB", // Blue from screenshot
+    SECONDARY: "#111827",
+    WHITE: "#FFFFFF",
+    BG_LIGHT: "#FFFFFF", // Screenshot has white background
+    GRAY: "#6B7280",
+    LIGHT_GRAY: "#E5E7EB",
+    DANGER: "#EF4444",
+    SUCCESS: "#10B981",
+    BORDER: "#D1D5DB",
+};
+
+type MenuItem = {
+    id: string;
+    name: string;
+    price?: number;
+    sellingPrice?: number;
+    imageUrl?: string;
+    unit?: string;
+    categoryId?: string;
+    isVeg?: boolean;
+    description?: string;
+};
+
+type MenuCategory = {
+    id: string;
+    name: string;
+    items: MenuItem[];
+};
+
+export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
+    const { getToken } = useAuth();
+    const { isLoaded, isSignedIn } = useUser();
+    const router = useRouter();
+
+    // States
+    const [menus, setMenus] = useState<MenuCategory[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+
+    // Edit Form States
+    const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+    const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+    const [allCategories, setAllCategories] = useState<{ id: string, name: string }[]>([]);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isFetchingItemDetails, setIsFetchingItemDetails] = useState(false);
+    const [showCategoryModal, setShowCategoryModal] = useState(false);
+
+    // Form fields
+    const [editName, setEditName] = useState("");
+    const [editPrice, setEditPrice] = useState("");
+    const [editCategoryId, setEditCategoryId] = useState("");
+    const [editCategoryName, setEditCategoryName] = useState("");
+    const [editImageUrl, setEditImageUrl] = useState("");
+    const [editUnit, setEditUnit] = useState("");
+    const [editIsVeg, setEditIsVeg] = useState(true);
+    const [editDescription, setEditDescription] = useState("");
+
+    // New Category States
+    const [isCreateCategoryModalVisible, setIsCreateCategoryModalVisible] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState("");
+    const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+    const [showCategorySuccess, setShowCategorySuccess] = useState(false);
+    const [showUpdateSuccess, setShowUpdateSuccess] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
+    const [showValidationError, setShowValidationError] = useState(false);
+    const [validationMsg, setValidationMsg] = useState({ title: "", detail: "" });
+
+    const flatListRef = useRef<FlatList>(null);
+
+    const fetchAllCategories = async () => {
+        try {
+            const token = await getToken();
+            const response = await fetch("https://billing.kravy.in/api/categories", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setAllCategories(Array.isArray(data) ? data : []);
+            }
+        } catch (err) {
+            console.error("Fetch categories error:", err);
+        }
+    };
+
+    // Hardware back button handler
+    useEffect(() => {
+        const backAction = () => {
+            if (isEditModalVisible) {
+                setIsEditModalVisible(false);
+                return true;
+            }
+            if (isCreateCategoryModalVisible) {
+                setIsCreateCategoryModalVisible(false);
+                return true;
+            }
+            if (showCategoryModal) {
+                setShowCategoryModal(false);
+                return true;
+            }
+            onBack();
+            return true;
+        };
+
+        const backHandler = BackHandler.addEventListener(
+            "hardwareBackPress",
+            backAction
+        );
+
+        return () => backHandler.remove();
+    }, [isEditModalVisible, isCreateCategoryModalVisible, showCategoryModal, onBack]);
+
+    const fetchMenus = useCallback(async () => {
+        if (!isLoaded || !isSignedIn) return;
+        try {
+            setLoading(true);
+            const token = await getToken();
+            const response = await fetch("https://billing.kravy.in/api/menu/view", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (!response.ok) {
+                const cachedData = await AsyncStorage.getItem('@cached_menu');
+                if (cachedData) setMenus(JSON.parse(cachedData));
+                return;
+            }
+
+            const data = await response.json();
+            let processedItems: any[] = [];
+            if (Array.isArray(data)) {
+                processedItems = data;
+            } else if (data && Array.isArray(data.menus)) {
+                data.menus.forEach((cat: any) => {
+                    const categoryRaw = { id: cat.id || cat._id || "others", name: cat.name || "Others" };
+                    if (Array.isArray(cat.items)) {
+                        cat.items.forEach((item: any) => {
+                            processedItems.push({ ...item, category: categoryRaw });
+                        });
+                    }
+                });
+            }
+
+            const categoryMap: Record<string, MenuCategory> = {};
+            processedItems.forEach((item: any) => {
+                const rawCat = item.category || { id: "others", name: "Others" };
+                const catId = String(rawCat.id || rawCat._id || "others");
+                const catName = String(rawCat.name || "Others");
+
+                if (!categoryMap[catId]) {
+                    categoryMap[catId] = { id: catId, name: catName, items: [] };
+                }
+
+                categoryMap[catId].items.push({
+                    id: String(item.id || item._id),
+                    name: String(item.name || "Unnamed Item"),
+                    price: Number(item.sellingPrice || item.price || 0),
+                    imageUrl: item.imageUrl,
+                    unit: item.unit,
+                    categoryId: catId,
+                });
+            });
+
+            setMenus(Object.values(categoryMap).sort((a, b) => a.name.localeCompare(b.name)));
+        } catch (err) {
+            console.error("Fetch menu error:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [isLoaded, isSignedIn, getToken]);
+
+    useEffect(() => {
+        if (isLoaded && isSignedIn) {
+            fetchMenus();
+            fetchAllCategories();
+        }
+    }, [isLoaded, isSignedIn]);
+
+    const handleItemClick = async (item: MenuItem, catId: string, catName: string) => {
+        try {
+            setIsFetchingItemDetails(true);
+            setSelectedItem(item);
+            
+            // Set initial category from the clicked section
+            setEditCategoryId(catId);
+            setEditCategoryName(catName);
+
+            const token = await getToken();
+            const response = await fetch(`https://billing.kravy.in/api/items?id=${item.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (response.ok) {
+                const details = await response.json();
+                setEditName(details.name || item.name);
+                setEditPrice(String(details.sellingPrice || details.price || "0"));
+                // Fallback to catId/catName if API doesn't provide them
+                setEditCategoryId(details.categoryId || catId);
+                setEditCategoryName(details.category?.name || catName);
+                setEditImageUrl(details.imageUrl || item.imageUrl || "");
+                setEditUnit(details.unit || item.unit || "");
+                setEditIsVeg(details.isVeg !== undefined ? details.isVeg : true);
+                setEditDescription(details.description || "");
+            }
+            setIsEditModalVisible(true);
+        } catch (err) {
+            Alert.alert("Error", "Could not fetch details.");
+        } finally {
+            setIsFetchingItemDetails(false);
+        }
+    };
+
+    const pickImage = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets && result.assets[0]) {
+                setEditImageUrl(result.assets[0].uri);
+            }
+        } catch (error) {
+            Alert.alert("Error", "Could not open gallery.");
+        }
+    };
+
+    const uploadImageToCloudinary = async (uri: string) => {
+        const cloudName = "digpvlfup";
+        const uploadPreset = "mybillingmenu";
+
+        const formData = new FormData();
+        const fileName = uri.split("/").pop() || "upload.jpg";
+        const fileType = fileName.split(".").pop() || "jpg";
+
+        // @ts-ignore
+        formData.append("file", {
+            uri: uri,
+            type: `image/${fileType}`,
+            name: fileName,
+        });
+        formData.append("upload_preset", uploadPreset);
+        formData.append("cloud_name", cloudName);
+
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            method: "POST",
+            body: formData,
+            headers: {
+                "Accept": "application/json",
+            },
+        });
+
+        const text = await response.text();
+        let data: any;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            throw new Error(`Cloudinary error: ${text || "Empty response"}`);
+        }
+
+        if (!response.ok) {
+            throw new Error(data.error?.message || `Cloudinary upload failed: ${text}`);
+        }
+
+        return data.secure_url;
+    };
+
+    const handleDelete = async () => {
+        if (!selectedItem) return;
+        setShowDeleteConfirm(true);
+    };
+
+    const confirmDelete = async () => {
+        try {
+            setShowDeleteConfirm(false);
+            setIsDeleting(true);
+            const token = await getToken();
+            const response = await fetch(`https://billing.kravy.in/api/items?id=${selectedItem?.id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (response.ok) {
+                setIsEditModalVisible(false);
+                fetchMenus();
+                setShowDeleteSuccess(true);
+                setTimeout(() => setShowDeleteSuccess(false), 2000);
+            } else {
+                Alert.alert("Error", "Failed to delete item.");
+            }
+        } catch (err) {
+            Alert.alert("Error", "Something went wrong.");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleSave = async () => {
+        if (!editName.trim() && !editPrice.trim()) {
+            setValidationMsg({ title: "Details Missing!", detail: "Please enter item name and price." });
+            setShowValidationError(true);
+            setTimeout(() => setShowValidationError(false), 2000);
+            return;
+        }
+        if (!editName.trim()) {
+            setValidationMsg({ title: "Name Missing!", detail: "Please enter item name." });
+            setShowValidationError(true);
+            setTimeout(() => setShowValidationError(false), 2000);
+            return;
+        }
+        if (!editPrice.trim()) {
+            setValidationMsg({ title: "Price Missing!", detail: "Please enter item price." });
+            setShowValidationError(true);
+            setTimeout(() => setShowValidationError(false), 2000);
+            return;
+        }
+        try {
+            setIsSaving(true);
+            const token = await getToken();
+            let finalImageUrl = editImageUrl;
+
+            // 1. Upload to Cloudinary if it's a local file
+            if (editImageUrl.startsWith("file://") || editImageUrl.startsWith("content://")) {
+                try {
+                    finalImageUrl = await uploadImageToCloudinary(editImageUrl);
+                } catch (uploadError: any) {
+                    Alert.alert("Upload Error", uploadError.message || "Failed to upload image.");
+                    setIsSaving(false);
+                    return;
+                }
+            }
+
+            const response = await fetch("https://billing.kravy.in/api/items", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    id: selectedItem?.id,
+                    name: editName,
+                    sellingPrice: parseFloat(editPrice),
+                    categoryId: editCategoryId,
+                    imageUrl: finalImageUrl,
+                    unit: editUnit,
+                    isVeg: editIsVeg,
+                    description: editDescription
+                }),
+            });
+            if (response.ok) {
+                setIsEditModalVisible(false);
+                fetchMenus();
+                setShowUpdateSuccess(true);
+                setTimeout(() => setShowUpdateSuccess(false), 2000);
+            }
+        } catch (err) {
+            Alert.alert("Error", "Update failed.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const displayCategories = React.useMemo(() => {
+        const map: Record<string, { id: string, name: string }> = {};
+
+        // 1. Add all from database list
+        allCategories.forEach(c => {
+            map[c.id] = { id: c.id, name: c.name };
+        });
+
+        // 2. Add any that might be in the current menu structure
+        menus.forEach(c => {
+            if (!map[c.id]) {
+                map[c.id] = { id: c.id, name: c.name };
+            }
+        });
+
+        return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
+    }, [allCategories, menus]);
+
+    const filteredMenus = React.useMemo(() => {
+        const query = searchQuery.toLowerCase();
+
+        // Use displayCategories as the base so even empty ones show up
+        let result = displayCategories.map((catBase) => {
+            // Find items for this category from the menus state
+            const itemsSource = menus.find(m => m.id === catBase.id)?.items || [];
+            const filteredItems = itemsSource.filter(i => i.name.toLowerCase().includes(query));
+
+            // If searching, only show if category name matches OR items match
+            if (searchQuery && !(catBase.name.toLowerCase().includes(query) || filteredItems.length > 0)) {
+                return null;
+            }
+
+            return {
+                id: catBase.id,
+                name: catBase.name,
+                items: searchQuery && !catBase.name.toLowerCase().includes(query) ? filteredItems : itemsSource
+            };
+        }).filter(Boolean) as MenuCategory[];
+
+        // Filter by selected category chip
+        if (selectedCategory !== "ALL") {
+            result = result.filter(cat => cat.id === selectedCategory);
+        }
+        return result;
+    }, [searchQuery, menus, displayCategories, selectedCategory]);
+
+    const renderItem = ({ item: cat }: { item: MenuCategory }) => (
+        <View style={styles.section}>
+            <TouchableOpacity style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>{cat.name.toUpperCase()}</Text>
+                <ChevronRight size={rf(18)} color={COLORS.GRAY} />
+            </TouchableOpacity>
+            {cat.items.map((item) => (
+                <TouchableOpacity
+                    key={item.id}
+                    style={styles.itemRow}
+                    onPress={() => handleItemClick(item, cat.id, cat.name)}
+                >
+                    <View style={styles.itemInfo}>
+                        <Text style={styles.itemName}>{item.name}</Text>
+                        <Text style={styles.itemPrice}>₹{item.price}</Text>
+                    </View>
+                    <View style={styles.itemImageContainer}>
+                        {item.imageUrl ? (
+                            <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
+                        ) : (
+                            <View style={styles.imagePlaceholder}>
+                                <ImageIcon size={rf(20)} color={COLORS.GRAY} />
+                                <Plus size={rf(10)} color={COLORS.GRAY} style={styles.plusOverlay} />
+                            </View>
+                        )}
+                    </View>
+                </TouchableOpacity>
+            ))}
+        </View>
+    );
+
+    return (
+        <SafeAreaView style={styles.container}>
+            {/* Header */}
+            <View style={styles.header}>
+                <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+                    <ArrowLeft size={rf(24)} color={COLORS.SECONDARY} />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Edit Menu Item</Text>
+            </View>
+
+            {/* Search Bar */}
+            <View style={styles.searchSection}>
+                <View style={styles.searchBar}>
+                    <Search size={rf(20)} color={COLORS.GRAY} />
+                    <TextInput
+                        placeholder="Search"
+                        style={styles.searchInput}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        placeholderTextColor={COLORS.GRAY}
+                    />
+                </View>
+            </View>
+
+            {/* Horizontal Categories */}
+            <View style={styles.chipSection}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipContainer}>
+                    <TouchableOpacity
+                        style={[styles.chip, selectedCategory === "ALL" && styles.chipActive]}
+                        onPress={() => setSelectedCategory("ALL")}
+                    >
+                        <Text style={[styles.chipText, selectedCategory === "ALL" && styles.chipTextActive]}>ALL</Text>
+                    </TouchableOpacity>
+                    {displayCategories.map((cat) => (
+                        <TouchableOpacity
+                            key={cat.id}
+                            style={[styles.chip, selectedCategory === cat.id && styles.chipActive]}
+                            onPress={() => setSelectedCategory(cat.id)}
+                        >
+                            <Text style={[styles.chipText, selectedCategory === cat.id && styles.chipTextActive]}>
+                                {cat.name.toUpperCase()}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+
+                    {/* Plus Icon for New Category */}
+                    <TouchableOpacity
+                        style={[styles.chip, { borderStyle: "dashed", borderColor: COLORS.PRIMARY }]}
+                        onPress={() => setIsCreateCategoryModalVisible(true)}
+                    >
+                        <Plus size={rf(18)} color={COLORS.PRIMARY} />
+                    </TouchableOpacity>
+                </ScrollView>
+            </View>
+
+            {/* List */}
+            {loading ? (
+                <View style={styles.center}><ActivityIndicator size="large" color={COLORS.PRIMARY} /></View>
+            ) : (
+                <FlatList
+                    ref={flatListRef}
+                    data={filteredMenus}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderItem}
+                    contentContainerStyle={styles.listPadding}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="folder-open-outline" size={rf(50)} color={COLORS.LIGHT_GRAY} />
+                            <Text style={styles.emptyText}>
+                                {searchQuery ? "No items match your search" : "No items in this category"}
+                            </Text>
+                        </View>
+                    }
+                />
+            )}
+
+            {/* Bottom Buttons */}
+            <View style={styles.bottomBar}>
+                <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => {
+                        onBack();
+                        router.push("/party/items");
+                    }}
+                >
+                    <Text style={styles.addButtonText}>Add Menu Item</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.sparkleButton}>
+                    <Sparkles size={rf(22)} color={COLORS.PRIMARY} />
+                </TouchableOpacity>
+            </View>
+
+            {/* Loading Overlay */}
+            {isFetchingItemDetails && (
+                <View style={styles.overlay}><ActivityIndicator size="large" color={COLORS.PRIMARY} /></View>
+            )}
+
+            {/* Create Category Modal (Matched with items.tsx) */}
+            <Modal 
+                transparent={true} 
+                visible={isCreateCategoryModalVisible} 
+                animationType="fade"
+                onRequestClose={() => setIsCreateCategoryModalVisible(false)}
+            >
+                <View style={styles.modalOverlayCentered}>
+                    <View style={styles.modalContentCentered}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>New Category</Text>
+                            <TouchableOpacity onPress={() => setIsCreateCategoryModalVisible(false)}>
+                                <Ionicons name="close-circle" size={rf(28)} color="#9CA3AF" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={{ paddingVertical: vs(10) }}>
+                            <Text style={styles.label}>Category Name</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Enter new category..."
+                                placeholderTextColor="#9CA3AF"
+                                value={newCategoryName}
+                                onChangeText={setNewCategoryName}
+                                autoFocus={true}
+                            />
+
+                            <TouchableOpacity
+                                style={[styles.saveBtn, { marginTop: vs(24) }, isCreatingCategory && { opacity: 0.7 }]}
+                                onPress={async () => {
+                                    if (!newCategoryName.trim()) {
+                                        Alert.alert("Missing Name", "Please enter a category name.");
+                                        return;
+                                    }
+                                    try {
+                                        setIsCreatingCategory(true);
+                                        const token = await getToken();
+                                        const response = await fetch("https://billing.kravy.in/api/categories", {
+                                            method: "POST",
+                                            headers: {
+                                                "Content-Type": "application/json",
+                                                Authorization: `Bearer ${token}`,
+                                            },
+                                            body: JSON.stringify({ name: newCategoryName }),
+                                        });
+
+                                        if (response.ok) {
+                                            setNewCategoryName("");
+                                            setIsCreateCategoryModalVisible(false);
+                                            fetchAllCategories();
+                                            fetchMenus();
+
+                                            // Show Success Modal
+                                            setShowCategorySuccess(true);
+                                            setTimeout(() => setShowCategorySuccess(false), 2000);
+                                        } else {
+                                            const errData = await response.json();
+                                            Alert.alert("Error", errData.message || "Failed to create category.");
+                                        }
+                                    } catch (err) {
+                                        Alert.alert("Error", "Something went wrong.");
+                                    } finally {
+                                        setIsCreatingCategory(false);
+                                    }
+                                }}
+                                disabled={isCreatingCategory}
+                            >
+                                <Text style={styles.saveBtnText}>
+                                    {isCreatingCategory ? <ActivityIndicator color="white" /> : "Add to Menu"}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Category Success Modal */}
+            <Modal transparent={true} visible={showCategorySuccess} animationType="fade" onRequestClose={() => setShowCategorySuccess(false)}>
+                <View style={styles.modalOverlayCentered}>
+                    <View style={styles.feedbackModalContent}>
+                        <View style={{ alignItems: 'center' }}>
+                            <View style={styles.successCircle}>
+                                <Ionicons name="layers" size={rf(36)} color="#10B981" />
+                            </View>
+                            <Text style={styles.feedbackTitle}>Category Created!</Text>
+                            <Text style={styles.feedbackDetail}>New category has been added.</Text>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Update Success Modal */}
+            <Modal transparent={true} visible={showUpdateSuccess} animationType="fade" onRequestClose={() => setShowUpdateSuccess(false)}>
+                <View style={styles.modalOverlayCentered}>
+                    <View style={styles.feedbackModalContent}>
+                        <View style={{ alignItems: 'center' }}>
+                            <View style={styles.successCircle}>
+                                <Ionicons name="checkmark-circle" size={rf(36)} color="#10B981" />
+                            </View>
+                            <Text style={styles.feedbackTitle}>Item Updated!</Text>
+                            <Text style={styles.feedbackDetail}>Changes saved successfully.</Text>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Delete Success Modal */}
+            <Modal transparent={true} visible={showDeleteSuccess} animationType="fade" onRequestClose={() => setShowDeleteSuccess(false)}>
+                <View style={styles.modalOverlayCentered}>
+                    <View style={styles.feedbackModalContent}>
+                        <View style={{ alignItems: 'center' }}>
+                            <View style={[styles.successCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
+                                <Ionicons name="trash" size={rf(36)} color="#EF4444" />
+                            </View>
+                            <Text style={[styles.feedbackTitle, { color: '#EF4444' }]}>Item Deleted!</Text>
+                            <Text style={styles.feedbackDetail}>Item has been removed.</Text>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal transparent={true} visible={showDeleteConfirm} animationType="fade" onRequestClose={() => setShowDeleteConfirm(false)}>
+                <View style={styles.modalOverlayCentered}>
+                    <View style={styles.confirmModalContent}>
+                        <View style={{ alignItems: 'center' }}>
+                            <View style={[styles.successCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
+                                <Ionicons name="alert-circle" size={rf(36)} color="#EF4444" />
+                            </View>
+                            <Text style={styles.modalTitle}>Delete Item?</Text>
+                            <Text style={[styles.feedbackDetail, { marginVertical: vs(10) }]}>Are you sure you want to delete this item? This cannot be undone.</Text>
+                            
+                            <View style={{ flexDirection: 'row', marginTop: vs(15), width: '100%' }}>
+                                <TouchableOpacity 
+                                    style={[styles.modalActionBtn, { backgroundColor: '#F3F4F6' }]} 
+                                    onPress={() => setShowDeleteConfirm(false)}
+                                >
+                                    <Text style={{ color: '#374151', fontWeight: '600' }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={[styles.modalActionBtn, { backgroundColor: '#EF4444', marginLeft: s(10) }]} 
+                                    onPress={confirmDelete}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '600' }}>Delete</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Validation Error Modal */}
+            <Modal transparent={true} visible={showValidationError} animationType="fade" onRequestClose={() => setShowValidationError(false)}>
+                <View style={styles.modalOverlayCentered}>
+                    <View style={styles.feedbackModalContent}>
+                        <View style={{ alignItems: 'center' }}>
+                            <View style={[styles.successCircle, { backgroundColor: '#FFEDD5', borderColor: '#FED7AA' }]}>
+                                <Ionicons name="warning" size={rf(36)} color="#F97316" />
+                            </View>
+                            <Text style={[styles.feedbackTitle, { color: '#F97316' }]}>{validationMsg.title}</Text>
+                            <Text style={styles.feedbackDetail}>{validationMsg.detail}</Text>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Edit Modal (Keep existing logic but match styling) */}
+            <Modal visible={isEditModalVisible} animationType="slide" onRequestClose={() => setIsEditModalVisible(false)}>
+                <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.WHITE }}>
+                    <View style={styles.modalHeader}>
+                        <TouchableOpacity onPress={() => setIsEditModalVisible(false)}><ArrowLeft size={rf(26)} color={COLORS.SECONDARY} /></TouchableOpacity>
+                        <Text style={styles.modalHeaderTitle}>Edit Item</Text>
+                        <View style={{ width: 30 }} />
+                    </View>
+                    <ScrollView style={{ padding: 20 }}>
+                        {/* Image Section */}
+                        <View style={{ alignItems: 'center', marginBottom: vs(20) }}>
+                            <TouchableOpacity onPress={pickImage} style={styles.imagePickerContainer}>
+                                {editImageUrl ? (
+                                    <View style={styles.imageWrapper}>
+                                        <Image source={{ uri: editImageUrl }} style={styles.imagePreview} />
+                                        <TouchableOpacity 
+                                            style={styles.removeImageBtn} 
+                                            onPress={() => setEditImageUrl("")}
+                                        >
+                                            <Ionicons name="close-circle" size={rf(26)} color={COLORS.DANGER} />
+                                        </TouchableOpacity>
+                                    </View>
+                                ) : (
+                                    <View style={styles.pickerImagePlaceholder}>
+                                        <ImageIcon size={rf(40)} color={COLORS.GRAY} />
+                                        <Text style={{ marginTop: 10, color: COLORS.GRAY }}>Add Image</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <Text style={styles.formLabel}>Item Name</Text>
+                            <TextInput style={styles.formInput} value={editName} onChangeText={setEditName} />
+                        </View>
+                        <View style={styles.formGroup}>
+                            <Text style={styles.formLabel}>Price (₹)</Text>
+                            <TextInput style={styles.formInput} value={editPrice} onChangeText={setEditPrice} keyboardType="numeric" />
+                        </View>
+
+                        <View style={styles.formGroup}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(8) }}>
+                                <Text style={styles.formLabel}>Category</Text>
+                                <TouchableOpacity 
+                                    onPress={() => setIsCreateCategoryModalVisible(true)}
+                                    style={styles.addCategoryBtnSmall}
+                                >
+                                    <Plus size={rf(14)} color={COLORS.PRIMARY} />
+                                </TouchableOpacity>
+                            </View>
+                            <TouchableOpacity 
+                                style={styles.dropdownButton}
+                                onPress={() => setShowCategoryModal(true)}
+                            >
+                                <Text style={styles.dropdownButtonText}>{editCategoryName || "Select Category"}</Text>
+                                <ChevronRight size={rf(18)} color={COLORS.GRAY} />
+                            </TouchableOpacity>
+                        </View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: vs(30), marginBottom: vs(20) }}>
+                            <TouchableOpacity 
+                                style={[styles.deleteBtn, (isSaving || isDeleting) && { opacity: 0.7 }]} 
+                                onPress={handleDelete} 
+                                disabled={isSaving || isDeleting}
+                            >
+                                <Text style={styles.saveBtnText}>{isDeleting ? <ActivityIndicator color="white" /> : "Delete"}</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity 
+                                style={[styles.saveBtn, { flex: 2, marginLeft: s(12) }, (isSaving || isDeleting) && { opacity: 0.7 }]} 
+                                onPress={handleSave} 
+                                disabled={isSaving || isDeleting}
+                            >
+                                <Text style={styles.saveBtnText}>
+                                    {isSaving ? <ActivityIndicator color="white" /> : "Update Item"}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </ScrollView>
+
+                    {/* Category Selection Modal (Inside Edit Modal) */}
+                    <Modal
+                        animationType="slide"
+                        transparent={true}
+                        visible={showCategoryModal}
+                        onRequestClose={() => setShowCategoryModal(false)}
+                    >
+                        <View style={styles.modalOverlay}>
+                            <View style={styles.modalContent}>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>Choose Category</Text>
+                                    <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
+                                        <Ionicons name="close-circle" size={rf(28)} color="#9CA3AF" />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <FlatList
+                                    data={displayCategories}
+                                    keyExtractor={(item) => item.id}
+                                    renderItem={({ item }) => (
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.categorySelectItem,
+                                                editCategoryId === item.id && styles.categorySelected
+                                            ]}
+                                            onPress={() => {
+                                                setEditCategoryId(item.id);
+                                                setEditCategoryName(item.name);
+                                                setShowCategoryModal(false);
+                                            }}
+                                        >
+                                            <Text style={[
+                                                styles.categorySelectText,
+                                                editCategoryId === item.id && styles.categorySelectedText
+                                            ]}>
+                                                {item.name}
+                                            </Text>
+                                            {editCategoryId === item.id && (
+                                                <Ionicons name="checkmark-circle" size={rf(20)} color={COLORS.PRIMARY} />
+                                            )}
+                                        </TouchableOpacity>
+                                    )}
+                                    ListEmptyComponent={
+                                        <View style={{ padding: s(20), alignItems: 'center' }}>
+                                            <Text style={{ color: COLORS.GRAY, fontSize: rf(14) }}>No categories found.</Text>
+                                        </View>
+                                    }
+                                />
+                            </View>
+                        </View>
+                    </Modal>
+                </SafeAreaView>
+            </Modal>
+        </SafeAreaView>
+    );
+};
+
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: COLORS.WHITE },
+    center: { flex: 1, justifyContent: "center", alignItems: "center" },
+    header: {
+        height: vs(50),
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: s(15),
+        borderBottomWidth: 1,
+        borderBottomColor: "#F3F4F6",
+        marginTop: vs(50),
+    },
+    backBtn: { padding: s(5) },
+    headerTitle: { fontSize: rf(18), fontWeight: "600", color: COLORS.SECONDARY, marginLeft: s(10) },
+
+    searchSection: { padding: s(15) },
+    searchBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: COLORS.WHITE,
+        borderWidth: 1,
+        borderColor: COLORS.BORDER,
+        borderRadius: s(10),
+        paddingHorizontal: s(12),
+        height: vs(45),
+    },
+    searchInput: { flex: 1, marginLeft: s(10), fontSize: rf(16) },
+
+    chipSection: { paddingBottom: vs(10) },
+    chipContainer: { paddingHorizontal: s(15) },
+    chip: {
+        paddingHorizontal: s(20),
+        paddingVertical: vs(8),
+        borderRadius: s(8),
+        borderWidth: 1,
+        borderColor: COLORS.BORDER,
+        marginRight: s(10),
+        backgroundColor: COLORS.WHITE,
+    },
+    chipActive: {
+        borderColor: COLORS.PRIMARY,
+        backgroundColor: "#EFF6FF", // Light blue
+    },
+    chipText: { fontSize: rf(12), fontWeight: "600", color: COLORS.SECONDARY },
+    chipTextActive: { color: COLORS.PRIMARY },
+
+    listPadding: { paddingBottom: vs(100) },
+    section: { marginTop: vs(15) },
+    sectionHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: s(15),
+        paddingVertical: vs(10),
+    },
+    sectionTitle: { fontSize: rf(16), fontWeight: "bold", color: COLORS.SECONDARY, marginRight: s(5) },
+
+    itemRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingHorizontal: s(15),
+        paddingVertical: vs(15),
+        borderBottomWidth: 1,
+        borderBottomColor: "#F3F4F6",
+    },
+    itemInfo: { flex: 1 },
+    itemName: { fontSize: rf(16), fontWeight: "500", color: COLORS.SECONDARY },
+    itemPrice: { fontSize: rf(14), color: COLORS.GRAY, marginTop: vs(4) },
+    itemImageContainer: {},
+    itemImage: { width: s(60), height: s(45), borderRadius: s(6) },
+    imagePlaceholder: {
+        width: s(60),
+        height: s(45),
+        backgroundColor: "#F3F4F6",
+        borderRadius: s(6),
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    plusOverlay: { position: "absolute", bottom: s(8), right: s(8) },
+
+    bottomBar: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: s(20),
+        paddingBottom: s(50), // Increased padding to move buttons up
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: COLORS.WHITE,
+        borderTopWidth: 1,
+        borderTopColor: "#F3F4F6",
+    },
+    addButton: {
+        flex: 1,
+        backgroundColor: COLORS.PRIMARY,
+        height: vs(50),
+        borderRadius: s(12),
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    addButtonText: { color: COLORS.WHITE, fontSize: rf(16), fontWeight: "bold" },
+    sparkleButton: {
+        width: s(50),
+        height: s(50),
+        borderRadius: s(12),
+        borderWidth: 1,
+        borderColor: COLORS.PRIMARY,
+        justifyContent: "center",
+        alignItems: "center",
+        marginLeft: s(15),
+    },
+    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(255,255,255,0.6)", justifyContent: "center", alignItems: "center", zIndex: 100 },
+
+    // Matched with items.tsx
+    modalOverlayCentered: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: s(20),
+    },
+    modalContentCentered: {
+        backgroundColor: '#fff',
+        borderRadius: s(24),
+        padding: s(24),
+        width: '100%',
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: vs(20),
+        marginTop: vs(50),
+        paddingLeft: 20,
+    },
+    modalHeaderTitle: {
+        fontSize: rf(18),
+        fontWeight: 'bold',
+        color: '#111827',
+    },
+    modalTitle: {
+        fontSize: rf(20),
+        fontWeight: 'bold',
+        color: '#111827',
+    },
+    label: {
+        fontSize: rf(14),
+        fontWeight: "600",
+        color: "#374151",
+        marginBottom: vs(8),
+    },
+    input: {
+        backgroundColor: "#fff",
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        borderRadius: s(12),
+        padding: s(14),
+        fontSize: rf(16),
+        color: "#111827",
+    },
+    saveBtn: {
+        backgroundColor: "#2563EB",
+        borderRadius: s(14),
+        padding: s(14),
+        alignItems: "center",
+        shadowColor: "#2563EB",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    saveBtnText: {
+        color: "#fff",
+        fontSize: rf(18),
+        fontWeight: "bold",
+    },
+    deleteBtn: {
+        backgroundColor: COLORS.DANGER,
+        borderRadius: s(14),
+        padding: s(14),
+        alignItems: "center",
+        flex: 1,
+        shadowColor: COLORS.DANGER,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    successCircle: {
+        width: s(70),
+        height: s(70),
+        borderRadius: s(35),
+        backgroundColor: '#D1FAE5',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: vs(15),
+        borderWidth: 1,
+        borderColor: '#A7F3D0',
+    },
+    feedbackModalContent: {
+        backgroundColor: '#fff',
+        borderRadius: s(20),
+        paddingHorizontal: s(20),
+        paddingVertical: vs(25),
+        width: '75%',
+        alignItems: 'center',
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+    },
+    feedbackTitle: {
+        fontSize: rf(20),
+        fontWeight: 'bold',
+        color: '#10B981',
+        textAlign: 'center',
+    },
+    feedbackDetail: {
+        fontSize: rf(14),
+        color: '#6B7280',
+        textAlign: 'center',
+        marginTop: vs(5),
+    },
+    confirmModalContent: {
+        backgroundColor: '#fff',
+        borderRadius: s(24),
+        padding: s(24),
+        width: '85%',
+        elevation: 10,
+        shadowColor: '#000',
+    },
+    modalActionBtn: {
+        flex: 1,
+        height: vs(45),
+        borderRadius: s(12),
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+
+    // Image Picker Styles
+    imagePickerContainer: {
+        width: s(120),
+        height: s(120),
+        borderRadius: s(20),
+        backgroundColor: '#F3F4F6',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: COLORS.BORDER,
+        borderStyle: 'dashed',
+        overflow: 'visible',
+    },
+    imageWrapper: {
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+    },
+    imagePreview: {
+        width: '100%',
+        height: '100%',
+        borderRadius: s(20),
+    },
+    pickerImagePlaceholder: {
+        alignItems: 'center',
+    },
+    removeImageBtn: {
+        position: 'absolute',
+        top: -10,
+        right: -10,
+        backgroundColor: COLORS.WHITE,
+        borderRadius: 100,
+        elevation: 2,
+    },
+
+    emptyContainer: {
+        paddingTop: vs(100),
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    emptyText: {
+        marginTop: vs(15),
+        fontSize: rf(16),
+        color: COLORS.GRAY,
+        fontWeight: "500",
+    },
+
+    formGroup: { marginBottom: vs(20) },
+    formLabel: { fontSize: rf(14), color: COLORS.GRAY, marginBottom: vs(8) },
+    formInput: { borderBottomWidth: 1, borderBottomColor: COLORS.BORDER, paddingVertical: vs(10), fontSize: rf(16) },
+
+    dropdownButton: {
+        backgroundColor: "#fff",
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        borderRadius: s(12),
+        padding: s(14),
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+    },
+    dropdownButtonText: {
+        fontSize: rf(16),
+        color: "#111827",
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: s(24),
+        borderTopRightRadius: s(24),
+        padding: s(24),
+        maxHeight: '60%',
+    },
+    categorySelectItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: vs(16),
+        paddingHorizontal: s(8),
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    categorySelected: {
+        backgroundColor: '#EEF2FF',
+        borderRadius: s(12),
+        borderColor: COLORS.PRIMARY,
+    },
+    categorySelectText: {
+        fontSize: rf(16),
+        color: '#374151',
+    },
+    categorySelectedText: {
+        color: COLORS.PRIMARY,
+        fontWeight: '600',
+    },
+    addCategoryBtnSmall: {
+        backgroundColor: '#EEF2FF',
+        borderRadius: s(8),
+        width: s(24),
+        height: s(24),
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: COLORS.PRIMARY,
+    },
+});

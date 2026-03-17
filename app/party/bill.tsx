@@ -100,8 +100,15 @@ export default function BillPage() {
         },
       });
       if (res.ok) {
-        const data = await res.json();
-        setParties(data);
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          setParties(data);
+        } else {
+          const text = await res.text();
+          console.warn("ℹ️ [Bill] Received non-JSON for parties. Body starts with:", text.slice(0, 50));
+          setParties([]);
+        }
       } else {
         const errorText = await res.text();
         console.error("Fetch parties error response:", errorText);

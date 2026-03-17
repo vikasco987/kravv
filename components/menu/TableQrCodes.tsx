@@ -101,13 +101,22 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
-        const data = await response.json();
-        const tablesArray = Array.isArray(data) ? data : (data.tables || []);
-        const normalizedTables = tablesArray.map((t: any) => ({
-          ...t,
-          id: t.id || t._id || Math.random().toString()
-        }));
-        setTables(normalizedTables);
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await response.json();
+          const tablesArray = Array.isArray(data) ? data : (data.tables || []);
+          const normalizedTables = tablesArray.map((t: any) => ({
+            ...t,
+            id: t.id || t._id || Math.random().toString()
+          }));
+          setTables(normalizedTables);
+        } else {
+          const text = await response.text();
+          console.warn(`ℹ️ [TableQrCodes] Received non-JSON for tables. Status: ${response.status}. Body: ${text.slice(0, 50)}`);
+        }
+      } else {
+        const text = await response.text();
+        console.error(`❌ [TableQrCodes] Backend fetch failed: ${response.status}. Body: ${text.slice(0, 50)}`);
       }
     } catch (error) {
       console.error("Fetch tables error:", error);

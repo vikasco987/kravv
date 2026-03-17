@@ -48,6 +48,15 @@ export default function ViewCompanyProfileScreen() {
       const res = await fetch(`${BACKEND_URL}/api/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      const contentType = res.headers.get("content-type");
+      if (!res.ok || !contentType || !contentType.includes("application/json")) {
+        const text = await res.text();
+        console.warn(`ℹ️ [Profile] Received non-JSON profile response. Status: ${res.status}. Body: ${text.slice(0, 50)}`);
+        setLoading(false);
+        return;
+      }
+
       const data = await res.json();
 
       if (res.ok && data) {

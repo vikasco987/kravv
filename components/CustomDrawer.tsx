@@ -8,8 +8,9 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Modal, StyleSheet, Text, View } from "react-native";
 import { rf, s, vs } from "../utils/responsive";
-import { LoginRequiredModal } from "./settings/LoginRequiredModal";
+import { EditMenuItem } from "./menu/EditMenuItem";
 import { TableQrCodes } from "./menu/TableQrCodes";
+import { LoginRequiredModal } from "./settings/LoginRequiredModal";
 
 export default function CustomDrawerContent(props: any) {
   const { user } = useUser();
@@ -17,6 +18,7 @@ export default function CustomDrawerContent(props: any) {
   const router = useRouter();
   const [loginModalVisible, setLoginModalVisible] = useState(false);
   const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [editMenuModalVisible, setEditMenuModalVisible] = useState(false);
 
   const COLORS = {
     primary: '#4F46E5',
@@ -78,6 +80,21 @@ export default function CustomDrawerContent(props: any) {
             }
           }}
         />
+        <DrawerItem
+          label="Edit Menu Item"
+          icon={({ color, size }) => <Ionicons name="create-outline" size={size} color={color} />}
+          onPress={() => {
+            if (!user) {
+              setLoginModalVisible(true);
+            } else {
+              props.navigation.closeDrawer();
+              // Thoda aur zada delay (400ms) taaki Android par animation poori ho jaye
+              setTimeout(() => {
+                setEditMenuModalVisible(true);
+              }, 400);
+            }
+          }}
+        />
 
 
         <DrawerItem
@@ -112,8 +129,12 @@ export default function CustomDrawerContent(props: any) {
         onSignIn={handleSignIn}
       />
 
-      <Modal visible={qrModalVisible} animationType="slide">
+      <Modal visible={qrModalVisible} animationType="slide" onRequestClose={() => setQrModalVisible(false)}>
         <TableQrCodes onBack={() => setQrModalVisible(false)} />
+      </Modal>
+
+      <Modal visible={editMenuModalVisible} animationType="slide" onRequestClose={() => setEditMenuModalVisible(false)}>
+        <EditMenuItem onBack={() => setEditMenuModalVisible(false)} />
       </Modal>
     </>
   );

@@ -79,27 +79,36 @@ export default function HoldScreen() {
                     });
 
                     if (response.ok) {
-                        const data = await response.json();
-                        const bills = data.bills || [];
+                        const contentType = response.headers.get("content-type");
+                        if (contentType && contentType.includes("application/json")) {
+                            const data = await response.json();
+                            const bills = data.bills || [];
 
-                        const backendHeld = bills
-                            .filter((b: any) =>
-                                !hiddenIds.includes(b.billNumber) &&
-                                !hiddenIds.includes(b._id) &&
-                                !hiddenIds.includes(b.id)
-                            )
-                            .map((b: any) => ({
-                                id: b._id || b.id || b.billNumber,
-                                items: (b.items || []).map((i: any) => ({
-                                    ...i,
-                                    id: i.productId || i.id || i._id || Math.random().toString(),
-                                    quantity: i.quantity || i.qty || 0,
-                                    price: i.price || i.rate || 0
-                                })),
-                                total: b.total || 0,
-                                timestamp: b.createdAt || new Date().toISOString()
-                            }));
-                        combinedOrders = [...backendHeld];
+                            const backendHeld = bills
+                                .filter((b: any) =>
+                                    !hiddenIds.includes(b.billNumber) &&
+                                    !hiddenIds.includes(b._id) &&
+                                    !hiddenIds.includes(b.id)
+                                )
+                                .map((b: any) => ({
+                                    id: b._id || b.id || b.billNumber,
+                                    items: (b.items || []).map((i: any) => ({
+                                        ...i,
+                                        id: i.productId || i.id || i._id || Math.random().toString(),
+                                        quantity: i.quantity || i.qty || 0,
+                                        price: i.price || i.rate || 0
+                                    })),
+                                    total: b.total || 0,
+                                    timestamp: b.createdAt || new Date().toISOString()
+                                }));
+                            combinedOrders = [...backendHeld];
+                        } else {
+                            const text = await response.text();
+                            console.warn("ℹ️ [Hold] Received non-JSON for held orders. Body starts with:", text.slice(0, 50));
+                        }
+                    } else {
+                        const text = await response.text();
+                        console.error(`❌ [Hold] Backend fetch failed: ${response.status}. Body: ${text.slice(0, 50)}`);
                     }
                 } catch (err) {
                     console.error("Backend fetch error:", err);

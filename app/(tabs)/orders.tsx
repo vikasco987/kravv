@@ -48,37 +48,43 @@ export default function OrderScreen() {
       });
       
       if (response.ok) {
-        const tablesData = await response.json();
-        const tablesArray = Array.isArray(tablesData) ? tablesData : (tablesData.tables || []);
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const tablesData = await response.json();
+          const tablesArray = Array.isArray(tablesData) ? tablesData : (tablesData.tables || []);
 
-        // Fetch all orders with cache-buster to get accurate counts
-        const ordersResponse = await fetch(`https://billing.kravy.in/api/orders?t=${Date.now()}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        
-        let allOrders: any[] = [];
-        if (ordersResponse.ok) {
-          const oData = await ordersResponse.json();
-          allOrders = Array.isArray(oData) ? oData : (oData.orders || []);
-        }
-
-        const normalizedTables = tablesArray.map((t: any) => {
-          const tId = t.id || t._id || "";
-          const activeOrdersForTable = allOrders.filter((o: any) => {
-            const oTableId = String(o.tableId || 
-                             (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || 
-                             "");
-            return oTableId === String(tId);
+          // Fetch all orders with cache-buster to get accurate counts
+          const ordersResponse = await fetch(`https://billing.kravy.in/api/orders?t=${Date.now()}`, {
+            headers: { Authorization: `Bearer ${token}` },
           });
+          
+          let allOrders: any[] = [];
+          if (ordersResponse.ok) {
+            const oContentType = ordersResponse.headers.get("content-type");
+            if (oContentType && oContentType.includes("application/json")) {
+              const oData = await ordersResponse.json();
+              allOrders = Array.isArray(oData) ? oData : (oData.orders || []);
+            }
+          }
 
-          return {
-            ...t,
-            id: tId || Math.random().toString(),
-            orderCount: activeOrdersForTable.length
-          };
-        });
-        
-        setTables(normalizedTables);
+          const normalizedTables = tablesArray.map((t: any) => {
+            const tId = t.id || t._id || "";
+            const activeOrdersForTable = allOrders.filter((o: any) => {
+              const oTableId = String(o.tableId || 
+                               (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || 
+                               "");
+              return oTableId === String(tId);
+            });
+
+            return {
+              ...t,
+              id: tId || Math.random().toString(),
+              orderCount: activeOrdersForTable.length
+            };
+          });
+          
+          setTables(normalizedTables);
+        }
       }
     } catch (error) {
       console.error("Fetch tables error:", error);

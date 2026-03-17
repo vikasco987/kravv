@@ -75,7 +75,15 @@ export async function SaveBill(
       }),
     });
 
-    const data = await res.json();
+    const contentType = res.headers.get("content-type");
+    let data: any = {};
+    if (contentType && contentType.includes("application/json")) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      console.warn(`ℹ️ [SaveBill] Received non-JSON response. Status: ${res.status}. Body: ${text.slice(0, 50)}`);
+      data = { error: `Server error (${res.status})` };
+    }
 
     if (!res.ok) {
         console.log("ℹ️ Save failed info:", data);

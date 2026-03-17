@@ -110,6 +110,15 @@ export default function MenuScreen() {
         return;
       }
 
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.warn("ℹ️ [Menu] Received non-JSON response from menu API. Body starts with:", text.slice(0, 50));
+        const cachedData = await AsyncStorage.getItem('@cached_menu');
+        if (cachedData) setMenus(JSON.parse(cachedData));
+        return;
+      }
+
       let items = await response.json();
       let processedItems: any[] = [];
 
@@ -146,6 +155,22 @@ export default function MenuScreen() {
           unit: item.unit,
         });
       });
+
+      // 3. Fetch ALL categories from the database to include empty ones
+      const catRes = await fetch("https://billing.kravy.in/api/categories", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (catRes.ok) {
+        const allCats = await catRes.json();
+        if (Array.isArray(allCats)) {
+          allCats.forEach((c: any) => {
+            const cid = String(c.id || c._id);
+            if (!categoryMap[cid]) {
+              categoryMap[cid] = { id: cid, name: c.name, items: [] };
+            }
+          });
+        }
+      }
 
       const sortedMenus = Object.values(categoryMap)
         .sort((a, b) => a.name.localeCompare(b.name))
@@ -195,20 +220,21 @@ export default function MenuScreen() {
 
       let backendValidCount = 0;
       if (res.ok) {
-        const data = await res.json();
-        const bills = data.bills || [];
-        const filteredBackend = bills.filter((b: any) =>
-          !hiddenIds.includes(b.billNumber) && !hiddenIds.includes(b._id) && !hiddenIds.includes(b.id)
-        );
-        backendValidCount = filteredBackend.length;
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          const bills = data.bills || [];
+          backendValidCount = bills.filter((b: any) =>
+            !hiddenIds.includes(b.billNumber) && !hiddenIds.includes(b._id) && !hiddenIds.includes(b.id)
+          ).length;
+        }
       }
 
       const localData = await AsyncStorage.getItem('@held_orders');
       let localValidCount = 0;
       if (localData) {
         const localHeld = JSON.parse(localData);
-        const filteredLocal = localHeld.filter((lh: any) => !hiddenIds.includes(lh.id));
-        localValidCount = filteredLocal.length;
+        localValidCount = localHeld.filter((lh: any) => !hiddenIds.includes(lh.id)).length;
       }
 
       setHeldCount(backendValidCount + localValidCount);

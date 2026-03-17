@@ -101,8 +101,15 @@ export default function CustomersScreen() {
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setParties(data);
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          setParties(data);
+        } else {
+          const text = await res.text();
+          console.warn("ℹ️ [Client] Received HTML instead of JSON for parties. Body starts with:", text.slice(0, 50));
+          setParties([]);
+        }
       } else {
         const errorText = await res.text();
         console.error("Failed to fetch parties:", errorText);
