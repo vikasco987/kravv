@@ -1,7 +1,7 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
+import React, { useEffect, useState, useCallback } from "react";
 import {
     ActivityIndicator,
     FlatList,
@@ -18,8 +18,9 @@ import {
     View
 } from "react-native";
 
-import { rf, s, vs } from "../../utils/responsive";
+import { AddItemCategory } from "../../components/menu/AddItemCategory";
 import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
+import { rf, s, vs } from "../../utils/responsive";
 
 const THEME_PRIMARY = "#4F46E5"; // Indigo
 const COLOR_BG = "#F9FAFB";
@@ -33,7 +34,7 @@ export default function ItemsPage() {
     const [isLoadingCategories, setIsLoadingCategories] = useState(false);
     const [categoryModalVisible, setCategoryModalVisible] = useState(false);
     const [isAddCatModalVisible, setIsAddCatModalVisible] = useState(false);
-    const [newCategoryName, setNewCategoryName] = useState("");
+    const [allCategoriesList, setAllCategoriesList] = useState<{ id: string, name: string }[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [showCategorySuccess, setShowCategorySuccess] = useState(false);
@@ -43,6 +44,7 @@ export default function ItemsPage() {
     const [errorModalTitle, setErrorModalTitle] = useState("");
     const [errorModalDetail, setErrorModalDetail] = useState("");
     const [loginModalVisible, setLoginModalVisible] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState("");
 
     const [newItem, setNewItem] = useState({
         name: "",
@@ -52,19 +54,14 @@ export default function ItemsPage() {
         imageUrl: "",
     });
 
-    useEffect(() => {
-        if (isLoaded && isSignedIn) {
-            fetchCategories();
-        }
-    }, [isLoaded, isSignedIn]);
 
-    const fetchCategories = async () => {
+    const fetchCategories = useCallback(async () => {
         try {
             setIsLoadingCategories(true);
             const token = await getToken();
             if (!token) return;
 
-            console.log("Fetching categories from: https://billing.kravy.in/api/menu/view");
+
             const res = await fetch("https://billing.kravy.in/api/menu/view", {
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -113,7 +110,9 @@ export default function ItemsPage() {
             }
 
             if (directCategories.length > 0) {
-                setCategories(directCategories.sort((a, b) => a.name.localeCompare(b.name)));
+                const sorted = directCategories.sort((a, b) => a.name.localeCompare(b.name));
+                setCategories(sorted);
+                setAllCategoriesList(sorted); // Sync with local list for AddItemCategory
                 console.log(`✅ Loaded ${directCategories.length} categories directly`);
             } else if (items.length > 0) {
                 // Extract unique categories from items
@@ -143,35 +142,59 @@ export default function ItemsPage() {
         } finally {
             setIsLoadingCategories(false);
         }
-    };
+    }, [getToken]);
+
+    const fetchAllCategoriesRaw = useCallback(async () => {
+        try {
+            const token = await getToken();
+            const response = await fetch("https://billing.kravy.in/api/categories", {
+                headers: { 
+                    Authorization: `Bearer ${token}`,
+                    "Cache-Control": "no-cache"
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const categoryList = Array.isArray(data) ? data : [];
+                setAllCategoriesList(categoryList);
+            }
+        } catch (err) {
+            console.error("Fetch all categories error:", err);
+        }
+    }, [getToken]);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (isLoaded && isSignedIn) {
+                fetchCategories();
+                fetchAllCategoriesRaw();
+            }
+        }, [isLoaded, isSignedIn])
+    );
+
+    const combinedCategories = React.useMemo(() => {
+        const map: Record<string, { id: string, name: string }> = {};
+
+        // 1. Add from 'allCategoriesList' (from api/categories)
+        allCategoriesList.forEach(c => {
+            if (c.id && c.name) map[c.id] = { id: c.id, name: c.name };
+        });
+
+        // 2. Add from 'categories' (from api/menu/view)
+        categories.forEach(c => {
+            if (c.id && c.name && !map[c.id]) {
+                map[c.id] = { id: c.id, name: c.name };
+            }
+        });
+
+        return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
+    }, [allCategoriesList, categories]);
 
     const handleAddCategory = () => {
         if (!isSignedIn) {
             setLoginModalVisible(true);
             return;
         }
-        const trimmedName = newCategoryName.trim();
-        if (!trimmedName) {
-            setErrorModalTitle("Missing Name");
-            setErrorModalDetail("Please enter a category name.");
-            setShowError(true);
-            return;
-        }
-
-        // Case-insensitive check for existing categories
-        if (categories.some(cat => cat.name.toLowerCase() === trimmedName.toLowerCase())) {
-            setErrorModalTitle("Duplicate");
-            setErrorModalDetail("This category already exists.");
-            setShowError(true);
-            return;
-        }
-
-        // Locally adding a category won't have an ID, so the backend might reject it later.
-        // We use "new-" prefix to identify that it needs to be created on backend.
-        const tempCategory = { id: "new-" + Date.now(), name: trimmedName };
-        setCategories(prev => [...prev, tempCategory].sort((a, b) => a.name.localeCompare(b.name)));
-        setNewItem(prev => ({ ...prev, category: trimmedName, categoryId: tempCategory.id }));
-        setNewCategoryName("");
         setIsAddCatModalVisible(false);
 
         setShowCategorySuccess(true);
@@ -282,114 +305,60 @@ export default function ItemsPage() {
             return;
         }
 
+        // Optimistic UI for Item
+        setShowSuccess(true);
+        const itemCopy = { ...newItem };
+        setNewItem({ name: "", price: "", category: "", categoryId: "", imageUrl: "" });
+        setTimeout(() => setShowSuccess(false), 2000);
+
         try {
             setIsSaving(true);
-            let finalImageUrl = newItem.imageUrl || "";
+            let finalImageUrl = itemCopy.imageUrl || "";
 
             // 1. Upload to Cloudinary if image exists and is local
-            if (newItem.imageUrl && (newItem.imageUrl.startsWith("file://") || newItem.imageUrl.startsWith("content://"))) {
+            if (itemCopy.imageUrl && (itemCopy.imageUrl.startsWith("file://") || itemCopy.imageUrl.startsWith("content://"))) {
                 try {
-                    finalImageUrl = await uploadImageToCloudinary(newItem.imageUrl);
+                    finalImageUrl = await uploadImageToCloudinary(itemCopy.imageUrl);
                 } catch (uploadError: any) {
                     console.error("Cloudinary Upload Error:", uploadError);
-                    setErrorModalTitle("Upload Failed");
-                    setErrorModalDetail("Could not upload image to Cloudinary.");
-                    setShowError(true);
-                    setIsSaving(false);
-                    return;
                 }
             }
 
             // 2. Save Item details to MongoDB (Backend API)
             const token = await getToken();
+            let finalCategoryId = itemCopy.categoryId;
 
-            let finalCategoryId = newItem.categoryId;
-
-            // If it is a new category (starts with 'new-'), we must create it on the backend first!
-            if (finalCategoryId.startsWith("new-")) {
-                console.log(`Creating new category on backend: ${newItem.category}`);
+            // If it is a new category (starts with 'temp-' or 'new-'), try to resolve it
+            // This is background sync
+            if (finalCategoryId.startsWith("temp-") || finalCategoryId.startsWith("new-")) {
                 const createCatRes = await fetch("https://billing.kravy.in/api/categories", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({ name: newItem.category }),
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ name: itemCopy.category }),
                 });
-
-                const catText = await createCatRes.text();
-                let catData: any = {};
-                try {
-                    catData = JSON.parse(catText);
-                } catch (e) {
-                    console.log("Category response is not JSON:", catText);
-                }
-
-                // If success or specifically "Already exists"
-                if (createCatRes.ok || catData.message === "Category already exists") {
-                    finalCategoryId = catData.id || catData._id || catData.category?.id || catData.category?._id || catData.data?._id || catData.data?.id;
-
-                    if (!finalCategoryId) {
-                        setErrorModalTitle("Category Error");
-                        setErrorModalDetail(`Could not find category ID in response: ${catText}`);
-                        setShowError(true);
-                        setIsSaving(false);
-                        return;
-                    }
-                } else {
-                    setErrorModalTitle("Category Failed");
-                    setErrorModalDetail(catData.message || catData.error || `Category API Error (${createCatRes.status})`);
-                    setShowError(true);
-                    setIsSaving(false);
-                    return;
-                }
+                const catData = await createCatRes.json().catch(() => ({}));
+                finalCategoryId = catData.id || catData._id || finalCategoryId;
             }
 
-            console.log("Saving Item with final categoryId: ", finalCategoryId);
-
-            let payload: any = {
-                name: newItem.name,
-                price: parseFloat(newItem.price),
-                sellingPrice: parseFloat(newItem.price),
+            const payload: any = {
+                name: itemCopy.name,
+                price: parseFloat(itemCopy.price),
+                sellingPrice: parseFloat(itemCopy.price),
                 imageUrl: finalImageUrl,
                 categoryId: finalCategoryId,
             };
 
             const response = await fetch("https://billing.kravy.in/api/items", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify(payload),
             });
 
-            const text = await response.text();
-            let data: any;
-            try {
-                data = text ? JSON.parse(text) : {};
-            } catch (e) {
-                data = { error: text || "Server returned an invalid response" };
-            }
-
             if (response.ok) {
-                setShowSuccess(true);
-                // Clear form
-                setNewItem({ name: "", price: "", category: "", categoryId: "", imageUrl: "" });
-
-                setTimeout(() => {
-                    setShowSuccess(false);
-                }, 2000);
-            } else {
-                setErrorModalTitle("Save Failed");
-                setErrorModalDetail(data.error || data.message || "Failed to save item to database");
-                setShowError(true);
+                console.log("Item saved in background successfully");
             }
         } catch (error: any) {
-            console.error("Save Error:", error);
-            setErrorModalTitle("Process Error");
-            setErrorModalDetail(error.message || "Something went wrong while saving.");
-            setShowError(true);
+            console.error("Background Item Save Error:", error);
         } finally {
             setIsSaving(false);
         }
@@ -482,42 +451,24 @@ export default function ItemsPage() {
                         </View>
                     </View>
 
-                    {/* Add Category Modal */}
+                    {/* Add Category Modal (Intergrated with AddItemCategory) */}
                     <Modal
-                        animationType="fade"
-                        transparent={true}
+                        animationType="slide"
                         visible={isAddCatModalVisible}
                         onRequestClose={() => setIsAddCatModalVisible(false)}
                     >
-                        <View style={styles.modalOverlayCentered}>
-                            <View style={styles.modalContentCentered}>
-                                <View style={styles.modalHeader}>
-                                    <Text style={styles.modalTitle}>New Category</Text>
-                                    <TouchableOpacity onPress={() => setIsAddCatModalVisible(false)}>
-                                        <Ionicons name="close-circle" size={rf(28)} color="#9CA3AF" />
-                                    </TouchableOpacity>
-                                </View>
-
-                                <View style={{ paddingVertical: vs(10) }}>
-                                    <Text style={styles.label}>Category Name</Text>
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Enter new category..."
-                                        placeholderTextColor="#9CA3AF"
-                                        value={newCategoryName}
-                                        onChangeText={setNewCategoryName}
-                                        autoFocus={true}
-                                    />
-
-                                    <TouchableOpacity
-                                        style={[styles.saveBtn, { marginTop: vs(24) }]}
-                                        onPress={handleAddCategory}
-                                    >
-                                        <Text style={styles.saveBtnText}>Add to Menu</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </View>
+                        <AddItemCategory
+                            onBack={() => setIsAddCatModalVisible(false)}
+                            categories={combinedCategories}
+                            onOptimisticAdd={(newCat) => {
+                                setAllCategoriesList(prev => [...prev, newCat]);
+                                setNewItem(prev => ({ ...prev, category: newCat.name, categoryId: newCat.id }));
+                            }}
+                            onRefresh={async () => {
+                                await fetchCategories();
+                                await fetchAllCategoriesRaw();
+                            }}
+                        />
                     </Modal>
 
                     {/* Category Selection Modal */}
@@ -529,10 +480,14 @@ export default function ItemsPage() {
                     >
                         <View style={styles.modalOverlay}>
                             <View style={styles.modalContent}>
+                                <View style={styles.sheetHandle} />
                                 <View style={styles.modalHeader}>
-                                    <Text style={styles.modalTitle}>Choose Category</Text>
+                                    <View>
+                                        <Text style={styles.modalTitle}>Choose Category</Text>
+                                        <Text style={{ fontSize: rf(12), color: '#6B7280' }}>Select a category for your item</Text>
+                                    </View>
                                     <TouchableOpacity onPress={() => setCategoryModalVisible(false)}>
-                                        <Ionicons name="close-circle" size={rf(28)} color="#9CA3AF" />
+                                        <Ionicons name="close-circle" size={rf(30)} color="#9CA3AF" />
                                     </TouchableOpacity>
                                 </View>
 
@@ -540,8 +495,9 @@ export default function ItemsPage() {
                                     <ActivityIndicator size="large" color={THEME_PRIMARY} style={{ marginVertical: vs(30) }} />
                                 ) : (
                                     <FlatList
-                                        data={categories}
+                                        data={combinedCategories}
                                         keyExtractor={(item: any) => item.id || item.name}
+                                        contentContainerStyle={{ paddingBottom: vs(160) }} // Increased to ensure last item is fully visible
                                         renderItem={({ item }: { item: any }) => (
                                             <TouchableOpacity
                                                 style={[
@@ -596,7 +552,11 @@ export default function ItemsPage() {
                     )}
 
                     <TouchableOpacity
-                        style={[styles.saveBtn, isSaving && { opacity: 0.7 }]}
+                        style={[
+                            styles.saveBtn,
+                            (isSaving || showSuccess) && { backgroundColor: "#10B981" },
+                            isSaving && { opacity: 0.7 }
+                        ]}
                         onPress={handleSaveItem}
                         disabled={isSaving}
                     >
@@ -962,13 +922,27 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: s(24),
         borderTopRightRadius: s(24),
         padding: s(24),
-        maxHeight: '60%',
+        paddingBottom: vs(100), // Significant padding to ensure items clear the nav bar
+        maxHeight: '80%',
+        elevation: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+    },
+    sheetHandle: {
+        width: s(40),
+        height: vs(5),
+        backgroundColor: '#E5E7EB',
+        borderRadius: s(10),
+        alignSelf: 'center',
+        marginBottom: vs(15),
     },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: vs(20),
+        alignItems: 'baseline',
+        marginBottom: vs(25),
     },
     modalTitle: {
         fontSize: rf(20),

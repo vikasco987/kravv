@@ -29,6 +29,7 @@ import {
     View
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
+import { AddItemCategory } from "./AddItemCategory";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -101,7 +102,18 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
     const [showValidationError, setShowValidationError] = useState(false);
+    const [showAddItemCategoryScreen, setShowAddItemCategoryScreen] = useState(false);
     const [validationMsg, setValidationMsg] = useState({ title: "", detail: "" });
+
+    // Edit Category States
+    const [isEditCategoryModalVisible, setIsEditCategoryModalVisible] = useState(false);
+    const [selectedCategoryToEdit, setSelectedCategoryToEdit] = useState<MenuCategory | null>(null);
+    const [editCategoryNewName, setEditCategoryNewName] = useState("");
+    const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
+    const [isDeletingCategory, setIsDeletingCategory] = useState(false);
+    const [showDeleteCategoryConfirm, setShowDeleteCategoryConfirm] = useState(false);
+    const [showUpdateCategorySuccess, setShowUpdateCategorySuccess] = useState(false);
+    const [showDeleteCategorySuccess, setShowDeleteCategorySuccess] = useState(false);
 
     const flatListRef = useRef<FlatList>(null);
 
@@ -109,11 +121,19 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         try {
             const token = await getToken();
             const response = await fetch("https://billing.kravy.in/api/categories", {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: { 
+                    Authorization: `Bearer ${token}`,
+                    "Cache-Control": "no-cache"
+                },
             });
             if (response.ok) {
                 const data = await response.json();
-                setAllCategories(Array.isArray(data) ? data : []);
+                const normalized = Array.isArray(data) ? data.map(c => ({
+                    ...c,
+                    id: String(c.id || c._id || ""),
+                    name: String(c.name || "")
+                })).filter(c => c.id !== "") : [];
+                setAllCategories(normalized);
             }
         } catch (err) {
             console.error("Fetch categories error:", err);
@@ -123,6 +143,18 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
     // Hardware back button handler
     useEffect(() => {
         const backAction = () => {
+            if (showAddItemCategoryScreen) {
+                setShowAddItemCategoryScreen(false);
+                return true;
+            }
+            if (isEditCategoryModalVisible) {
+                if (showDeleteCategoryConfirm) {
+                    setShowDeleteCategoryConfirm(false);
+                } else {
+                    setIsEditCategoryModalVisible(false);
+                }
+                return true;
+            }
             if (isEditModalVisible) {
                 setIsEditModalVisible(false);
                 return true;
@@ -145,7 +177,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         );
 
         return () => backHandler.remove();
-    }, [isEditModalVisible, isCreateCategoryModalVisible, showCategoryModal, onBack]);
+    }, [isEditModalVisible, isCreateCategoryModalVisible, showCategoryModal, onBack, showAddItemCategoryScreen]);
 
     const fetchMenus = useCallback(async () => {
         if (!isLoaded || !isSignedIn) return;
@@ -153,7 +185,10 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
             setLoading(true);
             const token = await getToken();
             const response = await fetch("https://billing.kravy.in/api/menu/view", {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: { 
+                    Authorization: `Bearer ${token}`,
+                    "Cache-Control": "no-cache"
+                },
             });
 
             if (!response.ok) {
@@ -216,7 +251,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         try {
             setIsFetchingItemDetails(true);
             setSelectedItem(item);
-            
+
             // Set initial category from the clicked section
             setEditCategoryId(catId);
             setEditCategoryName(catName);
@@ -308,63 +343,176 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
     };
 
     const confirmDelete = async () => {
+        if (!selectedItem) return;
+        const itemId = selectedItem.id;
+
+        // Optimistic UI for Delete
+        setMenus(prev => prev.map(cat => ({
+            ...cat,
+            items: cat.items.filter(i => i.id !== itemId)
+        })).filter(cat => cat.items.length > 0 || allCategories.some(ac => ac.id === cat.id)));
+
+        setIsEditModalVisible(false);
+        setShowDeleteConfirm(false);
+        setShowDeleteSuccess(true);
+        setTimeout(() => setShowDeleteSuccess(false), 2000);
+
         try {
-            setShowDeleteConfirm(false);
             setIsDeleting(true);
             const token = await getToken();
-            const response = await fetch(`https://billing.kravy.in/api/items?id=${selectedItem?.id}`, {
+            const response = await fetch(`https://billing.kravy.in/api/items?id=${itemId}`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
             });
 
             if (response.ok) {
-                setIsEditModalVisible(false);
+                // Background refresh if needed
                 fetchMenus();
-                setShowDeleteSuccess(true);
-                setTimeout(() => setShowDeleteSuccess(false), 2000);
-            } else {
-                Alert.alert("Error", "Failed to delete item.");
             }
         } catch (err) {
-            Alert.alert("Error", "Something went wrong.");
+            console.error("Background delete failed:", err);
         } finally {
             setIsDeleting(false);
         }
     };
 
+    const handleUpdateCategory = async () => {
+        if (!selectedCategoryToEdit) {
+            Alert.alert("Error", "No category selected.");
+            return;
+        }
+        if (!editCategoryNewName.trim()) {
+            setValidationMsg({ title: "Name Missing!", detail: "Please enter category name." });
+            setShowValidationError(true);
+            setTimeout(() => setShowValidationError(false), 2000);
+            return;
+        }
+
+        try {
+            setIsUpdatingCategory(true);
+            const token = await getToken();
+
+            // Optimistic UI Update
+            setMenus(prev => prev.map(cat =>
+                cat.id === selectedCategoryToEdit.id ? { ...cat, name: editCategoryNewName } : cat
+            ));
+            setAllCategories(prev => prev.map(cat =>
+                cat.id === selectedCategoryToEdit.id ? { ...cat, name: editCategoryNewName } : cat
+            ));
+
+            const response = await fetch(`https://billing.kravy.in/api/categories`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    id: selectedCategoryToEdit.id,
+                    name: editCategoryNewName
+                }),
+            });
+
+            if (response.ok) {
+                setShowUpdateCategorySuccess(true);
+                fetchMenus();
+                fetchAllCategories();
+                setTimeout(() => {
+                    setShowUpdateCategorySuccess(false);
+                    setIsEditCategoryModalVisible(false);
+                }, 1500);
+            } else {
+                fetchMenus(); // Revert optimistic UI
+                const textDetail = await response.text().catch(() => "");
+                Alert.alert("Update Failed", `Status: ${response.status}. ${textDetail.slice(0, 100)}`);
+            }
+        } catch (err) {
+            console.error("Update category error:", err);
+            Alert.alert("Error", "Network error while updating.");
+        } finally {
+            setIsUpdatingCategory(false);
+        }
+    };
+
+    const handleDeleteCategory = async () => {
+        if (!selectedCategoryToEdit) {
+            Alert.alert("Error", "No category selected.");
+            return;
+        }
+
+        try {
+            setIsDeletingCategory(true);
+            const token = await getToken();
+
+            const response = await fetch(`https://billing.kravy.in/api/categories`, {
+                method: "DELETE",
+                headers: { 
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}` 
+                },
+                body: JSON.stringify({ id: selectedCategoryToEdit.id })
+            });
+
+            if (response.ok) {
+                // Optimistic UI Removal
+                setMenus(prev => prev.filter(cat => cat.id !== selectedCategoryToEdit.id));
+                setAllCategories(prev => prev.filter(cat => cat.id !== selectedCategoryToEdit.id));
+
+                setShowDeleteCategoryConfirm(false);
+                setShowDeleteCategorySuccess(true);
+                fetchMenus();
+                fetchAllCategories();
+                setTimeout(() => {
+                    setShowDeleteCategorySuccess(false);
+                    setIsEditCategoryModalVisible(false);
+                }, 1500);
+            } else {
+                const textDetail = await response.text().catch(() => "");
+                Alert.alert("Delete Failed", `Status: ${response.status}. ${textDetail.slice(0, 100)}`);
+            }
+        } catch (err) {
+            console.error("Delete category error:", err);
+            Alert.alert("Error", "Network error while deleting.");
+        } finally {
+            setIsDeletingCategory(false);
+        }
+    };
+
     const handleSave = async () => {
-        if (!editName.trim() && !editPrice.trim()) {
-            setValidationMsg({ title: "Details Missing!", detail: "Please enter item name and price." });
+        if (!editName.trim() || !editPrice.trim()) {
+            setValidationMsg({ title: "Details Missing!", detail: "Name and Price are required." });
             setShowValidationError(true);
             setTimeout(() => setShowValidationError(false), 2000);
             return;
         }
-        if (!editName.trim()) {
-            setValidationMsg({ title: "Name Missing!", detail: "Please enter item name." });
-            setShowValidationError(true);
-            setTimeout(() => setShowValidationError(false), 2000);
-            return;
-        }
-        if (!editPrice.trim()) {
-            setValidationMsg({ title: "Price Missing!", detail: "Please enter item price." });
-            setShowValidationError(true);
-            setTimeout(() => setShowValidationError(false), 2000);
-            return;
-        }
+
+        // Optimistic UI for Update
+        const updatedItem = {
+            ...selectedItem!,
+            name: editName,
+            price: parseFloat(editPrice),
+            imageUrl: editImageUrl,
+            categoryId: editCategoryId
+        };
+
+        setMenus(prev => prev.map(cat => {
+            // Remove from old category if changed
+            const filteredItems = cat.items.filter(i => i.id !== selectedItem?.id);
+            // Add to new category if this is the one
+            if (cat.id === editCategoryId) {
+                const alreadyExists = filteredItems.some(i => i.id === selectedItem?.id);
+                return { ...cat, items: alreadyExists ? filteredItems : [...filteredItems, updatedItem] };
+            }
+            return { ...cat, items: filteredItems };
+        }).filter(cat => cat.items.length > 0 || allCategories.some(ac => ac.id === cat.id)));
+
+        setIsEditModalVisible(false);
+        setShowUpdateSuccess(true);
+        setTimeout(() => setShowUpdateSuccess(false), 2000);
+
         try {
             setIsSaving(true);
             const token = await getToken();
             let finalImageUrl = editImageUrl;
 
-            // 1. Upload to Cloudinary if it's a local file
             if (editImageUrl.startsWith("file://") || editImageUrl.startsWith("content://")) {
-                try {
-                    finalImageUrl = await uploadImageToCloudinary(editImageUrl);
-                } catch (uploadError: any) {
-                    Alert.alert("Upload Error", uploadError.message || "Failed to upload image.");
-                    setIsSaving(false);
-                    return;
-                }
+                finalImageUrl = await uploadImageToCloudinary(editImageUrl).catch(() => editImageUrl);
             }
 
             const response = await fetch("https://billing.kravy.in/api/items", {
@@ -381,14 +529,12 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                     description: editDescription
                 }),
             });
+
             if (response.ok) {
-                setIsEditModalVisible(false);
-                fetchMenus();
-                setShowUpdateSuccess(true);
-                setTimeout(() => setShowUpdateSuccess(false), 2000);
+                fetchMenus(); // Silently sync
             }
         } catch (err) {
-            Alert.alert("Error", "Update failed.");
+            console.error("Background update failed:", err);
         } finally {
             setIsSaving(false);
         }
@@ -442,7 +588,14 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
     const renderItem = ({ item: cat }: { item: MenuCategory }) => (
         <View style={styles.section}>
-            <TouchableOpacity style={styles.sectionHeader}>
+            <TouchableOpacity
+                style={styles.sectionHeader}
+                onPress={() => {
+                    setSelectedCategoryToEdit(cat);
+                    setEditCategoryNewName(cat.name);
+                    setIsEditCategoryModalVisible(true);
+                }}
+            >
                 <Text style={styles.sectionTitle}>{cat.name.toUpperCase()}</Text>
                 <ChevronRight size={rf(18)} color={COLORS.GRAY} />
             </TouchableOpacity>
@@ -519,7 +672,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                     {/* Plus Icon for New Category */}
                     <TouchableOpacity
                         style={[styles.chip, { borderStyle: "dashed", borderColor: COLORS.PRIMARY }]}
-                        onPress={() => setIsCreateCategoryModalVisible(true)}
+                        onPress={() => setShowAddItemCategoryScreen(true)}
                     >
                         <Plus size={rf(18)} color={COLORS.PRIMARY} />
                     </TouchableOpacity>
@@ -569,9 +722,9 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
             )}
 
             {/* Create Category Modal (Matched with items.tsx) */}
-            <Modal 
-                transparent={true} 
-                visible={isCreateCategoryModalVisible} 
+            <Modal
+                transparent={true}
+                visible={isCreateCategoryModalVisible}
                 animationType="fade"
                 onRequestClose={() => setIsCreateCategoryModalVisible(false)}
             >
@@ -699,16 +852,16 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                             </View>
                             <Text style={styles.modalTitle}>Delete Item?</Text>
                             <Text style={[styles.feedbackDetail, { marginVertical: vs(10) }]}>Are you sure you want to delete this item? This cannot be undone.</Text>
-                            
+
                             <View style={{ flexDirection: 'row', marginTop: vs(15), width: '100%' }}>
-                                <TouchableOpacity 
-                                    style={[styles.modalActionBtn, { backgroundColor: '#F3F4F6' }]} 
+                                <TouchableOpacity
+                                    style={[styles.modalActionBtn, { backgroundColor: '#F3F4F6' }]}
                                     onPress={() => setShowDeleteConfirm(false)}
                                 >
                                     <Text style={{ color: '#374151', fontWeight: '600' }}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity 
-                                    style={[styles.modalActionBtn, { backgroundColor: '#EF4444', marginLeft: s(10) }]} 
+                                <TouchableOpacity
+                                    style={[styles.modalActionBtn, { backgroundColor: '#EF4444', marginLeft: s(10) }]}
                                     onPress={confirmDelete}
                                 >
                                     <Text style={{ color: '#fff', fontWeight: '600' }}>Delete</Text>
@@ -734,6 +887,22 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 </View>
             </Modal>
 
+            {/* Add Item Category Screen */}
+            <Modal
+                visible={showAddItemCategoryScreen}
+                animationType="slide"
+                onRequestClose={() => setShowAddItemCategoryScreen(false)}
+            >
+                <AddItemCategory
+                    onBack={() => setShowAddItemCategoryScreen(false)}
+                    categories={displayCategories}
+                    onRefresh={async () => {
+                        await fetchAllCategories();
+                        await fetchMenus();
+                    }}
+                />
+            </Modal>
+
             {/* Edit Modal (Keep existing logic but match styling) */}
             <Modal visible={isEditModalVisible} animationType="slide" onRequestClose={() => setIsEditModalVisible(false)}>
                 <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.WHITE }}>
@@ -749,8 +918,8 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 {editImageUrl ? (
                                     <View style={styles.imageWrapper}>
                                         <Image source={{ uri: editImageUrl }} style={styles.imagePreview} />
-                                        <TouchableOpacity 
-                                            style={styles.removeImageBtn} 
+                                        <TouchableOpacity
+                                            style={styles.removeImageBtn}
                                             onPress={() => setEditImageUrl("")}
                                         >
                                             <Ionicons name="close-circle" size={rf(26)} color={COLORS.DANGER} />
@@ -777,14 +946,14 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                         <View style={styles.formGroup}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(8) }}>
                                 <Text style={styles.formLabel}>Category</Text>
-                                <TouchableOpacity 
-                                    onPress={() => setIsCreateCategoryModalVisible(true)}
+                                <TouchableOpacity
+                                    onPress={() => setShowAddItemCategoryScreen(true)}
                                     style={styles.addCategoryBtnSmall}
                                 >
                                     <Plus size={rf(14)} color={COLORS.PRIMARY} />
                                 </TouchableOpacity>
                             </View>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.dropdownButton}
                                 onPress={() => setShowCategoryModal(true)}
                             >
@@ -792,18 +961,19 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 <ChevronRight size={rf(18)} color={COLORS.GRAY} />
                             </TouchableOpacity>
                         </View>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: vs(30), marginBottom: vs(20) }}>
-                            <TouchableOpacity 
-                                style={[styles.deleteBtn, (isSaving || isDeleting) && { opacity: 0.7 }]} 
-                                onPress={handleDelete} 
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: vs(30), marginBottom: vs(40) }}>
+                            <TouchableOpacity
+                                style={[styles.deleteBtn, (isSaving || isDeleting) && { opacity: 0.7 }]}
+                                onPress={handleDelete}
                                 disabled={isSaving || isDeleting}
                             >
                                 <Text style={styles.saveBtnText}>{isDeleting ? <ActivityIndicator color="white" /> : "Delete"}</Text>
                             </TouchableOpacity>
 
-                            <TouchableOpacity 
-                                style={[styles.saveBtn, { flex: 2, marginLeft: s(12) }, (isSaving || isDeleting) && { opacity: 0.7 }]} 
-                                onPress={handleSave} 
+                            <TouchableOpacity
+                                style={[styles.saveBtn, { flex: 2, marginLeft: s(12) }, (isSaving || isDeleting) && { opacity: 0.7 }]}
+                                onPress={handleSave}
                                 disabled={isSaving || isDeleting}
                             >
                                 <Text style={styles.saveBtnText}>
@@ -822,7 +992,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                     >
                         <View style={styles.modalOverlay}>
                             <View style={styles.modalContent}>
-                                <View style={styles.modalHeader}>
+                                <View style={styles.modalHeaderNoMargin}>
                                     <Text style={styles.modalTitle}>Choose Category</Text>
                                     <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
                                         <Ionicons name="close-circle" size={rf(28)} color="#9CA3AF" />
@@ -864,6 +1034,169 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                             </View>
                         </View>
                     </Modal>
+                </SafeAreaView>
+            </Modal>
+
+            {/* Comprehensive Add Item Category Modal */}
+            <Modal
+                visible={showAddItemCategoryScreen}
+                animationType="slide"
+                onRequestClose={() => setShowAddItemCategoryScreen(false)}
+            >
+                <AddItemCategory
+                    onBack={() => setShowAddItemCategoryScreen(false)}
+                    categories={displayCategories}
+                    onOptimisticAdd={(newCat) => {
+                        setAllCategories(prev => [...prev, newCat]);
+                    }}
+                    onRefresh={async () => {
+                        await fetchAllCategories();
+                        await fetchMenus();
+                    }}
+                />
+            </Modal>
+
+            {/* Edit Item Category Modal */}
+            <Modal
+                visible={isEditCategoryModalVisible}
+                animationType="slide"
+                onRequestClose={() => setIsEditCategoryModalVisible(false)}
+            >
+                <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.WHITE }}>
+                    {/* Header */}
+                    <View style={styles.modalHeader}>
+                        <TouchableOpacity onPress={() => setIsEditCategoryModalVisible(false)}>
+                            <ArrowLeft size={rf(26)} color={COLORS.SECONDARY} />
+                        </TouchableOpacity>
+                        <Text style={styles.modalHeaderTitle}>Edit Item Category</Text>
+                        <View style={{ width: 30 }} />
+                    </View>
+
+                    <ScrollView style={{ padding: s(20) }}>
+                        {/* Category Name Input */}
+                        <View style={styles.formGroup}>
+                            <Text style={styles.formLabel}>Category Name</Text>
+                            <TextInput 
+                                style={styles.formInput} 
+                                value={editCategoryNewName} 
+                                onChangeText={setEditCategoryNewName}
+                                placeholder="e.g. pizzas"
+                            />
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: vs(8) }}>
+                                <Ionicons name="information-circle-outline" size={rf(14)} color={COLORS.GRAY} />
+                                <Text style={{ fontSize: rf(12), color: COLORS.GRAY, marginLeft: s(4) }}>
+                                    Items are shown by category while entering orders
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Items List Header */}
+                        <View style={{ marginTop: vs(20), marginBottom: vs(15) }}>
+                            <Text style={{ fontSize: rf(14), fontWeight: '700', color: COLORS.GRAY, letterSpacing: 0.5 }}>
+                                ITEMS PRESENT IN THE CATEGORY
+                            </Text>
+                        </View>
+
+                        {/* Contained Items */}
+                        <View style={{ backgroundColor: COLORS.WHITE }}>
+                            {selectedCategoryToEdit?.items.map((item, index) => (
+                                <View key={item.id} style={{ paddingVertical: vs(12), borderBottomWidth: index === selectedCategoryToEdit.items.length - 1 ? 0 : 1, borderBottomColor: '#F3F4F6' }}>
+                                    <Text style={{ fontSize: rf(16), color: COLORS.SECONDARY }}>{item.name}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </ScrollView>
+
+                    {/* Bottom Action Buttons */}
+                    <View style={styles.modalFixedFooter}>
+                        <TouchableOpacity 
+                            style={[styles.modalActionBtn, { borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: COLORS.WHITE }]}
+                            onPress={() => {
+                                console.log("Category Delete Tapped");
+                                setShowDeleteCategoryConfirm(true);
+                            }}
+                        >
+                            <Text style={{ color: COLORS.SECONDARY, fontSize: rf(16), fontWeight: '600' }}>Delete</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                            style={[styles.modalActionBtn, { backgroundColor: COLORS.PRIMARY, marginLeft: s(15) }]}
+                            onPress={() => {
+                                console.log("Category Update Tapped");
+                                handleUpdateCategory();
+                            }}
+                            disabled={isUpdatingCategory}
+                        >
+                            <Text style={{ color: COLORS.WHITE, fontSize: rf(16), fontWeight: '600' }}>
+                                {isUpdatingCategory ? <ActivityIndicator color="white" /> : "Update Details"}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Delete Category Confirmation Modal */}
+                    <Modal
+                        transparent={true}
+                        visible={showDeleteCategoryConfirm}
+                        animationType="fade"
+                        onRequestClose={() => setShowDeleteCategoryConfirm(false)}
+                    >
+                        <View style={styles.modalOverlayCentered}>
+                            <View style={styles.confirmModalContent}>
+                                <View style={{ alignItems: 'center' }}>
+                                    <View style={[styles.successCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
+                                        <Ionicons name="alert-circle" size={rf(36)} color="#EF4444" />
+                                    </View>
+                                    <Text style={styles.modalTitle}>Delete Item Category</Text>
+                                    <Text style={[styles.feedbackDetail, { marginVertical: vs(10), lineHeight: rf(20) }]}>
+                                        Are you sure you want to delete the item category? This action is irreversible. All items within this category will be moved to Uncategorised
+                                    </Text>
+
+                                    <View style={{ flexDirection: 'row', marginTop: vs(15), width: '100%' }}>
+                                        <TouchableOpacity
+                                            style={[styles.modalActionBtn, { backgroundColor: '#F3F4F6' }]}
+                                            onPress={() => setShowDeleteCategoryConfirm(false)}
+                                        >
+                                            <Text style={{ color: '#374151', fontWeight: '600' }}>No, Cancel</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.modalActionBtn, { backgroundColor: '#EF4444', marginLeft: s(10) }]}
+                                            onPress={handleDeleteCategory}
+                                            disabled={isDeletingCategory}
+                                        >
+                                            <Text style={{ color: '#fff', fontWeight: '600' }}>
+                                                {isDeletingCategory ? <ActivityIndicator color="white" /> : "Yes, Delete"}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </View>
+                        </View>
+                    </Modal>
+
+                    {/* Update Category Success */}
+                    <Modal transparent={true} visible={showUpdateCategorySuccess} animationType="fade">
+                        <View style={styles.modalOverlayCentered}>
+                            <View style={styles.feedbackModalContent}>
+                                <View style={styles.successCircle}>
+                                    <Ionicons name="checkmark-circle" size={rf(36)} color="#10B981" />
+                                </View>
+                                <Text style={styles.feedbackTitle}>Category Updated!</Text>
+                            </View>
+                        </View>
+                    </Modal>
+
+                    {/* Delete Category Success */}
+                    <Modal transparent={true} visible={showDeleteCategorySuccess} animationType="fade">
+                        <View style={styles.modalOverlayCentered}>
+                            <View style={[styles.feedbackModalContent, { borderColor: '#FECACA', borderWidth: 1 }]}>
+                                <View style={[styles.successCircle, { backgroundColor: '#FEE2E2' }]}>
+                                    <Ionicons name="trash" size={rf(36)} color="#EF4444" />
+                                </View>
+                                <Text style={[styles.feedbackTitle, { color: '#EF4444' }]}>Category Deleted!</Text>
+                            </View>
+                        </View>
+                    </Modal>
+
                 </SafeAreaView>
             </Modal>
         </SafeAreaView>
@@ -916,37 +1249,46 @@ const styles = StyleSheet.create({
     chipText: { fontSize: rf(12), fontWeight: "600", color: COLORS.SECONDARY },
     chipTextActive: { color: COLORS.PRIMARY },
 
-    listPadding: { paddingBottom: vs(100) },
-    section: { marginTop: vs(15) },
+    listPadding: { paddingBottom: vs(160) },
+    section: { marginTop: vs(20) },
     sectionHeader: {
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: s(15),
-        paddingVertical: vs(10),
+        paddingVertical: vs(14),
+        backgroundColor: "#F9FAFB", // Very light gray background for categories
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: "#F3F4F6",
     },
-    sectionTitle: { fontSize: rf(16), fontWeight: "bold", color: COLORS.SECONDARY, marginRight: s(5) },
+    sectionTitle: { fontSize: rf(15), fontWeight: "700", color: "#374151", marginRight: s(5), letterSpacing: 0.5 },
 
     itemRow: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
         paddingHorizontal: s(15),
-        paddingVertical: vs(15),
+        paddingVertical: vs(20), // Increased height/padding for items
         borderBottomWidth: 1,
         borderBottomColor: "#F3F4F6",
+        backgroundColor: COLORS.WHITE,
     },
-    itemInfo: { flex: 1 },
-    itemName: { fontSize: rf(16), fontWeight: "500", color: COLORS.SECONDARY },
-    itemPrice: { fontSize: rf(14), color: COLORS.GRAY, marginTop: vs(4) },
-    itemImageContainer: {},
-    itemImage: { width: s(60), height: s(45), borderRadius: s(6) },
+    itemInfo: { flex: 1, justifyContent: 'center' },
+    itemName: { fontSize: rf(17), fontWeight: "600", color: COLORS.SECONDARY },
+    itemPrice: { fontSize: rf(15), color: COLORS.PRIMARY, fontWeight: "700", marginTop: vs(6) },
+    itemImageContainer: {
+        marginLeft: s(15),
+    },
+    itemImage: { width: s(75), height: vs(55), borderRadius: s(10) },
     imagePlaceholder: {
-        width: s(60),
-        height: s(45),
+        width: s(75),
+        height: vs(55),
         backgroundColor: "#F3F4F6",
-        borderRadius: s(6),
+        borderRadius: s(10),
         justifyContent: "center",
         alignItems: "center",
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
     },
     plusOverlay: { position: "absolute", bottom: s(8), right: s(8) },
 
@@ -956,7 +1298,7 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         padding: s(20),
-        paddingBottom: s(50), // Increased padding to move buttons up
+        paddingBottom: vs(50),
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: COLORS.WHITE,
@@ -1010,6 +1352,12 @@ const styles = StyleSheet.create({
         marginBottom: vs(20),
         marginTop: vs(50),
         paddingLeft: 20,
+    },
+    modalHeaderNoMargin: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: vs(20),
     },
     modalHeaderTitle: {
         fontSize: rf(18),
@@ -1077,10 +1425,10 @@ const styles = StyleSheet.create({
     },
     feedbackModalContent: {
         backgroundColor: '#fff',
-        borderRadius: s(20),
-        paddingHorizontal: s(20),
-        paddingVertical: vs(25),
-        width: '75%',
+        borderRadius: s(24),
+        paddingHorizontal: s(24),
+        paddingVertical: vs(20),
+        width: s(260),
         alignItems: 'center',
         elevation: 10,
         shadowColor: '#000',
@@ -1224,5 +1572,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: COLORS.PRIMARY,
+    },
+    modalFixedFooter: {
+        padding: s(20),
+        paddingBottom: vs(55),
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: COLORS.WHITE,
+        borderTopWidth: 1,
+        borderTopColor: "#F3F4F6",
     },
 });
