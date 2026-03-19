@@ -13,6 +13,9 @@ export type CartItem = {
   price?: number;
   editedPrice?: number;
   quantity: number;
+  gst?: number;
+  taxType?: string;
+  hsnCode?: string;
 };
 
 export type BillOptions = {
@@ -119,18 +122,6 @@ export async function SimpleBill(
     const date = new Date();
     const billNo = `MS-${Math.floor(Math.random() * 10000) + 5000}`;
 
-    const products = cartItems.map((item) => {
-      const unitPrice = item.editedPrice ?? item.price ?? 0;
-      return {
-        productId: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        price: unitPrice,
-        total: unitPrice * item.quantity,
-      };
-    });
-
-    const total = products.reduce((sum, p) => sum + p.total, 0);
     const paymentMode = options?.paymentMode || "CASH";
 
     const companyName = companyInfo?.companyName || "KRAVY Billing";
@@ -144,7 +135,7 @@ export async function SimpleBill(
 
     // --- Load Settings from AsyncStorage ---
     const settings = await AsyncStorage.multiGet([
-      'tax_enabled', 'tax_rate', 
+      'tax_enabled', 'tax_rate', 'per_product_tax',
       'discount_enabled', 'discount_rate',
       'service_charge_enabled', 'service_charge_rate'
     ]);
@@ -153,31 +144,71 @@ export async function SimpleBill(
     settings.forEach(([key, val]) => sMap[key] = val);
 
     const isTaxEnabled = sMap['tax_enabled'] === 'true';
-    const taxRatePercent = parseFloat(sMap['tax_rate'] || "5.00");
-    
+    const globalTaxRate = parseFloat(sMap['tax_rate'] || "5.00");
+    const perProductTaxEnabled = sMap['per_product_tax'] === 'true';
     const isDiscountEnabled = sMap['discount_enabled'] === 'true';
     const discountRatePercent = parseFloat(sMap['discount_rate'] || "0.00");
-    
     const isServiceChargeEnabled = sMap['service_charge_enabled'] === 'true';
-    const serviceChargeRatePercent = parseFloat(sMap['service_charge_rate'] || "0.00");
+    const serviceChargeRatePercent = parseFloat(sMap['service_charge_rate'] || "10.00");
+
+    let totalTaxable = 0;
+    let totalGst = 0;
+
+    const products = cartItems.map((item) => {
+      const unitPrice = item.editedPrice ?? item.price ?? 0;
+      const qty = item.quantity;
+      const lineTotal = unitPrice * qty;
+
+      let itemGstRate = 0;
+      if (perProductTaxEnabled && (item.gst !== null && item.gst !== undefined)) {
+          itemGstRate = item.gst;
+      } else if (isTaxEnabled) {
+          itemGstRate = globalTaxRate;
+      }
+
+      let taxable = 0;
+      let gst = 0;
+
+      if (item.taxType === "With Tax") {
+          // Inclusive
+          taxable = lineTotal / (1 + itemGstRate / 100);
+          gst = lineTotal - taxable;
+      } else {
+          // Exclusive (Default)
+          taxable = lineTotal;
+          gst = (lineTotal * itemGstRate) / 100;
+      }
+
+      totalTaxable += taxable;
+      totalGst += gst;
+
+      return {
+        productId: item.id,
+        name: item.name,
+        quantity: qty,
+        price: unitPrice,
+        taxableAmount: Number(taxable.toFixed(2)),
+        gstPaid: Number(gst.toFixed(2)),
+        gstRate: itemGstRate,
+        hsnCode: item.hsnCode || "",
+        total: lineTotal,
+      };
+    });
 
     // --- Calculations ---
-    // 1. Initial Total from Cart
-    const baseTotal = products.reduce((sum, p) => sum + p.total, 0);
+    const discountAmount = isDiscountEnabled ? (totalTaxable * (discountRatePercent / 100)) : 0;
+    const taxableAfterDiscount = totalTaxable - discountAmount;
     
-    // 2. Apply Discount (if enabled)
-    const discountAmount = isDiscountEnabled ? (baseTotal * (discountRatePercent / 100)) : 0;
-    const afterDiscount = baseTotal - discountAmount;
-    
-    // 3. Add Service Charge (if enabled)
-    const serviceChargeAmount = isServiceChargeEnabled ? (afterDiscount * (serviceChargeRatePercent / 100)) : 0;
-    const subtotalWithSC = afterDiscount + serviceChargeAmount;
+    // Pro-rata GST adjustment
+    const effectiveGst = totalTaxable > 0 ? (totalGst * (taxableAfterDiscount / totalTaxable)) : 0;
 
-    // 4. Handle GST (Exclusive)
-    const gstRateDecimal = isTaxEnabled ? (taxRatePercent / 100) : 0;
-    const subtotalCalc = subtotalWithSC;
-    const gstAmount = Number((subtotalCalc * gstRateDecimal).toFixed(2));
-    const finalTotal = subtotalCalc + gstAmount;
+    const serviceChargeAmount = isServiceChargeEnabled ? (taxableAfterDiscount * (serviceChargeRatePercent / 100)) : 0;
+    const subtotalFinal = taxableAfterDiscount + serviceChargeAmount;
+    const finalTotal = subtotalFinal + effectiveGst;
+
+    const gstAmount = Number(effectiveGst.toFixed(2));
+    const subtotalCalc = subtotalFinal;
+    const taxRatePercent = globalTaxRate; // For display
 
     // --- Final Bill Text ---
     // We will build the text part normally, but the print loop will handle ESC/POS alignment
@@ -188,6 +219,21 @@ export async function SimpleBill(
       companyPhone ? `PH: ${companyPhone}` : '',
       gstNumber ? `GSTIN: ${gstNumber}` : '',
     ].filter(l => l.length > 0);
+    // --- Tax Summary for Breakup ---
+    const taxGroups: Record<number, { taxable: number, gst: number }> = {};
+    products.forEach(p => {
+        const rate = p.gstRate || 0;
+        if (!taxGroups[rate]) taxGroups[rate] = { taxable: 0, gst: 0 };
+        taxGroups[rate].taxable += p.taxableAmount;
+        taxGroups[rate].gst += p.gstPaid;
+    });
+
+    const taxBreakupText = Object.keys(taxGroups).map(rateStr => {
+        const rate = parseFloat(rateStr);
+        if (rate === 0) return "";
+        const group = taxGroups[rate];
+        return `${rate}% GST: ${group.taxable.toFixed(2).padStart(10)} | ${group.gst.toFixed(2).padStart(8)}`;
+    }).filter(t => t.length > 0).join("\n");
 
     const productsLine = line('-');
     const doubleLine = line('=');
@@ -216,10 +262,12 @@ Item         Qty  Price   Total
 ${line('-')}
 ${itemsText}
 ${line('-')}
-Subtotal:${`₹${subtotalCalc.toFixed(2)}`.padStart(21)}
-${isTaxEnabled ? `GST (${taxRatePercent}%):${`₹${gstAmount.toFixed(2)}`.padStart(19)}\n` : ''}${isDiscountEnabled ? `Discount (${discountRatePercent}%):${`-₹${discountAmount.toFixed(2)}`.padStart(14)}\n` : ''}${isServiceChargeEnabled ? `S.Charge (${serviceChargeRatePercent}%):${`₹${serviceChargeAmount.toFixed(2)}`.padStart(14)}\n` : ''}${line('-')}
+Subtotal:${`₹${subtotalFinal.toFixed(2)}`.padStart(21)}
+${(isTaxEnabled || perProductTaxEnabled) && !perProductTaxEnabled ? `GST (${globalTaxRate}%):${`₹${gstAmount.toFixed(2)}`.padStart(19)}\n` : ''}${perProductTaxEnabled ? `GST (Multi):${`₹${gstAmount.toFixed(2)}`.padStart(20)}\n` : ''}${isDiscountEnabled ? `Discount (${discountRatePercent}%):${`-₹${discountAmount.toFixed(2)}`.padStart(14)}\n` : ''}${isServiceChargeEnabled ? `S.Charge (${serviceChargeRatePercent}%):${`₹${serviceChargeAmount.toFixed(2)}`.padStart(14)}\n` : ''}${line('-')}
 GRAND TOTAL:${`₹${finalTotal.toFixed(2)}`.padStart(18)}
 ${line('-')}
+${(isTaxEnabled || perProductTaxEnabled) && taxBreakupText.length > 0 ? 
+  `${centerText("TAX BREAKUP", 32)}\nRate   | Taxable Value | GST\n${line('-')}\n${taxBreakupText}\n${line('-')}\n` : ''}
 ${centerText("Payment: " + paymentMode, 32)}
 ${line('-')}
 ${upi ? centerText("Scan & Pay", 32) + "\n" : ""}

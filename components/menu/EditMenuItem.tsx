@@ -121,7 +121,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         try {
             const token = await getToken();
             const response = await fetch("https://billing.kravy.in/api/categories", {
-                headers: { 
+                headers: {
                     Authorization: `Bearer ${token}`,
                     "Cache-Control": "no-cache"
                 },
@@ -185,7 +185,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
             setLoading(true);
             const token = await getToken();
             const response = await fetch("https://billing.kravy.in/api/menu/view", {
-                headers: { 
+                headers: {
                     Authorization: `Bearer ${token}`,
                     "Cache-Control": "no-cache"
                 },
@@ -442,9 +442,9 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
             const response = await fetch(`https://billing.kravy.in/api/categories`, {
                 method: "DELETE",
-                headers: { 
+                headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}` 
+                    Authorization: `Bearer ${token}`
                 },
                 body: JSON.stringify({ id: selectedCategoryToEdit.id })
             });
@@ -1002,6 +1002,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 <FlatList
                                     data={displayCategories}
                                     keyExtractor={(item) => item.id}
+                                    contentContainerStyle={{ paddingBottom: vs(80) }}
                                     renderItem={({ item }) => (
                                         <TouchableOpacity
                                             style={[
@@ -1076,9 +1077,9 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                         {/* Category Name Input */}
                         <View style={styles.formGroup}>
                             <Text style={styles.formLabel}>Category Name</Text>
-                            <TextInput 
-                                style={styles.formInput} 
-                                value={editCategoryNewName} 
+                            <TextInput
+                                style={styles.formInput}
+                                value={editCategoryNewName}
                                 onChangeText={setEditCategoryNewName}
                                 placeholder="e.g. pizzas"
                             />
@@ -1109,7 +1110,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
                     {/* Bottom Action Buttons */}
                     <View style={styles.modalFixedFooter}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.modalActionBtn, { borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: COLORS.WHITE }]}
                             onPress={() => {
                                 console.log("Category Delete Tapped");
@@ -1118,8 +1119,8 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                         >
                             <Text style={{ color: COLORS.SECONDARY, fontSize: rf(16), fontWeight: '600' }}>Delete</Text>
                         </TouchableOpacity>
-                        
-                        <TouchableOpacity 
+
+                        <TouchableOpacity
                             style={[styles.modalActionBtn, { backgroundColor: COLORS.PRIMARY, marginLeft: s(15) }]}
                             onPress={() => {
                                 console.log("Category Update Tapped");

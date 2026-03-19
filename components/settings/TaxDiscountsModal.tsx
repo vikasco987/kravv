@@ -73,61 +73,104 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                     </View>
 
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }}>
-                        {/* GST Toggle */}
-                        <View style={styles.settingRow}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.settingLabel}>Enable GST / VAT</Text>
-                                <Text style={styles.settingSubLabel}>Toggle to apply tax on invoices</Text>
+                        <View style={styles.sectionHeader}>
+                            <View style={styles.sectionIconContainer}>
+                                <Ionicons name="percentage" size={rf(14)} color={COLORS.primary} />
                             </View>
-                            <Switch
-                                value={taxEnabled}
-                                onValueChange={(val) => {
-                                    setTaxEnabled(val);
-                                    onSave("tax_enabled", val, "GST / VAT");
-                                }}
-                                trackColor={{ false: "#E5E7EB", true: COLORS.primary + "80" }}
-                                thumbColor={taxEnabled ? COLORS.primary : "#F4F3F4"}
-                            />
+                            <Text style={styles.sectionTitle}>GST / TAX SETTINGS</Text>
                         </View>
 
-                        {/* Per-Product GST Toggle */}
-                        <View style={[styles.settingRow, { marginTop: vs(15) }]}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.settingLabel}>Per-Product GST</Text>
-                                <Text style={styles.settingSubLabel}>Set different GST rates for each product</Text>
-                            </View>
-                            <Switch
-                                value={perProductTax}
-                                onValueChange={(val) => {
-                                    setPerProductTax(val);
-                                    onSave("tax_per_product", val, "Per-product GST");
-                                }}
-                                trackColor={{ false: "#E5E7EB", true: COLORS.primary + "80" }}
-                                thumbColor={perProductTax ? COLORS.primary : "#F4F3F4"}
-                            />
-                        </View>
-
-                        {/* Default Tax Rate Input */}
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.inputLabel}>Default tax rate</Text>
-                            <View style={styles.inputWrapper}>
-                                <View style={styles.inputIcon}>
-                                    <Ionicons name="card-outline" size={rf(18)} color={COLORS.textLight} />
+                        <View style={styles.settingsCard}>
+                            {/* Enable Global GST System */}
+                            <View style={styles.rowItem}>
+                                <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}>
+                                    <View style={styles.innerIconBox}>
+                                        <Ionicons name="shield-checkmark" size={rf(20)} color="#10B981" />
+                                    </View>
                                 </View>
-                                <TextInput
-                                    style={styles.textInput}
-                                    value={taxRate}
-                                    onChangeText={setTaxRate}
-                                    keyboardType="decimal-pad"
-                                    placeholder="0.00"
+                                <View style={styles.rowText}>
+                                    <Text style={styles.rowLabel}>Enable Global GST System</Text>
+                                    <Text style={styles.rowSubLabel}>{taxRate}% GST will be added to every order</Text>
+                                </View>
+                                <Switch
+                                    value={taxEnabled}
+                                    onValueChange={(val) => {
+                                        setTaxEnabled(val);
+                                        onSave("tax_enabled", val, "GST System");
+                                    }}
+                                    trackColor={{ false: "#E5E7EB", true: "#10B981" }}
+                                    thumbColor="#fff"
                                 />
-                                <Text style={styles.percentText}>%</Text>
-                                <TouchableOpacity
-                                    style={styles.saveBtn}
-                                    onPress={() => onSave("tax_rate", taxRate, "Tax rate")}
-                                >
-                                    <Text style={styles.saveBtnText}>Save</Text>
-                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.innerDivider} />
+
+                            {/* Per-Product GST */}
+                            <View style={styles.rowItem}>
+                                <View style={[styles.iconBox, { backgroundColor: '#F9FAFB' }]}>
+                                    <View style={styles.innerIconBox}>
+                                        <Ionicons name="options-outline" size={rf(20)} color="#9CA3AF" />
+                                    </View>
+                                </View>
+                                <View style={styles.rowText}>
+                                    <Text style={styles.rowLabel}>Per-Product GST</Text>
+                                    <Text style={styles.rowSubLabel}>Always use Default GST for all products</Text>
+                                </View>
+                                <Switch
+                                    value={perProductTax}
+                                    onValueChange={(val) => {
+                                        setPerProductTax(val);
+                                        onSave("per_product_tax", val, "Per-product GST");
+                                    }}
+                                    trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+                                    thumbColor="#fff"
+                                />
+                            </View>
+
+                            <View style={styles.innerDivider} />
+
+                            {/* Quick Select Rate */}
+                            <View style={styles.rateSection}>
+                                <Text style={styles.miniLabel}>QUICK SELECT RATE</Text>
+                                <View style={styles.quickSelectGrid}>
+                                    {[5, 12, 18, 28].map((rate) => (
+                                        <TouchableOpacity
+                                            key={rate}
+                                            style={[
+                                                styles.rateBtn,
+                                                taxRate === String(rate) && styles.rateBtnActive
+                                            ]}
+                                            onPress={() => {
+                                                setTaxRate(String(rate));
+                                                onSave("tax_rate", String(rate), "Tax rate");
+                                            }}
+                                        >
+                                            <Text style={[
+                                                styles.rateBtnText,
+                                                taxRate === String(rate) && styles.rateBtnTextActive
+                                            ]}>{rate}%</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            {/* Custom Rate */}
+                            <View style={styles.rateSection}>
+                                <Text style={styles.miniLabel}>CUSTOM RATE (%)</Text>
+                                <View style={styles.customInputRow}>
+                                    <TextInput
+                                        style={styles.customTaxInput}
+                                        value={taxRate}
+                                        onChangeText={setTaxRate}
+                                        onBlur={() => onSave("tax_rate", taxRate, "Tax rate")}
+                                        keyboardType="decimal-pad"
+                                    />
+                                    <View style={styles.spinButtons}>
+                                        <Ionicons name="chevron-up" size={rf(14)} color="#9CA3AF" />
+                                        <Ionicons name="chevron-down" size={rf(14)} color="#9CA3AF" />
+                                    </View>
+                                    <Text style={styles.percentSuffix}>%</Text>
+                                </View>
                             </View>
                         </View>
 
@@ -328,5 +371,153 @@ const styles = StyleSheet.create({
         backgroundColor: '#E5E7EB',
         marginVertical: vs(15),
         opacity: 0.5,
+    },
+    // Redesigned styles
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: vs(12),
+        marginTop: vs(5),
+    },
+    sectionIconContainer: {
+        width: s(24),
+        height: s(24),
+        borderRadius: s(6),
+        backgroundColor: COLORS.primary + "15",
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: s(8),
+    },
+    sectionTitle: {
+        fontSize: rf(12),
+        fontWeight: '800',
+        color: COLORS.textLight,
+        letterSpacing: 1,
+    },
+    settingsCard: {
+        backgroundColor: COLORS.white,
+        borderRadius: s(20),
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+        paddingVertical: vs(10),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 2,
+    },
+    rowItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: s(20),
+        paddingVertical: vs(12),
+    },
+    iconBox: {
+        width: s(46),
+        height: s(46),
+        borderRadius: s(12),
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    innerIconBox: {
+        width: s(36),
+        height: s(36),
+        borderRadius: s(10),
+        backgroundColor: COLORS.white,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    rowText: {
+        flex: 1,
+        marginLeft: s(15),
+    },
+    rowLabel: {
+        fontSize: rf(15),
+        fontWeight: '800',
+        color: COLORS.text,
+    },
+    rowSubLabel: {
+        fontSize: rf(12),
+        color: COLORS.textLight,
+        marginTop: vs(2),
+        fontWeight: '500',
+    },
+    innerDivider: {
+        height: 1,
+        backgroundColor: '#F3F4F6',
+        marginHorizontal: s(20),
+    },
+    rateSection: {
+        paddingHorizontal: s(20),
+        paddingVertical: vs(15),
+    },
+    miniLabel: {
+        fontSize: rf(10),
+        fontWeight: '800',
+        color: COLORS.textLight,
+        letterSpacing: 1,
+        marginBottom: vs(12),
+    },
+    quickSelectGrid: {
+        flexDirection: 'row',
+        gap: s(10),
+    },
+    rateBtn: {
+        paddingVertical: vs(10),
+        paddingHorizontal: s(18),
+        borderRadius: s(12),
+        backgroundColor: COLORS.white,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    rateBtnActive: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    rateBtnText: {
+        fontSize: rf(14),
+        fontWeight: '800',
+        color: COLORS.text,
+    },
+    rateBtnTextActive: {
+        color: COLORS.white,
+    },
+    customInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.background,
+        borderRadius: s(15),
+        paddingHorizontal: s(15),
+        height: vs(55),
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        width: s(140),
+    },
+    customTaxInput: {
+        flex: 1,
+        fontSize: rf(18),
+        fontWeight: '800',
+        color: COLORS.text,
+        padding: 0,
+    },
+    spinButtons: {
+        justifyContent: 'space-between',
+        height: vs(24),
+        marginRight: s(10),
+    },
+    percentSuffix: {
+        fontSize: rf(16),
+        fontWeight: '800',
+        color: COLORS.primary,
     },
 });

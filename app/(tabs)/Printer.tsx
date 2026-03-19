@@ -26,8 +26,9 @@ export default function PrinterScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [granted, setGranted] = useState(false);
   const [logs, setLogs] = useState<string[]>(["Application Started"]);
-  const [isBtOffModalVisible, setIsBtOffModalVisible] = useState(false);
-  const [isNoDevicesModalVisible, setIsNoDevicesModalVisible] = useState(false);
+    const [isBtOffModalVisible, setIsBtOffModalVisible] = useState(false);
+    const [isNoDevicesModalVisible, setIsNoDevicesModalVisible] = useState(false);
+    const [isConnectionErrorModalVisible, setIsConnectionErrorModalVisible] = useState(false);
 
   const addLog = (msg: string) => {
     console.log("[BluetoothLog]", msg);
@@ -137,8 +138,8 @@ export default function PrinterScreen() {
       addLog("Connecting to " + (device.name || device.address) + "...");
       console.log("Connect attempt to:", device.address);
 
-      // Sometimes a small delay helps before opening a new socket
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Increased delay to allow Bluetooth channel to stabilize
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const connection = await RNBluetoothClassic.connectToDevice(
         device.address,
@@ -161,13 +162,12 @@ export default function PrinterScreen() {
         addLog("❌ Connection failed (null result)");
       }
     } catch (e: any) {
-      console.error("Connection error:", e);
+      console.log("Connection error:", e);
       addLog("Connection failed: " + e.message);
 
-      // If secure:false failed, maybe try default one more time? 
-      // But usually security mismatch is the issue.
-      if (e.message.includes("read failed")) {
-        addLog("💡 Tip: Try unpairing and re-pairing the printer in Android Settings.");
+      // Trigger custom popup
+      if (e.message.includes("read failed") || e.message.includes("socket")) {
+        setIsConnectionErrorModalVisible(true);
       }
     } finally {
       setIsLoading(false);
@@ -290,15 +290,7 @@ Thank You\n\n\n`;
         </TouchableOpacity>
       )}
 
-      {/* Logs (Expandable) */}
-      <View style={styles.logSection}>
-        <Text style={styles.logTitle}>System Logs</Text>
-        <ScrollView style={styles.logBox} nestedScrollEnabled={true}>
-          {logs.map((log, i) => (
-            <Text key={i} style={styles.logText}>• {log}</Text>
-          ))}
-        </ScrollView>
-      </View>
+      {/* Logs removed for cleaner UI */}
 
       {/* Bluetooth Off Modal */}
       <Modal transparent visible={isBtOffModalVisible} animationType="fade">
@@ -355,6 +347,38 @@ Thank You\n\n\n`;
           </View>
         </View>
       </Modal>
+
+      {/* Connection Error Modal */}
+      <Modal transparent visible={isConnectionErrorModalVisible} animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: '#FFF' }]}>
+            <View style={styles.modalSubHeader}>
+              <View style={[styles.line, { backgroundColor: '#FEE2E2' }]} />
+              <Text style={styles.lineLabel}>CONNECTION FAILED</Text>
+              <View style={[styles.line, { backgroundColor: '#FEE2E2' }]} />
+            </View>
+            <View style={styles.iconCircleError}>
+              <Ionicons name="alert-circle" size={rf(40)} color="#EF4444" />
+            </View>
+            <Text style={[styles.modalTitle, { color: '#B91C1C' }]}>Printer Refused Connection</Text>
+            <Text style={styles.modalDetail}>The printer might be busy, too far away, or already connected to another device.</Text>
+            
+            <View style={styles.troubleshootBox}>
+                <Text style={styles.troubleshootTitle}>Try these steps:</Text>
+                <Text style={styles.troubleshootItem}>• Turn Printer OFF and then ON again</Text>
+                <Text style={styles.troubleshootItem}>• Check if it's connected to another phone</Text>
+                <Text style={styles.troubleshootItem}>• Unpair and Repair the printer in BT settings</Text>
+            </View>
+
+            <TouchableOpacity 
+                style={[styles.modalBtn, { backgroundColor: '#EF4444' }]} 
+                onPress={() => setIsConnectionErrorModalVisible(false)}
+            >
+              <Text style={styles.modalBtnText}>TRY AGAIN</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -363,7 +387,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F9FAFB" },
   header: {
     paddingTop: vs(60),
-    paddingBottom: vs(40),
+    paddingBottom: vs(55),
     paddingHorizontal: s(25),
     borderBottomLeftRadius: s(30),
     borderBottomRightRadius: s(30),
@@ -379,7 +403,7 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     paddingHorizontal: s(20),
-    marginTop: vs(-25),
+    marginTop: vs(-20),
     gap: s(12),
   },
   mainBtn: {
@@ -518,4 +542,25 @@ const styles = StyleSheet.create({
     marginTop: vs(15),
   },
   modalBtnText: { color: '#fff', fontWeight: 'bold', fontSize: rf(18) },
+  iconCircleError: {
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: vs(20),
+    borderWidth: 2,
+    borderColor: '#FCA5A5',
+  },
+  troubleshootBox: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: s(12),
+    padding: s(15),
+    width: '100%',
+    marginTop: vs(15),
+    marginBottom: vs(10),
+  },
+  troubleshootTitle: { fontSize: rf(12), fontWeight: 'bold', color: '#374151', marginBottom: vs(8) },
+  troubleshootItem: { fontSize: rf(12), color: '#6B7280', marginBottom: vs(4) },
 });

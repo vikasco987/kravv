@@ -31,6 +31,8 @@ import { ConfirmHoldModal } from "../../components/menu/ConfirmHoldModal";
 import { MenuHeader } from "../../components/menu/MenuHeader";
 import { MenuItemCard } from "../../components/menu/MenuItemCard";
 import { TableSelectionModal } from "../../components/menu/TableSelectionModal";
+import { QuickAddItemCard } from "../../components/menu/QuickAddItemCard";
+import { QuickAddItemModal } from "../../components/menu/QuickAddItemModal";
 
 // --- TYPE DEFINITIONS ---
 type MenuItem = {
@@ -39,6 +41,9 @@ type MenuItem = {
   price?: number;
   imageUrl?: string;
   unit?: string;
+  gst?: number;
+  taxType?: string;
+  hsnCode?: string;
 };
 
 type MenuCategory = {
@@ -80,6 +85,8 @@ export default function MenuScreen() {
   const [tableBookingEnabled, setTableBookingEnabled] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [isTableModalVisible, setIsTableModalVisible] = useState(false);
+  const [isQuickAddModalVisible, setIsQuickAddModalVisible] = useState(false);
+  const [quickAddCategoryId, setQuickAddCategoryId] = useState("");
 
   // @ts-ignore
   const flatListRef = useRef<any>(null);
@@ -153,6 +160,9 @@ export default function MenuScreen() {
           price: Number(item.sellingPrice || item.price || item.selling_price || 0),
           imageUrl: item.imageUrl,
           unit: item.unit,
+          gst: item.gst,
+          taxType: item.taxType,
+          hsnCode: item.hsnCode,
         });
       });
 
@@ -451,6 +461,15 @@ export default function MenuScreen() {
                     onRemove={removeFromCart}
                   />
                 ))}
+                {!searchQuery && (
+                  <QuickAddItemCard
+                    itemWidth={itemWidth}
+                    onPress={() => {
+                      setQuickAddCategoryId(cat.id);
+                      setIsQuickAddModalVisible(true);
+                    }}
+                  />
+                )}
               </View>
             </View>
           )}
@@ -509,6 +528,13 @@ export default function MenuScreen() {
         onClose={() => setIsClearModalVisible(false)}
         onConfirm={handleConfirmClear}
         showSuccess={showClearSuccess}
+      />
+
+      <QuickAddItemModal
+        visible={isQuickAddModalVisible}
+        onClose={() => setIsQuickAddModalVisible(false)}
+        categoryId={quickAddCategoryId}
+        onSuccess={() => fetchMenus(true)}
       />
     </View>
   );

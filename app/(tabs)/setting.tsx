@@ -18,6 +18,8 @@ import { BusinessManagementCard } from "../../components/settings/BusinessManage
 import { TaxDiscountsCard } from "../../components/settings/TaxDiscountsCard";
 import { AppFeaturesCard } from "../../components/settings/AppFeaturesCard";
 import { TaxDiscountsModal } from "../../components/settings/TaxDiscountsModal";
+import { AdvancedDiscountModal } from "../../components/settings/AdvancedDiscountModal";
+import { AdvancedDiscountCard } from "../../components/settings/AdvancedDiscountCard";
 import { KOTTablesModal } from "../../components/settings/KOTTablesModal";
 import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
 import { SuccessFeedback } from "../../components/settings/SuccessFeedback";
@@ -47,6 +49,7 @@ export default function SettingScreen() {
     const [serviceChargeRate, setServiceChargeRate] = React.useState("0.00");
 
     const [taxModalVisible, setTaxModalVisible] = React.useState(false);
+    const [advancedDiscountModalVisible, setAdvancedDiscountModalVisible] = React.useState(false);
     const [kotModalVisible, setKotModalVisible] = React.useState(false);
     const [successModalVisible, setSuccessModalVisible] = React.useState(false);
     const [successMessage, setSuccessMessage] = React.useState("");
@@ -151,6 +154,13 @@ export default function SettingScreen() {
                     onLoginRequired={() => setLoginModalVisible(true)}
                 />
 
+                {/* Advanced Discounts Section */}
+                <AdvancedDiscountCard
+                    user={user}
+                    onPress={() => setAdvancedDiscountModalVisible(true)}
+                    onLoginRequired={() => setLoginModalVisible(true)}
+                />
+
                 {/* Footer */}
                 <View style={styles.footer}>
                     <Text style={styles.versionText}>Kravy - Smart Billing App</Text>
@@ -176,6 +186,11 @@ export default function SettingScreen() {
                     serviceChargeRate={serviceChargeRate}
                     setServiceChargeRate={setServiceChargeRate}
                     onSave={saveSetting}
+                />
+
+                <AdvancedDiscountModal
+                    visible={advancedDiscountModalVisible}
+                    onClose={() => setAdvancedDiscountModalVisible(false)}
                 />
 
                 <KOTTablesModal 

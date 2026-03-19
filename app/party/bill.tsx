@@ -32,6 +32,9 @@ type CartItem = {
   name: string;
   price?: number;
   quantity: number;
+  gst?: number;
+  taxType?: string;
+  hsnCode?: string;
 };
 
 type Party = {
@@ -131,6 +134,8 @@ export default function BillPage() {
     totalDue: 0,
     isTaxEnabled: false,
     taxRate: 5,
+    gstLabel: "(5%)",
+    perProductTaxEnabled: false,
     isDiscountEnabled: false,
     discountRate: 0,
     isServiceChargeEnabled: false,
@@ -140,7 +145,7 @@ export default function BillPage() {
   useEffect(() => {
     const calculateFinal = async () => {
       const settings = await AsyncStorage.multiGet([
-        'tax_enabled', 'tax_rate', 
+        'tax_enabled', 'tax_rate', 'per_product_tax',
         'discount_enabled', 'discount_rate',
         'service_charge_enabled', 'service_charge_rate'
       ]);
@@ -149,33 +154,90 @@ export default function BillPage() {
       settings.forEach(([key, val]) => sMap[key] = val);
 
       const isTaxEnabled = sMap['tax_enabled'] === 'true';
-      const taxRate = parseFloat(sMap['tax_rate'] || "5.00");
+      const globalTaxRate = parseFloat(sMap['tax_rate'] || "5.00");
+      const perProductTaxEnabled = sMap['per_product_tax'] === 'true';
       const isDiscountEnabled = sMap['discount_enabled'] === 'true';
       const discountRate = parseFloat(sMap['discount_rate'] || "0.00");
       const isServiceChargeEnabled = sMap['service_charge_enabled'] === 'true';
       const serviceChargeRate = parseFloat(sMap['service_charge_rate'] || "0.00");
 
-      const baseTotal = cart.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
-      
-      const discountAmount = isDiscountEnabled ? (baseTotal * (discountRate / 100)) : 0;
-      const afterDiscount = baseTotal - discountAmount;
-      
-      const serviceChargeAmount = isServiceChargeEnabled ? (afterDiscount * (serviceChargeRate / 100)) : 0;
-      const subtotalWithSC = afterDiscount + serviceChargeAmount;
+      let totalTaxable = 0;
+      let totalGst = 0;
+      let totalGross = 0;
 
-      const gstRateDecimal = isTaxEnabled ? (taxRate / 100) : 0;
-      const subtotalValue = subtotalWithSC;
-      const gstAmount = Number((subtotalValue * gstRateDecimal).toFixed(2));
-      const totalDue = subtotalValue + gstAmount;
+      // Calculate each item's tax contribution
+      cart.forEach(item => {
+          const itemPrice = item.price || 0;
+          const qty = item.quantity;
+          const lineTotal = itemPrice * qty;
+          
+          let itemGstRate = 0;
+          if (perProductTaxEnabled && (item.gst !== null && item.gst !== undefined)) {
+              itemGstRate = item.gst;
+          } else if (isTaxEnabled) {
+              itemGstRate = globalTaxRate;
+          }
+
+          let taxable = 0;
+          let gst = 0;
+
+          if (item.taxType === "With Tax") {
+              // Inclusive
+              taxable = lineTotal / (1 + itemGstRate / 100);
+              gst = lineTotal - taxable;
+          } else {
+              // Exclusive (Default)
+              taxable = lineTotal;
+              gst = (lineTotal * itemGstRate) / 100;
+          }
+
+          totalTaxable += taxable;
+          totalGst += gst;
+          totalGross += (taxable + gst);
+      });
+
+      // Apply Discount on Taxable subtotal (Legal compliance)
+      const discountAmount = isDiscountEnabled ? (totalTaxable * (discountRate / 100)) : 0;
+      const taxableAfterDiscount = totalTaxable - discountAmount;
+      
+      // Pro-rata GST adjustment if discount applied (simplified for global discount)
+      // If discount is global, we reduce the total GST proportionally
+      const effectiveGst = isDiscountEnabled ? (totalGst * (taxableAfterDiscount / totalTaxable)) : totalGst;
+
+      const serviceChargeAmount = isServiceChargeEnabled ? (taxableAfterDiscount * (serviceChargeRate / 100)) : 0;
+      const subtotalFinal = taxableAfterDiscount + serviceChargeAmount;
+
+      const finalTotal = subtotalFinal + effectiveGst;
+
+      // Determine the GST label based on rates present in the cart
+      let gstLabel = "";
+      if (perProductTaxEnabled) {
+          const rates = new Set(cart.map(item => {
+              if (item.gst !== null && item.gst !== undefined) return item.gst;
+              return isTaxEnabled ? globalTaxRate : 0;
+          }));
+          const rateList = Array.from(rates);
+          if (rateList.length === 1) {
+              gstLabel = `(${rateList[0]}%)`;
+          } else if (rateList.length > 1) {
+              gstLabel = "(Multi)";
+          } else {
+              gstLabel = `(${globalTaxRate}%)`;
+          }
+      } else {
+          gstLabel = `(${globalTaxRate}%)`;
+      }
 
       setCalc({
-        subtotalExcl: subtotalValue,
-        gstAmount,
-        discountAmount,
-        serviceChargeAmount,
-        totalDue,
+        subtotalExcl: subtotalFinal,
+        gstAmount: Number(effectiveGst.toFixed(2)),
+        discountAmount: Number(discountAmount.toFixed(2)),
+        serviceChargeAmount: Number(serviceChargeAmount.toFixed(2)),
+        totalDue: Number(finalTotal.toFixed(2)),
         isTaxEnabled,
-        taxRate,
+        taxRate: globalTaxRate,
+        gstLabel,
+        perProductTaxEnabled,
         isDiscountEnabled,
         discountRate,
         isServiceChargeEnabled,
@@ -435,9 +497,9 @@ export default function BillPage() {
           <Text style={styles.summaryValue}>₹{calc.subtotalExcl.toFixed(2)}</Text>
         </View>
 
-        {calc.isTaxEnabled && (
+        {(calc.isTaxEnabled || calc.perProductTaxEnabled) && (
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryText}>GST ({calc.taxRate}%)</Text>
+            <Text style={styles.summaryText}>GST {calc.gstLabel}</Text>
             <Text style={styles.summaryValue}>₹{calc.gstAmount.toFixed(2)}</Text>
           </View>
         )}
