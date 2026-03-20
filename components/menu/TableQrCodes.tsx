@@ -28,6 +28,7 @@ import {
 import QRCode from "react-native-qrcode-svg";
 import ViewShot from "react-native-view-shot";
 import { rf, s, vs } from "../../utils/responsive";
+import { useLanguage } from "../../context/LanguageContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -71,6 +72,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   const { getToken } = useAuth();
   const { user } = useUser();
   const router = useRouter();
+  const { t } = useLanguage();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
@@ -213,7 +215,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
               <ArrowLeft size={rf(26)} color={COLORS.SECONDARY} />
             </TouchableOpacity>
           </View>
-          <Text style={styles.title}>Table Management</Text>
+          <Text style={styles.title}>{t('table_qr_codes')}</Text>
         </View>
         <Shimmer />
       </View>
@@ -235,8 +237,8 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
           </TouchableOpacity>
         </View>
         <View style={styles.headerBottomRow}>
-          <Text style={styles.title}>Table Management</Text>
-          <Text style={styles.subtitle}>Manage your dining tables and QR codes</Text>
+          <Text style={styles.title}>{t('table_qr_codes')}</Text>
+          <Text style={styles.subtitle}>{t('manage_tables_desc') || 'Manage your dining tables and QR codes'}</Text>
         </View>
       </View>
 
@@ -256,7 +258,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
               </View>
               <Text style={styles.tableName}>{item.name}</Text>
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>Live QR</Text>
+                <Text style={styles.badgeText}>{t('live_qr') || 'Live QR'}</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity
@@ -270,9 +272,9 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Grid size={rf(60)} color={COLORS.LIGHT_GRAY} />
-            <Text style={styles.emptyText}>No tables created yet.</Text>
+            <Text style={styles.emptyText}>{t('no_tables') || 'No tables created yet.'}</Text>
             <TouchableOpacity style={styles.emptyAddBtn} onPress={() => setIsCreateModalVisible(true)}>
-              <Text style={styles.emptyAddBtnText}>Add Your First Table</Text>
+              <Text style={styles.emptyAddBtnText}>{t('add_new_table')}</Text>
             </TouchableOpacity>
           </View>
         }
@@ -312,12 +314,12 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
                       />
                     </View>
                     <Text style={styles.qrTableName}>{selectedTable.name}</Text>
-                    <Text style={styles.qrScanPrompt}>Scan to View Menu</Text>
+                    <Text style={styles.qrScanPrompt}>{t('scan_to_view_menu') || 'Scan to View Menu'}</Text>
                   </View>
                 </ViewShot>
 
                 <Text style={styles.qrInstructions}>
-                  Let customers scan this to see your live menu and place orders.
+                  {t('qr_instructions') || 'Let customers scan this to see your live menu and place orders.'}
                 </Text>
               </View>
             )}
@@ -328,14 +330,14 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
                 onPress={downloadQr}
               >
                 <Download size={rf(18)} color="#fff" />
-                <Text style={styles.btnText}>Download QR</Text>
+                <Text style={styles.btnText}>{t('download_qr') || 'Download QR'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.printBtn}
                 onPress={() => setIsComingSoonVisible(true)}
               >
                 <Printer size={rf(18)} color={COLORS.SECONDARY} />
-                <Text style={[styles.btnText, { color: COLORS.SECONDARY }]}>Print</Text>
+                <Text style={[styles.btnText, { color: COLORS.SECONDARY }]}>{t('print')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -351,12 +353,12 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.createModalContent}>
             <View style={styles.createHeader}>
-              <Text style={styles.createTitle}>Add New Table</Text>
+              <Text style={styles.createTitle}>{t('add_new_table')}</Text>
               <TouchableOpacity onPress={() => setIsCreateModalVisible(false)}>
                 <X size={rf(20)} color={COLORS.GRAY} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.inputLabel}>TABLE NAME</Text>
+            <Text style={styles.inputLabel}>{t('table_name')?.toUpperCase() || 'TABLE NAME'}</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. Table 5, Booth A"
@@ -370,7 +372,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
               onPress={createTable}
               disabled={isSaving}
             >
-              {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Table</Text>}
+              {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>{t('save_table') || 'Save Table'}</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -396,7 +398,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
                 style={styles.cancelBtn}
                 onPress={() => setIsDeleteModalVisible(false)}
               >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.confirmDeleteBtn, isDeleting && { opacity: 0.7 }]}
@@ -406,7 +408,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
                 {isDeleting ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.confirmDeleteBtnText}>Delete</Text>
+                  <Text style={styles.confirmDeleteBtnText}>{t('delete')}</Text>
                 )}
               </TouchableOpacity>
             </View>

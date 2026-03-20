@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { rf, s, vs } from "../../utils/responsive";
+import { useLanguage } from "../../context/LanguageContext";
 
 const THEME_PRIMARY = "#4F46E5";
 const THEME_SECONDARY = "#10B981";
@@ -43,6 +44,7 @@ export const CartBar: React.FC<CartBarProps> = ({
     onSelectTable,
     selectedTable,
 }) => {
+    const { t } = useLanguage();
     return (
         <View style={styles.cartBar}>
             <View style={styles.summaryRow}>
@@ -51,14 +53,14 @@ export const CartBar: React.FC<CartBarProps> = ({
                     onPress={onViewCart}
                 >
                     <Feather name="shopping-cart" size={16} color="#fff" style={{ marginRight: 6 }} />
-                    <Text style={styles.viewItemsText}>Items ({totalItems})</Text>
+                    <Text style={styles.viewItemsText}>{t('items')} ({totalItems})</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.receivedContainer} onPress={() => setReceived(!received)}>
                     <View style={[styles.receivedCheckbox, received && { backgroundColor: THEME_PRIMARY }]}>
                         {received && <Ionicons name="checkmark-sharp" size={14} color="#fff" />}
                     </View>
-                    <Text style={styles.receivedText}>Received</Text>
+                    <Text style={styles.receivedText}>{t('received')}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -69,7 +71,9 @@ export const CartBar: React.FC<CartBarProps> = ({
                         style={[styles.paymentOption, paymentMethod === method && styles.paymentSelected]}
                         onPress={() => setPaymentMethod(method as any)}
                     >
-                        <Text style={[styles.paymentText, paymentMethod === method && { color: "#fff", fontWeight: "700" }]}>{method}</Text>
+                        <Text style={[styles.paymentText, paymentMethod === method && { color: "#fff", fontWeight: "700" }]}>
+                             {method === 'Cash' ? t('cash') : method === 'UPI' ? t('upi') : t('card')}
+                         </Text>
                     </TouchableOpacity>
                 ))}
             </View>
@@ -97,13 +101,13 @@ export const CartBar: React.FC<CartBarProps> = ({
                 {/* BILL */}
                 <TouchableOpacity style={styles.printBillButton} onPress={onPrintBill}>
                     <Feather name="printer" size={16} color="#fff" />
-                    <Text style={styles.printBillText}>BILL</Text>
+                    <Text style={styles.printBillText}>{t('bill')}</Text>
                 </TouchableOpacity>
 
                 {/* SAVE BILL */}
                 <TouchableOpacity style={styles.saveBillButton} onPress={onSaveBill}>
                     <Feather name="save" size={16} color="#fff" />
-                    <Text style={styles.printBillText}>SAVE</Text>
+                    <Text style={styles.printBillText}>{t('save')}</Text>
                 </TouchableOpacity>
 
                 {/* NEXT / TOTAL */}

@@ -15,6 +15,7 @@ import {
   Modal,
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
+import { useLanguage } from "../../context/LanguageContext";
 
 export default function ViewCompanyProfileScreen() {
   const [loading, setLoading] = useState(true);
@@ -32,6 +33,7 @@ export default function ViewCompanyProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
   const router = useRouter();
   const { getToken, isLoaded, isSignedIn } = useAuth();
+  const { t } = useLanguage();
 
   // 👇 replace this with your deployed backend URL
   const BACKEND_URL = "https://billing.kravy.in";
@@ -125,7 +127,7 @@ export default function ViewCompanyProfileScreen() {
               style={[styles.createBtn, { width: '100%', justifyContent: 'center' }]}
               onPress={() => setModalVisible(false)}
             >
-              <Text style={styles.createBtnText}>OK</Text>
+              <Text style={styles.createBtnText}>{t('done') || 'OK'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -155,13 +157,13 @@ export default function ViewCompanyProfileScreen() {
           <View style={styles.iconCircleBig}>
             <Ionicons name="business" size={rf(50)} color="#4f46e5" />
           </View>
-          <Text style={styles.emptyTitle}>Boost Your Sales!</Text>
-          <Text style={styles.emptyText}>Set up your professional business profile to add branding to your bills and QR codes.</Text>
+          <Text style={styles.emptyTitle}>{t('boost_sales') || 'Boost Your Sales!'}</Text>
+          <Text style={styles.emptyText}>{t('setup_profile_desc') || 'Set up your professional business profile to add branding to your bills and QR codes.'}</Text>
           <TouchableOpacity
             style={styles.createBtn}
             onPress={() => router.push("/party/info" as any)}
           >
-            <Text style={styles.createBtnText}>Create Business Profile</Text>
+            <Text style={styles.createBtnText}>{t('create_profile')}</Text>
             <Feather name="arrow-right" size={rf(18)} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -174,11 +176,11 @@ export default function ViewCompanyProfileScreen() {
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
         <Ionicons name="arrow-back" size={rf(22)} color="#1E293B" />
-      </TouchableOpacity>
-
+       </TouchableOpacity>
+ 
       <View style={styles.profileHeader}>
-        <Text style={styles.title}>Business Profile</Text>
-        <Text style={styles.subtitle}>Your professional identity on Kravy</Text>
+        <Text style={styles.title}>{t('business_profile') || 'Business Profile'}</Text>
+        <Text style={styles.subtitle}>{t('professional_identity') || 'Your professional identity on Kravy'}</Text>
       </View>
 
       <View style={styles.logoSection}>
@@ -192,47 +194,46 @@ export default function ViewCompanyProfileScreen() {
         <Text style={styles.profileName}>{profile.businessName}</Text>
         {profile.businessTagLine ? <Text style={styles.profileTagline}>{profile.businessTagLine}</Text> : null}
       </View>
-
       {/* Identity Card */}
       <View style={styles.detailCard}>
         <View style={styles.cardHeader}>
           <Feather name="briefcase" size={rf(18)} color="#4f46e5" />
-          <Text style={styles.cardTitle}>Business Identity</Text>
+          <Text style={styles.cardTitle}>{t('business_identity') || 'Business Identity'}</Text>
         </View>
         <View style={styles.divider} />
-        {renderDetailRow("Type", profile.businessType)}
-        {renderDetailRow("GSTIN", profile.gstNumber || "Not Provided")}
+        {renderDetailRow(t('type') || "Type", profile.businessType)}
+        {renderDetailRow(t('gstin') || "GSTIN", profile.gstNumber || (t('not_provided') || "Not Provided"))}
       </View>
-
+ 
       {/* Contact Card */}
       <View style={styles.detailCard}>
         <View style={styles.cardHeader}>
           <Feather name="user" size={rf(18)} color="#4f46e5" />
-          <Text style={styles.cardTitle}>Contact Information</Text>
+          <Text style={styles.cardTitle}>{t('contact_info') || 'Contact Information'}</Text>
         </View>
         <View style={styles.divider} />
-        {renderDetailRow("Person", profile.contactPersonName)}
-        {renderDetailRow("Phone", profile.contactPersonPhone)}
-        {renderDetailRow("Email", profile.contactPersonEmail)}
+        {renderDetailRow(t('person') || "Person", profile.contactPersonName)}
+        {renderDetailRow(t('phone') || "Phone", profile.contactPersonPhone)}
+        {renderDetailRow(t('email') || "Email", profile.contactPersonEmail)}
       </View>
-
+ 
       {/* Address Card */}
       <View style={styles.detailCard}>
         <View style={styles.cardHeader}>
           <Feather name="map-pin" size={rf(18)} color="#4f46e5" />
-          <Text style={styles.cardTitle}>Location & Pay</Text>
+          <Text style={styles.cardTitle}>{t('location_pay') || 'Location & Pay'}</Text>
         </View>
         <View style={styles.divider} />
-        {renderDetailRow("Address", profile.businessAddress || "Not Provided")}
-        {renderDetailRow("State", profile.state || "Not Provided")}
-        {renderDetailRow("UPI ID", profile.upi || "Not Provided")}
+        {renderDetailRow(t('address') || "Address", profile.businessAddress || (t('not_provided') || "Not Provided"))}
+        {renderDetailRow(t('state') || "State", profile.state || (t('not_provided') || "Not Provided"))}
+        {renderDetailRow(t('upi_id') || "UPI ID", profile.upi || (t('not_provided') || "Not Provided"))}
       </View>
-
+ 
       {profile.googleReviewUrl ? (
         <View style={styles.detailCard}>
           <View style={styles.cardHeader}>
             <Feather name="star" size={rf(18)} color="#f59e0b" />
-            <Text style={styles.cardTitle}>Public Link</Text>
+            <Text style={styles.cardTitle}>{t('public_link') || 'Public Link'}</Text>
           </View>
           <View style={styles.divider} />
           <Text style={[styles.value, { color: "#2563eb", marginTop: vs(5) }]}>
@@ -241,19 +242,19 @@ export default function ViewCompanyProfileScreen() {
         </View>
       ) : null}
 
-      {profile.signatureUrl ? (
+       {profile.signatureUrl ? (
         <View style={{ alignItems: "flex-end", marginTop: 30 }}>
           <Image source={{ uri: profile.signatureUrl }} style={styles.signature} />
-          <Text style={{ fontSize: 12, color: "gray" }}>Authorized Signature</Text>
+          <Text style={{ fontSize: 12, color: "gray" }}>{t('authorized_signature') || 'Authorized Signature'}</Text>
         </View>
       ) : null}
 
       <TouchableOpacity
-        style={styles.editBtn}
+         style={styles.editBtn}
         onPress={() => router.push("/party/info" as any)}
       >
         <Feather name="edit-3" size={rf(20)} color="#fff" />
-        <Text style={styles.editBtnText}>Edit Business Profile</Text>
+        <Text style={styles.editBtnText}>{t('edit_profile')}</Text>
       </TouchableOpacity>
       {renderStatusModal()}
     </ScrollView>

@@ -11,9 +11,10 @@ const THEME_PRIMARY = "#4F46E5";
 interface TopNavBarProps {
   title?: string;
   showBack?: boolean;
+  showSearch?: boolean;
 }
 
-export default function TopNavBar({ title = "Home", showBack = false }: TopNavBarProps) {
+export default function TopNavBar({ title = "Home", showBack = false, showSearch = false }: TopNavBarProps) {
   const navigation = useNavigation();
   const router = useRouter();
   const [isSearching, setIsSearching] = useState(false);
@@ -73,7 +74,7 @@ export default function TopNavBar({ title = "Home", showBack = false }: TopNavBa
 
           {/* Right: Actions */}
           <View style={styles.actionGroup}>
-            {title === "POS Menu" && (
+            {showSearch && (
               <TouchableOpacity onPress={toggleSearch} style={styles.iconButton}>
                 <Ionicons name="search" size={rf(26)} color="#fff" />
               </TouchableOpacity>

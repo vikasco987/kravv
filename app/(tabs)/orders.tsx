@@ -15,6 +15,7 @@ import {
   View
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
+import { useLanguage } from "../../context/LanguageContext";
 
 const THEME_PRIMARY = "#4F46E5";
 
@@ -27,6 +28,7 @@ interface Table {
 export default function OrderScreen() {
   const { getToken } = useAuth();
   const router = useRouter();
+  const { t } = useLanguage();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -142,15 +144,15 @@ export default function OrderScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Live Orders</Text>
-          <Text style={styles.headerSubtitle}>Tap a table to manage its orders</Text>
+          <Text style={styles.headerTitle}>{t('live_orders')}</Text>
+          <Text style={styles.headerSubtitle}>{t('tap_table')}</Text>
         </View>
         <TouchableOpacity
           style={styles.addButton}
           onPress={() => setIsCreateTableVisible(true)}
         >
           <Ionicons name="add" size={rf(22)} color="#fff" />
-          <Text style={styles.addButtonText}>Add Table</Text>
+          <Text style={styles.addButtonText}>{t('add_table')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -183,7 +185,7 @@ export default function OrderScreen() {
               <View style={styles.statusBox}>
                 <View style={[styles.statusDot, { backgroundColor: item.orderCount ? "#10B981" : "#D1D5DB" }]} />
                 <Text style={styles.orderStatus}>
-                  {item.orderCount ? `${item.orderCount} Active Order${item.orderCount > 1 ? 's' : ''}` : "No Active Orders"}
+                  {item.orderCount ? `${item.orderCount} ${t('active_orders')}` : t('no_active_orders')}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -191,9 +193,9 @@ export default function OrderScreen() {
           ListEmptyComponent={
             <View style={styles.emptyView}>
               <Ionicons name="grid-outline" size={rf(60)} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No tables created yet</Text>
+              <Text style={styles.emptyText}>{t('no_tables_created')}</Text>
               <TouchableOpacity style={styles.emptyAddBtn} onPress={() => setIsCreateTableVisible(true)}>
-                <Text style={styles.emptyAddBtnText}>Get Started: Create Table</Text>
+                <Text style={styles.emptyAddBtnText}>{t('get_started_create_table')}</Text>
               </TouchableOpacity>
             </View>
           }
@@ -207,10 +209,10 @@ export default function OrderScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Quick Add Table</Text>
+            <Text style={styles.modalTitle}>{t('quick_add_table')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Table Name (e.g. Table 10)"
+              placeholder={t('table_name')}
               value={newTableName}
               onChangeText={setNewTableName}
             />
@@ -219,13 +221,13 @@ export default function OrderScreen() {
                 style={styles.cancelBtn}
                 onPress={() => setIsCreateTableVisible(false)}
               >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.saveBtn}
                 onPress={createTable}
               >
-                <Text style={styles.saveBtnText}>Create</Text>
+                <Text style={styles.saveBtnText}>{t('create')}</Text>
               </TouchableOpacity>
             </View>
           </View>

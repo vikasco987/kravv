@@ -21,6 +21,7 @@ import {
 import { AddItemCategory } from "../../components/menu/AddItemCategory";
 import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
 import { rf, s, vs } from "../../utils/responsive";
+import { useLanguage } from "../../context/LanguageContext";
 
 const THEME_PRIMARY = "#4F46E5"; // Indigo
 const COLOR_BG = "#F9FAFB";
@@ -29,6 +30,7 @@ export default function ItemsPage() {
     const router = useRouter();
     const { getToken } = useAuth();
     const { isLoaded, isSignedIn, user } = useUser();
+    const { t } = useLanguage();
 
     const [categories, setCategories] = useState<any[]>([]); // Objects with id and name
     const [isLoadingCategories, setIsLoadingCategories] = useState(false);
@@ -371,8 +373,8 @@ export default function ItemsPage() {
                     <Ionicons name="arrow-back" size={rf(22)} color="#1E293B" />
                 </TouchableOpacity>
                 <View style={styles.titleContainer}>
-                    <Text style={styles.mainTitleInline}>Add New Item</Text>
-                    <Text style={styles.mainSubtitleInline}>Let's build your professional menu</Text>
+                    <Text style={styles.mainTitleInline}>{t('add_item')}</Text>
+                    <Text style={styles.mainSubtitleInline}>{t('professional_menu_desc') || "Let's build your professional menu"}</Text>
                 </View>
             </View>
 
@@ -382,21 +384,21 @@ export default function ItemsPage() {
             >
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
                     <View style={styles.formHeader}>
-                        <Text style={styles.formDescription}>Fill in the details below to add a new item to your menu.</Text>
+                        <Text style={styles.formDescription}>{t('fill_details_desc') || 'Fill in the details below to add a new item to your menu.'}</Text>
                     </View>
 
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Item Image</Text>
+                        <Text style={styles.label}>{t('item_image') || 'Item Image'}</Text>
                         <TouchableOpacity style={styles.uploadIconButton} onPress={pickImage}>
                             <Ionicons name="camera" size={rf(28)} color={THEME_PRIMARY} />
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Item Name</Text>
+                        <Text style={styles.label}>{t('item_name') || 'Item Name'}</Text>
                         <TextInput
                             style={styles.input}
-                            placeholder="e.g. Burger, Pizza..."
+                            placeholder={t('item_name_placeholder') || "e.g. Burger, Pizza..."}
                             placeholderTextColor="#9CA3AF"
                             value={newItem.name}
                             onChangeText={(text) => setNewItem({ ...newItem, name: text })}
@@ -405,7 +407,7 @@ export default function ItemsPage() {
 
                     <View style={styles.inputRow}>
                         <View style={[styles.inputGroup, { flex: 1, marginRight: s(8) }]}>
-                            <Text style={styles.label}>Price (₹)</Text>
+                            <Text style={styles.label}>{t('price')}</Text>
                             <TextInput
                                 style={styles.input}
                                 placeholder="0.00"
@@ -417,7 +419,7 @@ export default function ItemsPage() {
                         </View>
                         <View style={[styles.inputGroup, { flex: 1, marginLeft: s(8) }]}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(8) }}>
-                                <Text style={[styles.label, { marginBottom: 0 }]}>Category</Text>
+                                <Text style={[styles.label, { marginBottom: 0 }]}>{t('category') || 'Category'}</Text>
                                 <TouchableOpacity onPress={() => {
                                     if (!isSignedIn) {
                                         setLoginModalVisible(true);
@@ -444,7 +446,7 @@ export default function ItemsPage() {
                                     styles.dropdownButtonText,
                                     !newItem.category && { color: "#9CA3AF" }
                                 ]}>
-                                    {newItem.category || "Select category..."}
+                                    {newItem.category || t('select_categories') || "Select category..."}
                                 </Text>
                                 <Ionicons name="chevron-down" size={rf(20)} color="#6B7280" />
                             </TouchableOpacity>
@@ -483,8 +485,8 @@ export default function ItemsPage() {
                                 <View style={styles.sheetHandle} />
                                 <View style={styles.modalHeader}>
                                     <View>
-                                        <Text style={styles.modalTitle}>Choose Category</Text>
-                                        <Text style={{ fontSize: rf(12), color: '#6B7280' }}>Select a category for your item</Text>
+                                        <Text style={styles.modalTitle}>{t('choose_category') || 'Choose Category'}</Text>
+                                        <Text style={{ fontSize: rf(12), color: '#6B7280' }}>{t('select_category_for_item') || 'Select a category for your item'}</Text>
                                     </View>
                                     <TouchableOpacity onPress={() => setCategoryModalVisible(false)}>
                                         <Ionicons name="close-circle" size={rf(30)} color="#9CA3AF" />
@@ -522,7 +524,7 @@ export default function ItemsPage() {
                                         )}
                                         ListEmptyComponent={
                                             <View style={{ padding: s(20), alignItems: 'center' }}>
-                                                <Text style={{ color: '#6B7280', fontSize: rf(14) }}>No categories found in menu.</Text>
+                                                <Text style={{ color: '#6B7280', fontSize: rf(14) }}>{t('no_categories_found') || "No categories found in menu."}</Text>
                                             </View>
                                         }
                                     />
@@ -542,12 +544,12 @@ export default function ItemsPage() {
                                     <Ionicons name="close-circle" size={rf(26)} color="#EF4444" />
                                 </TouchableOpacity>
                             </View>
-                            <Text style={styles.imageLabel}>Image Preview</Text>
+                            <Text style={styles.imageLabel}>{t('image_preview') || 'Image Preview'}</Text>
                         </View>
                     ) : (
                         <View style={styles.imagePlaceholder}>
                             <Feather name="image" size={rf(40)} color="#D1D5DB" />
-                            <Text style={styles.imageLabel}>No Image Selected</Text>
+                            <Text style={styles.imageLabel}>{t('no_image_selected') || 'No Image Selected'}</Text>
                         </View>
                     )}
 
@@ -563,7 +565,7 @@ export default function ItemsPage() {
                         {isSaving ? (
                             <ActivityIndicator color="#fff" />
                         ) : (
-                            <Text style={styles.saveBtnText}>Save Item</Text>
+                            <Text style={styles.saveBtnText}>{t('save_item')}</Text>
                         )}
                     </TouchableOpacity>
 
@@ -571,7 +573,7 @@ export default function ItemsPage() {
                         style={styles.clearBtn}
                         onPress={() => setShowClearConfirm(true)}
                     >
-                        <Text style={styles.clearBtnText}>Clear</Text>
+                        <Text style={styles.clearBtnText}>{t('clear')}</Text>
                     </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
@@ -588,15 +590,15 @@ export default function ItemsPage() {
                             <View style={[styles.successCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
                                 <Ionicons name="trash-outline" size={rf(40)} color="#EF4444" />
                             </View>
-                            <Text style={[styles.successTitleText, { color: '#EF4444' }]}>Reset Form?</Text>
-                            <Text style={styles.successDetailText}>Are you sure you want to clear all item details?</Text>
+                            <Text style={[styles.successTitleText, { color: '#EF4444' }]}>{t('reset_form') || 'Reset Form?'}</Text>
+                            <Text style={styles.successDetailText}>{t('clear_confirm_desc') || 'Are you sure you want to clear all item details?'}</Text>
 
                             <View style={{ flexDirection: 'row', marginTop: vs(24), width: '100%', justifyContent: 'space-between' }}>
                                 <TouchableOpacity
                                     style={{ flex: 1, padding: s(14), backgroundColor: '#F3F4F6', borderRadius: s(12), marginRight: s(8), alignItems: 'center' }}
                                     onPress={() => setShowClearConfirm(false)}
                                 >
-                                    <Text style={{ color: '#4B5563', fontWeight: 'bold', fontSize: rf(16) }}>Cancel</Text>
+                                    <Text style={{ color: '#4B5563', fontWeight: 'bold', fontSize: rf(16) }}>{t('cancel')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={{ flex: 1, padding: s(14), backgroundColor: '#EF4444', borderRadius: s(12), marginLeft: s(8), alignItems: 'center' }}
@@ -607,7 +609,7 @@ export default function ItemsPage() {
                                         setTimeout(() => setShowClearSuccess(false), 2000);
                                     }}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: rf(16) }}>Clear All</Text>
+                                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: rf(16) }}>{t('clear_all') || 'Clear All'}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -627,8 +629,8 @@ export default function ItemsPage() {
                             <View style={[styles.successCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
                                 <Ionicons name="checkmark-done" size={rf(40)} color="#EF4444" />
                             </View>
-                            <Text style={[styles.successTitleText, { color: '#EF4444' }]}>Cleared!</Text>
-                            <Text style={styles.successDetailText}>Form has been reset successfully.</Text>
+                            <Text style={[styles.successTitleText, { color: '#EF4444' }]}>{t('cleared') || 'Cleared!'}</Text>
+                            <Text style={styles.successDetailText}>{t('form_reset_desc') || 'Form has been reset successfully.'}</Text>
                         </View>
                     </View>
                 </View>
@@ -646,8 +648,8 @@ export default function ItemsPage() {
                             <View style={styles.successCircle}>
                                 <Ionicons name="checkmark-sharp" size={rf(40)} color="#10B981" />
                             </View>
-                            <Text style={styles.successTitleText}>Success!</Text>
-                            <Text style={styles.successDetailText}>Item has been added to the menu.</Text>
+                            <Text style={styles.successTitleText}>{t('success') || 'Success!'}</Text>
+                            <Text style={styles.successDetailText}>{t('item_added_desc') || 'Item has been added to the menu.'}</Text>
                         </View>
                     </View>
                 </View>
@@ -665,8 +667,8 @@ export default function ItemsPage() {
                             <View style={styles.successCircle}>
                                 <Ionicons name="layers" size={rf(40)} color="#10B981" />
                             </View>
-                            <Text style={styles.successTitleText}>Category Created!</Text>
-                            <Text style={styles.successDetailText}>Category added to local list.</Text>
+                            <Text style={styles.successTitleText}>{t('category_created') || 'Category Created!'}</Text>
+                            <Text style={styles.successDetailText}>{t('category_added_to_list') || 'Category added to local list.'}</Text>
                         </View>
                     </View>
                 </View>
@@ -692,7 +694,7 @@ export default function ItemsPage() {
                                 style={[styles.saveBtn, { width: '100%', marginTop: vs(24), backgroundColor: '#F43F5E', shadowColor: '#F43F5E' }]}
                                 onPress={() => setShowError(false)}
                             >
-                                <Text style={styles.saveBtnText}>Try Again</Text>
+                                <Text style={styles.saveBtnText}>{t('try_again') || 'Try Again'}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>

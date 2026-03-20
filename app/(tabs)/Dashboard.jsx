@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
+import { useLanguage } from "../../context/LanguageContext";
 
 
 // --- Constants ---
@@ -62,6 +63,7 @@ export default function SalesDashboard() {
     const router = useRouter();
     const { getToken } = useAuth();
     const { isLoaded, isSignedIn } = useUser();
+    const { t } = useLanguage();
 
     const [stats, setStats] = useState({ daily: 0, weekly: 0, monthly: 0 });
     const [loading, setLoading] = useState(true);
@@ -146,10 +148,10 @@ export default function SalesDashboard() {
     }, [refreshSignal]);
 
     const menuItems = [
-        { title: "Daily Sales", path: "/sales/DailySalesScreen", icon: "sunny", color: COLORS.primary, subtitle: "Track today's performance" },
-        { title: "Weekly Sales", path: "/sales/WeeklySalesScreen", icon: "calendar", color: COLORS.secondary, subtitle: "7-day revenue trends" },
-        { title: "Monthly Sales", path: "/sales/MonthlySalesScreen", icon: "stats-chart", color: COLORS.accent, subtitle: "Monthly growth overview" },
-        { title: "Bill Records", path: "/sales/deepsale", icon: "receipt", color: "#6366F1", subtitle: "All historical invoices" },
+        { title: t('daily_sales'), path: "/sales/DailySalesScreen", icon: "sunny", color: COLORS.primary, subtitle: t('performance') },
+        { title: t('weekly_sales'), path: "/sales/WeeklySalesScreen", icon: "calendar", color: COLORS.secondary, subtitle: t('trends') },
+        { title: t('monthly_sales'), path: "/sales/MonthlySalesScreen", icon: "stats-chart", color: COLORS.accent, subtitle: t('growth') },
+        { title: t('bill_records'), path: "/sales/deepsale", icon: "receipt", color: "#6366F1", subtitle: t('invoices') },
     ];
 
     return (
@@ -163,23 +165,23 @@ export default function SalesDashboard() {
 
                 {/* Sales Summary Cards */}
                 <View style={styles.summaryContainer}>
-                    <Text style={styles.sectionTitle}>Sales Summary</Text>
+                    <Text style={styles.sectionTitle}>{t('sales_summary')}</Text>
                     {loading ? (
                         <View style={styles.loaderContainer}>
                             <ActivityIndicator color={COLORS.primary} size="small" />
                         </View>
                     ) : (
                         <View style={styles.statsRow}>
-                            <SalesSummaryCard label="Today" amount={stats.daily} icon="today-outline" color={COLORS.primary} />
-                            <SalesSummaryCard label="Weekly" amount={stats.weekly} icon="trending-up-outline" color={COLORS.secondary} />
-                            <SalesSummaryCard label="Monthly" amount={stats.monthly} icon="pie-chart-outline" color={COLORS.accent} />
+                            <SalesSummaryCard label={t('today')} amount={stats.daily} icon="today-outline" color={COLORS.primary} />
+                            <SalesSummaryCard label={t('weekly')} amount={stats.weekly} icon="trending-up-outline" color={COLORS.secondary} />
+                            <SalesSummaryCard label={t('monthly')} amount={stats.monthly} icon="pie-chart-outline" color={COLORS.accent} />
                         </View>
                     )}
                 </View>
 
                 {/* Analytics Section */}
                 <View style={styles.analyticsSection}>
-                    <Text style={styles.sectionTitle}>Analytics & Reports</Text>
+                    <Text style={styles.sectionTitle}>{t('analytics_reports')}</Text>
                     <View style={styles.menuGrid}>
                         {menuItems.map((item, idx) => (
                             <DashboardMenuItem

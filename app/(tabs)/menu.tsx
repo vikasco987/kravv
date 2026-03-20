@@ -21,6 +21,7 @@ import { SaveBill } from "../../components/SaveBill";
 import { SimpleKOT } from "../../components/SimpleKOT";
 import { useRefresh } from "../../context/RefreshContext";
 import { SimpleBill } from "../../utils/SimpleBill";
+import { useLanguage } from "../../context/LanguageContext";
 
 // Menu Components
 import { CartBar } from "../../components/menu/CartBar";
@@ -64,6 +65,7 @@ export default function MenuScreen() {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
+  const { t } = useLanguage();
 
   const [menus, setMenus] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -255,9 +257,26 @@ export default function MenuScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchMenus();
-      fetchHeldCount();
-      fetchSettings();
+      const resetFocus = async () => {
+        fetchMenus();
+        fetchHeldCount();
+        fetchSettings();
+
+        // Check if cart needs to be cleared (after Success in Bill Dashboard)
+        try {
+          const clearSignal = await AsyncStorage.getItem('@clear_cart_after_bill');
+          if (clearSignal === 'true') {
+            setCart({});
+            setActiveOrderId(null);
+            setSelectedTable(null);
+            await AsyncStorage.removeItem('@clear_cart_after_bill');
+          }
+        } catch (e) {
+          console.log("Error checking clear signal:", e);
+        }
+      };
+      resetFocus();
+
       const checkResumeCart = async () => {
         try {
           const data = await AsyncStorage.getItem('@resume_cart');
@@ -418,14 +437,14 @@ export default function MenuScreen() {
   const itemWidth = (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32)) / 3;
 
   if (loading) return (
-    <View style={styles.center}><ActivityIndicator size="large" color={THEME_PRIMARY} /><Text style={{ marginTop: 10 }}>Organizing Menu A-Z...</Text></View>
+    <View style={styles.center}><ActivityIndicator size="large" color={THEME_PRIMARY} /><Text style={{ marginTop: 10 }}>{t('loading')}</Text></View>
   );
 
   return (
     <View style={styles.container}>
       <MenuHeader
         onAddItem={() => router.push("/party/items")}
-        onPauseOrder={() => Object.keys(cart).length === 0 ? ToastAndroid.show("Cart is empty!", ToastAndroid.SHORT) : setIsHoldModalVisible(true)}
+        onPauseOrder={() => Object.keys(cart).length === 0 ? ToastAndroid.show(t('no_items'), ToastAndroid.SHORT) : setIsHoldModalVisible(true)}
         onViewHeldOrders={() => router.push("/party/hold")}
         heldCount={heldCount}
       />

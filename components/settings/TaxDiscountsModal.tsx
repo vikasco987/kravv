@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, View, Pressable, ScrollView, Text, TouchableOpacity, Switch, TextInput, StyleSheet } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
 import { rf, s, vs } from "../../utils/responsive";
+import { useLanguage } from "../../context/LanguageContext";
 
 const COLORS = {
     primary: '#4F46E5',
@@ -53,6 +54,7 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
     setServiceChargeRate,
     onSave,
 }) => {
+    const { t } = useLanguage();
     return (
         <Modal
             animationType="slide"
@@ -66,7 +68,7 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                     <View style={styles.bottomSheetHandle} />
 
                     <View style={styles.bottomSheetHeader}>
-                        <Text style={styles.bottomSheetTitle}>GST / VAT & Discounts</Text>
+                        <Text style={styles.bottomSheetTitle}>{t('gst_vat_discounts') || 'GST / VAT & Discounts'}</Text>
                         <TouchableOpacity onPress={onClose}>
                             <Ionicons name="close-circle" size={rf(28)} color={COLORS.textLight} opacity={0.5} />
                         </TouchableOpacity>
@@ -75,9 +77,9 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }}>
                         <View style={styles.sectionHeader}>
                             <View style={styles.sectionIconContainer}>
-                                <Ionicons name="percentage" size={rf(14)} color={COLORS.primary} />
+                                <Ionicons name="receipt-outline" size={rf(14)} color={COLORS.primary} />
                             </View>
-                            <Text style={styles.sectionTitle}>GST / TAX SETTINGS</Text>
+                            <Text style={styles.sectionTitle}>{t('gst_tax_settings') || 'GST / TAX SETTINGS'}</Text>
                         </View>
 
                         <View style={styles.settingsCard}>
@@ -89,8 +91,8 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                                     </View>
                                 </View>
                                 <View style={styles.rowText}>
-                                    <Text style={styles.rowLabel}>Enable Global GST System</Text>
-                                    <Text style={styles.rowSubLabel}>{taxRate}% GST will be added to every order</Text>
+                                    <Text style={styles.rowLabel}>{t('enable_global_gst') || 'Enable Global GST System'}</Text>
+                                    <Text style={styles.rowSubLabel}>{t('gst_add_desc', { rate: taxRate }) || `${taxRate}% GST will be added to every order`}</Text>
                                 </View>
                                 <Switch
                                     value={taxEnabled}
@@ -113,8 +115,8 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                                     </View>
                                 </View>
                                 <View style={styles.rowText}>
-                                    <Text style={styles.rowLabel}>Per-Product GST</Text>
-                                    <Text style={styles.rowSubLabel}>Always use Default GST for all products</Text>
+                                    <Text style={styles.rowLabel}>{t('per_product_gst') || 'Per-Product GST'}</Text>
+                                    <Text style={styles.rowSubLabel}>{t('default_gst_desc') || 'Always use Default GST for all products'}</Text>
                                 </View>
                                 <Switch
                                     value={perProductTax}
@@ -131,7 +133,7 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
 
                             {/* Quick Select Rate */}
                             <View style={styles.rateSection}>
-                                <Text style={styles.miniLabel}>QUICK SELECT RATE</Text>
+                                <Text style={styles.miniLabel}>{t('quick_select_rate') || 'QUICK SELECT RATE'}</Text>
                                 <View style={styles.quickSelectGrid}>
                                     {[5, 12, 18, 28].map((rate) => (
                                         <TouchableOpacity
@@ -156,7 +158,7 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
 
                             {/* Custom Rate */}
                             <View style={styles.rateSection}>
-                                <Text style={styles.miniLabel}>CUSTOM RATE (%)</Text>
+                                <Text style={styles.miniLabel}>{t('custom_rate') || 'CUSTOM RATE (%)'}</Text>
                                 <View style={styles.customInputRow}>
                                     <TextInput
                                         style={styles.customTaxInput}
@@ -179,8 +181,8 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                         {/* Discount Toggle */}
                         <View style={styles.settingRow}>
                             <View style={{ flex: 1 }}>
-                                <Text style={styles.settingLabel}>Enable discounts</Text>
-                                <Text style={styles.settingSubLabel}>Allow discount fields while creating bills</Text>
+                                <Text style={styles.settingLabel}>{t('enable_discounts_label') || 'Enable discounts'}</Text>
+                                <Text style={styles.settingSubLabel}>{t('allow_discount_desc') || 'Allow discount fields while creating bills'}</Text>
                             </View>
                             <Switch
                                 value={discountEnabled}
@@ -195,7 +197,7 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
 
                         {/* Default Discount Rate Input */}
                         <View style={styles.inputContainer}>
-                            <Text style={styles.inputLabel}>Default discount rate</Text>
+                            <Text style={styles.inputLabel}>{t('default_discount_label') || 'Default discount rate'}</Text>
                             <View style={styles.inputWrapper}>
                                 <View style={styles.inputIcon}>
                                     <Ionicons name="pricetag-outline" size={rf(18)} color={COLORS.textLight} />
@@ -210,9 +212,9 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                                 <Text style={styles.percentText}>%</Text>
                                 <TouchableOpacity
                                     style={styles.saveBtn}
-                                    onPress={() => onSave("discount_rate", discountRate, "Discount rate")}
+                                    onPress={() => onSave("discount_rate", discountRate, t('discount_rate') || "Discount rate")}
                                 >
-                                    <Text style={styles.saveBtnText}>Save</Text>
+                                    <Text style={styles.saveBtnText}>{t('save') || 'Save'}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -222,8 +224,8 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                         {/* Service Charge Toggle */}
                         <View style={styles.settingRow}>
                             <View style={{ flex: 1 }}>
-                                <Text style={styles.settingLabel}>Enable service charges</Text>
-                                <Text style={styles.settingSubLabel}>Add service charge to bills (e.g., delivery)</Text>
+                                <Text style={styles.settingLabel}>{t('enable_service_charge_label') || 'Enable service charges'}</Text>
+                                <Text style={styles.settingSubLabel}>{t('service_charge_desc') || 'Add service charge to bills (e.g., delivery)'}</Text>
                             </View>
                             <Switch
                                 value={serviceChargeEnabled}
@@ -238,7 +240,7 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
 
                         {/* Default Service Charge Input */}
                         <View style={styles.inputContainer}>
-                            <Text style={styles.inputLabel}>Default service charge</Text>
+                            <Text style={styles.inputLabel}>{t('default_service_charge_label') || 'Default service charge'}</Text>
                             <View style={styles.inputWrapper}>
                                 <View style={styles.inputIcon}>
                                     <Ionicons name="restaurant-outline" size={rf(18)} color={COLORS.textLight} />
@@ -253,9 +255,9 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                                 <Text style={styles.percentText}>%</Text>
                                 <TouchableOpacity
                                     style={styles.saveBtn}
-                                    onPress={() => onSave("service_charge_rate", serviceChargeRate, "Service charge")}
+                                    onPress={() => onSave("service_charge_rate", serviceChargeRate, t('service_charge') || "Service charge")}
                                 >
-                                    <Text style={styles.saveBtnText}>Save</Text>
+                                    <Text style={styles.saveBtnText}>{t('save') || 'Save'}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>

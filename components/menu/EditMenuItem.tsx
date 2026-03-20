@@ -30,6 +30,7 @@ import {
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 import { AddItemCategory } from "./AddItemCategory";
+import { useLanguage } from "../../context/LanguageContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -67,6 +68,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
     const { getToken } = useAuth();
     const { isLoaded, isSignedIn } = useUser();
     const router = useRouter();
+    const { t } = useLanguage();
 
     // States
     const [menus, setMenus] = useState<MenuCategory[]>([]);
@@ -274,7 +276,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
             }
             setIsEditModalVisible(true);
         } catch (err) {
-            Alert.alert("Error", "Could not fetch details.");
+            Alert.alert(t('error') || "Error", t('fetch_details_error') || "Could not fetch details.");
         } finally {
             setIsFetchingItemDetails(false);
         }
@@ -631,7 +633,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 <TouchableOpacity onPress={onBack} style={styles.backBtn}>
                     <ArrowLeft size={rf(24)} color={COLORS.SECONDARY} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Edit Menu Item</Text>
+                <Text style={styles.headerTitle}>{t('edit_menu_item')}</Text>
             </View>
 
             {/* Search Bar */}
@@ -639,7 +641,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 <View style={styles.searchBar}>
                     <Search size={rf(20)} color={COLORS.GRAY} />
                     <TextInput
-                        placeholder="Search"
+                        placeholder={t('search')}
                         style={styles.searchInput}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
@@ -655,7 +657,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                         style={[styles.chip, selectedCategory === "ALL" && styles.chipActive]}
                         onPress={() => setSelectedCategory("ALL")}
                     >
-                        <Text style={[styles.chipText, selectedCategory === "ALL" && styles.chipTextActive]}>ALL</Text>
+                        <Text style={[styles.chipText, selectedCategory === "ALL" && styles.chipTextActive]}>{t('all') || 'ALL'}</Text>
                     </TouchableOpacity>
                     {displayCategories.map((cat) => (
                         <TouchableOpacity
@@ -693,7 +695,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                         <View style={styles.emptyContainer}>
                             <Ionicons name="folder-open-outline" size={rf(50)} color={COLORS.LIGHT_GRAY} />
                             <Text style={styles.emptyText}>
-                                {searchQuery ? "No items match your search" : "No items in this category"}
+                                {searchQuery ? t('no_search_results') || "No items match your search" : t('no_items_category') || "No items in this category"}
                             </Text>
                         </View>
                     }
@@ -709,7 +711,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                         router.push("/party/items");
                     }}
                 >
-                    <Text style={styles.addButtonText}>Add Menu Item</Text>
+                    <Text style={styles.addButtonText}>{t('add_item')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.sparkleButton}>
                     <Sparkles size={rf(22)} color={COLORS.PRIMARY} />
@@ -731,17 +733,17 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 <View style={styles.modalOverlayCentered}>
                     <View style={styles.modalContentCentered}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>New Category</Text>
+                            <Text style={styles.modalTitle}>{t('add_category')}</Text>
                             <TouchableOpacity onPress={() => setIsCreateCategoryModalVisible(false)}>
                                 <Ionicons name="close-circle" size={rf(28)} color="#9CA3AF" />
                             </TouchableOpacity>
                         </View>
 
                         <View style={{ paddingVertical: vs(10) }}>
-                            <Text style={styles.label}>Category Name</Text>
+                            <Text style={styles.label}>{t('categories')}</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="Enter new category..."
+                                placeholder={t('enter_category') || "Enter new category..."}
                                 placeholderTextColor="#9CA3AF"
                                 value={newCategoryName}
                                 onChangeText={setNewCategoryName}
@@ -789,7 +791,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 disabled={isCreatingCategory}
                             >
                                 <Text style={styles.saveBtnText}>
-                                    {isCreatingCategory ? <ActivityIndicator color="white" /> : "Add to Menu"}
+                                    {isCreatingCategory ? <ActivityIndicator color="white" /> : t('add_to_menu') || "Add to Menu"}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -805,8 +807,8 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                             <View style={styles.successCircle}>
                                 <Ionicons name="layers" size={rf(36)} color="#10B981" />
                             </View>
-                            <Text style={styles.feedbackTitle}>Category Created!</Text>
-                            <Text style={styles.feedbackDetail}>New category has been added.</Text>
+                            <Text style={styles.feedbackTitle}>{t('category_created')}</Text>
+                            <Text style={styles.feedbackDetail}>{t('added_success')}</Text>
                         </View>
                     </View>
                 </View>
@@ -820,8 +822,8 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                             <View style={styles.successCircle}>
                                 <Ionicons name="checkmark-circle" size={rf(36)} color="#10B981" />
                             </View>
-                            <Text style={styles.feedbackTitle}>Item Updated!</Text>
-                            <Text style={styles.feedbackDetail}>Changes saved successfully.</Text>
+                            <Text style={styles.feedbackTitle}>{t('item_updated')}</Text>
+                            <Text style={styles.feedbackDetail}>{t('changes_saved')}</Text>
                         </View>
                     </View>
                 </View>
@@ -835,8 +837,8 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                             <View style={[styles.successCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
                                 <Ionicons name="trash" size={rf(36)} color="#EF4444" />
                             </View>
-                            <Text style={[styles.feedbackTitle, { color: '#EF4444' }]}>Item Deleted!</Text>
-                            <Text style={styles.feedbackDetail}>Item has been removed.</Text>
+                            <Text style={[styles.feedbackTitle, { color: '#EF4444' }]}>{t('item_deleted')}</Text>
+                            <Text style={styles.feedbackDetail}>{t('item_removed')}</Text>
                         </View>
                     </View>
                 </View>
@@ -850,21 +852,21 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                             <View style={[styles.successCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
                                 <Ionicons name="alert-circle" size={rf(36)} color="#EF4444" />
                             </View>
-                            <Text style={styles.modalTitle}>Delete Item?</Text>
-                            <Text style={[styles.feedbackDetail, { marginVertical: vs(10) }]}>Are you sure you want to delete this item? This cannot be undone.</Text>
+                            <Text style={styles.modalTitle}>{t('delete_item_confirm')}</Text>
+                            <Text style={[styles.feedbackDetail, { marginVertical: vs(10) }]}>{t('delete_confirm_desc')}</Text>
 
                             <View style={{ flexDirection: 'row', marginTop: vs(15), width: '100%' }}>
                                 <TouchableOpacity
                                     style={[styles.modalActionBtn, { backgroundColor: '#F3F4F6' }]}
                                     onPress={() => setShowDeleteConfirm(false)}
                                 >
-                                    <Text style={{ color: '#374151', fontWeight: '600' }}>Cancel</Text>
+                                    <Text style={{ color: '#374151', fontWeight: '600' }}>{t('cancel')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.modalActionBtn, { backgroundColor: '#EF4444', marginLeft: s(10) }]}
                                     onPress={confirmDelete}
                                 >
-                                    <Text style={{ color: '#fff', fontWeight: '600' }}>Delete</Text>
+                                    <Text style={{ color: '#fff', fontWeight: '600' }}>{t('delete')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -908,7 +910,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.WHITE }}>
                     <View style={styles.modalHeader}>
                         <TouchableOpacity onPress={() => setIsEditModalVisible(false)}><ArrowLeft size={rf(26)} color={COLORS.SECONDARY} /></TouchableOpacity>
-                        <Text style={styles.modalHeaderTitle}>Edit Item</Text>
+                        <Text style={styles.modalHeaderTitle}>{t('edit_item')}</Text>
                         <View style={{ width: 30 }} />
                     </View>
                     <ScrollView style={{ padding: 20 }}>
@@ -927,25 +929,25 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                     </View>
                                 ) : (
                                     <View style={styles.pickerImagePlaceholder}>
-                                        <ImageIcon size={rf(40)} color={COLORS.GRAY} />
-                                        <Text style={{ marginTop: 10, color: COLORS.GRAY }}>Add Image</Text>
+                                         <ImageIcon size={rf(40)} color={COLORS.GRAY} />
+                                        <Text style={{ marginTop: 10, color: COLORS.GRAY }}>{t('add_image')}</Text>
                                     </View>
                                 )}
                             </TouchableOpacity>
                         </View>
 
                         <View style={styles.formGroup}>
-                            <Text style={styles.formLabel}>Item Name</Text>
+                            <Text style={styles.formLabel}>{t('item_name')}</Text>
                             <TextInput style={styles.formInput} value={editName} onChangeText={setEditName} />
                         </View>
                         <View style={styles.formGroup}>
-                            <Text style={styles.formLabel}>Price (₹)</Text>
+                            <Text style={styles.formLabel}>{t('price')}</Text>
                             <TextInput style={styles.formInput} value={editPrice} onChangeText={setEditPrice} keyboardType="numeric" />
                         </View>
 
                         <View style={styles.formGroup}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(8) }}>
-                                <Text style={styles.formLabel}>Category</Text>
+                                <Text style={styles.formLabel}>{t('categories')}</Text>
                                 <TouchableOpacity
                                     onPress={() => setShowAddItemCategoryScreen(true)}
                                     style={styles.addCategoryBtnSmall}
@@ -957,7 +959,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 style={styles.dropdownButton}
                                 onPress={() => setShowCategoryModal(true)}
                             >
-                                <Text style={styles.dropdownButtonText}>{editCategoryName || "Select Category"}</Text>
+                                <Text style={styles.dropdownButtonText}>{editCategoryName || t('select_categories') || "Select Category"}</Text>
                                 <ChevronRight size={rf(18)} color={COLORS.GRAY} />
                             </TouchableOpacity>
                         </View>
@@ -968,7 +970,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 onPress={handleDelete}
                                 disabled={isSaving || isDeleting}
                             >
-                                <Text style={styles.saveBtnText}>{isDeleting ? <ActivityIndicator color="white" /> : "Delete"}</Text>
+                                <Text style={styles.saveBtnText}>{isDeleting ? <ActivityIndicator color="white" /> : t('delete')}</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -976,8 +978,8 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 onPress={handleSave}
                                 disabled={isSaving || isDeleting}
                             >
-                                <Text style={styles.saveBtnText}>
-                                    {isSaving ? <ActivityIndicator color="white" /> : "Update Item"}
+                                 <Text style={styles.saveBtnText}>
+                                    {isSaving ? <ActivityIndicator color="white" /> : t('update_item')}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -993,7 +995,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                         <View style={styles.modalOverlay}>
                             <View style={styles.modalContent}>
                                 <View style={styles.modalHeaderNoMargin}>
-                                    <Text style={styles.modalTitle}>Choose Category</Text>
+                                    <Text style={styles.modalTitle}>{t('select_categories') || 'Choose Category'}</Text>
                                     <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
                                         <Ionicons name="close-circle" size={rf(28)} color="#9CA3AF" />
                                     </TouchableOpacity>
@@ -1028,7 +1030,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                     )}
                                     ListEmptyComponent={
                                         <View style={{ padding: s(20), alignItems: 'center' }}>
-                                            <Text style={{ color: COLORS.GRAY, fontSize: rf(14) }}>No categories found.</Text>
+                                            <Text style={{ color: COLORS.GRAY, fontSize: rf(14) }}>{t('no_items_category') || "No categories found."}</Text>
                                         </View>
                                     }
                                 />
@@ -1069,7 +1071,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                         <TouchableOpacity onPress={() => setIsEditCategoryModalVisible(false)}>
                             <ArrowLeft size={rf(26)} color={COLORS.SECONDARY} />
                         </TouchableOpacity>
-                        <Text style={styles.modalHeaderTitle}>Edit Item Category</Text>
+                        <Text style={styles.modalHeaderTitle}>{t('edit_category')}</Text>
                         <View style={{ width: 30 }} />
                     </View>
 
@@ -1117,7 +1119,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 setShowDeleteCategoryConfirm(true);
                             }}
                         >
-                            <Text style={{ color: COLORS.SECONDARY, fontSize: rf(16), fontWeight: '600' }}>Delete</Text>
+                            <Text style={{ color: COLORS.SECONDARY, fontSize: rf(16), fontWeight: '600' }}>{t('delete')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -1129,7 +1131,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                             disabled={isUpdatingCategory}
                         >
                             <Text style={{ color: COLORS.WHITE, fontSize: rf(16), fontWeight: '600' }}>
-                                {isUpdatingCategory ? <ActivityIndicator color="white" /> : "Update Details"}
+                                {isUpdatingCategory ? <ActivityIndicator color="white" /> : t('update_details')}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -1157,7 +1159,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                             style={[styles.modalActionBtn, { backgroundColor: '#F3F4F6' }]}
                                             onPress={() => setShowDeleteCategoryConfirm(false)}
                                         >
-                                            <Text style={{ color: '#374151', fontWeight: '600' }}>No, Cancel</Text>
+                                            <Text style={{ color: '#374151', fontWeight: '600' }}>{t('cancel')}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={[styles.modalActionBtn, { backgroundColor: '#EF4444', marginLeft: s(10) }]}
@@ -1165,7 +1167,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                             disabled={isDeletingCategory}
                                         >
                                             <Text style={{ color: '#fff', fontWeight: '600' }}>
-                                                {isDeletingCategory ? <ActivityIndicator color="white" /> : "Yes, Delete"}
+                                                {isDeletingCategory ? <ActivityIndicator color="white" /> : t('delete')}
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
@@ -1181,7 +1183,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 <View style={styles.successCircle}>
                                     <Ionicons name="checkmark-circle" size={rf(36)} color="#10B981" />
                                 </View>
-                                <Text style={styles.feedbackTitle}>Category Updated!</Text>
+                                 <Text style={styles.feedbackTitle}>{t('category_updated')}</Text>
                             </View>
                         </View>
                     </Modal>
@@ -1193,7 +1195,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 <View style={[styles.successCircle, { backgroundColor: '#FEE2E2' }]}>
                                     <Ionicons name="trash" size={rf(36)} color="#EF4444" />
                                 </View>
-                                <Text style={[styles.feedbackTitle, { color: '#EF4444' }]}>Category Deleted!</Text>
+                                 <Text style={[styles.feedbackTitle, { color: '#EF4444' }]}>{t('category_deleted')}</Text>
                             </View>
                         </View>
                     </Modal>

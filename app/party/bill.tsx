@@ -25,6 +25,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getRecentCompanyProfile } from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill } from "../../utils/SimpleBill";
+import { useLanguage } from "../../context/LanguageContext";
 
 
 type CartItem = {
@@ -52,6 +53,7 @@ export default function BillPage() {
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
   const { getToken } = useAuth();
   const { user, isLoaded, isSignedIn } = useUser();
+  const { t } = useLanguage();
 
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
@@ -268,7 +270,7 @@ export default function BillPage() {
   const clearCart = () => setCart([]);
 
   const handlePrintAndSave = async () => {
-    if (!cart.length) return ToastAndroid.show("🛒 Cart empty!", ToastAndroid.SHORT);
+    if (!cart.length) return ToastAndroid.show(t('cart_empty') || "🛒 Cart empty!", ToastAndroid.SHORT);
 
 
     try {
@@ -286,6 +288,12 @@ export default function BillPage() {
 
       if (result?.status === "success") {
         setIsSuccessModalVisible(true);
+        // Step 1: Tell the Menu tab to clear its items when it focus next
+        await AsyncStorage.setItem('@clear_cart_after_bill', 'true');
+        
+        // Step 2: Confirmation toast
+        ToastAndroid.show("🎉 Bill Success!", ToastAndroid.SHORT);
+
         setTimeout(() => {
           setIsSuccessModalVisible(false);
           clearCart();
@@ -297,7 +305,7 @@ export default function BillPage() {
       }
     } catch (err: any) {
       console.error("Print error:", err);
-      ToastAndroid.show("❌ Printing failed", ToastAndroid.SHORT);
+      ToastAndroid.show(t('printing_failed') || "❌ Printing failed", ToastAndroid.SHORT);
     }
   };
 
@@ -362,7 +370,7 @@ export default function BillPage() {
         colors={["#6366f1", "#8b5cf6"]}
         style={styles.headerGradient}
       >
-        <Text style={styles.headerTitle}>🧾 Billing Dashboard</Text>
+        <Text style={styles.headerTitle}>🧾 {t('billing_dashboard') || 'Billing Dashboard'}</Text>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
           <Feather name="x" size={rf(20)} color="#fff" />
         </TouchableOpacity>
@@ -372,12 +380,12 @@ export default function BillPage() {
 
       {/* Customer Section */}
       <View style={styles.card}>
-        <Text style={styles.label}>👤 Customer Details</Text>
+        <Text style={styles.label}>👤 {t('customer_details') || 'Customer Details'}</Text>
         <TouchableOpacity
           style={styles.selectBox}
           onPress={() => setShowPartyDropdown((prev) => !prev)}
         >
-          <Text>{selectedParty ? selectedParty.name : "Select Existing Customer"}</Text>
+          <Text>{selectedParty ? selectedParty.name : (t('select_existing_customer') || "Select Existing Customer")}</Text>
           <Feather
             name={showPartyDropdown ? "chevron-up" : "chevron-down"}
             size={rf(18)}
@@ -410,14 +418,14 @@ export default function BillPage() {
           <TextInput
             value={customerName}
             onChangeText={setCustomerName}
-            placeholder="Customer Name"
+            placeholder={t('customer_name') || "Customer Name"}
             placeholderTextColor="#1f1e1e63"
             style={styles.input}
           />
           <TextInput
             value={phone}
             onChangeText={setPhone}
-            placeholder="Phone"
+            placeholder={t('phone') || "Phone"}
             placeholderTextColor="#1f1e1e63"
             keyboardType="phone-pad"
             style={styles.input}
@@ -448,7 +456,7 @@ export default function BillPage() {
             />
           )}
           <TouchableOpacity onPress={handleAddCustomer} style={styles.addBtn}>
-            <Text style={styles.addBtnText}>Save Customer</Text>
+            <Text style={styles.addBtnText}>{t('save_customer') || 'Save Customer'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -469,7 +477,7 @@ export default function BillPage() {
             )}
           </View>
         )}
-        <Text style={[styles.sectionTitle, { marginLeft: 0, marginTop: 0, marginBottom: vs(10) }]}>🛍️ Cart Summary</Text>
+        <Text style={[styles.sectionTitle, { marginLeft: 0, marginTop: 0, marginBottom: vs(10) }]}>🛍️ {t('cart_summary') || 'Cart Summary'}</Text>
         {cart.map((item) => (
           <View key={item.id} style={[styles.itemCard, { marginHorizontal: 0, paddingHorizontal: 0, elevation: 0, shadowOpacity: 0 }]}>
             <View style={{ flex: 2 }}>
@@ -493,7 +501,7 @@ export default function BillPage() {
       {/* Footer Section */}
       <View style={styles.footer}>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryText}>Subtotal</Text>
+          <Text style={styles.summaryText}>{t('subtotal') || 'Subtotal'}</Text>
           <Text style={styles.summaryValue}>₹{calc.subtotalExcl.toFixed(2)}</Text>
         </View>
 
@@ -506,31 +514,31 @@ export default function BillPage() {
 
         {calc.isDiscountEnabled && (
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryText}>Discount ({calc.discountRate}%)</Text>
+            <Text style={styles.summaryText}>{t('discount') || 'Discount'} ({calc.discountRate}%)</Text>
             <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₹{calc.discountAmount.toFixed(2)}</Text>
           </View>
         )}
 
         {calc.isServiceChargeEnabled && (
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryText}>S. Charge ({calc.serviceChargeRate}%)</Text>
+            <Text style={styles.summaryText}>{t('service_charge') || 'S. Charge'} ({calc.serviceChargeRate}%)</Text>
             <Text style={styles.summaryValue}>₹{calc.serviceChargeAmount.toFixed(2)}</Text>
           </View>
         )}
 
         <View style={styles.summaryRow}>
-          <Text style={styles.totalLabel}>Total Due</Text>
+          <Text style={styles.totalLabel}>{t('total_due') || 'Total Due'}</Text>
           <Text style={styles.totalValue}>₹{calc.totalDue.toFixed(2)}</Text>
         </View>
 
         {cart.length > 0 && (
           <TouchableOpacity onPress={handlePrintAndSave} style={styles.printBtn}>
-            <Text style={styles.printBtnText}>🧾 PRINT & SAVE BILL</Text>
+            <Text style={styles.printBtnText}>🧾 {t('print_save_bill') || 'PRINT & SAVE BILL'}</Text>
           </TouchableOpacity>
         )}
 
         <TouchableOpacity onPress={clearCart}>
-          <Text style={styles.clearCart}>🗑️ Clear Cart</Text>
+          <Text style={styles.clearCart}>🗑️ {t('clear_cart') || 'Clear Cart'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -546,8 +554,8 @@ export default function BillPage() {
               <View style={styles.successCircle}>
                 <Ionicons name="checkmark-sharp" size={rf(40)} color="#10B981" />
               </View>
-              <Text style={styles.successTitleText}>Bill Saved!</Text>
-              <Text style={styles.successDetailText}>Your bill has been successfully printed and saved.</Text>
+              <Text style={styles.successTitleText}>{t('bill_saved') || 'Bill Saved!'}</Text>
+              <Text style={styles.successDetailText}>{t('bill_saved_desc') || 'Your bill has been successfully printed and saved.'}</Text>
             </View>
           </View>
         </View>
@@ -573,8 +581,8 @@ export default function BillPage() {
               <View style={[styles.warningCircle, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
                 <Ionicons name="alert-circle-outline" size={rf(40)} color="#D97706" />
               </View>
-              <Text style={[styles.successTitleText, { color: '#D97706' }]}>Missing Info</Text>
-              <Text style={styles.successDetailText}>Please select or add a customer detail first to continue billing.</Text>
+              <Text style={[styles.successTitleText, { color: '#D97706' }]}>{t('missing_info') || 'Missing Info'}</Text>
+              <Text style={styles.successDetailText}>{t('missing_info_desc') || 'Please select or add a customer detail first to continue billing.'}</Text>
 
               {/* Bottom Yellow Line with Name */}
               <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginTop: vs(25), marginBottom: vs(5) }}>
@@ -607,8 +615,8 @@ export default function BillPage() {
               <View style={[styles.warningCircle, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
                 <Ionicons name="alert-circle-outline" size={rf(40)} color="#D97706" />
               </View>
-              <Text style={[styles.successTitleText, { color: '#D97706' }]}>Missing Fields</Text>
-              <Text style={styles.successDetailText}>Please enter the customer&apos;s name and phone number to save.</Text>
+              <Text style={[styles.successTitleText, { color: '#D97706' }]}>{t('missing_fields') || 'Missing Fields'}</Text>
+              <Text style={styles.successDetailText}>{t('missing_fields_desc') || "Please enter the customer's name and phone number to save."}</Text>
 
               <TouchableOpacity
                 style={[styles.confirmCancelBtn, { backgroundColor: '#D97706', marginTop: vs(24), width: '100%', marginRight: 0, flex: 0 }]}
@@ -633,8 +641,8 @@ export default function BillPage() {
               <View style={styles.successCircle}>
                 <Ionicons name="person-add-outline" size={rf(40)} color="#10B981" />
               </View>
-              <Text style={styles.successTitleText}>Success!</Text>
-              <Text style={styles.successDetailText}>Customer details have been saved successfully.</Text>
+              <Text style={styles.successTitleText}>{t('success') || 'Success!'}</Text>
+              <Text style={styles.successDetailText}>{t('customer_saved_desc') || 'Customer details have been saved successfully.'}</Text>
             </View>
           </View>
         </View>
@@ -680,7 +688,7 @@ export default function BillPage() {
                 color: '#1F2937',
                 marginBottom: 10,
                 textAlign: 'center'
-              }}>Duplicate Record Found</Text>
+              }}>{t('duplicate_record_found') || 'Duplicate Record Found'}</Text>
 
               <View style={{
                 backgroundColor: '#FEF2F2',
@@ -698,7 +706,7 @@ export default function BillPage() {
                   fontWeight: '500'
                 }}>
                   {custErrorMessage === "Phone already exists"
-                    ? "This phone number is already registered in your database. Please search for the existing customer instead."
+                    ? (t('phone_already_exists_desc') || "This phone number is already registered in your database. Please search for the existing customer instead.")
                     : custErrorMessage}
                 </Text>
               </View>
@@ -719,7 +727,7 @@ export default function BillPage() {
                 }}
                 onPress={() => setIsCustErrorVisible(false)}
               >
-                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>DISMISS</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>{t('dismiss') || 'DISMISS'}</Text>
               </TouchableOpacity>
 
               <Text style={{

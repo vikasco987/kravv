@@ -529,6 +529,46 @@ export default function CompanyInfoScreen() {
     }
   };
 
+  const uploadImageToCloudinary = async (uri: string) => {
+    const cloudName = "digpvlfup";
+    const uploadPreset = "mybillingmenu";
+
+    const formData = new FormData();
+    const fileName = uri.split("/").pop() || "upload.jpg";
+    const fileType = fileName.split(".").pop() || "jpg";
+
+    // @ts-ignore
+    formData.append("file", {
+      uri: uri,
+      type: `image/${fileType}`,
+      name: fileName,
+    });
+    formData.append("upload_preset", uploadPreset);
+    formData.append("cloud_name", cloudName);
+
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: "POST",
+      body: formData,
+      headers: {
+        "Accept": "application/json",
+      },
+    });
+
+    const text = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      throw new Error(`Cloudinary error: ${text || "Empty response"}`);
+    }
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || `Cloudinary upload failed: ${text}`);
+    }
+
+    return data.secure_url;
+  };
+
   // 🔹 Save company data
   const handleSave = async () => {
     if (!businessType || !businessName || !contactName || !contactPhone || !contactEmail) {
@@ -540,6 +580,40 @@ export default function CompanyInfoScreen() {
       setLoading(true);
       const token = await getToken();
       console.log("🔑 Clerk Token (POST):", token);
+
+      let finalImageUrl = profileImage;
+      let finalLogoUrl = logo;
+      let finalSignatureUrl = signature;
+
+      // 1. Upload Profile Image to Cloudinary if it's a local file
+      if (profileImage && (profileImage.startsWith("file://") || profileImage.startsWith("content://"))) {
+        try {
+          finalImageUrl = await uploadImageToCloudinary(profileImage);
+          console.log("✅ Profile image uploaded to Cloudinary:", finalImageUrl);
+        } catch (uploadError) {
+          console.error("❌ Profile upload to Cloudinary failed:", uploadError);
+        }
+      }
+
+      // 2. Upload Logo to Cloudinary if it's a local file
+      if (logo && (logo.startsWith("file://") || logo.startsWith("content://"))) {
+        try {
+          finalLogoUrl = await uploadImageToCloudinary(logo);
+          console.log("✅ Logo uploaded to Cloudinary:", finalLogoUrl);
+        } catch (uploadError) {
+          console.error("❌ Logo upload to Cloudinary failed:", uploadError);
+        }
+      }
+
+      // 3. Upload Signature to Cloudinary if it's a local file
+      if (signature && (signature.startsWith("file://") || signature.startsWith("content://"))) {
+        try {
+          finalSignatureUrl = await uploadImageToCloudinary(signature);
+          console.log("✅ Signature uploaded to Cloudinary:", finalSignatureUrl);
+        } catch (uploadError) {
+          console.error("❌ Signature upload to Cloudinary failed:", uploadError);
+        }
+      }
 
       const res = await fetch(`${BACKEND_URL}/api/profile`, {
         method: "POST",
@@ -556,9 +630,9 @@ export default function CompanyInfoScreen() {
           contactEmail,
           upi,
           reviewLink,
-          profileImage,
-          logo,
-          signature,
+          profileImage: finalImageUrl,
+          logo: finalLogoUrl,
+          signature: finalSignatureUrl,
           gstNumber,
           businessAddress,
           state,

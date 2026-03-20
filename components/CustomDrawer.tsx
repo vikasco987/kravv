@@ -11,11 +11,13 @@ import { rf, s, vs } from "../utils/responsive";
 import { EditMenuItem } from "./menu/EditMenuItem";
 import { TableQrCodes } from "./menu/TableQrCodes";
 import { LoginRequiredModal } from "./settings/LoginRequiredModal";
+import { useLanguage } from "../context/LanguageContext";
 
 export default function CustomDrawerContent(props: any) {
   const { user } = useUser();
   const { signOut } = useClerk();
   const router = useRouter();
+  const { t } = useLanguage();
   const [loginModalVisible, setLoginModalVisible] = useState(false);
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [editMenuModalVisible, setEditMenuModalVisible] = useState(false);
@@ -47,29 +49,29 @@ export default function CustomDrawerContent(props: any) {
       <DrawerContentScrollView {...props}>
         <View style={styles.header}>
           <Ionicons name="person-circle-outline" size={rf(70)} color="#fff" />
-          <Text style={styles.welcome}>{user ? `Hi, ${user.firstName || 'User'}` : "WELCOME GUEST"}</Text>
+          <Text style={styles.welcome}>{user ? `${t('hi')}, ${user.firstName || 'User'}` : t('welcome_guest')}</Text>
           {user && <Text style={styles.userId}>{user.primaryEmailAddress?.emailAddress}</Text>}
         </View>
 
         <DrawerItem
-          label="Dashboard"
+          label={t('dashboard')}
           icon={({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />}
           onPress={() => props.navigation.navigate("(tabs)", { screen: "Dashboard" })}
         />
 
         <DrawerItem
-          label="Home Menu"
+          label={t('home_menu')}
           icon={({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />}
           onPress={() => props.navigation.navigate("(tabs)", { screen: "menu" })}
         />
         <DrawerItem
-          label="Orders"
+          label={t('orders')}
           icon={({ color, size }) => <Ionicons name="list-outline" size={size} color={color} />}
           onPress={() => handleAuthenticatedNavigation("(tabs)", { screen: "orders" })}
         />
 
         <DrawerItem
-          label="Table QR Codes"
+          label={t('table_qr_codes')}
           icon={({ color, size }) => <Ionicons name="qr-code-outline" size={size} color={color} />}
           onPress={() => {
             if (!user) {
@@ -81,7 +83,7 @@ export default function CustomDrawerContent(props: any) {
           }}
         />
         <DrawerItem
-          label="Edit Menu Item"
+          label={t('edit_menu_item')}
           icon={({ color, size }) => <Ionicons name="create-outline" size={size} color={color} />}
           onPress={() => {
             if (!user) {
@@ -98,21 +100,21 @@ export default function CustomDrawerContent(props: any) {
 
 
         <DrawerItem
-          label="Settings"
+          label={t('settings')}
           icon={({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />}
           onPress={() => props.navigation.navigate("(tabs)", { screen: "setting" })}
         />
 
         {!user ? (
           <DrawerItem
-            label="Sign In"
+            label={t('sign_in')}
             icon={({ color, size }) => <Ionicons name="log-in-outline" size={size} color={COLORS.primary} />}
             onPress={() => router.push("/(auth)/sign-in")}
             labelStyle={{ color: COLORS.primary, fontWeight: 'bold' }}
           />
         ) : (
           <DrawerItem
-            label="Sign Out"
+            label={t('sign_out')}
             icon={({ color, size }) => <Ionicons name="log-out-outline" size={size} color={COLORS.danger} />}
             onPress={async () => {
               await signOut();

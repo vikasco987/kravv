@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
+import { useLanguage } from "../../context/LanguageContext";
 
 const COLORS = {
     primary: '#5D3FD3',
@@ -43,7 +44,7 @@ const SalesStat = ({ label, value, icon, color, isMain = false }) => (
     </View>
 );
 
-const MonthlySalesCard = ({ monthLabel, numberOfBills, totalSales }) => (
+ const MonthlySalesCard = ({ monthLabel, numberOfBills, totalSales, t }) => (
     <View style={enhancedStyles.card}>
         <View style={enhancedStyles.cardHeader}>
             <Ionicons name="calendar-sharp" size={rf(20)} color={COLORS.primary} style={{ marginRight: s(10) }} />
@@ -51,13 +52,13 @@ const MonthlySalesCard = ({ monthLabel, numberOfBills, totalSales }) => (
         </View>
         <View style={enhancedStyles.cardBody}>
             <SalesStat
-                label="Bills Count"
+                label={t('bills_count') || "Bills Count"}
                 value={numberOfBills.toLocaleString()}
                 icon="receipt-outline"
                 color={COLORS.lightText}
             />
             <SalesStat
-                label="Monthly Sales"
+                label={t('monthly_sales_label') || "Monthly Sales"}
                 value={`₹${totalSales.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
                 icon="wallet-sharp"
                 color={COLORS.success}
@@ -67,12 +68,12 @@ const MonthlySalesCard = ({ monthLabel, numberOfBills, totalSales }) => (
     </View>
 );
 
-const TableListView = ({ data, refreshing, onRefresh }) => (
+ const TableListView = ({ data, refreshing, onRefresh, t }) => (
     <View style={enhancedStyles.tableContainer}>
         <View style={enhancedStyles.tableHeaderRow}>
-            <Text style={[enhancedStyles.tableCellHeader, { flex: 3 }]}>Month</Text>
-            <Text style={enhancedStyles.tableCellHeader}>Bills</Text>
-            <Text style={[enhancedStyles.tableCellHeader, { flex: 2, textAlign: 'right' }]}>Sales</Text>
+            <Text style={[enhancedStyles.tableCellHeader, { flex: 3 }]}>{t('month') || 'Month'}</Text>
+            <Text style={enhancedStyles.tableCellHeader}>{t('bills') || 'Bills'}</Text>
+            <Text style={[enhancedStyles.tableCellHeader, { flex: 2, textAlign: 'right' }]}>{t('sales') || 'Sales'}</Text>
         </View>
         <FlatList
             data={data}
@@ -87,9 +88,9 @@ const TableListView = ({ data, refreshing, onRefresh }) => (
                     </Text>
                 </View>
             )}
-            ListEmptyComponent={() => (
+             ListEmptyComponent={() => (
                 <View style={enhancedStyles.emptyContainer}>
-                    <Text style={enhancedStyles.emptyText}>No monthly sales found for Table View.</Text>
+                    <Text style={enhancedStyles.emptyText}>{t('no_sales_found_monthly') || 'No monthly sales found for Table View.'}</Text>
                 </View>
             )}
         />
@@ -98,9 +99,10 @@ const TableListView = ({ data, refreshing, onRefresh }) => (
 
 export default function MonthlySalesScreen() {
     const { getToken } = useAuth();
-    const { isLoaded, isSignedIn } = useUser();
+     const { isLoaded, isSignedIn } = useUser();
     const router = useRouter();
     const { refreshSignal, triggerRefresh } = useRefresh();
+    const { t } = useLanguage();
 
     const [monthlySales, setMonthlySales] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -167,22 +169,22 @@ export default function MonthlySalesScreen() {
         <SafeAreaView style={enhancedStyles.container}>
             <View style={enhancedStyles.pageHeader}>
                 <View style={enhancedStyles.headerTopRow}>
-                    <TouchableOpacity onPress={() => router.back()} style={enhancedStyles.backButton}>
+                     <TouchableOpacity onPress={() => router.back()} style={enhancedStyles.backButton}>
                         <Ionicons name="arrow-back" size={rf(24)} color={COLORS.text} />
                     </TouchableOpacity>
-                    <Text style={enhancedStyles.title}>Monthly Sales Report 📊</Text>
+                    <Text style={enhancedStyles.title}>{t('monthly_sales_report') || 'Monthly Sales Report'} 📊</Text>
                     <TouchableOpacity onPress={triggerRefresh} style={enhancedStyles.reloadButton}>
                         <Ionicons name="refresh" size={rf(26)} color={COLORS.primary} />
-                    </TouchableOpacity>
+                     </TouchableOpacity>
                 </View>
                 <Text style={enhancedStyles.subtitle}>
-                    All Time Revenue: <Text style={enhancedStyles.totalSalesValue}>₹{totalGrandSales.toLocaleString('en-IN')}</Text>
+                    {t('all_time_revenue') || 'All Time Revenue'}: <Text style={enhancedStyles.totalSalesValue}>₹{totalGrandSales.toLocaleString('en-IN')}</Text>
                 </Text>
 
-                <View style={enhancedStyles.controlButtons}>
+                 <View style={enhancedStyles.controlButtons}>
                     <TouchableOpacity onPress={() => setViewMode(viewMode === 'card' ? 'table' : 'card')} style={enhancedStyles.modeButton}>
                         <Ionicons name={viewMode === 'card' ? "list-outline" : "grid-outline"} size={rf(22)} color={COLORS.primary} />
-                        <Text style={enhancedStyles.modeText}>{viewMode === 'card' ? 'Table View' : 'Card View'}</Text>
+                        <Text style={enhancedStyles.modeText}>{viewMode === 'card' ? (t('table_view') || 'Table View') : (t('card_view') || 'Card View')}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -193,22 +195,23 @@ export default function MonthlySalesScreen() {
                         data={monthlySales}
                         keyExtractor={(item) => item.sortKey}
                         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchBills(true)} colors={[COLORS.primary]} />}
-                        renderItem={({ item }) => (
+                         renderItem={({ item }) => (
                             <MonthlySalesCard
                                 monthLabel={item.monthLabel}
                                 numberOfBills={item.numberOfBills}
                                 totalSales={item.totalSales}
+                                t={t}
                             />
                         )}
-                        ListEmptyComponent={() => (
+                         ListEmptyComponent={() => (
                             <View style={enhancedStyles.emptyContainer}>
                                 <Ionicons name="close-circle-outline" size={rf(50)} color={COLORS.lightText} />
-                                <Text style={enhancedStyles.emptyText}>No sales records found yet.</Text>
+                                <Text style={enhancedStyles.emptyText}>{t('no_sales_records') || 'No sales records found yet.'}</Text>
                             </View>
                         )}
                     />
-                ) : (
-                    <TableListView data={monthlySales} refreshing={refreshing} onRefresh={() => fetchBills(true)} />
+                 ) : (
+                    <TableListView data={monthlySales} refreshing={refreshing} onRefresh={() => fetchBills(true)} t={t} />
                 )}
             </View>
         </SafeAreaView>

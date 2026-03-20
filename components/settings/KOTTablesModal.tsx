@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, View, Pressable, ScrollView, Text, TouchableOpacity, Switch, StyleSheet } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
 import { rf, s, vs } from "../../utils/responsive";
+import { useLanguage } from "../../context/LanguageContext";
 
 const COLORS = {
     secondary: '#10B981',
@@ -31,6 +32,7 @@ export const KOTTablesModal: React.FC<KOTTablesModalProps> = ({
     setTableBookingEnabled,
     onSave,
 }) => {
+    const { t } = useLanguage();
     return (
         <Modal
             animationType="slide"
@@ -49,8 +51,8 @@ export const KOTTablesModal: React.FC<KOTTablesModalProps> = ({
                                 <Ionicons name="restaurant-outline" size={rf(24)} color={COLORS.secondary} />
                             </View>
                             <View>
-                                <Text style={styles.bottomSheetTitle}>KOT (Kitchen Order Ticket)</Text>
-                                <Text style={styles.settingSubLabel}>Manage KOT billing and table booking features</Text>
+                                <Text style={styles.bottomSheetTitle}>{t('kot_feature_title') || 'KOT (Kitchen Order Ticket)'}</Text>
+                                <Text style={styles.settingSubLabel}>{t('kot_feature_desc') || 'Manage KOT billing and table booking features'}</Text>
                             </View>
                         </View>
                     </View>
@@ -62,8 +64,8 @@ export const KOTTablesModal: React.FC<KOTTablesModalProps> = ({
                                 <Ionicons name="restaurant-outline" size={rf(22)} color={kotEnabled ? COLORS.secondary : COLORS.textLight} />
                             </View>
                             <View style={{ flex: 1 }}>
-                                <Text style={styles.settingLabel}>Enable KOT Billing</Text>
-                                <Text style={styles.settingSubLabel}>Allow generating Kitchen Order Tickets for quick orders</Text>
+                                <Text style={styles.settingLabel}>{t('enable_kot_billing') || 'Enable KOT Billing'}</Text>
+                                <Text style={styles.settingSubLabel}>{t('enable_kot_desc') || 'Allow generating Kitchen Order Tickets for quick orders'}</Text>
                             </View>
                             <Switch
                                 value={kotEnabled}
@@ -82,8 +84,8 @@ export const KOTTablesModal: React.FC<KOTTablesModalProps> = ({
                                 <Ionicons name="grid-outline" size={rf(22)} color={tableBookingEnabled ? COLORS.secondary : COLORS.textLight} />
                             </View>
                             <View style={{ flex: 1 }}>
-                                <Text style={styles.settingLabel}>Enable Table Booking</Text>
-                                <Text style={styles.settingSubLabel}>Assign table numbers to KOT orders</Text>
+                                <Text style={styles.settingLabel}>{t('enable_table_booking') || 'Enable Table Booking'}</Text>
+                                <Text style={styles.settingSubLabel}>{t('enable_table_booking_desc') || 'Assign table numbers to KOT orders'}</Text>
                             </View>
                             <Switch
                                 value={tableBookingEnabled}
@@ -100,7 +102,7 @@ export const KOTTablesModal: React.FC<KOTTablesModalProps> = ({
                         <View style={styles.kotInfoBox}>
                             <Ionicons name="information-circle-outline" size={rf(18)} color={COLORS.secondary} />
                             <Text style={styles.kotInfoText}>
-                                KOT button will appear in Quick Bill screen. Use it to print kitchen orders before final billing.
+                                {t('kot_info_text') || 'KOT button will appear in Quick Bill screen. Use it to print kitchen orders before final billing.'}
                             </Text>
                         </View>
 
@@ -108,7 +110,7 @@ export const KOTTablesModal: React.FC<KOTTablesModalProps> = ({
                             style={styles.closeBtn}
                             onPress={onClose}
                         >
-                            <Text style={styles.closeBtnText}>Done</Text>
+                            <Text style={styles.closeBtnText}>{t('done') || 'Done'}</Text>
                         </TouchableOpacity>
                     </ScrollView>
                 </View>

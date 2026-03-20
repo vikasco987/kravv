@@ -6,8 +6,10 @@ import "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import TopNavBar from "../../components/TopNavBar";
 import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
+import { useLanguage } from "../../context/LanguageContext";
 
 export default function TabsLayout() {
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const router = useRouter();
@@ -16,18 +18,18 @@ export default function TabsLayout() {
 
   // Dynamic title logic: matches file names
   const getTitle = () => {
-    if (pathname.includes("Dashboard")) return "Sales Dashboard";
-    if (pathname.includes("menu")) return "POS Menu";
-    if (pathname.includes("orders")) return "Live Orders";
-    if (pathname.includes("Client")) return "Customers & Parties";
-    if (pathname.includes("Printer")) return "Printer Setup";
-    if (pathname.includes("setting")) return "Settings";
+    if (pathname.includes("Dashboard")) return t('dashboard');
+    if (pathname.includes("menu")) return t('menu');
+    if (pathname.includes("orders")) return t('orders');
+    if (pathname.includes("Client")) return t('client');
+    if (pathname.includes("Printer")) return t('printer');
+    if (pathname.includes("setting")) return t('settings');
     return "App";
   };
 
   return (
     <>
-      <TopNavBar title={getTitle()} />
+      <TopNavBar title={getTitle()} showSearch={pathname.includes("menu")} />
 
       <Tabs
         screenOptions={{
@@ -50,7 +52,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="Dashboard"
           options={{
-            title: "Dashboard",
+            title: t('dashboard'),
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "stats-chart" : "stats-chart-outline") as any}
@@ -64,7 +66,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="menu"
           options={{
-            title: "Menu",
+            title: t('menu'),
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "grid" : "grid-outline") as any}
@@ -78,7 +80,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="orders"
           options={{
-            title: "Orders",
+            title: t('orders'),
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "list" : "list-outline") as any}
@@ -100,7 +102,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="Client"
           options={{
-            title: "Customers",
+            title: t('client'),
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "people" : "people-outline") as any}
@@ -114,7 +116,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="Printer"
           options={{
-            title: "Printer",
+            title: t('printer'),
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "print" : "print-outline") as any}
@@ -128,7 +130,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="setting"
           options={{
-            title: "Settings",
+            title: t('settings'),
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "settings" : "settings-outline") as any}

@@ -84,6 +84,82 @@ export async function ensurePrinterConnected() {
   }
 }
 
+// ✅ Process Cloudinary URL to monochrome bitmap for ESC/POS
+async function processAndPrintLogo(printer: any, url: string) {
+  try {
+    if (!url) return;
+    ToastAndroid.show("🖼️ Printing Logo...", ToastAndroid.SHORT);
+
+    // 1. Scale to ~240px and convert to 24-bit BMP (uncompressed)
+    let transformedUrl = url;
+    if (url.includes("cloudinary.com")) {
+      const uploadIdx = url.indexOf("/upload/");
+      if (uploadIdx !== -1) {
+        transformedUrl = url.slice(0, uploadIdx + 8) + 
+          "c_scale,w_240,f_bmp/" + 
+          url.slice(uploadIdx + 8);
+      }
+    }
+
+    const response = await fetch(transformedUrl);
+    if (!response.ok) return;
+    
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+
+    // 2. BMP Parsing (Windows BMP V3 Header)
+    if (bytes[0] !== 0x42 || bytes[1] !== 0x4D) return; // 'BM'
+    const dataOffset = bytes[10] | (bytes[11] << 8) | (bytes[12] << 16) | (bytes[13] << 24);
+    const width = bytes[18] | (bytes[19] << 8) | (bytes[20] << 16) | (bytes[21] << 24);
+    const height = Math.abs(bytes[22] | (bytes[23] << 8) | (bytes[24] << 16) | (bytes[25] << 24));
+    const bpp = bytes[28] | (bytes[29] << 8);
+
+    if (bpp !== 24 && bpp !== 32) return; // Standard RGB formats
+
+    const bytesPerLine = Math.ceil(width / 8);
+    const bppBytes = bpp / 8;
+    // Scanlines in BMP are multiple of 4 bytes
+    const bmpStride = Math.ceil((width * bppBytes) / 4) * 4;
+
+    // ESC/POS GS v 0 (Print raster bit image)
+    const xL = bytesPerLine % 256;
+    const xH = Math.floor(bytesPerLine / 256);
+    const yL = height % 256;
+    const yH = Math.floor(height / 256);
+
+    const printerData = new Uint8Array(8 + (bytesPerLine * height));
+    printerData.set([0x1D, 0x76, 0x30, 0, xL, xH, yL, yH]);
+
+    let pos = 8;
+    // BMP is bottom-up (y = height-1 down to 0)
+    for (let y = height - 1; y >= 0; y--) {
+      const lineStart = dataOffset + y * bmpStride;
+      for (let xByte = 0; xByte < bytesPerLine; xByte++) {
+        let byteValue = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const x = xByte * 8 + bit;
+          if (x < width) {
+            const p = lineStart + x * bppBytes;
+            // RGB to Grayscale: 0.299R + 0.587G + 0.114B (BMP stores B-G-R)
+            const luminance = bytes[p+2] * 0.299 + bytes[p+1] * 0.587 + bytes[p] * 0.114;
+            if (luminance < 128) byteValue |= (1 << (7 - bit)); // If dark, set bit to 1
+          }
+        }
+        printerData[pos++] = byteValue;
+      }
+    }
+
+    // 3. Write in small chunks to the printer (CRITICAL for Bluetooth stability)
+    for (let i = 0; i < printerData.length; i += 512) {
+      const chunk = printerData.slice(i, i + 512);
+      await printer.write(chunk);
+    }
+    await printer.write("\n\n"); // Extra padding after logo
+  } catch (err) {
+    console.log("Logo processing failed:", err);
+  }
+}
+
 // ✅ Print helper
 export async function printBill(text: string) {
   try {
@@ -154,7 +230,7 @@ export async function SimpleBill(
     let totalTaxable = 0;
     let totalGst = 0;
 
-    const products = cartItems.map((item) => {
+    const productsForBackend = cartItems.map((item) => {
       const unitPrice = item.editedPrice ?? item.price ?? 0;
       const qty = item.quantity;
       const lineTotal = unitPrice * qty;
@@ -170,11 +246,9 @@ export async function SimpleBill(
       let gst = 0;
 
       if (item.taxType === "With Tax") {
-          // Inclusive
           taxable = lineTotal / (1 + itemGstRate / 100);
           gst = lineTotal - taxable;
       } else {
-          // Exclusive (Default)
           taxable = lineTotal;
           gst = (lineTotal * itemGstRate) / 100;
       }
@@ -187,41 +261,27 @@ export async function SimpleBill(
         name: item.name,
         quantity: qty,
         price: unitPrice,
-        taxableAmount: Number(taxable.toFixed(2)),
-        gstPaid: Number(gst.toFixed(2)),
-        gstRate: itemGstRate,
-        hsnCode: item.hsnCode || "",
+        originalPrice: item.price ?? 0,
         total: lineTotal,
+        gstRate: itemGstRate,
+        taxableAmount: taxable,
+        gstPaid: gst
       };
     });
 
     // --- Calculations ---
     const discountAmount = isDiscountEnabled ? (totalTaxable * (discountRatePercent / 100)) : 0;
     const taxableAfterDiscount = totalTaxable - discountAmount;
-    
-    // Pro-rata GST adjustment
     const effectiveGst = totalTaxable > 0 ? (totalGst * (taxableAfterDiscount / totalTaxable)) : 0;
-
     const serviceChargeAmount = isServiceChargeEnabled ? (taxableAfterDiscount * (serviceChargeRatePercent / 100)) : 0;
     const subtotalFinal = taxableAfterDiscount + serviceChargeAmount;
     const finalTotal = subtotalFinal + effectiveGst;
 
     const gstAmount = Number(effectiveGst.toFixed(2));
-    const subtotalCalc = subtotalFinal;
-    const taxRatePercent = globalTaxRate; // For display
 
     // --- Final Bill Text ---
-    // We will build the text part normally, but the print loop will handle ESC/POS alignment
-    const headerLines = [
-      companyName.toUpperCase(),
-      companyTagline,
-      companyAddress,
-      companyPhone ? `PH: ${companyPhone}` : '',
-      gstNumber ? `GSTIN: ${gstNumber}` : '',
-    ].filter(l => l.length > 0);
-    // --- Tax Summary for Breakup ---
     const taxGroups: Record<number, { taxable: number, gst: number }> = {};
-    products.forEach(p => {
+    productsForBackend.forEach(p => {
         const rate = p.gstRate || 0;
         if (!taxGroups[rate]) taxGroups[rate] = { taxable: 0, gst: 0 };
         taxGroups[rate].taxable += p.taxableAmount;
@@ -235,16 +295,12 @@ export async function SimpleBill(
         return `${rate}% GST: ${group.taxable.toFixed(2).padStart(10)} | ${group.gst.toFixed(2).padStart(8)}`;
     }).filter(t => t.length > 0).join("\n");
 
-    const productsLine = line('-');
-    const doubleLine = line('=');
-
     const customerDetails =
       options?.phone && options.phone.trim().length > 0
         ? `Customer: ${options.customerName || "Walk-in"}\nPh: ${options.phone}`
         : `Customer: ${options.customerName || "Walk-in"}`;
 
-    // Item List
-    const itemsText = products
+    const itemsText = productsForBackend
       .map(
         (i) =>
           `${i.name.slice(0, 12).padEnd(12)} ${String(i.quantity).padStart(3)} ${i.price?.toFixed(2).padStart(6)} ₹${i.total.toFixed(2).padStart(7)}`
@@ -252,8 +308,7 @@ export async function SimpleBill(
       .join("\n");
 
     const bodyText =
-      `${line('-')}
-Bill No: ${billNo}
+      `Bill No: ${billNo}
 Date: ${date.toLocaleString()}
 ${customerDetails}
 Payment Mode: ${paymentMode}
@@ -282,8 +337,8 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
           if (!printer) return;
         }
 
-        // 1. Initialize Printer & Set Alignment
-        await connectedPrinter?.write(new Uint8Array([0x1B, 0x40])); // ESC @ (Initialize)
+        // 1. Initialize Printer
+        await connectedPrinter?.write(new Uint8Array([0x1B, 0x40])); // ESC @
         
         const encoder = new TextEncoder();
         
@@ -292,27 +347,44 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
         const ALIGN_LEFT = new Uint8Array([0x1B, 0x61, 0x00]);
         const SIZE_LARGE = new Uint8Array([0x1B, 0x21, 0x30]); // Double height & width
         const SIZE_NORMAL = new Uint8Array([0x1B, 0x21, 0x00]);
+        const BOLD_ON = new Uint8Array([0x1B, 0x45, 0x01]);
+        const BOLD_OFF = new Uint8Array([0x1B, 0x45, 0x00]);
 
-        // Clear top margin
-        await connectedPrinter?.write(encoder.encode("\n"));
-
-        // Start Alignment
+        // Start With Banners (LOGO & BIDS)
         await connectedPrinter?.write(ALIGN_CENTER);
-        
-        // Print Business Name (Large & Bold)
-        await connectedPrinter?.write(SIZE_LARGE);
-        await connectedPrinter?.write(encoder.encode(companyName.toUpperCase() + "\n"));
-        await connectedPrinter?.write(SIZE_NORMAL);
 
-        // Logo Placeholder or Info
+        // 2. Print Logo from URL
         if (logoUrl) {
-            // Ideally convert image to bits here. For now, stylized header.
-            await connectedPrinter?.write(encoder.encode("--------------------------\n"));
+            await processAndPrintLogo(connectedPrinter, logoUrl);
         }
 
-        // Print Tagline & Info
-        const headerInfo = headerLines.slice(1).join("\n") + "\n";
-        await connectedPrinter?.write(encoder.encode(headerInfo));
+        // Business Name Header (This is the large DELHI 38 in the screenshot)
+        await connectedPrinter?.write(SIZE_LARGE);
+        await connectedPrinter?.write(BOLD_ON);
+        await connectedPrinter?.write(encoder.encode(companyName.toUpperCase() + "\n"));
+        await connectedPrinter?.write(BOLD_OFF);
+        await connectedPrinter?.write(SIZE_NORMAL);
+
+        // Sub-header details
+        if (companyTagline) {
+            await connectedPrinter?.write(encoder.encode(companyTagline + "\n"));
+        }
+        
+        // Decorative divider
+        await connectedPrinter?.write(encoder.encode(line('=') + "\n"));
+
+        // Address & Contact
+        await connectedPrinter?.write(encoder.encode(companyAddress + "\n"));
+        if (companyPhone) {
+            await connectedPrinter?.write(encoder.encode(`PH: ${companyPhone}\n`));
+        }
+        if (gstNumber) {
+            await connectedPrinter?.write(BOLD_ON);
+            await connectedPrinter?.write(encoder.encode(`GSTIN: ${gstNumber}\n`));
+            await connectedPrinter?.write(BOLD_OFF);
+        }
+
+        await connectedPrinter?.write(encoder.encode(line('-') + "\n"));
         
         // Reset to Left for Body
         await connectedPrinter?.write(ALIGN_LEFT);
@@ -352,7 +424,6 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
       }
     })();
     
-    const subtotalVal = subtotalCalc;
     const method = options?.billId ? "PUT" : "POST";
     const url = options?.billId 
       ? `https://billing.kravy.in/api/bill-manager/${options.billId}`
@@ -365,19 +436,25 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        items: products,
-        subtotal: subtotalVal,
+        items: productsForBackend.map(p => ({
+            productId: p.productId,
+            name: p.name,
+            quantity: p.quantity,
+            price: p.price,
+            originalPrice: p.originalPrice,
+            total: p.total
+        })),
+        subtotal: totalTaxable,
         total: finalTotal,
-        paymentMode: options?.paymentMode === "UPI" || options?.paymentMode === "Card" ? options.paymentMode : "Cash",
+        paymentMode: options?.paymentMode || "Cash",
         paymentStatus: "Paid",
         isHeld: false,
-        upiTxnRef: null,
         customerName: options?.customerName || "Walk-in",
         customerPhone: options?.phone || null,
       }),
     });
 
-    const [_, res] = await Promise.all([printPromise, savePromise]);
+    const res = await savePromise;
     const contentType = res.headers.get("content-type");
     let data: any = {};
     if (contentType && contentType.includes("application/json")) {

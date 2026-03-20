@@ -17,12 +17,15 @@ import { WhySignInBox } from "../../components/settings/WhySignInBox";
 import { BusinessManagementCard } from "../../components/settings/BusinessManagementCard";
 import { TaxDiscountsCard } from "../../components/settings/TaxDiscountsCard";
 import { AppFeaturesCard } from "../../components/settings/AppFeaturesCard";
+import { LanguageCard } from "../../components/settings/LanguageCard";
 import { TaxDiscountsModal } from "../../components/settings/TaxDiscountsModal";
 import { AdvancedDiscountModal } from "../../components/settings/AdvancedDiscountModal";
 import { AdvancedDiscountCard } from "../../components/settings/AdvancedDiscountCard";
 import { KOTTablesModal } from "../../components/settings/KOTTablesModal";
 import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
 import { SuccessFeedback } from "../../components/settings/SuccessFeedback";
+import { LanguageSelectionModal } from "../../components/settings/LanguageSelectionModal";
+import { useLanguage } from "../../context/LanguageContext";
 
 const LOCAL_COLORS = {
     background: '#F9FAFB',
@@ -57,6 +60,9 @@ export default function SettingScreen() {
     // App Features States
     const [kotEnabled, setKotEnabled] = React.useState(false);
     const [tableBookingEnabled, setTableBookingEnabled] = React.useState(false);
+    const [languageModalVisible, setLanguageModalVisible] = React.useState(false);
+    // Remove local state and use context
+    const { language: currentLanguage, setLanguage: setCurrentLanguage, t } = useLanguage();
 
     React.useEffect(() => {
         loadSettings();
@@ -68,7 +74,8 @@ export default function SettingScreen() {
                 'tax_enabled', 'tax_per_product', 'tax_rate',
                 'discount_enabled', 'discount_rate',
                 'service_charge_enabled', 'service_charge_rate',
-                'kot_enabled', 'table_booking_enabled'
+                'kot_enabled', 'table_booking_enabled',
+                'app_language'
             ]);
 
             settings.forEach(([key, value]) => {
@@ -125,8 +132,8 @@ export default function SettingScreen() {
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>Settings</Text>
-                    <Text style={styles.subtitle}>Manage your account and preferences</Text>
+                    <Text style={styles.title}>{t('settings')}</Text>
+                    <Text style={styles.subtitle}>{t('manage_account')}</Text>
                 </View>
 
 
@@ -158,6 +165,13 @@ export default function SettingScreen() {
                 <AdvancedDiscountCard
                     user={user}
                     onPress={() => setAdvancedDiscountModalVisible(true)}
+                    onLoginRequired={() => setLoginModalVisible(true)}
+                />
+
+                {/* Language Section */}
+                <LanguageCard 
+                    user={user}
+                    onLanguagePress={() => setLanguageModalVisible(true)}
                     onLoginRequired={() => setLoginModalVisible(true)}
                 />
 
@@ -212,6 +226,16 @@ export default function SettingScreen() {
                 <SuccessFeedback 
                     visible={successModalVisible}
                     message={successMessage}
+                />
+
+                <LanguageSelectionModal
+                    visible={languageModalVisible}
+                    currentLanguage={currentLanguage}
+                    onClose={() => setLanguageModalVisible(false)}
+                    onSelectLanguage={(langId) => {
+                        setCurrentLanguage(langId as any);
+                        saveSetting('app_language', langId, 'Language');
+                    }}
                 />
             </ScrollView>
         </SafeAreaView>

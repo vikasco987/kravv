@@ -15,6 +15,7 @@ import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import CustomDrawerContent from "../components/CustomDrawer";
 import { RefreshProvider } from "../context/RefreshContext";
+import { LanguageProvider, useLanguage } from "../context/LanguageContext";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -49,9 +50,11 @@ export default function RootLayout() {
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <RefreshProvider>
-        <AuthRedirect />
-      </RefreshProvider>
+      <LanguageProvider>
+        <RefreshProvider>
+          <AuthRedirect />
+        </RefreshProvider>
+      </LanguageProvider>
     </ClerkProvider>
   );
 }
@@ -63,6 +66,7 @@ function AuthRedirect() {
   const { session } = useSession();
   const [ready, setReady] = useState(false);
   const [lastSessionId, setLastSessionId] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   useEffect(() => setReady(true), []);
 
@@ -97,14 +101,14 @@ function AuthRedirect() {
         <Drawer.Screen
           name="(tabs)"
           options={{
-            drawerLabel: "Home",
+            drawerLabel: t('home'),
             drawerIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
           }}
         />
         <Drawer.Screen
           name="party/index"
           options={{
-            drawerLabel: "Parties",
+            drawerLabel: t('parties'),
             drawerIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
           }}
         />

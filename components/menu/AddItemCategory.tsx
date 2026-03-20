@@ -14,6 +14,7 @@ import {
     View
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
+import { useLanguage } from "../../context/LanguageContext";
 
 const COLORS = {
     PRIMARY: "#2563EB",
@@ -35,6 +36,7 @@ interface AddItemCategoryProps {
 
 export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd }: AddItemCategoryProps) => {
     const { getToken } = useAuth();
+    const { t } = useLanguage();
     const [categoryName, setCategoryName] = useState("");
     const [isSavingNew, setIsSavingNew] = useState(false);
     const [isSavingCategory, setIsSavingCategory] = useState(false);
@@ -45,7 +47,7 @@ export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd
     const handleSave = (isSaveAndNew: boolean) => {
         const trimmedName = categoryName.trim();
         if (!trimmedName) {
-            setModalMsg({ title: "Name Missing!", detail: "Please enter category name." });
+            setModalMsg({ title: t('name_missing') || "Name Missing!", detail: t('enter_category_name') || "Please enter category name." });
             setShowValidationError(true);
             setTimeout(() => setShowValidationError(false), 2000);
             return;
@@ -66,7 +68,7 @@ export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd
         // Instant UI Response
         if (isSaveAndNew) {
             setCategoryName("");
-            setModalMsg({ title: "Category Saved!", detail: "New category has been added." });
+            setModalMsg({ title: t('category_saved') || "Category Saved!", detail: t('added_success') || "New category has been added." });
             setShowSuccessModal(true);
             setTimeout(() => {
                 setShowSuccessModal(false);
@@ -117,29 +119,29 @@ export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd
                 <TouchableOpacity onPress={onBack} style={styles.backBtn}>
                     <ArrowLeft size={rf(24)} color={COLORS.SECONDARY} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Add Item Category</Text>
+                <Text style={styles.headerTitle}>{t('add_category') || 'Add Item Category'}</Text>
             </View>
 
             <View style={styles.content}>
                 <View style={styles.inputSection}>
-                    <Text style={styles.label}>Category Name</Text>
+                    <Text style={styles.label}>{t('category_name')}</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Enter category name"
+                        placeholder={t('enter_category_name') || "Enter category name"}
                         value={categoryName}
                         onChangeText={setCategoryName}
                         autoFocus={true}
                     />
                     <View style={styles.hintRow}>
                         <Ionicons name="information-circle-outline" size={rf(14)} color={COLORS.GRAY} />
-                        <Text style={styles.hintText}>Items are shown by category while entering orders</Text>
+                        <Text style={styles.hintText}>{t('category_hint') || 'Items are shown by category while entering orders'}</Text>
                     </View>
                 </View>
 
                 <View style={styles.listSection}>
-                    <Text style={styles.listTitle}>ALL CATEGORIES</Text>
+                    <Text style={styles.listTitle}>{t('all_categories_label') || 'ALL CATEGORIES'}</Text>
                     <FlatList
-                        data={[{ id: "none", name: "None" }, ...categories]}
+                        data={[{ id: "none", name: t('none') || "None" }, ...categories]}
                         keyExtractor={(item) => item.id}
                         renderItem={renderCategoryItem}
                         showsVerticalScrollIndicator={false}
@@ -162,7 +164,7 @@ export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd
                     {isSavingNew ? (
                         <ActivityIndicator color={COLORS.WHITE} />
                     ) : (
-                        <Text style={styles.saveNewBtnText}>Save & New</Text>
+                        <Text style={styles.saveNewBtnText}>{t('save_and_new') || 'Save & New'}</Text>
                     )}
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -177,7 +179,7 @@ export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd
                     {isSavingCategory ? (
                         <ActivityIndicator color={COLORS.WHITE} />
                     ) : (
-                        <Text style={styles.saveCategoryBtnText}>Save Category</Text>
+                        <Text style={styles.saveCategoryBtnText}>{t('save_category') || 'Save Category'}</Text>
                     )}
                 </TouchableOpacity>
             </View>

@@ -14,6 +14,7 @@ import {
   View
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
+import { useLanguage } from "../../context/LanguageContext";
 
 const THEME_PRIMARY = "#4F46E5";
 
@@ -36,6 +37,7 @@ export default function TableOrdersScreen() {
   const { tableId, tableName } = useLocalSearchParams();
   const router = useRouter();
   const { getToken } = useAuth();
+  const { t } = useLanguage();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -137,11 +139,11 @@ export default function TableOrdersScreen() {
     <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
         <View>
-          <Text style={styles.billNumber}>Bill #{item.billNumber}</Text>
+          <Text style={styles.billNumber}>{t('bill') || 'Bill'} #{item.billNumber}</Text>
           <Text style={styles.orderTime}>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status}</Text>
+          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{t(item.status.toLowerCase()) || item.status}</Text>
         </View>
       </View>
 
@@ -157,14 +159,14 @@ export default function TableOrdersScreen() {
       <View style={styles.divider} />
 
       <View style={styles.footer}>
-        <Text style={styles.totalText}>Total: ₹{item.total.toFixed(2)}</Text>
+        <Text style={styles.totalText}>{t('total') || 'Total'}: ₹{item.total.toFixed(2)}</Text>
         <View style={styles.actionRow}>
           {item.status === "PENDING" && (
             <TouchableOpacity
               style={[styles.actionBtn, { backgroundColor: "#3B82F6" }]}
               onPress={() => updateOrderStatus(item.id, "PREPARING")}
             >
-              <Text style={styles.actionBtnText}>Prepare</Text>
+              <Text style={styles.actionBtnText}>{t('prepare') || 'Prepare'}</Text>
             </TouchableOpacity>
           )}
           {item.status === "PREPARING" && (
@@ -172,7 +174,7 @@ export default function TableOrdersScreen() {
               style={[styles.actionBtn, { backgroundColor: "#10B981" }]}
               onPress={() => updateOrderStatus(item.id, "READY")}
             >
-              <Text style={styles.actionBtnText}>Ready</Text>
+              <Text style={styles.actionBtnText}>{t('ready') || 'Ready'}</Text>
             </TouchableOpacity>
           )}
           {item.status === "READY" && (
@@ -180,7 +182,7 @@ export default function TableOrdersScreen() {
               style={[styles.actionBtn, { backgroundColor: "#6B7280" }]}
               onPress={() => updateOrderStatus(item.id, "SERVED")}
             >
-              <Text style={styles.actionBtnText}>Mark Served</Text>
+              <Text style={styles.actionBtnText}>{t('mark_served') || 'Mark Served'}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -195,8 +197,8 @@ export default function TableOrdersScreen() {
           <Ionicons name="arrow-back" size={rf(26)} color="#1F2937" />
         </TouchableOpacity>
         <View>
-          <Text style={styles.headerTitle}>{tableName || "Table Orders"}</Text>
-          <Text style={styles.headerSubtitle}>Manage live orders from QR Menu</Text>
+          <Text style={styles.headerTitle}>{tableName || (t('table_orders') || "Table Orders")}</Text>
+          <Text style={styles.headerSubtitle}>{t('table_orders_desc') || 'Manage live orders from QR Menu'}</Text>
         </View>
       </View>
 
@@ -214,7 +216,7 @@ export default function TableOrdersScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="receipt-outline" size={rf(60)} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No active orders for this table</Text>
+              <Text style={styles.emptyText}>{t('no_active_orders') || 'No active orders for this table'}</Text>
             </View>
           }
         />

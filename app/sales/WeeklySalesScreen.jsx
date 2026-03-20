@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
+import { useLanguage } from "../../context/LanguageContext";
 
 const COLORS = {
     primary: '#FF9800',
@@ -38,16 +39,16 @@ const SalesStat = ({ label, value, icon, color, isMain = false }) => (
     </View>
 );
 
-const WeeklySalesCard = ({ weekLabel, numberOfBills, totalSales }) => (
+const WeeklySalesCard = ({ weekLabel, numberOfBills, totalSales, t }) => (
     <View style={enhancedStyles.card}>
         <View style={enhancedStyles.cardHeader}>
             <Ionicons name="stats-chart-outline" size={rf(20)} color={COLORS.primary} style={{ marginRight: s(8) }} />
             <Text style={enhancedStyles.cardDate}>{weekLabel}</Text>
         </View>
         <View style={enhancedStyles.cardBody}>
-            <SalesStat label="Bills" value={numberOfBills.toLocaleString()} icon="receipt-outline" color={COLORS.lightText} />
+            <SalesStat label={t('bills') || "Bills"} value={numberOfBills.toLocaleString()} icon="receipt-outline" color={COLORS.lightText} />
             <SalesStat
-                label="Weekly Sales"
+                label={t('weekly_sales_label') || "Weekly Sales"}
                 value={`₹${totalSales.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
                 icon="wallet-outline"
                 color={COLORS.success}
@@ -57,12 +58,12 @@ const WeeklySalesCard = ({ weekLabel, numberOfBills, totalSales }) => (
     </View>
 );
 
-const TableListView = ({ data, refreshing, onRefresh }) => (
+const TableListView = ({ data, refreshing, onRefresh, t }) => (
     <View style={enhancedStyles.tableContainer}>
         <View style={enhancedStyles.tableHeaderRow}>
-            <Text style={[enhancedStyles.tableCellHeader, { flex: 3, textAlign: 'left' }]}>Week</Text>
-            <Text style={enhancedStyles.tableCellHeader}>Bills</Text>
-            <Text style={[enhancedStyles.tableCellHeader, { flex: 2, textAlign: 'right' }]}>Sales</Text>
+            <Text style={[enhancedStyles.tableCellHeader, { flex: 3, textAlign: 'left' }]}>{t('week') || 'Week'}</Text>
+            <Text style={enhancedStyles.tableCellHeader}>{t('bills') || 'Bills'}</Text>
+            <Text style={[enhancedStyles.tableCellHeader, { flex: 2, textAlign: 'right' }]}>{t('sales') || 'Sales'}</Text>
         </View>
         <FlatList
             data={data}
@@ -79,7 +80,7 @@ const TableListView = ({ data, refreshing, onRefresh }) => (
             )}
             ListEmptyComponent={() => (
                 <View style={enhancedStyles.emptyContainer}>
-                    <Text style={enhancedStyles.emptyText}>No weekly sales found for Table View.</Text>
+                    <Text style={enhancedStyles.emptyText}>{t('no_sales_found_weekly') || 'No weekly sales found for Table View.'}</Text>
                 </View>
             )}
         />
@@ -91,6 +92,7 @@ export default function WeeklySalesScreen() {
     const { isLoaded, isSignedIn } = useUser();
     const router = useRouter();
     const { refreshSignal, triggerRefresh } = useRefresh();
+    const { t } = useLanguage();
 
     const [rawBills, setRawBills] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -110,7 +112,7 @@ export default function WeeklySalesScreen() {
             const date = new Date(bill.createdAt);
             const week = getWeekNumber(date);
             const key = `${date.getFullYear()}-W${week.toString().padStart(2, '0')}`;
-            if (!grouped[key]) grouped[key] = { weekLabel: `Week ${week} (${date.getFullYear()})`, numberOfBills: 0, totalSales: 0, sortKey: key };
+            if (!grouped[key]) grouped[key] = { weekLabel: `${t('week') || 'Week'} ${week} (${date.getFullYear()})`, numberOfBills: 0, totalSales: 0, sortKey: key };
             grouped[key].numberOfBills += 1;
             grouped[key].totalSales += (bill.total || 0);
         });
@@ -165,19 +167,19 @@ export default function WeeklySalesScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={enhancedStyles.backButton}>
                         <Ionicons name="arrow-back" size={rf(24)} color={COLORS.text} />
                     </TouchableOpacity>
-                    <Text style={enhancedStyles.title}>Weekly Sales Report 📈</Text>
+                    <Text style={enhancedStyles.title}>{t('weekly_sales_report') || 'Weekly Sales Report'} 📈</Text>
                     <TouchableOpacity onPress={triggerRefresh} style={enhancedStyles.reloadButton}>
                         <Ionicons name="refresh" size={rf(26)} color={COLORS.primary} />
                     </TouchableOpacity>
                 </View>
                 <Text style={enhancedStyles.subtitle}>
-                    All Time Sales: <Text style={enhancedStyles.totalSalesValue}>₹{totalGrandSales.toLocaleString('en-IN')}</Text>
+                    {t('all_time_sales') || 'All Time Sales'}: <Text style={enhancedStyles.totalSalesValue}>₹{totalGrandSales.toLocaleString('en-IN')}</Text>
                 </Text>
 
                 <View style={enhancedStyles.controlButtons}>
                     <TouchableOpacity onPress={() => setViewMode(viewMode === 'card' ? 'table' : 'card')} style={enhancedStyles.modeButton}>
                         <Ionicons name={viewMode === 'card' ? "list-outline" : "grid-outline"} size={rf(22)} color={COLORS.primary} />
-                        <Text style={enhancedStyles.modeText}>{viewMode === 'card' ? 'Table View' : 'Card View'}</Text>
+                        <Text style={enhancedStyles.modeText}>{viewMode === 'card' ? (t('table_view') || 'Table View') : (t('card_view') || 'Card View')}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -193,17 +195,18 @@ export default function WeeklySalesScreen() {
                                 weekLabel={item.weekLabel}
                                 numberOfBills={item.numberOfBills}
                                 totalSales={item.totalSales}
+                                t={t}
                             />
                         )}
                         ListEmptyComponent={() => (
                             <View style={enhancedStyles.emptyContainer}>
                                 <Ionicons name="close-circle-outline" size={rf(50)} color={COLORS.lightText} />
-                                <Text style={enhancedStyles.emptyText}>No sales records found yet.</Text>
+                                <Text style={enhancedStyles.emptyText}>{t('no_sales_records') || 'No sales records found yet.'}</Text>
                             </View>
                         )}
                     />
                 ) : (
-                    <TableListView data={groupedSales} refreshing={refreshing} onRefresh={() => fetchBills(true)} />
+                    <TableListView data={groupedSales} refreshing={refreshing} onRefresh={() => fetchBills(true)} t={t} />
                 )}
             </View>
         </SafeAreaView>

@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { rf, s, vs } from '../../utils/responsive';
 import { useRefresh } from '../../context/RefreshContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 type HeldOrder = {
     id: string;
@@ -39,6 +40,7 @@ export default function HoldScreen() {
     const { getToken } = useAuth();
     const { isLoaded, isSignedIn } = useUser();
     const { refreshSignal, triggerRefresh } = useRefresh();
+    const { t } = useLanguage();
     const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
     const [isBulkDeleteModalVisible, setIsBulkDeleteModalVisible] = useState(false);
 
@@ -306,7 +308,7 @@ export default function HoldScreen() {
                     <View style={{ flex: 1 }}>
                         <View style={styles.orderHeader}>
                             <View>
-                                <Text style={styles.orderId}>Order #{item.id.toString().slice(-4)}</Text>
+                                <Text style={styles.orderId}>{t('order')} #{item.id.toString().slice(-4)}</Text>
                                 <Text style={styles.orderTime}>
                                     {new Date(item.timestamp).toLocaleString()}
                                 </Text>
@@ -330,14 +332,14 @@ export default function HoldScreen() {
                                 onPress={() => deleteHoldOrder(item.id, item)}
                             >
                                 <Feather name="trash-2" size={rf(16)} color="#DC2626" />
-                                <Text style={styles.deleteBtnText}>Delete</Text>
+                                <Text style={styles.deleteBtnText}>{t('delete')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.actionBtn, styles.resumeBtn]}
                                 onPress={() => resumeOrder(item)}
                             >
                                 <Feather name="play" size={rf(16)} color="#FFF" />
-                                <Text style={styles.resumeBtnText}>Resume</Text>
+                                <Text style={styles.resumeBtnText}>{t('resume')}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -353,8 +355,8 @@ export default function HoldScreen() {
                     <Ionicons name="arrow-back" size={rf(24)} color="#1F2937" />
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>
-                    <Text style={styles.headerTitle}>Hold Orders</Text>
-                    <Text style={styles.headerSubtitle}>{heldOrders.length} orders saved</Text>
+                    <Text style={styles.headerTitle}>{t('hold_orders')}</Text>
+                    <Text style={styles.headerSubtitle}>{heldOrders.length} {t('orders_saved') || 'orders saved'}</Text>
                 </View>
 
                 {heldOrders.length > 0 && (
@@ -394,7 +396,7 @@ export default function HoldScreen() {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Feather name="pause-circle" size={rf(64)} color="#D1D5DB" />
-                            <Text style={styles.emptyText}>No hold orders</Text>
+                            <Text style={styles.emptyText}>{t('no_hold_orders') || 'No hold orders'}</Text>
                         </View>
                     }
                 />
@@ -419,8 +421,8 @@ export default function HoldScreen() {
                                 <View style={styles.successCircle}>
                                     <Ionicons name="checkmark-sharp" size={40} color="#10B981" />
                                 </View>
-                                <Text style={[styles.modalTitle, { color: '#10B981' }]}>Deleted Successfully!</Text>
-                                <Text style={styles.modalSubtext}>Order has been removed from the list.</Text>
+                                <Text style={[styles.modalTitle, { color: '#10B981' }]}>{t('deleted_successfully') || 'Deleted Successfully!'}</Text>
+                                <Text style={styles.modalSubtext}>{t('order_removed_desc') || 'Order has been removed from the list.'}</Text>
                             </View>
                         ) : (
                             <>
@@ -428,20 +430,20 @@ export default function HoldScreen() {
                                     <Ionicons name="trash-outline" size={32} color="#EF4444" />
                                 </View>
 
-                                <Text style={styles.modalTitle}>Delete Order?</Text>
+                                <Text style={styles.modalTitle}>{t('delete_order_confirm') || 'Delete Order?'}</Text>
                                 <Text style={styles.modalSubtext}>
-                                    This order will be permanently deleted. This action cannot be undone.
+                                    {t('delete_order_desc') || 'This order will be permanently deleted. This action cannot be undone.'}
                                 </Text>
 
                                 {orderToDelete && (
                                     <View style={styles.orderDetailsBox}>
                                         <View style={{ flex: 1 }}>
                                             <Text style={styles.orderIdText}>Order #{orderToDelete.id.toString().slice(-4)}</Text>
-                                            <Text style={styles.orderSummaryText} numberOfLines={1}>
-                                                {orderToDelete.items.length} item • {orderToDelete.items.map(i => i.name).join(', ')}
-                                            </Text>
-                                        </View>
-                                        <Text style={styles.orderTotalText}>₹{orderToDelete.total}</Text>
+                                             <Text style={styles.orderSummaryText} numberOfLines={1}>
+                                                 {orderToDelete.items.length} {t('item')} • {orderToDelete.items.map(i => i.name).join(', ')}
+                                             </Text>
+                                         </View>
+                                         <Text style={styles.orderTotalText}>₹{orderToDelete.total}</Text>
                                     </View>
                                 )}
 
@@ -450,14 +452,14 @@ export default function HoldScreen() {
                                     onPress={confirmDeleteOrder}
                                 >
                                     <Ionicons name="trash" size={rf(18)} color="#FFF" style={{ marginRight: s(8) }} />
-                                    <Text style={styles.confirmButtonText}>Yes, Delete Order</Text>
+                                    <Text style={styles.confirmButtonText}>{t('yes_delete_order') || 'Yes, Delete Order'}</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
                                     style={styles.cancelBtn}
                                     onPress={() => setIsDeleteModalVisible(false)}
                                 >
-                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                    <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
                                 </TouchableOpacity>
                             </>
                         )}
@@ -485,8 +487,8 @@ export default function HoldScreen() {
                                 <View style={styles.successCircle}>
                                     <Ionicons name="checkmark-sharp" size={40} color="#10B981" />
                                 </View>
-                                <Text style={[styles.modalTitle, { color: '#059669' }]}>Order Resumed!</Text>
-                                <Text style={styles.modalSubtext}>Loading into active cart...</Text>
+                                <Text style={[styles.modalTitle, { color: '#059669' }]}>{t('order_resumed') || 'Order Resumed!'}</Text>
+                                <Text style={styles.modalSubtext}>{t('loading_cart_desc') || 'Loading into active cart...'}</Text>
                             </View>
                         ) : (
                             <>
@@ -494,18 +496,18 @@ export default function HoldScreen() {
                                     <Ionicons name="play" size={rf(32)} color="#4F46E5" />
                                 </View>
 
-                                <Text style={styles.modalTitle}>Resume Order?</Text>
+                                <Text style={styles.modalTitle}>{t('resume_order_confirm') || 'Resume Order?'}</Text>
                                 <Text style={styles.modalSubtext}>
-                                    This order will be loaded back into your active cart.
+                                    {t('resume_order_desc') || 'This order will be loaded back into your active cart.'}
                                 </Text>
 
                                 {orderToResume && (
                                     <>
                                         <View style={styles.resumeInfoBox}>
                                             <View style={{ flex: 1 }}>
-                                                <Text style={[styles.orderIdText, { color: '#065F46' }]}>Order #{orderToResume.id.toString().slice(-4)}</Text>
+                                                <Text style={[styles.orderIdText, { color: '#065F46' }]}>{t('order')} #{orderToResume.id.toString().slice(-4)}</Text>
                                                 <Text style={{ color: '#059669', fontSize: 14, marginTop: 4 }}>
-                                                    ✓ {orderToResume.items.length} item ready to resume
+                                                    ✓ {orderToResume.items.length} {t('item_ready_resume') || 'item ready to resume'}
                                                 </Text>
                                             </View>
                                             <Text style={[styles.orderTotalText, { color: '#059669' }]}>₹{orderToResume.total}</Text>
@@ -514,7 +516,7 @@ export default function HoldScreen() {
                                         <View style={styles.warningBox}>
                                             <Ionicons name="flash" size={rf(20)} color="#B45309" style={{ marginRight: s(10) }} />
                                             <Text style={styles.warningText}>
-                                                Active cart items will be replaced. Only this order will be loaded.
+                                                {t('active_cart_replace_desc') || 'Active cart items will be replaced. Only this order will be loaded.'}
                                             </Text>
                                         </View>
                                     </>
@@ -525,15 +527,15 @@ export default function HoldScreen() {
                                     onPress={confirmResumeOrder}
                                 >
                                     <Ionicons name="play" size={rf(18)} color="#FFF" style={{ marginRight: s(8) }} />
-                                    <Text style={styles.confirmButtonText}>Yes, Resume Order</Text>
+                                    <Text style={styles.confirmButtonText}>{t('yes_resume_order') || 'Yes, Resume Order'}</Text>
                                 </TouchableOpacity>
 
-                                <TouchableOpacity
-                                    style={styles.cancelBtn}
-                                    onPress={() => setIsResumeModalVisible(false)}
-                                >
-                                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                                </TouchableOpacity>
+                                 <TouchableOpacity
+                                     style={styles.cancelBtn}
+                                     onPress={() => setIsResumeModalVisible(false)}
+                                 >
+                                     <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
+                                 </TouchableOpacity>
                             </>
                         )}
                     </View>
@@ -557,22 +559,22 @@ export default function HoldScreen() {
 
                         {showSuccess && successType === 'delete' ? (
                             <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                                <View style={styles.successCircle}>
-                                    <Ionicons name="checkmark-sharp" size={40} color="#10B981" />
-                                </View>
-                                <Text style={[styles.modalTitle, { color: '#10B981' }]}>Deleted Successfully!</Text>
-                                <Text style={styles.modalSubtext}>{selectedOrders.length} orders have been removed.</Text>
-                            </View>
+                                 <View style={styles.successCircle}>
+                                     <Ionicons name="checkmark-sharp" size={40} color="#10B981" />
+                                 </View>
+                                 <Text style={[styles.modalTitle, { color: '#10B981' }]}>{t('deleted_successfully') || 'Deleted Successfully!'}</Text>
+                                 <Text style={styles.modalSubtext}>{selectedOrders.length} {t('orders_removed') || 'orders have been removed.'}</Text>
+                             </View>
                         ) : (
                             <>
                                 <View style={styles.trashCircle}>
-                                    <Ionicons name="trash-outline" size={32} color="#EF4444" />
-                                </View>
-
-                                <Text style={styles.modalTitle}>Delete {selectedOrders.length} Orders?</Text>
-                                <Text style={styles.modalSubtext}>
-                                    All selected orders will be permanently deleted. This action cannot be undone.
-                                </Text>
+                                     <Ionicons name="trash-outline" size={32} color="#EF4444" />
+                                 </View>
+ 
+                                 <Text style={styles.modalTitle}>{t('delete_multiple_confirm', { count: selectedOrders.length }) || `Delete ${selectedOrders.length} Orders?`}</Text>
+                                 <Text style={styles.modalSubtext}>
+                                     {t('bulk_delete_desc') || 'All selected orders will be permanently deleted. This action cannot be undone.'}
+                                 </Text>
 
                                 <View style={styles.bulkDetailsBox}>
                                     <Ionicons name="layers-outline" size={rf(24)} color="#EF4444" style={{ marginRight: s(15) }} />
@@ -584,20 +586,20 @@ export default function HoldScreen() {
                                     </View>
                                 </View>
 
-                                <TouchableOpacity
-                                    style={styles.confirmDeleteBtn}
-                                    onPress={executeBulkDelete}
-                                >
-                                    <Ionicons name="trash" size={rf(18)} color="#FFF" style={{ marginRight: s(8) }} />
-                                    <Text style={styles.confirmButtonText}>Yes, Delete All Selected</Text>
-                                </TouchableOpacity>
+                                 <TouchableOpacity
+                                     style={styles.confirmDeleteBtn}
+                                     onPress={executeBulkDelete}
+                                 >
+                                     <Ionicons name="trash" size={rf(18)} color="#FFF" style={{ marginRight: s(8) }} />
+                                     <Text style={styles.confirmButtonText}>{t('yes_delete_selected') || 'Yes, Delete All Selected'}</Text>
+                                 </TouchableOpacity>
 
-                                <TouchableOpacity
-                                    style={styles.cancelBtn}
-                                    onPress={() => setIsBulkDeleteModalVisible(false)}
-                                >
-                                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                                </TouchableOpacity>
+                                 <TouchableOpacity
+                                     style={styles.cancelBtn}
+                                     onPress={() => setIsBulkDeleteModalVisible(false)}
+                                 >
+                                     <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
+                                 </TouchableOpacity>
                             </>
                         )}
                     </View>
