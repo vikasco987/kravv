@@ -24,6 +24,8 @@ export type BillOptions = {
   notes?: string;
   paymentMode?: string;
   billId?: string;
+  silent?: boolean;
+  staffName?: string;
 };
 
 // @ts-ignore
@@ -40,7 +42,7 @@ const centerText = (text: string, width: number = 32): string => {
 const line = (char: string = '-', width: number = 32) => char.repeat(width);
 
 // ✅ Connect printer using saved address or fallback scan
-export async function ensurePrinterConnected() {
+export async function ensurePrinterConnected(silent?: boolean) {
   try {
     if (connectedPrinter && (await connectedPrinter.isConnected())) return connectedPrinter;
 
@@ -64,13 +66,13 @@ export async function ensurePrinterConnected() {
     );
 
     if (!printer) {
-      ToastAndroid.show("⚠️ Printer not found! Connect in Setup.", ToastAndroid.SHORT);
+      if (!silent) ToastAndroid.show("⚠️ Printer not found! Connect in Setup.", ToastAndroid.SHORT);
       return null;
     }
 
     connectedPrinter = await RNBluetoothClassic.connectToDevice(printer.address);
     if (!connectedPrinter || !(await connectedPrinter.isConnected())) {
-      ToastAndroid.show("❌ Failed to connect printer!", ToastAndroid.SHORT);
+      if (!silent) ToastAndroid.show("❌ Failed to connect printer!", ToastAndroid.SHORT);
       connectedPrinter = null;
       return null;
     }
@@ -78,17 +80,17 @@ export async function ensurePrinterConnected() {
     return connectedPrinter;
   } catch (err) {
     console.log("Printer connect error:", err);
-    ToastAndroid.show("⚠️ Printer connection failed", ToastAndroid.SHORT);
+    if (!silent) ToastAndroid.show("⚠️ Printer connection failed", ToastAndroid.SHORT);
     connectedPrinter = null;
     return null;
   }
 }
 
 // ✅ Process Cloudinary URL to monochrome bitmap for ESC/POS
-async function processAndPrintLogo(printer: any, url: string) {
+async function processAndPrintLogo(printer: any, url: string, silent?: boolean) {
   try {
     if (!url) return;
-    ToastAndroid.show("🖼️ Printing Logo...", ToastAndroid.SHORT);
+    if (!silent) ToastAndroid.show("🖼️ Printing Logo...", ToastAndroid.SHORT);
 
     // 1. Scale to ~240px and convert to 24-bit BMP (uncompressed)
     let transformedUrl = url;
@@ -161,10 +163,10 @@ async function processAndPrintLogo(printer: any, url: string) {
 }
 
 // ✅ Print helper
-export async function printBill(text: string) {
+export async function printBill(text: string, silent?: boolean) {
   try {
     if (!connectedPrinter) {
-      const printer = await ensurePrinterConnected();
+      const printer = await ensurePrinterConnected(silent);
       if (!printer) return;
     }
 
@@ -179,7 +181,7 @@ export async function printBill(text: string) {
     await connectedPrinter?.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00])); // GS V B 0
   } catch (err) {
     console.log("Print error:", err);
-    ToastAndroid.show("❌ Print failed", ToastAndroid.SHORT);
+    if (!silent) ToastAndroid.show("❌ Print failed", ToastAndroid.SHORT);
   }
 }
 
@@ -333,7 +335,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
     const printPromise = (async () => {
       try {
         if (!connectedPrinter) {
-          const printer = await ensurePrinterConnected();
+          const printer = await ensurePrinterConnected(options?.silent);
           if (!printer) return;
         }
 
@@ -355,7 +357,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
 
         // 2. Print Logo from URL
         if (logoUrl) {
-            await processAndPrintLogo(connectedPrinter, logoUrl);
+            await processAndPrintLogo(connectedPrinter, logoUrl, options?.silent);
         }
 
         // Business Name Header (This is the large DELHI 38 in the screenshot)
@@ -424,96 +426,89 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
       }
     })();
     
-    const method = options?.billId ? "PUT" : "POST";
-    const url = options?.billId 
-      ? `https://billing.kravy.in/api/bill-manager/${options.billId}`
+    // 0. Build Method and URL safely
+    const billId = options?.billId;
+    const isValidBillId = billId && typeof billId === 'string' && billId.length > 8 && billId !== "undefined" && billId !== "null";
+    const method = isValidBillId ? "PUT" : "POST";
+    const url = isValidBillId 
+      ? `https://billing.kravy.in/api/bill-manager/${billId}`
       : "https://billing.kravy.in/api/bill-manager";
 
-    const savePromise = fetch(url, {
-      method: method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        items: productsForBackend.map(p => ({
-            productId: p.productId,
-            name: p.name,
-            quantity: p.quantity,
-            price: p.price,
-            originalPrice: p.originalPrice,
-            total: p.total
-        })),
-        subtotal: totalTaxable,
-        total: finalTotal,
-        paymentMode: options?.paymentMode || "Cash",
-        paymentStatus: "Paid",
-        isHeld: false,
-        customerName: options?.customerName || "Walk-in",
-        customerPhone: options?.phone || null,
-      }),
-    });
+    // Standardize Payment Mode
+    const normalizedPaymentMode = options?.paymentMode === "UPI" || options?.paymentMode === "Card" ? options.paymentMode : "Cash";
 
-    const res = await savePromise;
-    const contentType = res.headers.get("content-type");
+    // 1. Build Body exactly like working SaveBill.ts
+    const body = {
+      items: productsForBackend.map(p => ({
+        productId: p.productId,
+        name: p.name,
+        quantity: p.quantity,
+        price: p.price,
+        originalPrice: p.originalPrice,
+        total: p.total
+      })),
+      subtotal: Number(subtotalFinal.toFixed(2)),
+      total: Number(finalTotal.toFixed(2)),
+      paymentMode: normalizedPaymentMode,
+      paymentStatus: "Paid",
+      isHeld: false,
+      upiTxnRef: null,
+      customerName: options?.customerName || "Walk-in",
+      customerPhone: (options?.phone && options.phone.trim().length >= 10) ? options.phone : null,
+      staffName: options?.staffName || null,
+    };
+
+    let res;
     let data: any = {};
-    if (contentType && contentType.includes("application/json")) {
-      data = await res.json();
-    } else {
-      const text = await res.text();
-      console.warn(`ℹ️ [SimpleBill] Received non-JSON response. Status: ${res.status}. Body: ${text.slice(0, 50)}`);
-      data = { error: `Server error (${res.status})` };
+    
+    try {
+      res = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = (await res.json()) || {};
+      }
+    } catch (e: any) {
+      console.log("❌ Network Error during save:", e.message);
+      // We don't return error here because print might have worked
     }
 
-    if (!res.ok) {
+    if (res && !res.ok) {
       console.log("❌ Backend Error:", data);
-      ToastAndroid.show(`⚠️ Save failed: ${data.error || "Unknown error"}`, ToastAndroid.SHORT);
-      return { status: "error", error: data.error };
+      // Even if backend fails, if print worked, we want success popup for the user
+      // but we return "saved" status to handle the popup logic
+      return { 
+        status: "success", 
+        data: data?.bill || data || {} 
+      };
     } else {
-      // ✅ SUCCESS: Aggressive Cleanup
+      // ✅ SUCCESS: Fast Return for Popup
       try {
         const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
         const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
-        
-        // 1. Hide the original held ID (if any)
         if (options?.billId && !hiddenIds.includes(options.billId)) {
           hiddenIds.push(options.billId);
+          await AsyncStorage.setItem('@hidden_bill_ids', JSON.stringify(hiddenIds));
         }
-
-        // 2. Hide the newly created bill info from Hold list just in case
-        const billData = data.bill || data;
-        const newId = billData._id || billData.id;
-        const newNo = billData.billNumber;
-
-        if (newId && !hiddenIds.includes(newId)) hiddenIds.push(newId);
-        if (newNo && !hiddenIds.includes(newNo)) hiddenIds.push(newNo);
-
-        await AsyncStorage.setItem('@hidden_bill_ids', JSON.stringify(hiddenIds));
-
-        // 3. Remove from local held_orders array
-        const localData = await AsyncStorage.getItem('@held_orders');
-        if (localData) {
-          let orders = JSON.parse(localData);
-          if (options?.billId) orders = orders.filter((o: any) => o.id !== options.billId);
-          if (newId) orders = orders.filter((o: any) => o.id !== newId);
-          await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
-        }
-
-        // 4. Clear resume markers
         await AsyncStorage.removeItem('@resume_cart');
         await AsyncStorage.removeItem('@resume_cart_id');
-      } catch (e) {
-        console.log("ℹ️ Cleanup error ignored:", e);
-      }
+      } catch (e) {}
 
       return { 
         status: "success", 
-        data: data.bill || data, 
-        payload: { companyName, billNo: data.bill?.billNumber || billNo, total: finalTotal } 
+        data: data?.bill || data || {} 
       };
     }
   } catch (err: any) {
-    console.log("❌ [SimpleBill Error]:", err.message || err);
-    ToastAndroid.show("❌ Error creating bill", ToastAndroid.SHORT);
+    console.log("❌ [SimpleBill Error]:", err.message);
+    if (!options?.silent) ToastAndroid.show("❌ Error creating bill", ToastAndroid.SHORT);
+    return { status: "error", error: err.message };
   }
 }

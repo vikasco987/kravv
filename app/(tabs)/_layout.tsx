@@ -7,6 +7,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import TopNavBar from "../../components/TopNavBar";
 import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
 import { useLanguage } from "../../context/LanguageContext";
+import { View } from "react-native";
+// @ts-ignore
+import RNBluetoothClassic from "react-native-bluetooth-classic";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect } from "react";
 
 export default function TabsLayout() {
   const { t } = useLanguage();
@@ -15,6 +20,35 @@ export default function TabsLayout() {
   const router = useRouter();
   const { isSignedIn } = useAuth();
   const [loginModalVisible, setLoginModalVisible] = useState(false);
+  const [isPrinterConnected, setIsPrinterConnected] = useState(false);
+
+  useEffect(() => {
+    const checkPrinter = async () => {
+      try {
+        const savedAddress = await AsyncStorage.getItem("saved_printer");
+        if (!savedAddress) {
+          setIsPrinterConnected(false);
+          return;
+        }
+        
+        const devices = await RNBluetoothClassic.getBondedDevices();
+        const printer = devices.find((d: any) => d.address === savedAddress);
+        
+        if (printer) {
+          const connected = await printer.isConnected();
+          setIsPrinterConnected(connected);
+        } else {
+          setIsPrinterConnected(false);
+        }
+      } catch (err) {
+        setIsPrinterConnected(false);
+      }
+    };
+
+    checkPrinter();
+    const interval = setInterval(checkPrinter, 5000); // Check every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   // Dynamic title logic: matches file names
   const getTitle = () => {
@@ -118,11 +152,24 @@ export default function TabsLayout() {
           options={{
             title: t('printer'),
             tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons
-                name={(focused ? "print" : "print-outline") as any}
-                size={size}
-                color={color}
-              />
+              <View>
+                <Ionicons
+                  name={(focused ? "print" : "print-outline") as any}
+                  size={size}
+                  color={color}
+                />
+                <View style={{
+                  position: 'absolute',
+                  right: -4,
+                  top: -2,
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: isPrinterConnected ? "#10B981" : "#EF4444",
+                  borderWidth: 1.5,
+                  borderColor: '#fff'
+                }} />
+              </View>
             ),
           }}
         />

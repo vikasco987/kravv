@@ -64,7 +64,8 @@
           "photosPermission": "The app accesses your photos to let you set item images.",
           "cameraPermission": "The app accesses your camera to let you take item photos."
         }
-      ]
+      ],
+      "@react-native-voice/voice"
     ],
     "experiments": {
       "typedRoutes": true,

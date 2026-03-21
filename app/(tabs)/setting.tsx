@@ -26,6 +26,8 @@ import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal
 import { SuccessFeedback } from "../../components/settings/SuccessFeedback";
 import { LanguageSelectionModal } from "../../components/settings/LanguageSelectionModal";
 import { useLanguage } from "../../context/LanguageContext";
+import { StaffCard } from "../../components/settings/StaffCard";
+import { StaffModal } from "../../components/settings/StaffModal";
 
 const LOCAL_COLORS = {
     background: '#F9FAFB',
@@ -61,6 +63,7 @@ export default function SettingScreen() {
     const [kotEnabled, setKotEnabled] = React.useState(false);
     const [tableBookingEnabled, setTableBookingEnabled] = React.useState(false);
     const [languageModalVisible, setLanguageModalVisible] = React.useState(false);
+    const [staffModalVisible, setStaffModalVisible] = React.useState(false);
     // Remove local state and use context
     const { language: currentLanguage, setLanguage: setCurrentLanguage, t } = useLanguage();
 
@@ -161,6 +164,13 @@ export default function SettingScreen() {
                     onLoginRequired={() => setLoginModalVisible(true)}
                 />
 
+                {/* Staff Management Section */}
+                <StaffCard
+                    user={user}
+                    onPress={() => setStaffModalVisible(true)}
+                    onLoginRequired={() => setLoginModalVisible(true)}
+                />
+
                 {/* Advanced Discounts Section */}
                 <AdvancedDiscountCard
                     user={user}
@@ -236,6 +246,11 @@ export default function SettingScreen() {
                         setCurrentLanguage(langId as any);
                         saveSetting('app_language', langId, 'Language');
                     }}
+                />
+
+                <StaffModal 
+                    visible={staffModalVisible}
+                    onClose={() => setStaffModalVisible(false)}
                 />
             </ScrollView>
         </SafeAreaView>

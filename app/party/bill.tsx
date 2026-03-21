@@ -16,8 +16,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  // @ts-ignore
-  ToastAndroid,
   TouchableOpacity,
   View
 } from "react-native";
@@ -67,6 +65,15 @@ export default function BillPage() {
   const [isCustWarningVisible, setIsCustWarningVisible] = useState(false);
   const [isCustErrorVisible, setIsCustErrorVisible] = useState(false);
   const [custErrorMessage, setCustErrorMessage] = useState("");
+  
+  const [isErrorModalVisible, setIsErrorModalVisible] = useState(false);
+  const [printErrorMessage, setPrintErrorMessage] = useState("");
+  const [isStaffEnabled, setIsStaffEnabled] = useState(false);
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [selectedStaff, setSelectedStaff] = useState<any | null>(null);
+  const [showStaffDropdown, setShowStaffDropdown] = useState(false);
+
+  const [isClearSuccessVisible, setIsClearSuccessVisible] = useState(false);
 
   const [parties, setParties] = useState<Party[]>([]);
   const [showPartyDropdown, setShowPartyDropdown] = useState(false);
@@ -81,6 +88,17 @@ export default function BillPage() {
       }
     };
     fetchCompany();
+    
+    // Check if staff assignment is enabled
+    const checkStaffSetting = async () => {
+      const enabled = await AsyncStorage.getItem("assign_staff_enabled");
+      const listStr = await AsyncStorage.getItem("staff_list");
+      if (enabled === "true") {
+        setIsStaffEnabled(true);
+        if (listStr) setStaffList(JSON.parse(listStr));
+      }
+    };
+    checkStaffSetting();
   }, [getToken]);
 
   useEffect(() => {
@@ -267,11 +285,24 @@ export default function BillPage() {
         .filter((item) => item.quantity > 0)
     );
 
-  const clearCart = () => setCart([]);
+  const clearCart = async () => {
+    setCart([]);
+    setIsClearSuccessVisible(true);
+    // This signal tells menu.tsx to clear its own cart state when it gains focus
+    await AsyncStorage.setItem('@clear_cart_after_bill', 'true');
+    
+    setTimeout(() => {
+      setIsClearSuccessVisible(false);
+      router.replace("/(tabs)/menu");
+    }, 2000);
+  };
 
   const handlePrintAndSave = async () => {
-    if (!cart.length) return ToastAndroid.show(t('cart_empty') || "🛒 Cart empty!", ToastAndroid.SHORT);
-
+    if (!cart.length) {
+      setPrintErrorMessage(t('cart_empty') || "🛒 Your cart is empty! Add some items to proceed.");
+      setIsErrorModalVisible(true);
+      return;
+    }
 
     try {
       const token = await getToken();
@@ -284,28 +315,33 @@ export default function BillPage() {
         paymentMode: "CASH",
         notes: "Printed via Bluetooth",
         billId: params.heldOrderId as string, // Pass the held ID to convert it to a real bill
+        silent: true,
+        staffName: selectedStaff?.name,
       });
 
-      if (result?.status === "success") {
+      if (result?.status === "success" || result?.status === "saved") {
         setIsSuccessModalVisible(true);
-        // Step 1: Tell the Menu tab to clear its items when it focus next
         await AsyncStorage.setItem('@clear_cart_after_bill', 'true');
-        
-        // Step 2: Confirmation toast
-        ToastAndroid.show("🎉 Bill Success!", ToastAndroid.SHORT);
 
         setTimeout(() => {
           setIsSuccessModalVisible(false);
           clearCart();
           setSelectedParty(null);
           router.replace("/(tabs)/menu");
-        }, 2000);
+        }, 3000); // 3 seconds is enough
       } else {
-        ToastAndroid.show("⚠️ Failed to print or save bill", ToastAndroid.SHORT);
+        // Fallback for success if the response was ok but status not explicitly set
+        if (result && !result.error) {
+           setIsSuccessModalVisible(true);
+           return;
+        }
+        setPrintErrorMessage(result?.error || "⚠️ Save failed. Please check your internet connection.");
+        setIsErrorModalVisible(true);
       }
     } catch (err: any) {
       console.error("Print error:", err);
-      ToastAndroid.show(t('printing_failed') || "❌ Printing failed", ToastAndroid.SHORT);
+      setPrintErrorMessage(t('printing_failed') || "❌ Printing process failed. Check your printer connection.");
+      setIsErrorModalVisible(true);
     }
   };
 
@@ -461,6 +497,49 @@ export default function BillPage() {
         </View>
       </View>
 
+      {/* Staff Assignment Section (If Enabled) */}
+      {isStaffEnabled && (
+        <View style={styles.card}>
+          <Text style={styles.label}>👨‍🍳 Select Staff</Text>
+          <TouchableOpacity
+            style={styles.selectBox}
+            onPress={() => setShowStaffDropdown((prev) => !prev)}
+          >
+            <Text style={{ color: selectedStaff ? "#111827" : "#1f1e1e63" }}>
+               {selectedStaff ? selectedStaff.name : "Select Staff Member"}
+            </Text>
+            <Feather
+              name={showStaffDropdown ? "chevron-up" : "chevron-down"}
+              size={rf(18)}
+              color="#4f46e5"
+            />
+          </TouchableOpacity>
+
+          {showStaffDropdown && (
+            <View style={styles.dropdown}>
+              {staffList.length > 0 ? (
+                staffList.map((s) => (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setSelectedStaff(s);
+                      setShowStaffDropdown(false);
+                    }}
+                  >
+                    <Text>{s.name} ({s.accessType})</Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.dropdownItem}>
+                  <Text style={{ color: 'red' }}>No staff found. Add staff in Settings.</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Cart Items */}
       <View style={styles.card}>
         {company?.logoUrl && (
@@ -542,20 +621,98 @@ export default function BillPage() {
         </TouchableOpacity>
       </View>
 
-      {/* Success Modal */}
+      {/* Premium Success Modal */}
       <Modal
         transparent={true}
         visible={isSuccessModalVisible}
         animationType="fade"
       >
         <View style={styles.modalOverlayCentered}>
-          <View style={styles.modalContentCentered}>
-            <View style={{ alignItems: 'center', paddingVertical: vs(20) }}>
-              <View style={styles.successCircle}>
-                <Ionicons name="checkmark-sharp" size={rf(40)} color="#10B981" />
+          <View style={[styles.modalContentCentered, { 
+            borderColor: '#10B981', 
+            borderWidth: 1,
+            shadowColor: '#10B981',
+            shadowOpacity: 0.15,
+            shadowRadius: 15
+          }]}>
+            <View style={{ alignItems: 'center', paddingVertical: vs(10) }}>
+              {/* Top Banner Design */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 20 }}>
+                <View style={{ flex: 1, height: 1.5, backgroundColor: '#D1FAE5' }} />
+                <Text style={{ marginHorizontal: 10, color: '#10B981', fontWeight: 'bold', fontSize: 12, letterSpacing: 2 }}>SUCCESS</Text>
+                <View style={{ flex: 1, height: 1.5, backgroundColor: '#D1FAE5' }} />
               </View>
-              <Text style={styles.successTitleText}>{t('bill_saved') || 'Bill Saved!'}</Text>
-              <Text style={styles.successDetailText}>{t('bill_saved_desc') || 'Your bill has been successfully printed and saved.'}</Text>
+
+              <View style={[styles.successCircle, { backgroundColor: '#D1FAE5', borderColor: '#A7F3D0', borderWidth: 4, width: s(90), height: s(90), borderRadius: s(45) }]}>
+                <Ionicons name="checkmark-circle" size={rf(50)} color="#10B981" />
+              </View>
+              
+              <Text style={[styles.successTitleText, { color: '#065F46', marginBottom: 5 }]}>{t('bill_saved') || 'Save and Successful'}</Text>
+              <Text style={[styles.successDetailText, { color: '#6B7280', fontSize: rf(15) }]}>
+                {t('bill_saved_desc') || 'Your bill has been successfully printed and saved to our database.'}
+              </Text>
+
+              {/* Decorative Divider */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginTop: vs(30), marginBottom: vs(5) }}>
+                <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
+                <Text style={{ marginHorizontal: s(10), color: '#9CA3AF', fontWeight: 'bold', fontSize: rf(10), letterSpacing: 2 }}>KRAVY BILLING</Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.printBtn, { width: '100%', marginTop: vs(15) }]}
+                onPress={() => {
+                  setIsSuccessModalVisible(false);
+                  clearCart();
+                  setSelectedParty(null);
+                  router.replace("/(tabs)/menu");
+                }}
+              >
+                <Text style={styles.printBtnText}>BACK TO MENU</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Premium Printing/Saving Error Modal */}
+      <Modal
+        transparent={true}
+        visible={isErrorModalVisible}
+        animationType="fade"
+        onRequestClose={() => setIsErrorModalVisible(false)}
+      >
+        <View style={styles.modalOverlayCentered}>
+          <View style={[styles.modalContentCentered, { 
+            borderColor: '#EF4444', 
+            borderWidth: 1,
+            shadowColor: '#EF4444',
+            shadowOpacity: 0.15,
+            shadowRadius: 15
+          }]}>
+            <View style={{ alignItems: 'center', paddingVertical: vs(10) }}>
+              {/* Top Banner Design */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 20 }}>
+                <View style={{ flex: 1, height: 1.5, backgroundColor: '#FEE2E2' }} />
+                <Text style={{ marginHorizontal: 10, color: '#EF4444', fontWeight: 'bold', fontSize: 12, letterSpacing: 2 }}>ERROR</Text>
+                <View style={{ flex: 1, height: 1.5, backgroundColor: '#FEE2E2' }} />
+              </View>
+
+              <View style={[styles.warningCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA', borderWidth: 4, width: s(90), height: s(90), borderRadius: s(45) }]}>
+                <Ionicons name="close-circle" size={rf(50)} color="#EF4444" />
+              </View>
+              
+              <Text style={[styles.successTitleText, { color: '#991B1B', marginBottom: 5 }]}>Process Failed</Text>
+              <Text style={[styles.successDetailText, { color: '#6B7280', fontSize: rf(15) }]}>
+                {printErrorMessage}
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.confirmCancelBtn, { backgroundColor: '#EF4444', width: '100%', marginTop: vs(30), marginRight: 0 }]}
+                onPress={() => setIsErrorModalVisible(false)}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: rf(18) }}>DISMISS</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -737,6 +894,24 @@ export default function BillPage() {
                 fontWeight: '600',
                 letterSpacing: 1
               }}>KRAVY BILLING SYSTEM</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* Short Success Modal for Clear Cart */}
+      <Modal
+        transparent={true}
+        visible={isClearSuccessVisible}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlayCentered}>
+          <View style={styles.modalContentCentered}>
+            <View style={{ alignItems: 'center', paddingVertical: vs(10) }}>
+              <View style={[styles.successCircle, { backgroundColor: '#FEF2F2', borderColor: '#FEE2E2' }]}>
+                <Ionicons name="trash-outline" size={rf(40)} color="#EF4444" />
+              </View>
+              <Text style={[styles.successTitleText, { color: '#EF4444' }]}>{t('cart_cleared') || 'Cart Cleared!'}</Text>
+              <Text style={styles.successDetailText}>{t('cart_cleared_desc') || 'The items have been removed. Returning to Menu...'}</Text>
             </View>
           </View>
         </View>
