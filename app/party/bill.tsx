@@ -5,9 +5,10 @@ import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 // @ts-ignore
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Image,
   Modal,
@@ -19,11 +20,10 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useLanguage } from "../../context/LanguageContext";
 import { getRecentCompanyProfile } from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill } from "../../utils/SimpleBill";
-import { useLanguage } from "../../context/LanguageContext";
 
 
 type CartItem = {
@@ -34,6 +34,7 @@ type CartItem = {
   gst?: number;
   taxType?: string;
   hsnCode?: string;
+  imageUrl?: string;
 };
 
 type Party = {
@@ -65,7 +66,7 @@ export default function BillPage() {
   const [isCustWarningVisible, setIsCustWarningVisible] = useState(false);
   const [isCustErrorVisible, setIsCustErrorVisible] = useState(false);
   const [custErrorMessage, setCustErrorMessage] = useState("");
-  
+
   const [isErrorModalVisible, setIsErrorModalVisible] = useState(false);
   const [printErrorMessage, setPrintErrorMessage] = useState("");
   const [isStaffEnabled, setIsStaffEnabled] = useState(false);
@@ -88,7 +89,7 @@ export default function BillPage() {
       }
     };
     fetchCompany();
-    
+
     // Check if staff assignment is enabled
     const checkStaffSetting = async () => {
       const enabled = await AsyncStorage.getItem("assign_staff_enabled");
@@ -101,16 +102,18 @@ export default function BillPage() {
     checkStaffSetting();
   }, [getToken]);
 
-  useEffect(() => {
-    if (params.cart) {
-      try {
-        const parsed = JSON.parse(params.cart as string);
-        setCart(Object.values(parsed));
-      } catch (err) {
-        console.error("Failed to parse cart params:", err);
+  useFocusEffect(
+    useCallback(() => {
+      if (params.cart) {
+        try {
+          const parsed = JSON.parse(params.cart as string);
+          setCart(Object.values(parsed));
+        } catch (err) {
+          console.error("Failed to parse cart params:", err);
+        }
       }
-    }
-  }, [params.cart]);
+    }, [params.cart])
+  );
 
   const fetchParties = async () => {
     if (!isLoaded || !isSignedIn) return;
@@ -146,11 +149,11 @@ export default function BillPage() {
     fetchParties();
   }, [isLoaded, isSignedIn]);
 
-  const [calc, setCalc] = useState({ 
-    subtotalExcl: 0, 
-    gstAmount: 0, 
-    discountAmount: 0, 
-    serviceChargeAmount: 0, 
+  const [calc, setCalc] = useState({
+    subtotalExcl: 0,
+    gstAmount: 0,
+    discountAmount: 0,
+    serviceChargeAmount: 0,
     totalDue: 0,
     isTaxEnabled: false,
     taxRate: 5,
@@ -159,122 +162,134 @@ export default function BillPage() {
     isDiscountEnabled: false,
     discountRate: 0,
     isServiceChargeEnabled: false,
-    serviceChargeRate: 0
+    serviceChargeRate: 0,
+    taxableAmount: 0
   });
 
-  useEffect(() => {
-    const calculateFinal = async () => {
-      const settings = await AsyncStorage.multiGet([
-        'tax_enabled', 'tax_rate', 'per_product_tax',
-        'discount_enabled', 'discount_rate',
-        'service_charge_enabled', 'service_charge_rate'
-      ]);
-      
-      const sMap: Record<string, string | null> = {};
-      settings.forEach(([key, val]) => sMap[key] = val);
+  const calculateFinal = useCallback(async () => {
+    const settings = await AsyncStorage.multiGet([
+      'tax_enabled', 'tax_rate', 'per_product_tax',
+      'discount_enabled', 'discount_rate',
+      'service_charge_enabled', 'service_charge_rate'
+    ]);
 
-      const isTaxEnabled = sMap['tax_enabled'] === 'true';
-      const globalTaxRate = parseFloat(sMap['tax_rate'] || "5.00");
-      const perProductTaxEnabled = sMap['per_product_tax'] === 'true';
-      const isDiscountEnabled = sMap['discount_enabled'] === 'true';
-      const discountRate = parseFloat(sMap['discount_rate'] || "0.00");
-      const isServiceChargeEnabled = sMap['service_charge_enabled'] === 'true';
-      const serviceChargeRate = parseFloat(sMap['service_charge_rate'] || "0.00");
+    const sMap: Record<string, string | null> = {};
+    settings.forEach(([key, val]) => sMap[key] = val);
 
-      let totalTaxable = 0;
-      let totalGst = 0;
-      let totalGross = 0;
+    const isTaxEnabled = sMap['tax_enabled'] === 'true';
+    const globalTaxRate = parseFloat(sMap['tax_rate'] || "5.00");
+    const perProductTaxEnabled = sMap['per_product_tax'] === 'true';
+    const isDiscountEnabled = sMap['discount_enabled'] === 'true';
+    const discountRate = parseFloat(sMap['discount_rate'] || "0.00");
+    const isServiceChargeEnabled = sMap['service_charge_enabled'] === 'true';
+    const serviceChargeRate = parseFloat(sMap['service_charge_rate'] || "0.00");
 
-      // Calculate each item's tax contribution
-      cart.forEach(item => {
-          const itemPrice = item.price || 0;
-          const qty = item.quantity;
-          const lineTotal = itemPrice * qty;
-          
-          let itemGstRate = 0;
-          if (perProductTaxEnabled && (item.gst !== null && item.gst !== undefined)) {
-              itemGstRate = item.gst;
-          } else if (isTaxEnabled) {
-              itemGstRate = globalTaxRate;
-          }
+    let totalTaxable = 0;
+    let totalGst = 0;
+    const ratesInCart = new Set<number>();
 
-          let taxable = 0;
-          let gst = 0;
+    // Calculate each item's tax contribution
+    cart.forEach(item => {
+      const itemPrice = item.price || 0;
+      const qty = item.quantity;
+      const lineTotal = itemPrice * qty;
 
-          if (item.taxType === "With Tax") {
-              // Inclusive
-              taxable = lineTotal / (1 + itemGstRate / 100);
-              gst = lineTotal - taxable;
-          } else {
-              // Exclusive (Default)
-              taxable = lineTotal;
-              gst = (lineTotal * itemGstRate) / 100;
-          }
-
-          totalTaxable += taxable;
-          totalGst += gst;
-          totalGross += (taxable + gst);
-      });
-
-      // Apply Discount on Taxable subtotal (Legal compliance)
-      const discountAmount = isDiscountEnabled ? (totalTaxable * (discountRate / 100)) : 0;
-      const taxableAfterDiscount = totalTaxable - discountAmount;
-      
-      // Pro-rata GST adjustment if discount applied (simplified for global discount)
-      // If discount is global, we reduce the total GST proportionally
-      const effectiveGst = isDiscountEnabled ? (totalGst * (taxableAfterDiscount / totalTaxable)) : totalGst;
-
-      const serviceChargeAmount = isServiceChargeEnabled ? (taxableAfterDiscount * (serviceChargeRate / 100)) : 0;
-      const subtotalFinal = taxableAfterDiscount + serviceChargeAmount;
-
-      const finalTotal = subtotalFinal + effectiveGst;
-
-      // Determine the GST label based on rates present in the cart
-      let gstLabel = "";
-      if (perProductTaxEnabled) {
-          const rates = new Set(cart.map(item => {
-              if (item.gst !== null && item.gst !== undefined) return item.gst;
-              return isTaxEnabled ? globalTaxRate : 0;
-          }));
-          const rateList = Array.from(rates);
-          if (rateList.length === 1) {
-              gstLabel = `(${rateList[0]}%)`;
-          } else if (rateList.length > 1) {
-              gstLabel = "(Multi)";
-          } else {
-              gstLabel = `(${globalTaxRate}%)`;
-          }
+      let itemGstRate = 0;
+      if (isTaxEnabled) {
+          itemGstRate = globalTaxRate;
+      } else if (perProductTaxEnabled) {
+          itemGstRate = (item.gst !== null && item.gst !== undefined) ? Number(item.gst) : 0;
       } else {
-          gstLabel = `(${globalTaxRate}%)`;
+          itemGstRate = 0;
+      }
+      
+      ratesInCart.add(itemGstRate);
+
+      let taxable = 0;
+      let gst = 0;
+
+      if (item.taxType === "With Tax") {
+        // Inclusive
+        taxable = lineTotal / (1 + itemGstRate / 100);
+        gst = lineTotal - taxable;
+      } else {
+        // Exclusive
+        taxable = lineTotal;
+        gst = (lineTotal * itemGstRate) / 100;
       }
 
-      setCalc({
-        subtotalExcl: subtotalFinal,
-        gstAmount: Number(effectiveGst.toFixed(2)),
-        discountAmount: Number(discountAmount.toFixed(2)),
-        serviceChargeAmount: Number(serviceChargeAmount.toFixed(2)),
-        totalDue: Number(finalTotal.toFixed(2)),
-        isTaxEnabled,
-        taxRate: globalTaxRate,
-        gstLabel,
-        perProductTaxEnabled,
-        isDiscountEnabled,
-        discountRate,
-        isServiceChargeEnabled,
-        serviceChargeRate
-      });
-    };
-    calculateFinal();
+      totalTaxable += taxable;
+      totalGst += gst;
+    });
+
+    // --- Sequence: Tax on TOTAL Value (Including S.Charge) ---
+    // 1. Discount on Original Taxable Value
+    const discountAmount = isDiscountEnabled ? (totalTaxable * (discountRate / 100)) : 0;
+    const taxableAfterDiscount = totalTaxable - discountAmount;
+
+    // 2. Service Charge on Discounted Value
+    const serviceChargeAmount = isServiceChargeEnabled ? (taxableAfterDiscount * (serviceChargeRate / 100)) : 0;
+    
+    // 3. Taxable Amount Display Row (Base + SC)
+    const netTaxableValue = taxableAfterDiscount + serviceChargeAmount;
+
+    // 4. Final GST - Applied to netTaxableValue (Includes Service Charge)
+    const avgGstRate = totalTaxable > 0 ? (totalGst / totalTaxable) : 0;
+    const finalGstAmount = netTaxableValue * avgGstRate;
+
+    // 5. Grand Total (Sum of all steps)
+    const grandTotal = netTaxableValue + finalGstAmount;
+
+    // Determine the GST label
+    let gstLabel = "(0%)";
+    if (isTaxEnabled) {
+        gstLabel = `(${globalTaxRate}%)`;
+    } else if (perProductTaxEnabled) {
+        const uniqueRates = Array.from(ratesInCart);
+        if (uniqueRates.length === 1) {
+            gstLabel = `(${uniqueRates[0]}%)`;
+        } else if (uniqueRates.length > 1) {
+            gstLabel = "(Multi)";
+        }
+    }
+
+    setCalc({
+      subtotalExcl: totalTaxable, 
+      gstAmount: Math.floor(finalGstAmount * 100) / 100, // Truncate to achieve 12.09 instead of 12.10
+      discountAmount: Number(discountAmount.toFixed(2)),
+      serviceChargeAmount: Number(serviceChargeAmount.toFixed(2)),
+      totalDue: Math.floor(grandTotal * 100) / 100, // Sync total with truncated GST
+      isTaxEnabled,
+      taxRate: globalTaxRate,
+      gstLabel,
+      perProductTaxEnabled,
+      isDiscountEnabled,
+      discountRate,
+      isServiceChargeEnabled,
+      serviceChargeRate,
+      taxableAmount: Number(netTaxableValue.toFixed(2))
+    });
   }, [cart]);
 
-  const increaseQty = (id: string) =>
+  useFocusEffect(
+    useCallback(() => {
+      calculateFinal();
+    }, [calculateFinal])
+  );
+
+  useEffect(() => {
+    calculateFinal();
+  }, [cart, calculateFinal]);
+
+  const increaseQty = (id: string) => {
     setCart((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, quantity: item.quantity + 1 } : item
       )
     );
+  };
 
-  const decreaseQty = (id: string) =>
+  const decreaseQty = (id: string) => {
     setCart((prev) =>
       prev
         .map((item) =>
@@ -284,13 +299,18 @@ export default function BillPage() {
         )
         .filter((item) => item.quantity > 0)
     );
+  };
+
+  const deleteItem = (id: string) => {
+    setCart((prev) => prev.filter((item) => item.id !== id));
+  };
 
   const clearCart = async () => {
     setCart([]);
     setIsClearSuccessVisible(true);
     // This signal tells menu.tsx to clear its own cart state when it gains focus
     await AsyncStorage.setItem('@clear_cart_after_bill', 'true');
-    
+
     setTimeout(() => {
       setIsClearSuccessVisible(false);
       router.replace("/(tabs)/menu");
@@ -323,17 +343,25 @@ export default function BillPage() {
         setIsSuccessModalVisible(true);
         await AsyncStorage.setItem('@clear_cart_after_bill', 'true');
 
-        setTimeout(() => {
+        setTimeout(async () => {
           setIsSuccessModalVisible(false);
-          clearCart();
+          setCart([]);
+          await AsyncStorage.setItem('@clear_cart_after_bill', 'true');
           setSelectedParty(null);
           router.replace("/(tabs)/menu");
         }, 3000); // 3 seconds is enough
       } else {
         // Fallback for success if the response was ok but status not explicitly set
         if (result && !result.error) {
-           setIsSuccessModalVisible(true);
-           return;
+          setIsSuccessModalVisible(true);
+          setTimeout(async () => {
+            setIsSuccessModalVisible(false);
+            setCart([]);
+            await AsyncStorage.setItem('@clear_cart_after_bill', 'true');
+            setSelectedParty(null);
+            router.replace("/(tabs)/menu");
+          }, 3000);
+          return;
         }
         setPrintErrorMessage(result?.error || "⚠️ Save failed. Please check your internet connection.");
         setIsErrorModalVisible(true);
@@ -412,52 +440,138 @@ export default function BillPage() {
         </TouchableOpacity>
       </LinearGradient>
 
+      {/* Horizontal Items Grid (from Screenshot) */}
+      <View style={{ marginTop: vs(15) }}>
+        <Text style={[styles.sectionTitle, { marginBottom: vs(10) }]}>Items added to order</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: s(20), paddingBottom: vs(10) }}>
+          {cart.map((item) => (
+            <View key={item.id} style={{ marginRight: s(16), width: s(130) }}>
+              {/* Item Card with Image */}
+              <View style={{ 
+                width: s(130), 
+                height: s(130), 
+                borderRadius: s(16), 
+                backgroundColor: '#f3f4f6', 
+                overflow: 'hidden', 
+                position: 'relative' 
+              }}>
+                {item.imageUrl ? (
+                  <Image 
+                    source={{ uri: item.imageUrl }} 
+                    style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+                  />
+                ) : (
+                  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="fast-food-outline" size={rf(30)} color="#ccc" />
+                  </View>
+                )}
+
+                {/* Top Right Price Badge */}
+                <View style={{ 
+                  position: 'absolute', 
+                  top: s(8), 
+                  right: s(8), 
+                  backgroundColor: 'rgba(0,0,0,0.4)', 
+                  paddingHorizontal: s(8), 
+                  paddingVertical: s(4), 
+                  borderRadius: s(6) 
+                }}>
+                  <Text style={{ color: '#fff', fontSize: rf(13), fontWeight: 'bold' }}>₹{item.price}</Text>
+                </View>
+
+                {/* Floating Quantity Bar (Blue) */}
+                <View style={{ 
+                  position: 'absolute', 
+                  bottom: s(10), 
+                  left: s(10), 
+                  right: s(10), 
+                  backgroundColor: '#2563eb', // Standard business blue
+                  height: vs(34), 
+                  borderRadius: s(10), 
+                  flexDirection: 'row', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-around',
+                  shadowColor: '#000',
+                  shadowOpacity: 0.2,
+                  shadowRadius: 4,
+                  elevation: 4
+                }}>
+                  <TouchableOpacity onPress={() => decreaseQty(item.id)}>
+                    <Ionicons name="remove" size={rf(20)} color="#fff" />
+                  </TouchableOpacity>
+                  <Text style={{ color: '#fff', fontSize: rf(16), fontWeight: 'bold' }}>{item.quantity}</Text>
+                  <TouchableOpacity onPress={() => increaseQty(item.id)}>
+                    <Ionicons name="add" size={rf(20)} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Name below Card */}
+              <Text style={{ 
+                marginTop: vs(8), 
+                fontSize: rf(16), 
+                fontWeight: '500', 
+                color: '#111827', 
+                paddingLeft: s(2) 
+              }} numberOfLines={1}>
+                {item.name}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+
+
 
 
       {/* Customer Section */}
       <View style={styles.card}>
         <Text style={styles.label}>👤 {t('customer_details') || 'Customer Details'}</Text>
-        <TouchableOpacity
-          style={styles.selectBox}
-          onPress={() => setShowPartyDropdown((prev) => !prev)}
-        >
-          <Text>{selectedParty ? selectedParty.name : (t('select_existing_customer') || "Select Existing Customer")}</Text>
-          <Feather
-            name={showPartyDropdown ? "chevron-up" : "chevron-down"}
-            size={rf(18)}
-            color="#4f46e5"
-          />
-        </TouchableOpacity>
-
-        {showPartyDropdown && (
-          <View style={styles.dropdown}>
-            {parties.map((p) => (
-              <TouchableOpacity
-                key={p.id}
-                style={styles.dropdownItem}
-                onPress={() => {
-                  setSelectedParty(p);
-                  setShowPartyDropdown(false);
-                  setCustomerName(p.name);
-                  setPhone(p.phone);
-                  setBillingAddress(p.address || "");
-                  if (p.dob) setDob(new Date(p.dob));
-                }}
-              >
-                <Text>{p.name} ({p.phone})</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
         <View style={{ marginTop: 10 }}>
           <TextInput
             value={customerName}
-            onChangeText={setCustomerName}
+            onChangeText={(text) => {
+              setCustomerName(text);
+              if (text.length > 0) setShowPartyDropdown(true);
+              else setShowPartyDropdown(false);
+              // reset selected party if user is typing manually
+              setSelectedParty(null);
+            }}
             placeholder={t('customer_name') || "Customer Name"}
             placeholderTextColor="#1f1e1e63"
             style={styles.input}
           />
+
+          {showPartyDropdown && customerName.length > 0 && (
+            <View style={[styles.dropdown, { marginTop: -5, marginBottom: 10 }]}>
+              {parties
+                .filter(p => p.name.toLowerCase().includes(customerName.toLowerCase()) || p.phone.includes(customerName))
+                .slice(0, 5) // limit to top 5 results for speed
+                .map((p) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setSelectedParty(p);
+                      setShowPartyDropdown(false);
+                      setCustomerName(p.name);
+                      setPhone(p.phone);
+                      setBillingAddress(p.address || "");
+                      if (p.dob) setDob(new Date(p.dob));
+                    }}
+                  >
+                    <Text style={{ fontWeight: '600' }}>{p.name}</Text>
+                    <Text style={{ fontSize: 12, color: '#666' }}>📞 {p.phone}</Text>
+                  </TouchableOpacity>
+                ))}
+              {parties.filter(p => p.name.toLowerCase().includes(customerName.toLowerCase()) || p.phone.includes(customerName)).length === 0 && (
+                <View style={styles.dropdownItem}>
+                  <Text style={{ color: '#999', fontStyle: 'italic' }}>No matches found (Manual Entry)</Text>
+                </View>
+              )}
+            </View>
+          )}
+
           <TextInput
             value={phone}
             onChangeText={setPhone}
@@ -491,9 +605,6 @@ export default function BillPage() {
               }}
             />
           )}
-          <TouchableOpacity onPress={handleAddCustomer} style={styles.addBtn}>
-            <Text style={styles.addBtnText}>{t('save_customer') || 'Save Customer'}</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -506,7 +617,7 @@ export default function BillPage() {
             onPress={() => setShowStaffDropdown((prev) => !prev)}
           >
             <Text style={{ color: selectedStaff ? "#111827" : "#1f1e1e63" }}>
-               {selectedStaff ? selectedStaff.name : "Select Staff Member"}
+              {selectedStaff ? selectedStaff.name : "Select Staff Member"}
             </Text>
             <Feather
               name={showStaffDropdown ? "chevron-up" : "chevron-down"}
@@ -544,9 +655,9 @@ export default function BillPage() {
       <View style={styles.card}>
         {company?.logoUrl && (
           <View style={{ alignItems: 'center', marginBottom: vs(10) }}>
-            <Image 
-              source={{ uri: company.logoUrl }} 
-              style={{ width: s(60), height: s(60), borderRadius: s(30), resizeMode: 'contain' }} 
+            <Image
+              source={{ uri: company.logoUrl }}
+              style={{ width: s(60), height: s(60), borderRadius: s(30), resizeMode: 'contain' }}
             />
             {company.companyName && (
               <Text style={{ fontSize: rf(20), fontWeight: 'bold', marginTop: vs(5) }}>{company.companyName}</Text>
@@ -573,52 +684,59 @@ export default function BillPage() {
               </TouchableOpacity>
             </View>
             <Text style={styles.itemTotal}>₹{(item.price || 0) * item.quantity}</Text>
+            <TouchableOpacity onPress={() => deleteItem(item.id)} style={{ marginLeft: s(12) }}>
+              <Ionicons name="trash" size={rf(18)} color="#ef4444" />
+            </TouchableOpacity>
           </View>
         ))}
-      </View>
-
-      {/* Footer Section */}
-      <View style={styles.footer}>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryText}>{t('subtotal') || 'Subtotal'}</Text>
-          <Text style={styles.summaryValue}>₹{calc.subtotalExcl.toFixed(2)}</Text>
-        </View>
-
-        {(calc.isTaxEnabled || calc.perProductTaxEnabled) && (
+        {/* Combined Summary & Footer Section */}
+        <View style={{ marginTop: vs(20), borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: vs(15) }}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryText}>GST {calc.gstLabel}</Text>
-            <Text style={styles.summaryValue}>₹{calc.gstAmount.toFixed(2)}</Text>
+            <Text style={styles.summaryText}>{t('subtotal') || 'Subtotal'}</Text>
+            <Text style={styles.summaryValue}>₹{calc.subtotalExcl.toFixed(2)}</Text>
           </View>
-        )}
 
-        {calc.isDiscountEnabled && (
+          {calc.isDiscountEnabled && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>{t('discount') || 'Discount'} ({calc.discountRate}%)</Text>
+              <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₹{calc.discountAmount.toFixed(2)}</Text>
+            </View>
+          )}
+
+          {calc.isServiceChargeEnabled && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>{t('service_charge') || 'S. Charge'} ({calc.serviceChargeRate}%)</Text>
+              <Text style={styles.summaryValue}>₹{calc.serviceChargeAmount.toFixed(2)}</Text>
+            </View>
+          )}
+
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryText}>{t('discount') || 'Discount'} ({calc.discountRate}%)</Text>
-            <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₹{calc.discountAmount.toFixed(2)}</Text>
+            <Text style={styles.summaryText}>{t('taxable_amount') || 'Taxable Amount'}</Text>
+            <Text style={styles.summaryValue}>₹{(calc as any).taxableAmount?.toFixed(2) || '0.00'}</Text>
           </View>
-        )}
 
-        {calc.isServiceChargeEnabled && (
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryText}>{t('service_charge') || 'S. Charge'} ({calc.serviceChargeRate}%)</Text>
-            <Text style={styles.summaryValue}>₹{calc.serviceChargeAmount.toFixed(2)}</Text>
+          {(calc.isTaxEnabled || calc.perProductTaxEnabled) && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>GST {calc.gstLabel}</Text>
+              <Text style={styles.summaryValue}>₹{calc.gstAmount.toFixed(2)}</Text>
+            </View>
+          )}
+
+          <View style={[styles.summaryRow, { marginTop: vs(10), borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: vs(15) }]}>
+            <Text style={styles.totalLabel}>{t('total_due') || 'Total Due'}</Text>
+            <Text style={styles.totalValue}>₹{calc.totalDue.toFixed(2)}</Text>
           </View>
-        )}
 
-        <View style={styles.summaryRow}>
-          <Text style={styles.totalLabel}>{t('total_due') || 'Total Due'}</Text>
-          <Text style={styles.totalValue}>₹{calc.totalDue.toFixed(2)}</Text>
-        </View>
+          {cart.length > 0 && (
+            <TouchableOpacity onPress={handlePrintAndSave} style={styles.printBtn}>
+              <Text style={styles.printBtnText}>🧾 {t('print_save_bill') || 'PRINT & SAVE BILL'}</Text>
+            </TouchableOpacity>
+          )}
 
-        {cart.length > 0 && (
-          <TouchableOpacity onPress={handlePrintAndSave} style={styles.printBtn}>
-            <Text style={styles.printBtnText}>🧾 {t('print_save_bill') || 'PRINT & SAVE BILL'}</Text>
+          <TouchableOpacity onPress={clearCart}>
+            <Text style={styles.clearCart}>🗑️ {t('clear_cart') || 'Clear Cart'}</Text>
           </TouchableOpacity>
-        )}
-
-        <TouchableOpacity onPress={clearCart}>
-          <Text style={styles.clearCart}>🗑️ {t('clear_cart') || 'Clear Cart'}</Text>
-        </TouchableOpacity>
+        </View>
       </View>
 
       {/* Premium Success Modal */}
@@ -628,8 +746,8 @@ export default function BillPage() {
         animationType="fade"
       >
         <View style={styles.modalOverlayCentered}>
-          <View style={[styles.modalContentCentered, { 
-            borderColor: '#10B981', 
+          <View style={[styles.modalContentCentered, {
+            borderColor: '#10B981',
             borderWidth: 1,
             shadowColor: '#10B981',
             shadowOpacity: 0.15,
@@ -646,7 +764,7 @@ export default function BillPage() {
               <View style={[styles.successCircle, { backgroundColor: '#D1FAE5', borderColor: '#A7F3D0', borderWidth: 4, width: s(90), height: s(90), borderRadius: s(45) }]}>
                 <Ionicons name="checkmark-circle" size={rf(50)} color="#10B981" />
               </View>
-              
+
               <Text style={[styles.successTitleText, { color: '#065F46', marginBottom: 5 }]}>{t('bill_saved') || 'Save and Successful'}</Text>
               <Text style={[styles.successDetailText, { color: '#6B7280', fontSize: rf(15) }]}>
                 {t('bill_saved_desc') || 'Your bill has been successfully printed and saved to our database.'}
@@ -683,8 +801,8 @@ export default function BillPage() {
         onRequestClose={() => setIsErrorModalVisible(false)}
       >
         <View style={styles.modalOverlayCentered}>
-          <View style={[styles.modalContentCentered, { 
-            borderColor: '#EF4444', 
+          <View style={[styles.modalContentCentered, {
+            borderColor: '#EF4444',
             borderWidth: 1,
             shadowColor: '#EF4444',
             shadowOpacity: 0.15,
@@ -701,7 +819,7 @@ export default function BillPage() {
               <View style={[styles.warningCircle, { backgroundColor: '#FEE2E2', borderColor: '#FECACA', borderWidth: 4, width: s(90), height: s(90), borderRadius: s(45) }]}>
                 <Ionicons name="close-circle" size={rf(50)} color="#EF4444" />
               </View>
-              
+
               <Text style={[styles.successTitleText, { color: '#991B1B', marginBottom: 5 }]}>Process Failed</Text>
               <Text style={[styles.successDetailText, { color: '#6B7280', fontSize: rf(15) }]}>
                 {printErrorMessage}
@@ -825,7 +943,7 @@ export default function BillPage() {
           }]}>
             <View style={{ alignItems: 'center' }}>
               {/* Top Header Design */}
-                <View style={{
+              <View style={{
                 width: s(60),
                 height: s(60),
                 borderRadius: s(30),

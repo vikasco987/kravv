@@ -98,8 +98,23 @@ export default function MenuScreen() {
 
   const fetchMenus = async (isManualRefresh = false) => {
     try {
-      if (isManualRefresh) setRefreshing(true);
-      else setLoading(true);
+      if (isManualRefresh) {
+         setRefreshing(true);
+      } else {
+         // Performance optimization: only show full-screen loader if we have NO items
+         // If we have items in state or cache, show those immediately and update in background
+         if (menus.length === 0) {
+           const cachedData = await AsyncStorage.getItem('@cached_menu');
+           if (cachedData) {
+             setMenus(JSON.parse(cachedData));
+             setLoading(false); // Hide loader immediately if cache available
+           } else {
+             setLoading(true); // No data and no cache, show loader
+           }
+         } else {
+           setLoading(false); // We have data, don't show loader during fetch
+         }
+      }
 
       if (!isLoaded || !isSignedIn) {
         setMenus([]);
@@ -345,6 +360,15 @@ export default function MenuScreen() {
     try { removeSound?.play(); } catch { }
   };
 
+  const deleteFromCart = (item: MenuItem) => {
+    setCart((prev) => {
+      const newCart = { ...prev };
+      delete newCart[item.id];
+      return newCart;
+    });
+    try { removeSound?.play(); } catch { }
+  };
+
   const clearCart = () => setIsClearModalVisible(true);
 
   const handleConfirmClear = () => {
@@ -372,11 +396,28 @@ export default function MenuScreen() {
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({
               items: Object.values(cart).map(i => ({
-                productId: i.id, name: i.name, quantity: i.quantity,
-                price: i.editedPrice ?? i.price ?? 0, total: (i.editedPrice ?? i.price ?? 0) * i.quantity,
+                itemId: i.id || Math.random().toString(16).padEnd(24, '0'),
+                productId: i.id,
+                name: i.name, 
+                qty: Number(i.quantity || 1),
+                quantity: Number(i.quantity || 1),
+                rate: i.editedPrice ?? i.price ?? 0,
+                price: i.editedPrice ?? i.price ?? 0,
+                gst: Number(i.gst || 0),
+                taxStatus: (i as any).taxStatus || i.taxType || "Without Tax",
+                hsnCode: i.hsnCode || ""
               })),
-              subtotal: Number((totalAmount / 1.05).toFixed(2)), total: totalAmount,
-              paymentMode: "Cash", paymentStatus: "HELD", isHeld: true, customerName: "Walk-in Customer", customerPhone: null,
+              subtotal: Number((totalAmount / 1.05).toFixed(2)),
+              tax: Number((totalAmount - (totalAmount / 1.05)).toFixed(2)),
+              total: Number(totalAmount.toFixed(2)),
+              paymentMode: "Cash", 
+              paymentStatus: "HELD", 
+              isHeld: true, 
+              customerName: "Walk-in Customer", 
+              tableName: "POS",
+              discountAmount: 0,
+              discountCode: null,
+              auditNote: "Held Order"
             }),
           });
 
@@ -523,6 +564,7 @@ export default function MenuScreen() {
         totalAmount={totalAmount}
         onAdd={addToCart}
         onRemove={removeFromCart}
+        onDelete={deleteFromCart}
         onClear={clearCart}
       />
 

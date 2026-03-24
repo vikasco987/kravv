@@ -74,7 +74,7 @@ export default function SettingScreen() {
     const loadSettings = async () => {
         try {
             const settings = await AsyncStorage.multiGet([
-                'tax_enabled', 'tax_per_product', 'tax_rate',
+                'tax_enabled', 'per_product_tax', 'tax_rate',
                 'discount_enabled', 'discount_rate',
                 'service_charge_enabled', 'service_charge_rate',
                 'kot_enabled', 'table_booking_enabled',
@@ -85,7 +85,7 @@ export default function SettingScreen() {
                 if (value !== null) {
                     switch (key) {
                         case 'tax_enabled': setTaxEnabled(value === 'true'); break;
-                        case 'tax_per_product': setPerProductTax(value === 'true'); break;
+                        case 'per_product_tax': setPerProductTax(value === 'true'); break;
                         case 'tax_rate': setTaxRate(value); break;
                         case 'discount_enabled': setDiscountEnabled(value === 'true'); break;
                         case 'discount_rate': setDiscountRate(value); break;

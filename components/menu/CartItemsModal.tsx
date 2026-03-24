@@ -22,6 +22,7 @@ interface CartItemsModalProps {
     totalAmount: number;
     onAdd: (item: any) => void;
     onRemove: (item: any) => void;
+    onDelete: (item: any) => void;
     onClear: () => void;
 }
 
@@ -33,6 +34,7 @@ export const CartItemsModal: React.FC<CartItemsModalProps> = ({
     totalAmount,
     onAdd,
     onRemove,
+    onDelete,
     onClear,
 }) => {
     return (
@@ -75,6 +77,9 @@ export const CartItemsModal: React.FC<CartItemsModalProps> = ({
                                             <Ionicons name="add-circle-outline" size={24} color="#10B981" />
                                         </TouchableOpacity>
                                     </View>
+                                    <TouchableOpacity onPress={() => onDelete(item)} style={{ marginLeft: s(12) }}>
+                                        <Ionicons name="trash" size={20} color={THEME_DANGER} />
+                                    </TouchableOpacity>
                                 </View>
                             </View>
                         )}

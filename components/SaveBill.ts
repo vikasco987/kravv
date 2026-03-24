@@ -1,5 +1,150 @@
-import { ToastAndroid } from "react-native";
+// import AsyncStorage from "@react-native-async-storage/async-storage";
+// import { ToastAndroid } from "react-native";
+
+// export type CartItem = {
+//   id: string;
+//   name: string;
+//   price?: number;
+//   editedPrice?: number;
+//   quantity: number;
+// };
+
+// const API_BASE = "https://billing.kravy.in";
+
+// /* ------------------ SAVE BILL (NO PRINT EVER) ------------------ */
+// export async function SaveBill(
+//   cartItems: CartItem[],
+//   token: string,
+//   userClerkId: string,
+//   options?: {
+//     paymentMode?: string;
+//     notes?: string;
+//     billId?: string; // Add this for Smart Update
+//   }
+// ) {
+//   if (!token || !cartItems.length) return;
+
+//   try {
+//     const date = new Date();
+
+//     const productsForBackend = cartItems.map((item: any) => {
+//       const unitPrice = item.editedPrice ?? item.price ?? 0;
+//       return {
+//         itemId: item.id || item._id, // Backend uses this
+//         name: item.name,
+//         qty: Number(item.quantity || 1),
+//         quantity: Number(item.quantity || 1),
+//         rate: unitPrice,
+//         price: unitPrice,
+//         gst: Number(item.gst || 0),
+//         taxStatus: item.taxStatus || item.taxType || "Without Tax",
+//         hsnCode: item.hsnCode || ""
+//       };
+//     });
+
+//     const finalTotal = cartItems.reduce((sum: number, i: any) => sum + ((i.editedPrice ?? i.price ?? 0) * i.quantity), 0);
+//     const subtotalVal = Number((finalTotal / 1.05).toFixed(2));
+//     const taxVal = Number((finalTotal - subtotalVal).toFixed(2));
+
+//     // --- SMART UPDATE VALIDATION ---
+//     const billId = options?.billId;
+//     // CRITICAL: Only use PUT if it's a valid MongoDB ID (24 hex chars) and NOT a local "BILL-..." ID
+//     const isValidBillId = billId && typeof billId === "string" && /^[a-f\d]{24}$/i.test(billId);
+
+//     const method = isValidBillId ? "PUT" : "POST";
+//     const url = isValidBillId
+//       ? `https://billing.kravy.in/api/bill-manager/${billId}`
+//       : `https://billing.kravy.in/api/bill-manager`;
+
+//     const body = {
+//       items: productsForBackend,
+//       subtotal: subtotalVal,
+//       tax: taxVal,
+//       total: Number(finalTotal.toFixed(2)),
+//       paymentMode: options?.paymentMode || "Cash",
+//       paymentStatus: "Paid",
+//       isHeld: false,
+//       customerName: "Walk-in Customer",
+//       customerPhone: null,
+//       tableName: "POS",
+//       discountAmount: 0,
+//       discountCode: null,
+//       auditNote: options?.notes || "App Order",
+//     };
+
+//     const res = await fetch(url, {
+//       method: method,
+//       headers: {
+//         "Content-Type": "application/json",
+//         "Accept": "application/json",
+//         Authorization: `Bearer ${token}`
+//       },
+//       body: JSON.stringify(body),
+//     });
+
+//     const contentType = res.headers.get("content-type");
+//     let data: any = {};
+//     if (contentType && contentType.includes("application/json")) {
+//       data = await res.json();
+//     } else {
+//       const text = await res.text();
+//       console.warn(`ℹ️ [SaveBill] Received non-JSON response. Status: ${res.status}. Body: ${text.slice(0, 50)}`);
+//       data = { error: `Server error (${res.status})` };
+//     }
+
+//     if (!res.ok) {
+//       console.log("ℹ️ Save failed info:", data);
+//       ToastAndroid.show(`❌ Save failed: ${data.error || "Unknown error"}`, ToastAndroid.SHORT);
+//       return { status: "error", error: data.error };
+//     }
+
+//     // ✅ SUCCESS: Aggressive Cleanup
+//     try {
+//       const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
+//       const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
+
+//       const billData = data.bill || data || {};
+//       const newId = billData._id || billData.id;
+
+//       if (options?.billId && !hiddenIds.includes(options.billId)) hiddenIds.push(options.billId);
+//       if (newId && !hiddenIds.includes(newId)) hiddenIds.push(newId);
+
+//       await AsyncStorage.setItem('@hidden_bill_ids', JSON.stringify(hiddenIds));
+
+//       const localData = await AsyncStorage.getItem('@held_orders');
+//       if (localData) {
+//         let orders = JSON.parse(localData);
+//         if (options?.billId) orders = orders.filter((o: any) => o.id !== options.billId);
+//         if (newId) orders = orders.filter((o: any) => o.id !== newId);
+//         await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
+//       }
+
+//       await AsyncStorage.removeItem('@resume_cart');
+//       await AsyncStorage.removeItem('@resume_cart_id');
+//     } catch (err) {
+//       console.log("ℹ️ Cleanup ignored:", err);
+//     }
+
+//     return { status: "saved", billNo: data.bill?.billNumber || "SAVED", total: finalTotal, data };
+//   } catch (err) {
+//     console.log("❌ SaveBill Error:", err);
+//     ToastAndroid.show("❌ Failed to save bill", ToastAndroid.SHORT);
+//   }
+// }
+
+
+
+
+
+
+
+
+
+
+
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ToastAndroid } from "react-native";
 
 export type CartItem = {
   id: string;
@@ -11,7 +156,7 @@ export type CartItem = {
 
 const API_BASE = "https://billing.kravy.in";
 
-/* ------------------ SAVE BILL (NO PRINT EVER) ------------------ */
+/* ------------------ SAVE BILL ------------------ */
 export async function SaveBill(
   cartItems: CartItem[],
   token: string,
@@ -19,115 +164,229 @@ export async function SaveBill(
   options?: {
     paymentMode?: string;
     notes?: string;
-    billId?: string; // Add this for Smart Update
+    billId?: string;
   }
 ) {
-  if (!token || !cartItems.length) return;
+  console.log("🔥 SaveBill called");
+  console.log("Cart Items:", cartItems);
+  console.log("Token:", token);
+
+  // ❌ STOP if missing data
+  if (!token) {
+    console.log("❌ Token missing");
+    ToastAndroid.show("Token missing", ToastAndroid.SHORT);
+    return;
+  }
+
+  if (!cartItems || cartItems.length === 0) {
+    console.log("❌ Cart is empty");
+    ToastAndroid.show("Cart is empty", ToastAndroid.SHORT);
+    return;
+  }
 
   try {
-    const date = new Date();
-    const billNo = "MS-" + Math.floor(10000 + Math.random() * 90000);
+    const settings = await AsyncStorage.multiGet([
+      'tax_enabled', 'tax_rate', 'per_product_tax',
+      'discount_enabled', 'discount_rate',
+      'service_charge_enabled', 'service_charge_rate'
+    ]);
+    
+    const sMap: Record<string, string | null> = {};
+    settings.forEach(([key, val]) => sMap[key] = val);
 
-    const products = cartItems.map((i) => {
-      const finalPrice = i.editedPrice ?? i.price ?? 0;
+    const isTaxEnabled = sMap['tax_enabled'] === 'true';
+    const globalTaxRate = parseFloat(sMap['tax_rate'] || "5.00");
+    const perProductTaxEnabled = sMap['per_product_tax'] === 'true';
+    const isDiscountEnabled = sMap['discount_enabled'] === 'true';
+    const discountRatePercent = parseFloat(sMap['discount_rate'] || "0.00");
+    const isServiceChargeEnabled = sMap['service_charge_enabled'] === 'true';
+    const serviceChargeRatePercent = parseFloat(sMap['service_charge_rate'] || "10.00");
+
+    let totalTaxable = 0;
+    let totalGst = 0;
+    let totalGross = 0;
+
+    const productsForBackend = cartItems.map((item: any) => {
+      const unitPrice = item.editedPrice ?? item.price ?? 0;
+      const qty = Number(item.quantity || 1);
+      const lineTotal = unitPrice * qty;
+      totalGross += lineTotal;
+
+      let itemGstRate = 0;
+      if (isTaxEnabled) {
+          // Global Override Wins
+          itemGstRate = globalTaxRate;
+      } else if (perProductTaxEnabled) {
+          // Product Rate only if Global is OFF
+          itemGstRate = (item.gst !== null && item.gst !== undefined) ? Number(item.gst) : 0;
+      } else {
+          itemGstRate = 0;
+      }
+
+      let taxable = 0;
+      let gst = 0;
+
+      if (item.taxType === "With Tax") {
+          // Inclusive
+          taxable = lineTotal / (1 + itemGstRate / 100);
+          gst = lineTotal - taxable;
+      } else {
+          // Exclusive (Default)
+          taxable = lineTotal;
+          gst = (lineTotal * itemGstRate) / 100;
+      }
+
+      totalTaxable += taxable;
+      totalGst += gst;
 
       return {
-        productId: i.id,
-        name: i.name,
-        quantity: i.quantity,
-        price: finalPrice,
-        originalPrice: i.price ?? 0,
-        total: finalPrice * i.quantity,
+        itemId: item.id || item._id,
+        name: item.name,
+        qty: qty,
+        quantity: qty,
+        rate: unitPrice,
+        price: unitPrice,
+        gst: itemGstRate,
+        taxStatus: (item.taxStatus || item.taxType || "Without Tax"),
+        hsnCode: (item.hsnCode || "")
       };
     });
 
-    const total = products.reduce((s, p) => s + p.total, 0);
+    // --- Refined Calculations ---
+    // 1. Discount on Taxable Value
+    const discountAmount = isDiscountEnabled ? (totalTaxable * (discountRatePercent / 100)) : 0;
+    const taxableAfterDiscount = totalTaxable - discountAmount;
 
-    // --- Load Tax Settings ---
-    const isTaxEnabled = (await AsyncStorage.getItem('tax_enabled')) === 'true';
-    const taxRate = parseFloat((await AsyncStorage.getItem('tax_rate')) || "5.00");
-    const gstRateDecimal = isTaxEnabled ? (taxRate / 100) : 0;
+    // 2. Service Charge on Discounted Value
+    const serviceChargeAmount = isServiceChargeEnabled ? (taxableAfterDiscount * (serviceChargeRatePercent / 100)) : 0;
     
-    const subtotalVal = Number((total / (1 + gstRateDecimal)).toFixed(2));
-    
-    // Smart Update: Use PUT if billId exists
-    const method = options?.billId ? "PUT" : "POST";
-    const url = options?.billId 
-      ? `${API_BASE}/api/bill-manager/${options.billId}`
+    // 3. Taxable Amount Display Row (Base + SC)
+    const netTaxableValue = taxableAfterDiscount + serviceChargeAmount;
+
+    // 4. Final GST - Applied to netTaxableValue (Includes Service Charge)
+    const avgGstRate = totalTaxable > 0 ? (totalGst / totalTaxable) : 0;
+    const finalGstAmount = netTaxableValue * avgGstRate;
+
+    // 5. Grand Total (Sum of all steps)
+    const finalTotal = netTaxableValue + finalGstAmount;
+
+    const subtotalVal = Number(netTaxableValue.toFixed(2));
+    const taxVal = Math.floor(finalGstAmount * 100) / 100; // Truncate to achieve 12.09
+    const finalTotalFixed = Math.floor(finalTotal * 100) / 100;
+
+    const billId = options?.billId;
+    const isValidBillId =
+      billId &&
+      typeof billId === "string" &&
+      /^[a-f\d]{24}$/i.test(billId);
+
+    const method = isValidBillId ? "PUT" : "POST";
+
+    const url = isValidBillId
+      ? `${API_BASE}/api/bill-manager/${billId}`
       : `${API_BASE}/api/bill-manager`;
+
+    const body = {
+      items: productsForBackend,
+      subtotal: subtotalVal,
+      tax: taxVal,
+      total: Number(finalTotalFixed.toFixed(2)),
+      paymentMode: options?.paymentMode || "Cash",
+      paymentStatus: "Paid",
+      isHeld: false,
+      customerName: "Walk-in Customer",
+      customerPhone: null,
+      tableName: "POS",
+      discountAmount: Number(discountAmount.toFixed(2)),
+      discountCode: null,
+      auditNote: options?.notes || "App Order",
+
+      // 🔥 IMPORTANT (backend ke liye helpful)
+      userClerkId: userClerkId
+    };
+
+    console.log("📤 URL:", url);
+    console.log("📤 METHOD:", method);
+    console.log("📤 BODY:", body);
 
     const res = await fetch(url, {
       method: method,
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        items: products,
-        subtotal: subtotalVal,
-        total: total,
-        paymentMode: options?.paymentMode === "UPI" || options?.paymentMode === "Card" ? options.paymentMode : "Cash",
-        paymentStatus: "Paid",
-        isHeld: false,
-        upiTxnRef: null,
-        customerName: "Walk-in",
-        customerPhone: null,
-      }),
+      body: JSON.stringify(body),
     });
+
+    console.log("📥 Status:", res.status);
 
     const contentType = res.headers.get("content-type");
     let data: any = {};
+
     if (contentType && contentType.includes("application/json")) {
       data = await res.json();
     } else {
       const text = await res.text();
-      console.warn(`ℹ️ [SaveBill] Received non-JSON response. Status: ${res.status}. Body: ${text.slice(0, 50)}`);
+      console.log("❌ Non JSON response:", text);
       data = { error: `Server error (${res.status})` };
     }
 
+    console.log("📥 Response Data:", data);
+
     if (!res.ok) {
-        console.log("ℹ️ Save failed info:", data);
-        ToastAndroid.show(`❌ Save failed: ${data.error || "Unknown error"}`, ToastAndroid.SHORT);
-        return { status: "error", error: data.error };
+      console.log("❌ Save failed:", data);
+      ToastAndroid.show(
+        `❌ Save failed: ${data.error || "Unknown error"}`,
+        ToastAndroid.SHORT
+      );
+      return { status: "error", error: data.error };
     }
 
-    // ✅ SUCCESS: Aggressive Cleanup
+    // ✅ SUCCESS
+    ToastAndroid.show("✅ Bill Saved", ToastAndroid.SHORT);
+
     try {
-      const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
+      const hiddenIdsStr = await AsyncStorage.getItem("@hidden_bill_ids");
       const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
-      
-      const billData = data.bill || data;
+
+      const billData = data.bill || data || {};
       const newId = billData._id || billData.id;
-      const newNo = billData.billNumber;
 
-      // 1. Hide the original held ID (if any)
-      if (options?.billId && !hiddenIds.includes(options.billId)) {
+      if (options?.billId && !hiddenIds.includes(options.billId))
         hiddenIds.push(options.billId);
-      }
 
-      // 2. Hide the newly created bill info from Hold list just in case
-      if (newId && !hiddenIds.includes(newId)) hiddenIds.push(newId);
-      if (newNo && !hiddenIds.includes(newNo)) hiddenIds.push(newNo);
+      if (newId && !hiddenIds.includes(newId))
+        hiddenIds.push(newId);
 
-      await AsyncStorage.setItem('@hidden_bill_ids', JSON.stringify(hiddenIds));
+      await AsyncStorage.setItem(
+        "@hidden_bill_ids",
+        JSON.stringify(hiddenIds)
+      );
 
-      // 3. Remove from local held_orders array
-      const localData = await AsyncStorage.getItem('@held_orders');
+      const localData = await AsyncStorage.getItem("@held_orders");
       if (localData) {
         let orders = JSON.parse(localData);
-        if (options?.billId) orders = orders.filter((o: any) => o.id !== options.billId);
-        if (newId) orders = orders.filter((o: any) => o.id !== newId);
-        await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
+        if (options?.billId)
+          orders = orders.filter((o: any) => o.id !== options.billId);
+        if (newId)
+          orders = orders.filter((o: any) => o.id !== newId);
+
+        await AsyncStorage.setItem("@held_orders", JSON.stringify(orders));
       }
 
-      // 4. Clear resume markers
-      await AsyncStorage.removeItem('@resume_cart');
-      await AsyncStorage.removeItem('@resume_cart_id');
+      await AsyncStorage.removeItem("@resume_cart");
+      await AsyncStorage.removeItem("@resume_cart_id");
     } catch (err) {
-      console.log("ℹ️ Cleanup ignored:", err);
+      console.log("⚠️ Cleanup error:", err);
     }
 
-    return { status: "saved", billNo: data.bill?.billNumber || billNo, total, data };
+    return {
+      status: "saved",
+      billNo: data.bill?.billNumber || "SAVED",
+      total: finalTotal,
+      data,
+    };
   } catch (err) {
     console.log("❌ SaveBill Error:", err);
     ToastAndroid.show("❌ Failed to save bill", ToastAndroid.SHORT);

@@ -7,11 +7,12 @@ import { DrawerContentScrollView, DrawerItem } from "@react-navigation/drawer";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Modal, StyleSheet, Text, View } from "react-native";
+import { useLanguage } from "../context/LanguageContext";
 import { rf, s, vs } from "../utils/responsive";
+import ItemSalesReport from "./item-sales-report/item-sales-report";
 import { EditMenuItem } from "./menu/EditMenuItem";
 import { TableQrCodes } from "./menu/TableQrCodes";
 import { LoginRequiredModal } from "./settings/LoginRequiredModal";
-import { useLanguage } from "../context/LanguageContext";
 
 export default function CustomDrawerContent(props: any) {
   const { user } = useUser();
@@ -21,6 +22,7 @@ export default function CustomDrawerContent(props: any) {
   const [loginModalVisible, setLoginModalVisible] = useState(false);
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [editMenuModalVisible, setEditMenuModalVisible] = useState(false);
+  const [inventoryModalVisible, setInventoryModalVisible] = useState(false);
 
   const COLORS = {
     primary: '#4F46E5',
@@ -98,6 +100,17 @@ export default function CustomDrawerContent(props: any) {
           }}
         />
 
+        <DrawerItem
+          label="Items Sales Report"
+          icon={({ color, size }) => <Ionicons name="cube-outline" size={size} color={color} />}
+          onPress={() => {
+            props.navigation.closeDrawer();
+            setTimeout(() => {
+              setInventoryModalVisible(true);
+            }, 400);
+          }}
+        />
+
 
         <DrawerItem
           label={t('settings')}
@@ -137,6 +150,10 @@ export default function CustomDrawerContent(props: any) {
 
       <Modal visible={editMenuModalVisible} animationType="slide" onRequestClose={() => setEditMenuModalVisible(false)}>
         <EditMenuItem onBack={() => setEditMenuModalVisible(false)} />
+      </Modal>
+
+      <Modal visible={inventoryModalVisible} animationType="slide" onRequestClose={() => setInventoryModalVisible(false)}>
+        <ItemSalesReport onBack={() => setInventoryModalVisible(false)} />
       </Modal>
     </>
   );

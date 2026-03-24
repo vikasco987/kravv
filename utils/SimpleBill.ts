@@ -16,6 +16,7 @@ export type CartItem = {
   gst?: number;
   taxType?: string;
   hsnCode?: string;
+  taxStatus?: string;
 };
 
 export type BillOptions = {
@@ -198,7 +199,8 @@ export async function SimpleBill(
 
     const companyInfo = await getRecentCompanyProfile(token);
     const date = new Date();
-    const billNo = `MS-${Math.floor(Math.random() * 10000) + 5000}`;
+    // Use a transient identifier for the print if we can't wait for backend
+    const tempBillNo = `NEW-${Date.now().toString().slice(-4)}`;
 
     const paymentMode = options?.paymentMode || "CASH";
 
@@ -231,17 +233,23 @@ export async function SimpleBill(
 
     let totalTaxable = 0;
     let totalGst = 0;
+    let totalGross = 0;
 
     const productsForBackend = cartItems.map((item) => {
       const unitPrice = item.editedPrice ?? item.price ?? 0;
       const qty = item.quantity;
       const lineTotal = unitPrice * qty;
+      totalGross += lineTotal;
 
       let itemGstRate = 0;
-      if (perProductTaxEnabled && (item.gst !== null && item.gst !== undefined)) {
-          itemGstRate = item.gst;
-      } else if (isTaxEnabled) {
+      if (isTaxEnabled) {
+          // Global Override Always Wins
           itemGstRate = globalTaxRate;
+      } else if (perProductTaxEnabled) {
+          // Per-Product Rate Only if Global is OFF
+          itemGstRate = (item.gst !== null && item.gst !== undefined) ? Number(item.gst) : 0;
+      } else {
+          itemGstRate = 0;
       }
 
       let taxable = 0;
@@ -267,19 +275,33 @@ export async function SimpleBill(
         total: lineTotal,
         gstRate: itemGstRate,
         taxableAmount: taxable,
-        gstPaid: gst
+        gstPaid: gst,
+        gst: item.gst ?? null,
+        hsnCode: item.hsnCode ?? "",
+        taxStatus: item.taxStatus || item.taxType || "Without Tax"
       };
     });
 
-    // --- Calculations ---
+    // --- Refined Calculations ---
+    // 1. Discount on Taxable Value
     const discountAmount = isDiscountEnabled ? (totalTaxable * (discountRatePercent / 100)) : 0;
     const taxableAfterDiscount = totalTaxable - discountAmount;
-    const effectiveGst = totalTaxable > 0 ? (totalGst * (taxableAfterDiscount / totalTaxable)) : 0;
-    const serviceChargeAmount = isServiceChargeEnabled ? (taxableAfterDiscount * (serviceChargeRatePercent / 100)) : 0;
-    const subtotalFinal = taxableAfterDiscount + serviceChargeAmount;
-    const finalTotal = subtotalFinal + effectiveGst;
 
-    const gstAmount = Number(effectiveGst.toFixed(2));
+    // 2. Service Charge on Discounted Value
+    const serviceChargeAmount = isServiceChargeEnabled ? (taxableAfterDiscount * (serviceChargeRatePercent / 100)) : 0;
+    
+    // 3. Taxable Amount Display Row (Base + SC)
+    const netTaxableValue = taxableAfterDiscount + serviceChargeAmount;
+
+    // 4. Final GST - Applied to netTaxableValue (Includes Service Charge)
+    const avgGstRate = totalTaxable > 0 ? (totalGst / totalTaxable) : 0;
+    const finalGstAmount = netTaxableValue * avgGstRate;
+
+    // 5. Grand Total (Sum of all steps)
+    const finalTotal = netTaxableValue + finalGstAmount;
+
+    const gstAmount = Math.floor(finalGstAmount * 100) / 100;
+    const finalTotalFixed = Math.floor(finalTotal * 100) / 100;
 
     // --- Final Bill Text ---
     const taxGroups: Record<number, { taxable: number, gst: number }> = {};
@@ -310,7 +332,7 @@ export async function SimpleBill(
       .join("\n");
 
     const bodyText =
-      `Bill No: ${billNo}
+      `Bill No: ${tempBillNo}
 Date: ${date.toLocaleString()}
 ${customerDetails}
 Payment Mode: ${paymentMode}
@@ -319,9 +341,9 @@ Item         Qty  Price   Total
 ${line('-')}
 ${itemsText}
 ${line('-')}
-Subtotal:${`₹${subtotalFinal.toFixed(2)}`.padStart(21)}
+Subtotal:${`₹${totalTaxable.toFixed(2)}`.padStart(21)}
 ${(isTaxEnabled || perProductTaxEnabled) && !perProductTaxEnabled ? `GST (${globalTaxRate}%):${`₹${gstAmount.toFixed(2)}`.padStart(19)}\n` : ''}${perProductTaxEnabled ? `GST (Multi):${`₹${gstAmount.toFixed(2)}`.padStart(20)}\n` : ''}${isDiscountEnabled ? `Discount (${discountRatePercent}%):${`-₹${discountAmount.toFixed(2)}`.padStart(14)}\n` : ''}${isServiceChargeEnabled ? `S.Charge (${serviceChargeRatePercent}%):${`₹${serviceChargeAmount.toFixed(2)}`.padStart(14)}\n` : ''}${line('-')}
-GRAND TOTAL:${`₹${finalTotal.toFixed(2)}`.padStart(18)}
+GRAND TOTAL:${`₹${finalTotalFixed.toFixed(2)}`.padStart(18)}
 ${line('-')}
 ${(isTaxEnabled || perProductTaxEnabled) && taxBreakupText.length > 0 ? 
   `${centerText("TAX BREAKUP", 32)}\nRate   | Taxable Value | GST\n${line('-')}\n${taxBreakupText}\n${line('-')}\n` : ''}
@@ -397,7 +419,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
 
         // If UPI is available, print QR Code
         if (upi) {
-          const upiUrl = `upi://pay?pa=${upi}&pn=${encodeURIComponent(companyName)}&am=${finalTotal.toFixed(2)}&cu=INR&tn=Bill_${billNo}`;
+          const upiUrl = `upi://pay?pa=${upi}&pn=${encodeURIComponent(companyName)}&am=${finalTotal.toFixed(2)}&cu=INR&tn=Order_${tempBillNo}`;
           
           // ESC/POS QR Code commands
           const size = upiUrl.length + 3;
@@ -412,7 +434,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
             0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30, ...Array.from(upiUrl).map(c => c.charCodeAt(0)), // Function 180: Store data
             0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30,          // Function 181: Print QR
             0x0A,                                     // New line
-            ...Array.from(centerText(`UPI: ${upi}`, 32)).map(c => c.charCodeAt(0)),
+            ...Array.from(centerText(`ID: ${tempBillNo}`, 32)).map(c => c.charCodeAt(0)),
             0x0A, 0x0A                                // Padding
           ]);
           await connectedPrinter?.write(qrCommands);
@@ -428,7 +450,8 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
     
     // 0. Build Method and URL safely
     const billId = options?.billId;
-    const isValidBillId = billId && typeof billId === 'string' && billId.length > 8 && billId !== "undefined" && billId !== "null";
+    // CRITICAL: Only use PUT if it's a valid MongoDB ID (24 hex chars)
+    const isValidBillId = billId && typeof billId === 'string' && /^[a-f\d]{24}$/i.test(billId);
     const method = isValidBillId ? "PUT" : "POST";
     const url = isValidBillId 
       ? `https://billing.kravy.in/api/bill-manager/${billId}`
@@ -440,22 +463,29 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
     // 1. Build Body exactly like working SaveBill.ts
     const body = {
       items: productsForBackend.map(p => ({
+        itemId: p.productId || Math.random().toString(16).padEnd(24, '0'),
         productId: p.productId,
         name: p.name,
-        quantity: p.quantity,
+        qty: Number(p.quantity || 1),
+        quantity: Number(p.quantity || 1),
+        rate: p.price,
         price: p.price,
-        originalPrice: p.originalPrice,
-        total: p.total
+        gst: Number(p.gst || 0),
+        taxStatus: p.taxStatus || "Without Tax",
+        hsnCode: p.hsnCode || ""
       })),
-      subtotal: Number(subtotalFinal.toFixed(2)),
+      subtotal: Number(netTaxableValue.toFixed(2)),
+      tax: Number(finalGstAmount.toFixed(2)),
       total: Number(finalTotal.toFixed(2)),
       paymentMode: normalizedPaymentMode,
       paymentStatus: "Paid",
       isHeld: false,
-      upiTxnRef: null,
-      customerName: options?.customerName || "Walk-in",
+      customerName: options?.customerName || "Walk-in Customer",
       customerPhone: (options?.phone && options.phone.trim().length >= 10) ? options.phone : null,
-      staffName: options?.staffName || null,
+      tableName: "POS",
+      discountAmount: Number(discountAmount.toFixed(2)),
+      discountCode: null,
+      auditNote: options?.notes || "App Order"
     };
 
     let res;
@@ -466,6 +496,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
         method: method,
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(body),

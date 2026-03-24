@@ -1,8 +1,8 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 // @ts-ignore
 import { useNavigation, useRouter } from "expo-router";
-import React, { useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useRef, useState } from "react";
+import { Animated, Easing, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useRefresh } from "../context/RefreshContext";
 import { rf, s, vs } from "../utils/responsive";
 
@@ -21,9 +21,28 @@ export default function TopNavBar({ title = "Home", showBack = false, showSearch
 
   const { triggerRefresh, searchQuery, setSearchQuery } = useRefresh();
   
+  // Animation Value for Refresh Icon
+  const spinValue = useRef(new Animated.Value(0)).current;
+
   const handleReload = () => {
+    // 1. Start Rotation Animation
+    spinValue.setValue(0);
+    Animated.timing(spinValue, {
+      toValue: 1,
+      duration: 1000,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+      useNativeDriver: true,
+    }).start();
+
+    // 2. Original Logic
     triggerRefresh();
   };
+
+  // Rotation Interpolation
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   const toggleSearch = () => {
     setIsSearching(!isSearching);
@@ -80,7 +99,9 @@ export default function TopNavBar({ title = "Home", showBack = false, showSearch
               </TouchableOpacity>
             )}
             <TouchableOpacity onPress={handleReload} style={styles.iconButton}>
-              <Ionicons name="refresh" size={rf(28)} color="#fff" />
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Ionicons name="refresh" size={rf(28)} color="#fff" />
+              </Animated.View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconButton}>
               <Ionicons name="headset-outline" size={rf(26)} color="#fff" />

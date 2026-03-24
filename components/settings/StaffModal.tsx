@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
   Alert,
+  NativeModules,
 } from "react-native";
 // @ts-ignore
 import Voice from '@react-native-voice/voice';
@@ -104,34 +105,49 @@ const StaffAddEditModal = ({
   };
 
   useEffect(() => {
-    Voice.onSpeechResults = (e: any) => {
-      if (e.value && e.value.length > 0) {
-        setName(e.value[0]);
-      }
-      setIsListening(false);
-    };
-    Voice.onSpeechError = (e: any) => {
-      console.log("Voice Error:", e);
-      setIsListening(false);
-    };
+    if (Voice) {
+      Voice.onSpeechResults = (e: any) => {
+        if (e.value && e.value.length > 0) {
+          setName(e.value[0]);
+        }
+        setIsListening(false);
+      };
+      Voice.onSpeechError = (e: any) => {
+        console.log("Voice Error:", e);
+        setIsListening(false);
+      };
+    }
     return () => {
-      Voice.destroy().then(Voice.removeAllListeners);
+      if (Voice && typeof Voice.destroy === 'function') {
+        Voice.destroy().then(Voice.removeAllListeners).catch((err: any) => console.log("Voice Cleanup Error:", err));
+      }
     };
   }, []);
 
   const handleVoicePress = async () => {
     try {
+      // Multiple possible native module names for better detection
+      const nativeModule = NativeModules.RCTVoice || NativeModules.VoiceModule || NativeModules.VoiceTest || NativeModules.Voice;
+      const isVoiceNativeLoaded = !!nativeModule;
+      
+      if (!isVoiceNativeLoaded || typeof Voice?.start !== 'function') {
+        Alert.alert("Voice Error", "Native voice module not found. Please rebuild the app (npx expo run:android) to enable this feature.");
+        return;
+      }
+
       if (isListening) {
-        await Voice.stop();
-        setIsListening(false);
+          await Voice.stop();
+          setIsListening(false);
       } else {
-        setName("");
-        await Voice.start('en-US'); 
-        setIsListening(true);
+          setName("");
+          // Double check if start throws immediately
+          await Voice.start('en-US'); 
+          setIsListening(true);
       }
     } catch (e) {
-      console.error(e);
-      Alert.alert("Voice Error", "Could not start voice recognition.");
+      console.log("Voice Press Caught Error:", e);
+      Alert.alert("Voice Error", "Voice service is not linked correctly. Please re-run the android build.");
+      setIsListening(false);
     }
   };
 
