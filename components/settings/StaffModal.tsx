@@ -4,7 +4,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
+  NativeModules,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -13,8 +15,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Alert,
-  NativeModules,
 } from "react-native";
 // @ts-ignore
 import Voice from '@react-native-voice/voice';
@@ -129,20 +129,20 @@ const StaffAddEditModal = ({
       // Multiple possible native module names for better detection
       const nativeModule = NativeModules.RCTVoice || NativeModules.VoiceModule || NativeModules.VoiceTest || NativeModules.Voice;
       const isVoiceNativeLoaded = !!nativeModule;
-      
+
       if (!isVoiceNativeLoaded || typeof Voice?.start !== 'function') {
         Alert.alert("Voice Error", "Native voice module not found. Please rebuild the app (npx expo run:android) to enable this feature.");
         return;
       }
 
       if (isListening) {
-          await Voice.stop();
-          setIsListening(false);
+        await Voice.stop();
+        setIsListening(false);
       } else {
-          setName("");
-          // Double check if start throws immediately
-          await Voice.start('en-US'); 
-          setIsListening(true);
+        setName("");
+        // Double check if start throws immediately
+        await Voice.start('en-US');
+        setIsListening(true);
       }
     } catch (e) {
       console.log("Voice Press Caught Error:", e);
@@ -191,10 +191,10 @@ const StaffAddEditModal = ({
             <View style={subStyles.inputContainer}>
               <TextInput placeholder="Staff Name" placeholderTextColor="#9CA3AF" style={subStyles.input} value={name} onChangeText={setName} />
               <TouchableOpacity onPress={handleVoicePress}>
-                <Ionicons 
-                  name={isListening ? "mic" : "mic-outline"} 
-                  size={rf(22)} 
-                  color={isListening ? COLORS.primary : COLORS.textLight} 
+                <Ionicons
+                  name={isListening ? "mic" : "mic-outline"}
+                  size={rf(22)}
+                  color={isListening ? COLORS.primary : COLORS.textLight}
                 />
               </TouchableOpacity>
             </View>
@@ -369,8 +369,8 @@ export const StaffModal = ({ visible, onClose }: StaffModalProps) => {
     setTransferVisible(false);
   };
 
-  const filteredStaff = staffList.filter((s) => 
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredStaff = staffList.filter((s) =>
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.phone.includes(searchQuery)
   );
 
@@ -381,15 +381,15 @@ export const StaffModal = ({ visible, onClose }: StaffModalProps) => {
           {searchMode ? (
             <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
               <TouchableOpacity onPress={() => { setSearchMode(false); setSearchQuery(""); }} style={{ padding: s(5) }}>
-                 <Ionicons name="arrow-back" size={rf(24)} color={COLORS.white} />
+                <Ionicons name="arrow-back" size={rf(24)} color={COLORS.white} />
               </TouchableOpacity>
-              <TextInput 
-                placeholder="Search staff Name or phone..." 
-                placeholderTextColor="rgba(255,255,255,0.7)" 
-                style={{ flex: 1, color: COLORS.white, fontSize: rf(16), marginLeft: s(10) }} 
-                autoFocus 
-                value={searchQuery} 
-                onChangeText={setSearchQuery} 
+              <TextInput
+                placeholder="Search staff Name or phone..."
+                placeholderTextColor="rgba(255,255,255,0.7)"
+                style={{ flex: 1, color: COLORS.white, fontSize: rf(16), marginLeft: s(10) }}
+                autoFocus
+                value={searchQuery}
+                onChangeText={setSearchQuery}
               />
             </View>
           ) : (

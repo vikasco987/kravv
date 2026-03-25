@@ -7,7 +7,7 @@
     "icon": "./assets/images/kravlogo.png",
     "scheme": "kravy",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -69,7 +69,8 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": true,
+      "newArchEnabled": true
     },
     "extra": {
       "router": {},
