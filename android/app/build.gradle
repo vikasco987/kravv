@@ -92,7 +92,7 @@ android {
         applicationId 'com.vikas9095.kravy'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode 3
         versionName "1.0.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
@@ -121,12 +121,10 @@ android {
             crunchPngs enablePngCrunchInRelease.toBoolean()
         }
     }
-    packaging {
+    packagingOptions {
         jniLibs {
-            useLegacyPackaging (findProperty('expo.useLegacyPackaging') == 'true')
-        }
-        resources {
-            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+            def enableLegacyPackaging = findProperty('expo.useLegacyPackaging') ?: 'false'
+            useLegacyPackaging enableLegacyPackaging.toBoolean()
         }
     }
     androidResources {
@@ -180,16 +178,5 @@ dependencies {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
-    }
-    implementation "androidx.activity:activity:1.9.3"
-}
-
-configurations.all {
-    exclude group: 'com.android.support'
-    exclude group: 'com.android.support.test'
-    
-    resolutionStrategy {
-        force 'androidx.core:core:1.16.0'
-        force 'androidx.versionedparcelable:versionedparcelable:1.1.1'
     }
 }
