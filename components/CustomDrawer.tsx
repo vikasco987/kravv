@@ -13,6 +13,12 @@ import ItemSalesReport from "./item-sales-report/item-sales-report";
 import { EditMenuItem } from "./menu/EditMenuItem";
 import { TableQrCodes } from "./menu/TableQrCodes";
 import { LoginRequiredModal } from "./settings/LoginRequiredModal";
+import ProfitInsight from "./profit-optimizer/ProfitInsight";
+import CustomerHistory from "./customer-insights/CustomerHistory";
+import TableRotation from "./table-insights/TableRotation";
+import VoiceOrder from "./voice-command/VoiceOrder";
+import { useAuth } from "@clerk/clerk-expo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function CustomDrawerContent(props: any) {
   const { user } = useUser();
@@ -23,6 +29,18 @@ export default function CustomDrawerContent(props: any) {
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [editMenuModalVisible, setEditMenuModalVisible] = useState(false);
   const [inventoryModalVisible, setInventoryModalVisible] = useState(false);
+  const { getToken } = useAuth();
+
+  // Smart AI Modal States
+  const [profitModalVisible, setProfitModalVisible] = useState(false);
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [tablesModalVisible, setTablesModalVisible] = useState(false);
+
+  // Data for AI features
+  const [allBills, setAllBills] = useState([]);
+  const [menus, setMenus] = useState([]);
+  const [allOrders, setAllOrders] = useState([]);
 
   const COLORS = {
     primary: '#4F46E5',
@@ -38,6 +56,37 @@ export default function CustomDrawerContent(props: any) {
       } else {
         props.navigation.navigate(screen);
       }
+    }
+  };
+
+  const fetchAIData = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      // Fetch Bills
+      const billRes = await fetch("https://billing.kravy.in/api/bill-manager", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (billRes.ok) {
+        const data = await billRes.json();
+        setAllBills(data.bills || []);
+      }
+
+      // Fetch Orders
+      const orderRes = await fetch("https://billing.kravy.in/api/orders", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (orderRes.ok) {
+        const oData = await orderRes.json();
+        setAllOrders(Array.isArray(oData) ? oData : (oData.orders || []));
+      }
+
+      // Load cached menu for voice
+      const cachedMenu = await AsyncStorage.getItem('@cached_menu');
+      if (cachedMenu) setMenus(JSON.parse(cachedMenu));
+    } catch (e) {
+      console.error("CustomDrawer AI fetch error:", e);
     }
   };
 
@@ -118,6 +167,39 @@ export default function CustomDrawerContent(props: any) {
           onPress={() => props.navigation.navigate("(tabs)", { screen: "setting" })}
         />
 
+        <View style={styles.divider} />
+        <Text style={styles.sectionTitle}>Smart Intelligence</Text>
+
+        <DrawerItem
+          label="Profit Engine"
+          icon={({ size }) => <Ionicons name="trending-up-outline" size={size} color="#10B981" />}
+          onPress={() => {
+            fetchAIData();
+            props.navigation.closeDrawer();
+            setTimeout(() => setProfitModalVisible(true), 400);
+          }}
+        />
+
+        <DrawerItem
+          label="Voice Command"
+          icon={({ size }) => <Ionicons name="mic-outline" size={size} color="#6366F1" />}
+          onPress={() => {
+            fetchAIData();
+            props.navigation.closeDrawer();
+            setTimeout(() => setVoiceModalVisible(true), 400);
+          }}
+        />
+
+        <DrawerItem
+          label="Customer Search"
+          icon={({ size }) => <Ionicons name="search-outline" size={size} color="#f59e0b" />}
+          onPress={() => {
+            fetchAIData();
+            props.navigation.closeDrawer();
+            setTimeout(() => setHistoryModalVisible(true), 400);
+          }}
+        />
+
         {!user ? (
           <DrawerItem
             label={t('sign_in')}
@@ -155,6 +237,29 @@ export default function CustomDrawerContent(props: any) {
       <Modal visible={inventoryModalVisible} animationType="slide" onRequestClose={() => setInventoryModalVisible(false)}>
         <ItemSalesReport onBack={() => setInventoryModalVisible(false)} />
       </Modal>
+
+      <ProfitInsight 
+        visible={profitModalVisible} 
+        onClose={() => setProfitModalVisible(false)} 
+        bills={allBills} 
+      />
+
+      <VoiceOrder 
+        visible={voiceModalVisible} 
+        onClose={() => setVoiceModalVisible(false)} 
+        menus={menus} 
+        onItemMatched={(item) => {
+          // In sidebar, we just show it was matched
+          alert(`Recognized: ${item.name}. Please go to Menu to add to cart.`);
+        }} 
+      />
+
+      <CustomerHistory 
+        visible={historyModalVisible} 
+        onClose={() => setHistoryModalVisible(false)} 
+        party={null} 
+        bills={allBills} 
+      />
     </>
   );
 }
@@ -167,4 +272,6 @@ const styles = StyleSheet.create({
   },
   welcome: { color: "#fff", fontSize: rf(18), fontWeight: "bold" },
   userId: { color: "rgba(255,255,255,0.8)", fontSize: rf(12), marginTop: vs(4) },
+  divider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: vs(10), marginHorizontal: s(15) },
+  sectionTitle: { fontSize: rf(12), fontWeight: 'bold', color: '#64748B', marginLeft: s(18), marginBottom: vs(5), textTransform: 'uppercase' },
 });

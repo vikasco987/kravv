@@ -40,6 +40,7 @@
       "favicon": "./assets/images/kravlogo.png"
     },
     "plugins": [
+      "@react-native-voice/voice",
       "expo-router",
       [
         "expo-splash-screen",
@@ -61,11 +62,24 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "The app accesses your photos to let you set item images.",
-          "cameraPermission": "The app accesses your camera to let you take item photos."
+          "cameraPermission": "The app accesses your camera to let you take item photos.",
+          "photosPermission": "The app accesses your photos to let you set item images."
         }
       ],
-      "@react-native-voice/voice"
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": true,
+            "queries": [
+              "android.speech.RecognitionService"
+            ],
+            "unstable_interopModules": [
+              "RCTVoice"
+            ]
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

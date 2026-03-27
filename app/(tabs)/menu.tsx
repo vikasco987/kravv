@@ -34,6 +34,7 @@ import { MenuItemCard } from "../../components/menu/MenuItemCard";
 import { TableSelectionModal } from "../../components/menu/TableSelectionModal";
 import { QuickAddItemCard } from "../../components/menu/QuickAddItemCard";
 import { QuickAddItemModal } from "../../components/menu/QuickAddItemModal";
+import VoiceOrder from "../../components/voice-command/VoiceOrder";
 
 // --- TYPE DEFINITIONS ---
 type MenuItem = {
@@ -89,6 +90,7 @@ export default function MenuScreen() {
   const [isTableModalVisible, setIsTableModalVisible] = useState(false);
   const [isQuickAddModalVisible, setIsQuickAddModalVisible] = useState(false);
   const [quickAddCategoryId, setQuickAddCategoryId] = useState("");
+  const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
 
   // @ts-ignore
   const flatListRef = useRef<any>(null);
@@ -487,6 +489,7 @@ export default function MenuScreen() {
         onAddItem={() => router.push("/party/items")}
         onPauseOrder={() => Object.keys(cart).length === 0 ? ToastAndroid.show(t('no_items'), ToastAndroid.SHORT) : setIsHoldModalVisible(true)}
         onViewHeldOrders={() => router.push("/party/hold")}
+        onVoicePress={() => setIsVoiceModalVisible(true)}
         heldCount={heldCount}
       />
 
@@ -596,6 +599,13 @@ export default function MenuScreen() {
         onClose={() => setIsQuickAddModalVisible(false)}
         categoryId={quickAddCategoryId}
         onSuccess={() => fetchMenus(true)}
+      />
+
+      <VoiceOrder 
+        visible={isVoiceModalVisible} 
+        onClose={() => setIsVoiceModalVisible(false)} 
+        menus={menus} 
+        onItemMatched={(item) => addToCart(item)} 
       />
     </View>
   );

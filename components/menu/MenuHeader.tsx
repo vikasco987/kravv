@@ -10,6 +10,7 @@ interface MenuHeaderProps {
     onAddItem: () => void;
     onPauseOrder: () => void;
     onViewHeldOrders: () => void;
+    onVoicePress: () => void;
     heldCount: number;
 }
 
@@ -17,12 +18,19 @@ export const MenuHeader: React.FC<MenuHeaderProps> = ({
     onAddItem,
     onPauseOrder,
     onViewHeldOrders,
+    onVoicePress,
     heldCount,
 }) => {
     return (
         <View style={styles.integratedHeaderBar}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
                 <Text style={styles.headerTitle}>Menu</Text>
+                <TouchableOpacity 
+                    style={styles.voiceTrigger} 
+                    onPress={onVoicePress}
+                >
+                    <Ionicons name="mic" size={rf(18)} color={THEME_PRIMARY} />
+                </TouchableOpacity>
             </View>
             <View style={styles.headerActionGroup}>
                 <TouchableOpacity style={styles.integratedActionButton} onPress={onAddItem}>
@@ -124,4 +132,11 @@ const styles = StyleSheet.create({
         fontSize: rf(9),
         fontWeight: '900',
     },
+    voiceTrigger: {
+        backgroundColor: '#F1F5F9',
+        padding: s(6),
+        borderRadius: s(8),
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    }
 });

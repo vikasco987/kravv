@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
+import TableRotation from "../../components/table-insights/TableRotation";
 
 const THEME_PRIMARY = "#4F46E5";
 
@@ -34,6 +35,9 @@ export default function OrderScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isCreateTableVisible, setIsCreateTableVisible] = useState(false);
   const [newTableName, setNewTableName] = useState("");
+  const [allOrders, setAllOrders] = useState<any[]>([]);
+  const [rotationVisible, setRotationVisible] = useState(false);
+  const [selectedTableData, setSelectedTableData] = useState<any>(null);
 
   const fetchInProgress = React.useRef(false);
 
@@ -60,18 +64,19 @@ export default function OrderScreen() {
             headers: { Authorization: `Bearer ${token}` },
           });
           
-          let allOrders: any[] = [];
+          let currentOrders: any[] = [];
           if (ordersResponse.ok) {
             const oContentType = ordersResponse.headers.get("content-type");
             if (oContentType && oContentType.includes("application/json")) {
               const oData = await ordersResponse.json();
-              allOrders = Array.isArray(oData) ? oData : (oData.orders || []);
+              currentOrders = Array.isArray(oData) ? oData : (oData.orders || []);
+              setAllOrders(currentOrders);
             }
           }
 
           const normalizedTables = tablesArray.map((t: any) => {
             const tId = t.id || t._id || "";
-            const activeOrdersForTable = allOrders.filter((o: any) => {
+            const activeOrdersForTable = currentOrders.filter((o: any) => {
               const oTableId = String(o.tableId || 
                                (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || 
                                "");
@@ -140,6 +145,17 @@ export default function OrderScreen() {
     });
   };
 
+  const showTableInsights = (item: Table) => {
+    const tableOrders = allOrders.filter((o: any) => {
+      const oTableId = String(o.tableId || 
+                       (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || 
+                       "");
+      return oTableId === String(item.id);
+    });
+    setSelectedTableData({ name: item.name, orders: tableOrders });
+    setRotationVisible(true);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -170,25 +186,36 @@ export default function OrderScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME_PRIMARY} />
           }
           renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.tableCard}
-              onPress={() => navigateToTable(item)}
-            >
-              <View style={[styles.tableIcon, item.orderCount ? styles.activeTableIcon : null]}>
-                <Ionicons
-                  name="restaurant-outline"
-                  size={rf(26)}
-                  color={item.orderCount ? "#fff" : THEME_PRIMARY}
-                />
-              </View>
-              <Text style={styles.tableName}>{item.name}</Text>
-              <View style={styles.statusBox}>
-                <View style={[styles.statusDot, { backgroundColor: item.orderCount ? "#10B981" : "#D1D5DB" }]} />
-                <Text style={styles.orderStatus}>
-                  {item.orderCount ? `${item.orderCount} ${t('active_orders')}` : t('no_active_orders')}
-                </Text>
-              </View>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.tableCard}
+                onPress={() => navigateToTable(item)}
+              >
+                {item.orderCount ? (
+                    <TouchableOpacity 
+                        style={styles.insightIcon} 
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            showTableInsights(item);
+                        }}
+                    >
+                        <Ionicons name="flash" size={rf(14)} color="#F59E0B" />
+                    </TouchableOpacity>
+                ) : null}
+                <View style={[styles.tableIcon, item.orderCount ? styles.activeTableIcon : null]}>
+                  <Ionicons
+                    name="restaurant-outline"
+                    size={rf(26)}
+                    color={item.orderCount ? "#fff" : THEME_PRIMARY}
+                  />
+                </View>
+                <Text style={styles.tableName}>{item.name}</Text>
+                <View style={styles.statusBox}>
+                  <View style={[styles.statusDot, { backgroundColor: item.orderCount ? "#10B981" : "#D1D5DB" }]} />
+                  <Text style={styles.orderStatus}>
+                    {item.orderCount ? `${item.orderCount} ${t('active_orders')}` : t('no_active_orders')}
+                  </Text>
+                </View>
+              </TouchableOpacity>
           )}
           ListEmptyComponent={
             <View style={styles.emptyView}>
@@ -233,6 +260,13 @@ export default function OrderScreen() {
           </View>
         </View>
       </Modal>
+
+      <TableRotation 
+        visible={rotationVisible} 
+        onClose={() => setRotationVisible(false)} 
+        tableName={selectedTableData?.name || ''} 
+        orders={selectedTableData?.orders || []} 
+      />
     </SafeAreaView>
   );
 }
@@ -311,5 +345,16 @@ const styles = StyleSheet.create({
   cancelBtn: { padding: s(10) },
   cancelBtnText: { color: '#6B7280', fontSize: rf(15), fontWeight: '600' },
   saveBtn: { backgroundColor: THEME_PRIMARY, paddingVertical: vs(12), paddingHorizontal: s(25), borderRadius: s(15) },
-  saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: rf(15) }
+  saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: rf(15) },
+  insightIcon: {
+    position: 'absolute',
+    top: s(12),
+    right: s(12),
+    backgroundColor: '#FFFBEB',
+    padding: s(6),
+    borderRadius: s(8),
+    borderWidth: 1,
+    borderColor: '#FEF3C7',
+    zIndex: 10,
+  }
 });

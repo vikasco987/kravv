@@ -15,6 +15,7 @@ import {
 import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
 import { useLanguage } from "../../context/LanguageContext";
+import ProfitInsight from "../../components/profit-optimizer/ProfitInsight";
 
 
 // --- Constants ---
@@ -43,10 +44,10 @@ const SalesSummaryCard = ({ label, amount, icon, color }) => (
 );
 
 // --- Dashboard Menu Item ---
-const DashboardMenuItem = ({ title, iconName, path, router, color, subtitle }) => (
+const DashboardMenuItem = ({ title, iconName, path, router, color, subtitle, onPress }) => (
     <TouchableOpacity
         style={styles.menuItem}
-        onPress={() => router.push(path)}
+        onPress={onPress}
     >
         <View style={[styles.menuIconContainer, { backgroundColor: color + '10' }]}>
             <Ionicons name={iconName} size={rf(28)} color={color} />
@@ -68,6 +69,8 @@ export default function SalesDashboard() {
     const [stats, setStats] = useState({ daily: 0, weekly: 0, monthly: 0 });
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [allBills, setAllBills] = useState([]);
+    const [insightVisible, setInsightVisible] = useState(false);
     const { refreshSignal } = useRefresh();
 
     const fetchStats = async () => {
@@ -90,6 +93,7 @@ export default function SalesDashboard() {
                 if (contentType && contentType.includes("application/json")) {
                     const data = await res.json();
                     if (data.bills) {
+                        setAllBills(data.bills);
                         calculateStats(data.bills);
                     }
                 } else {
@@ -152,6 +156,13 @@ export default function SalesDashboard() {
         { title: t('weekly_sales'), path: "/sales/WeeklySalesScreen", icon: "calendar", color: COLORS.secondary, subtitle: t('trends') },
         { title: t('monthly_sales'), path: "/sales/MonthlySalesScreen", icon: "stats-chart", color: COLORS.accent, subtitle: t('growth') },
         { title: t('bill_records'), path: "/sales/deepsale", icon: "receipt", color: "#6366F1", subtitle: t('invoices') },
+        { 
+            title: "Profit Intelligence", 
+            onPress: () => setInsightVisible(true), 
+            icon: "bulb", 
+            color: "#F59E0B", 
+            subtitle: "Optimize your menu items" 
+        },
     ];
 
     return (
@@ -188,6 +199,7 @@ export default function SalesDashboard() {
                                 key={idx}
                                 router={router}
                                 {...item}
+                                onPress={item.onPress ? item.onPress : () => router.push(item.path)}
                             />
                         ))}
                     </View>
@@ -206,6 +218,12 @@ export default function SalesDashboard() {
                         <Ionicons name="add" size={24} color={COLORS.white} />
                     </View>
                 </TouchableOpacity> */}
+
+                <ProfitInsight 
+                    visible={insightVisible} 
+                    onClose={() => setInsightVisible(false)} 
+                    bills={allBills} 
+                />
 
             </ScrollView>
         </SafeAreaView>

@@ -22,6 +22,7 @@ import { useLanguage } from "../../context/LanguageContext";
 
 // ✅ Import AddPartyScreen component
 import AddPartyScreen from "../party/AddPartyScreen";
+import CustomerHistory from "../../components/customer-insights/CustomerHistory";
 
 const THEME_PRIMARY = "#4F46E5";
 const COLOR_BG_LIGHT = "#F5F5F5";
@@ -318,6 +319,8 @@ export default function CustomersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [allBills, setAllBills] = useState([]);
   const { t } = useLanguage();
 
   const fetchParties = async (silent = false) => {
@@ -361,6 +364,24 @@ export default function CustomersScreen() {
     }
   };
 
+  const fetchBills = async () => {
+    try {
+      const token = isLoaded && isSignedIn ? await getToken() : null;
+      const res = await fetch("https://billing.kravy.in/api/bill-manager", {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.bills) setAllBills(data.bills);
+      }
+    } catch (err) {
+      console.error("Error fetching bills for insights:", err);
+    }
+  };
+
   useEffect(() => {
     if (refreshSignal > 0) {
       fetchParties(true);
@@ -370,6 +391,7 @@ export default function CustomersScreen() {
   useEffect(() => {
     if (isLoaded) {
       fetchParties();
+      fetchBills();
     }
   }, [isLoaded, isSignedIn]);
 
@@ -577,7 +599,14 @@ export default function CustomersScreen() {
             </View>
 
             <TouchableOpacity 
-              style={styles.mainActionBtn}
+              style={[styles.mainActionBtn, { backgroundColor: "#6366F1", marginBottom: vs(12) }]}
+              onPress={() => setShowHistoryModal(true)}
+            >
+              <Text style={styles.mainActionBtnText}>View Customer Insights</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.mainActionBtn, { backgroundColor: "#1e293b" }]}
               onPress={() => setShowDetailsModal(false)}
             >
               <Text style={styles.mainActionBtnText}>{t('done')}</Text>
@@ -585,6 +614,13 @@ export default function CustomersScreen() {
           </View>
         </View>
       </Modal>
+
+      <CustomerHistory 
+        visible={showHistoryModal} 
+        onClose={() => setShowHistoryModal(false)} 
+        party={selectedParty} 
+        bills={allBills} 
+      />
     </View>
   );
 }

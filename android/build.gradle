@@ -8,7 +8,7 @@ buildscript {
   dependencies {
     classpath('com.android.tools.build:gradle')
     classpath('com.facebook.react:react-native-gradle-plugin')
-    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.20')
   }
 }
 
@@ -26,6 +26,14 @@ allprojects {
         substitute module('com.android.support:support-v4') using module('androidx.legacy:legacy-support-v4:1.0.0')
         substitute module('com.android.support:appcompat-v7') using module('androidx.appcompat:appcompat:1.7.0')
       }
+    }
+  }
+}
+
+subprojects {
+  tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+      freeCompilerArgs += ["-Xskip-metadata-version-check"]
     }
   }
 }
