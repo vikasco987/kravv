@@ -12,7 +12,8 @@ import {
   Text,
   // @ts-ignore
   ToastAndroid,
-  View
+  View,
+  DeviceEventEmitter
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
@@ -322,6 +323,34 @@ export default function MenuScreen() {
       fetchHeldCount();
     }
   }, [refreshSignal]);
+
+  // Listener for cross-modal item selection (e.g. from Customer History)
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('add_to_cart_remote', (data) => {
+      const itemsToAdd = Array.isArray(data) ? data : [data];
+      
+      if (itemsToAdd.length === 0) return;
+
+      // 1. Auto-Scroll to the first item's category
+      const firstItem = itemsToAdd[0];
+      const catIndex = menus.findIndex(cat => (cat.items || []).some(i => i.id === firstItem.id));
+      if (catIndex !== -1 && flatListRef.current) {
+        try {
+          flatListRef.current.scrollToIndex({ index: catIndex, animated: true });
+        } catch (e) {}
+      }
+
+      // 2. Add all items to cart
+      itemsToAdd.forEach(item => {
+        if (item && item.id) {
+          addToCart(item);
+        }
+      });
+      
+      ToastAndroid.show(`Selected ${itemsToAdd.length} Favorite Items Added!`, ToastAndroid.SHORT);
+    });
+    return () => sub.remove();
+  }, [menus]); // Recalculate if menus change
 
   const filteredMenus = useMemo(() => {
     if (!searchQuery) return menus;

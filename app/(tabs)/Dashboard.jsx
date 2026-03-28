@@ -15,7 +15,7 @@ import {
 import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
 import { useLanguage } from "../../context/LanguageContext";
-import ProfitInsight from "../../components/profit-optimizer/ProfitInsight";
+import ProfitEngine from "../../components/profit-engine/ProfitEngine";
 
 
 // --- Constants ---
@@ -219,7 +219,7 @@ export default function SalesDashboard() {
                     </View>
                 </TouchableOpacity> */}
 
-                <ProfitInsight 
+                <ProfitEngine 
                     visible={insightVisible} 
                     onClose={() => setInsightVisible(false)} 
                     bills={allBills} 

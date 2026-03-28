@@ -1,7 +1,8 @@
 "use client";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
@@ -288,7 +289,7 @@ const PartyListItem: React.FC<{ item: Party; onSelect: (party: Party) => void }>
 
     <View style={styles.iconGroup}>
       <View style={styles.balanceIndicator}>
-        <Text style={styles.balanceText}>₹{item.balance ? item.balance.toFixed(0) : 0}</Text>
+        <Text style={styles.balanceText}>₹{(item.balance || 0).toFixed(0)}</Text>
       </View>
       <Ionicons name="call-outline" size={rf(20)} color="#FFD700" style={styles.icon} />
       <Ionicons name="logo-whatsapp" size={rf(20)} color="#25D366" style={styles.icon} />
@@ -330,6 +331,8 @@ export default function CustomersScreen() {
       setRefreshing(false);
       return;
     }
+    // Also fetch bills to keep balances real-time
+    fetchBills();
     try {
       if (silent) setRefreshing(true);
       else setLoading(true);
@@ -367,24 +370,30 @@ export default function CustomersScreen() {
   const fetchBills = async () => {
     try {
       const token = isLoaded && isSignedIn ? await getToken() : null;
-      const res = await fetch("https://billing.kravy.in/api/bill-manager", {
+      if (!token) return;
+
+      const res = await fetch(`https://billing.kravy.in/api/bill-manager?t=${Date.now()}`, {
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Authorization": `Bearer ${token}`
         },
       });
+
       if (res.ok) {
         const data = await res.json();
-        if (data.bills) setAllBills(data.bills);
+        if (data && data.bills) {
+          setAllBills(data.bills);
+        }
       }
     } catch (err) {
-      console.error("Error fetching bills for insights:", err);
+      console.error("Critical Sync Error:", err);
     }
   };
 
   useEffect(() => {
     if (refreshSignal > 0) {
       fetchParties(true);
+      fetchBills(); 
     }
   }, [refreshSignal]);
 
@@ -395,10 +404,64 @@ export default function CustomersScreen() {
     }
   }, [isLoaded, isSignedIn]);
 
+  // ✅ AUTO-REFRESH ON TAB FOCUS (No more manual work)
+  useFocusEffect(
+    useCallback(() => {
+      if (isLoaded && isSignedIn) {
+        fetchParties(true); // Silent refresh in background
+        fetchBills();
+      }
+    }, [isLoaded, isSignedIn])
+  );
+
   const handleSelectParty = (party: Party) => {
+    fetchBills(); 
     setSelectedParty(party);
     setShowDetailsModal(true);
   };
+
+  // ✅ INDUSTRIAL PAYMENT CALCULATOR (Using ID + Phone for 100% Accuracy)
+  const customerStats = React.useMemo(() => {
+    if (!selectedParty || !allBills) return { lifetimeSpend: 0, pending: 0 };
+    
+    // Unique Indicators
+    const pId = (selectedParty as any).id || (selectedParty as any)._id;
+    const tPhone = (selectedParty.phone || "").replace(/\D/g, '');
+    const cleanTP = tPhone.length > 10 ? tPhone.slice(-10) : tPhone;
+    const tName = (selectedParty.name || "").toLowerCase().trim();
+
+    const relatedBills = allBills.filter((bill: any) => {
+      // 1. Matched by ID (Highest Accuracy)
+      if (pId && (bill.partyId === pId || bill.customerId === pId || bill.party === pId)) return true;
+
+      // 2. Fallback to Phone Match
+      const bPhone = (bill.customerPhone || bill.phone || "").replace(/\D/g, '');
+      const cleanBP = bPhone.length > 10 ? bPhone.slice(-10) : bPhone;
+      if (cleanTP && cleanBP && cleanTP === cleanBP) return true;
+
+      // 3. Last Resort: Name Match
+      const bName = (bill.customerName || bill.name || "").toLowerCase().trim();
+      if (tName && bName && (bName.includes(tName) || tName.includes(bName))) return true;
+
+      return false;
+    });
+
+    let lifetimeSpend = 0;
+    let pending = 0;
+
+    relatedBills.forEach((bill: any) => {
+      const total = Number(bill.total || 0);
+      const received = Number(bill.receivedAmount || 0);
+      const status = (bill.paymentStatus || "").toUpperCase();
+      
+      lifetimeSpend += total;
+      if (status !== "PAID") {
+        pending += (total - received);
+      }
+    });
+
+    return { lifetimeSpend, pending };
+  }, [selectedParty, allBills]);
 
   const filteredParties = parties.filter(
     (p) =>
@@ -526,11 +589,23 @@ export default function CustomersScreen() {
               
               <View style={styles.detailItem}>
                 <View style={styles.detailIconWrapper}>
-                  <Ionicons name="wallet-outline" size={rf(20)} color="#10B981" />
+                  <Ionicons name="bar-chart-outline" size={rf(20)} color="#10B981" />
                 </View>
                 <View>
-                  <Text style={styles.detailLabel}>{t('balance')}</Text>
-                  <Text style={[styles.detailValue, { color: "#10B981" }]}>₹{selectedParty?.balance?.toFixed(2) || "0.00"}</Text>
+                  <Text style={styles.detailLabel}>Lifetime Business (Total Sales)</Text>
+                  <Text style={[styles.detailValue, { color: "#10B981" }]}>₹{(customerStats?.lifetimeSpend || 0).toFixed(2)}</Text>
+                </View>
+              </View>
+
+              <View style={styles.detailItem}>
+                <View style={styles.detailIconWrapper}>
+                  <Ionicons name="alert-circle-outline" size={rf(20)} color={customerStats.pending > 0 ? "#EF4444" : "#64748B"} />
+                </View>
+                <View>
+                  <Text style={styles.detailLabel}>Pending Balance</Text>
+                  <Text style={[styles.detailValue, { color: (customerStats?.pending || 0) > 0 ? "#EF4444" : "#64748B" }]}>
+                    ₹{(customerStats?.pending || 0).toFixed(2)}
+                  </Text>
                 </View>
               </View>
 
@@ -540,8 +615,8 @@ export default function CustomersScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.detailLabel}>{t('address')}</Text>
-                  <Text style={styles.detailValue} numberOfLines={2}>
-                    {selectedParty?.address || t('no_items')}
+                  <Text style={styles.detailValue} numberOfLines={1}>
+                    {selectedParty?.address || "No Address Added"}
                   </Text>
                 </View>
               </View>

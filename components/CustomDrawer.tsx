@@ -13,7 +13,7 @@ import ItemSalesReport from "./item-sales-report/item-sales-report";
 import { EditMenuItem } from "./menu/EditMenuItem";
 import { TableQrCodes } from "./menu/TableQrCodes";
 import { LoginRequiredModal } from "./settings/LoginRequiredModal";
-import ProfitInsight from "./profit-optimizer/ProfitInsight";
+import ProfitEngine from "./profit-engine/ProfitEngine";
 import CustomerHistory from "./customer-insights/CustomerHistory";
 import TableRotation from "./table-insights/TableRotation";
 import VoiceOrder from "./voice-command/VoiceOrder";
@@ -238,7 +238,7 @@ export default function CustomDrawerContent(props: any) {
         <ItemSalesReport onBack={() => setInventoryModalVisible(false)} />
       </Modal>
 
-      <ProfitInsight 
+      <ProfitEngine 
         visible={profitModalVisible} 
         onClose={() => setProfitModalVisible(false)} 
         bills={allBills} 
