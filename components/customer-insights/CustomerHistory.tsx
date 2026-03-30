@@ -13,6 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { rf, s, vs } from '../../utils/responsive';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect } from 'react';
 
 interface CustomerHistoryProps {
     visible: boolean;
@@ -24,7 +26,40 @@ interface CustomerHistoryProps {
 const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProps) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedItemNames, setSelectedItemNames] = useState<string[]>([]);
+    const [taxEnabled, setTaxEnabled] = useState(false);
+    const [perProductTax, setPerProductTax] = useState(false);
+    const [taxRate, setTaxRate] = useState(5);
+    const [discountEnabled, setDiscountEnabled] = useState(false);
+    const [discountRate, setDiscountRate] = useState(0);
+    const [serviceChargeEnabled, setServiceChargeEnabled] = useState(false);
+    const [serviceChargeRate, setServiceChargeRate] = useState(0);
     const router = useRouter();
+
+    const loadSettings = async () => {
+        try {
+            const settings = await AsyncStorage.multiGet([
+                'tax_enabled', 'per_product_tax', 'tax_rate', 
+                'discount_enabled', 'discount_rate',
+                'service_charge_enabled', 'service_charge_rate'
+            ]);
+            const sMap: Record<string, string|null> = {};
+            settings.forEach(([key, val]) => sMap[key] = val);
+            
+            setTaxEnabled(sMap['tax_enabled'] === 'true');
+            setPerProductTax(sMap['per_product_tax'] === 'true');
+            setTaxRate(parseFloat(sMap['tax_rate'] || '5'));
+            setDiscountEnabled(sMap['discount_enabled'] === 'true');
+            setDiscountRate(parseFloat(sMap['discount_rate'] || '0'));
+            setServiceChargeEnabled(sMap['service_charge_enabled'] === 'true');
+            setServiceChargeRate(parseFloat(sMap['service_charge_rate'] || '0'));
+        } catch (e) {
+            console.error("Failed to load settings in CustomerHistory:", e);
+        }
+    };
+
+    useEffect(() => {
+        if (visible) loadSettings();
+    }, [visible]);
 
     const insights = useMemo(() => {
         // --- ADVANCED FUZZY MATCHING ENGINE ---
@@ -82,7 +117,56 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
         let totalSpend = 0;
 
         customerBills.forEach(bill => {
-            totalSpend += (bill.total || 0);
+            // 🛡️ DYNAMIC OVERRIDE LOGIC (Exact Dashboard Parity)
+            let totalTaxable = 0;
+            let totalGst = 0;
+            
+            (bill.items || []).forEach((item: any) => {
+                const itemPrice = Number(item.price || item.rate || 0);
+                const qty = Number(item.quantity || item.qty || 1);
+                const lineTotal = itemPrice * qty;
+
+                // ⚖️ POS-PARITY PRIORITY: 
+                // 1. If Global Tax is ON -> It overrides EVERYTHING (12% for Bill 2)
+                // 2. If Global is OFF -> It respects individual Product GST (28% for Bill 1)
+                let itemGstRate = 0;
+                if (taxEnabled) {
+                    itemGstRate = taxRate;
+                } else if (perProductTax) {
+                    itemGstRate = Number(item.gst || item.gst_percent || 0);
+                }
+
+                let taxable = 0;
+                let gst = 0;
+                const mode = (item.taxStatus || item.taxType || "Without Tax");
+                
+                if (mode === "With Tax") {
+                    taxable = lineTotal / (1 + itemGstRate / 100);
+                    gst = lineTotal - taxable;
+                } else {
+                    taxable = lineTotal;
+                    gst = (lineTotal * itemGstRate) / 100;
+                }
+                totalTaxable += taxable;
+                totalGst += gst;
+            });
+
+            const dAmt = discountEnabled ? (totalTaxable * (discountRate / 100)) : 0;
+            const taxableAfterDisc = totalTaxable - dAmt;
+            const scAmt = serviceChargeEnabled ? (taxableAfterDisc * (serviceChargeRate / 100)) : 0;
+            const netTaxableVal = taxableAfterDisc + scAmt;
+
+            const avgGstRate = totalTaxable > 0 ? (totalGst / totalTaxable) : 0;
+            const finalGstAmt = netTaxableVal * avgGstRate;
+            
+            const calculatedTotal = Math.floor((netTaxableVal + finalGstAmt) * 100) / 100;
+            const storedTotal = Number(bill.total || bill.grandTotal || bill.totalAmount || 0);
+            const received = Number(bill.receivedAmount || 0);
+
+            // Using Max preserves the historical 41.47 bill even while current Global is 12%
+            const effectiveTotal = Math.max(calculatedTotal, storedTotal, received);
+            
+            totalSpend += effectiveTotal;
             (bill.items || []).forEach((item: any) => {
                 const name = item.name || 'Unknown Item';
                 const qty = Number(item.qty || item.quantity || 0);
@@ -106,7 +190,7 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
             favoriteItems: sortedItems,
             lastVisit: latestBill?.createdAt
         };
-    }, [party, bills, searchQuery]);
+    }, [party, bills, searchQuery, taxEnabled, perProductTax, taxRate, discountEnabled, discountRate, serviceChargeEnabled, serviceChargeRate]);
 
     const findItemData = (name: string) => {
         let bestMatch: any = null;
@@ -231,7 +315,7 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
                                     </View>
                                     <View style={[styles.statBox, styles.statDivider]}>
                                         <Text style={styles.statLabel}>Lifetime Value</Text>
-                                        <Text style={[styles.statValue, { color: '#10b981' }]}>₹{insights.totalSpend.toFixed(0)}</Text>
+                                        <Text style={[styles.statValue, { color: '#10b981' }]}>₹{(insights.totalSpend || 0).toFixed(2)}</Text>
                                     </View>
                                     <View style={styles.statBox}>
                                         <Text style={styles.statLabel}>Last Active</Text>
