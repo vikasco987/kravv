@@ -16,6 +16,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import CustomDrawerContent from "../components/CustomDrawer";
 import { RefreshProvider } from "../context/RefreshContext";
 import { LanguageProvider, useLanguage } from "../context/LanguageContext";
+import NewOrderNotifier from "../components/NewOrderNotifier";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -90,6 +91,7 @@ function AuthRedirect() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <NewOrderNotifier />
       <Drawer
         drawerContent={(props) => <CustomDrawerContent {...props} />}
         screenOptions={{

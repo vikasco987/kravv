@@ -153,10 +153,14 @@ export default function CustomDrawerContent(props: any) {
           label="Items Sales Report"
           icon={({ color, size }) => <Ionicons name="cube-outline" size={size} color={color} />}
           onPress={() => {
-            props.navigation.closeDrawer();
-            setTimeout(() => {
-              setInventoryModalVisible(true);
-            }, 400);
+            if (!user) {
+              setLoginModalVisible(true);
+            } else {
+              props.navigation.closeDrawer();
+              setTimeout(() => {
+                setInventoryModalVisible(true);
+              }, 400);
+            }
           }}
         />
 
@@ -164,7 +168,13 @@ export default function CustomDrawerContent(props: any) {
         <DrawerItem
           label={t('settings')}
           icon={({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />}
-          onPress={() => props.navigation.navigate("(tabs)", { screen: "setting" })}
+          onPress={() => {
+            if (!user) {
+              setLoginModalVisible(true);
+            } else {
+              props.navigation.navigate("(tabs)", { screen: "setting" });
+            }
+          }}
         />
 
         <View style={styles.divider} />
@@ -174,9 +184,13 @@ export default function CustomDrawerContent(props: any) {
           label="Profit Engine"
           icon={({ size }) => <Ionicons name="trending-up-outline" size={size} color="#10B981" />}
           onPress={() => {
-            fetchAIData();
-            props.navigation.closeDrawer();
-            setTimeout(() => setProfitModalVisible(true), 400);
+            if (!user) {
+              setLoginModalVisible(true);
+            } else {
+              fetchAIData();
+              props.navigation.closeDrawer();
+              setTimeout(() => setProfitModalVisible(true), 400);
+            }
           }}
         />
 
@@ -184,9 +198,13 @@ export default function CustomDrawerContent(props: any) {
           label="Voice Command"
           icon={({ size }) => <Ionicons name="mic-outline" size={size} color="#6366F1" />}
           onPress={() => {
-            fetchAIData();
-            props.navigation.closeDrawer();
-            setTimeout(() => setVoiceModalVisible(true), 400);
+            if (!user) {
+              setLoginModalVisible(true);
+            } else {
+              fetchAIData();
+              props.navigation.closeDrawer();
+              setTimeout(() => setVoiceModalVisible(true), 400);
+            }
           }}
         />
 
@@ -194,9 +212,13 @@ export default function CustomDrawerContent(props: any) {
           label="Customer Search"
           icon={({ size }) => <Ionicons name="search-outline" size={size} color="#f59e0b" />}
           onPress={() => {
-            fetchAIData();
-            props.navigation.closeDrawer();
-            setTimeout(() => setHistoryModalVisible(true), 400);
+            if (!user) {
+              setLoginModalVisible(true);
+            } else {
+              fetchAIData();
+              props.navigation.closeDrawer();
+              setTimeout(() => setHistoryModalVisible(true), 400);
+            }
           }}
         />
 

@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderTopLeftRadius: s(30),
         borderTopRightRadius: s(30),
-        paddingBottom: Platform.OS === 'ios' ? vs(40) : vs(20),
+        paddingBottom: vs(50),
     },
     header: {
         flexDirection: 'row',

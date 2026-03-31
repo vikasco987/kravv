@@ -3760,7 +3760,7 @@
 
 //   return (
 //     <View style={{ flex: 1, backgroundColor: "#F5F7FA" }}>
-      
+
 //       {/* -------------------------------------------------------------
 //          HEADER WITH GRADIENT
 //       ------------------------------------------------------------- */}
@@ -4094,24 +4094,26 @@
 
 // ⭐ MODERN & STYLISH BILL LIST SCREEN (FULL UPDATED UI)
 
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  ActivityIndicator,
-  TouchableOpacity,
-  TextInput,
-  RefreshControl,
-} from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { rf, s, vs } from "../../utils/responsive";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useRefresh } from "../../context/RefreshContext";
+import { rf, s, vs } from "../../utils/responsive";
 
 // -------------------------------------------------------------
 // DATE FORMATTER
@@ -4172,6 +4174,35 @@ export default function BillListScreen() {
   const pageSize = 10;
 
   const [refreshing, setRefreshing] = useState(false);
+
+  // -------------------------------------------------------------
+  // SPIN ANIMATION
+  // -------------------------------------------------------------
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (refreshing) {
+      Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      Animated.timing(rotateAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [refreshing]);
+
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   // -------------------------------------------------------------
   // FETCH BILLS + RELOAD
@@ -4316,7 +4347,9 @@ export default function BillListScreen() {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Bills & Transactions</Text>
           <TouchableOpacity onPress={triggerRefresh} style={styles.headerReloadBtn}>
-            <Ionicons name="refresh" size={rf(26)} color="white" />
+            <Animated.View style={{ transform: [{ rotate: spin }] }}>
+              <Ionicons name="refresh" size={rf(26)} color="white" />
+            </Animated.View>
           </TouchableOpacity>
         </View>
 
@@ -4354,8 +4387,8 @@ export default function BillListScreen() {
               {type === "today"
                 ? "Today"
                 : type === "yesterday"
-                ? "Yesterday"
-                : "Last 7 Days"}
+                  ? "Yesterday"
+                  : "Last 7 Days"}
             </Text>
           </TouchableOpacity>
         ))}
@@ -4673,7 +4706,9 @@ const styles = StyleSheet.create({
   paginationRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: s(15),
+    paddingHorizontal: s(15),
+    paddingTop: vs(15),
+    paddingBottom: vs(50),
     backgroundColor: "#fff",
     elevation: 4,
   },

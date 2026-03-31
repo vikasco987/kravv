@@ -59,50 +59,97 @@ const ProfitEngine = ({ visible, onClose, bills: propBills }: ProfitEngineProps)
     const insights = useMemo(() => {
         if (!bills || bills.length === 0) return null;
 
-        const itemMap: Record<string, { count: number; revenue: number; name: string }> = {};
-        
-        // Filter out held bills (only counts paid/finalized sales)
-        const validBills = bills.filter(b => b.isHeld !== true);
+        const periods = ['today', 'weekly', 'monthly'];
+        const periodInsights: any = {
+            stars: { today: [], weekly: [], monthly: [] },
+            plowhorses: { today: [], weekly: [], monthly: [] },
+            puzzles: { today: [], weekly: [], monthly: [] }
+        };
 
-        validBills.forEach(bill => {
-            (bill.items || []).forEach((item: any) => {
-                const name = item.name || 'Unknown';
-                const qty = Number(item.qty || item.quantity || 0);
-                const price = Number(item.rate || item.price || 0);
-                const lineTotal = qty * price;
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfWeekly = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const startOfMonthly = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-                if (!itemMap[name]) {
-                    itemMap[name] = { count: 0, revenue: 0, name };
-                }
-                itemMap[name].count += qty;
-                itemMap[name].revenue += lineTotal;
+        periods.forEach(period => {
+            const itemMap: Record<string, { count: number; revenue: number; name: string }> = {};
+            let totalVolume = 0;
+
+            const validBills = bills.filter(b => {
+                if (b.isHeld === true) return false;
+                const bDate = new Date(b.createdAt || b.date || now);
+                if (period === 'today') return bDate >= startOfToday;
+                if (period === 'weekly') return bDate >= startOfWeekly;
+                return bDate >= startOfMonthly;
             });
+
+            validBills.forEach(bill => {
+                (bill.items || []).forEach((item: any) => {
+                    const name = item.name || 'Unknown';
+                    const qty = Number(item.qty || item.quantity || 0);
+                    const price = Number(item.rate || item.price || 0);
+                    const lineTotal = qty * price;
+
+                    if (!itemMap[name]) {
+                        itemMap[name] = { count: 0, revenue: 0, name };
+                    }
+                    itemMap[name].count += qty;
+                    itemMap[name].revenue += lineTotal;
+                    totalVolume += qty;
+                });
+            });
+
+            const itemsArray = Object.values(itemMap);
+            if (itemsArray.length === 0) return;
+
+            const avgCount = itemsArray.reduce((acc, it) => acc + it.count, 0) / itemsArray.length;
+            const avgRevenue = itemsArray.reduce((acc, it) => acc + it.revenue, 0) / itemsArray.length;
+
+            const stars = itemsArray.filter(it => it.count >= avgCount && it.revenue >= avgRevenue)
+                .sort((a, b) => b.revenue - a.revenue)
+                .map(it => ({ ...it, percent: totalVolume > 0 ? (it.count / totalVolume) * 100 : 0 }))
+                .slice(0, 3);
+
+            const plowhorses = itemsArray.filter(it => it.count >= avgCount && it.revenue < avgRevenue)
+                .sort((a, b) => b.count - a.count)
+                .map(it => ({ ...it, percent: totalVolume > 0 ? (it.count / totalVolume) * 100 : 0 }))
+                .slice(0, 3);
+
+            const puzzles = itemsArray.filter(it => it.count < avgCount && it.revenue >= avgRevenue)
+                .sort((a, b) => b.revenue - a.revenue)
+                .map(it => ({ ...it, percent: totalVolume > 0 ? (it.count / totalVolume) * 100 : 0 }))
+                .slice(0, 3);
+
+            periodInsights.stars[period] = stars;
+            periodInsights.plowhorses[period] = plowhorses;
+            periodInsights.puzzles[period] = puzzles;
         });
 
-        const itemsArray = Object.values(itemMap);
-        if (itemsArray.length === 0) return null;
-
-        // Formula: Menu Engineering Matrix
-        const avgCount = itemsArray.reduce((acc, it) => acc + it.count, 0) / itemsArray.length;
-        const avgRevenue = itemsArray.reduce((acc, it) => acc + it.revenue, 0) / itemsArray.length;
-
-        // Categorize Items:
-        // Stars: High Volume, High Profit
-        const stars = itemsArray.filter(it => it.count >= avgCount && it.revenue >= avgRevenue)
-            .sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-
-        // Volume Drivers (Plowhorses): High Volume, Low Profit
-        const plowhorses = itemsArray.filter(it => it.count >= avgCount && it.revenue < avgRevenue)
-            .sort((a, b) => b.count - a.count).slice(0, 5);
-
-        // Hidden Gems (Puzzles): Low Volume, High Profit
-        const puzzles = itemsArray.filter(it => it.count < avgCount && it.revenue >= avgRevenue)
-            .sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-
-        return { stars, plowhorses, puzzles };
+        return periodInsights;
     }, [bills]);
 
-    const InsightSection = ({ title, items, icon, color, description }: any) => (
+    const PeriodItems = ({ period, items, color, periodName }: any) => (
+        <View style={styles.periodSection}>
+            <View style={styles.periodHeader}>
+                <Text style={styles.periodLabel}>{periodName}</Text>
+                <View style={[styles.periodLine, { backgroundColor: color + '30' }]} />
+            </View>
+            {items && items.length > 0 ? items.map((it: any, idx: number) => (
+                <View key={idx} style={styles.itemRow}>
+                    <View style={styles.itemMainInfo}>
+                        <Text style={styles.itemName} numberOfLines={1}>{it.name}</Text>
+                        <Text style={styles.itemPercent}>{it.percent.toFixed(1)}% of sales</Text>
+                    </View>
+                    <View style={styles.itemStats}>
+                        <Text style={styles.itemQty}>{it.count} Sold</Text>
+                        <Text style={styles.itemRev}>₹{Math.round(it.revenue)}</Text>
+                    </View>
+                </View>
+            )) : <Text style={styles.noDataSmall}>No trends for this period yet</Text>}
+        </View>
+    );
+
+    const InsightSection = ({ title, data, icon, color, description }: any) => (
         <View style={styles.section}>
             <View style={styles.sectionHeader}>
                 <View style={[styles.iconBox, { backgroundColor: color + '20' }]}>
@@ -114,15 +161,9 @@ const ProfitEngine = ({ visible, onClose, bills: propBills }: ProfitEngineProps)
                 </View>
             </View>
             <View style={styles.itemsList}>
-                {items && items.length > 0 ? items.map((it: any, idx: number) => (
-                    <View key={idx} style={styles.itemRow}>
-                        <Text style={styles.itemName} numberOfLines={1}>{it.name}</Text>
-                        <View style={styles.itemStats}>
-                            <Text style={styles.itemQty}>{it.count} Sold</Text>
-                            <Text style={styles.itemRev}>₹{Math.round(it.revenue)}</Text>
-                        </View>
-                    </View>
-                )) : <Text style={styles.emptyText}>Not enough data to analyze yet</Text>}
+                <PeriodItems periodName="TODAY" items={data.today} color={color} />
+                <PeriodItems periodName="WEEKLY" items={data.weekly} color={color} />
+                <PeriodItems periodName="MONTHLY" items={data.monthly} color={color} />
             </View>
         </View>
     );
@@ -160,7 +201,7 @@ const ProfitEngine = ({ visible, onClose, bills: propBills }: ProfitEngineProps)
                             <>
                                 <InsightSection
                                     title="STARS (Best Performing)"
-                                    items={insights.stars}
+                                    data={insights.stars}
                                     icon="star"
                                     color="#f59e0b"
                                     description="High profit & high volume. Your superstars!"
@@ -168,7 +209,7 @@ const ProfitEngine = ({ visible, onClose, bills: propBills }: ProfitEngineProps)
                                 <View style={styles.divider} />
                                 <InsightSection
                                     title="VOLUME DRIVERS"
-                                    items={insights.plowhorses}
+                                    data={insights.plowhorses}
                                     icon="trending-up"
                                     color="#10b981"
                                     description="Very popular but lower margins. Worth promoting."
@@ -176,7 +217,7 @@ const ProfitEngine = ({ visible, onClose, bills: propBills }: ProfitEngineProps)
                                 <View style={styles.divider} />
                                 <InsightSection
                                     title="HIDDEN GEMS"
-                                    items={insights.puzzles}
+                                    data={insights.puzzles}
                                     icon="bulb"
                                     color="#6366f1"
                                     description="Highly profitable but low sales. Needs better spotlight."
@@ -265,31 +306,69 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: vs(12),
+        paddingVertical: vs(10),
         borderBottomWidth: 1,
         borderBottomColor: '#f1f5f9',
     },
-    itemName: {
-        fontSize: rf(13),
-        fontWeight: '600',
-        color: '#334155',
+    itemMainInfo: {
         flex: 1,
+    },
+    itemName: {
+        fontSize: rf(12),
+        fontWeight: '700',
+        color: '#1e293b',
+    },
+    itemPercent: {
+        fontSize: rf(9),
+        color: '#94a3b8',
+        fontWeight: '600',
+        marginTop: vs(1),
     },
     itemStats: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: s(8),
     },
     itemQty: {
-        fontSize: rf(11),
+        fontSize: rf(10),
         color: '#64748b',
-        marginRight: s(12),
+        fontWeight: '500',
     },
     itemRev: {
-        fontSize: rf(13),
-        fontWeight: 'bold',
+        fontSize: rf(12),
+        fontWeight: '800',
         color: '#0f172a',
-        width: s(75),
+        width: s(60),
         textAlign: 'right',
+    },
+    periodSection: {
+        marginBottom: vs(12),
+    },
+    periodHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: vs(6),
+    },
+    periodLabel: {
+        fontSize: rf(9),
+        fontWeight: '900',
+        color: '#64748b',
+        letterSpacing: 1,
+        backgroundColor: '#f1f5f9',
+        paddingHorizontal: s(6),
+        paddingVertical: vs(2),
+        borderRadius: s(4),
+        marginRight: s(8),
+    },
+    periodLine: {
+        flex: 1,
+        height: 1,
+    },
+    noDataSmall: {
+        fontSize: rf(10),
+        color: '#cbd5e1',
+        fontStyle: 'italic',
+        paddingVertical: vs(4),
     },
     emptyText: {
         fontSize: rf(12),

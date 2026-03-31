@@ -8,118 +8,85 @@ export type StaffMember = {
 
 export const PERMISSION_GROUPS = [
   {
-    title: "Profile Permissions",
-    permissions: ["Edit", "View"]
-  },
-  {
-    title: "Select Party Page Permissions",
-    permissions: ["Hide Phone"]
-  },
-  {
-    title: "Party Permissions",
-    permissions: ["Delete", "Edit", "View", "Create"]
-  },
-  {
-    title: "Party Category Permissions",
-    permissions: ["Delete", "Edit", "View", "Create"]
-  },
-  {
-    title: "Item Permissions",
-    permissions: ["Delete", "Edit", "View", "Create"]
-  },
-  {
-    title: "Item Category Permissions",
-    permissions: ["Delete", "Edit", "View", "Create"]
-  },
-  {
-    title: "Item Stock Adjust Permissions",
-    permissions: ["Adjust"]
-  },
-  {
-    title: "Money In Permissions",
-    permissions: ["Delete", "Edit", "View", "Create", "Reprint"]
-  },
-  {
-    title: "Money Out Permissions",
-    permissions: ["Delete", "Edit", "View", "Create", "Reprint"]
-  },
-  {
-    title: "Estimate Permissions",
-    permissions: ["Delete", "Edit", "View", "Create", "Reprint"]
-  },
-  {
-    title: "Expense Permissions",
-    permissions: ["Delete", "Edit", "View", "Create", "Reprint"]
-  },
-  {
-    title: "Purchase Permissions",
-    permissions: ["Delete", "Edit", "View", "Create", "Reprint"]
-  },
-  {
-    title: "Purchase Return Permissions",
-    permissions: ["Delete", "View", "Create", "Reprint"]
-  },
-  {
-    title: "Sale Permissions",
-    permissions: ["Delete", "Edit", "View", "Create", "Reprint"]
-  },
-  {
-    title: "Sale Return Permissions",
-    permissions: ["Delete", "Edit", "View", "Create", "Reprint"]
-  },
-  {
-    title: "Kot Permissions",
-    permissions: ["View"]
-  },
-  {
     title: "Dashboard Permissions",
     permissions: [
-      "View Sales Total",
-      "View Money Ins Total",
-      "View Purchases Total",
-      "View Money Outs Total",
-      "View Receivable Total",
-      "View Payable Total",
-      "Item Low Stock Count",
-      "View Today's Customer",
-      "View Today's Loyal Customer",
-      "View Today's New Customer"
+      "View Today Sales",
+      "View Weekly Sales",
+      "View Monthly Sales",
+      "View Sales Analytics"
+    ]
+  },
+  {
+    title: "Order & Billing Permissions",
+    permissions: [
+      "Create New Bill",
+      "Hold Bill",
+      "Clear Cart",
+      "Apply Discount",
+      "Apply Service Charge",
+      "Apply GST/Tax",
+      "Delete Items from Cart"
+    ]
+  },
+  {
+    title: "Invoices & Receipts",
+    permissions: [
+      "View Bill Records",
+      "Reprint Bill",
+      "Delete Bill",
+      "Edit Saved Bill"
+    ]
+  },
+  {
+    title: "Customer Permissions",
+    permissions: [
+      "Add New Customer",
+      "View Customer List",
+      "Edit Customer Details",
+      "Delete Customer",
+      "View Customer Insights",
+      "Access Party Ledger"
+    ]
+  },
+  {
+    title: "Menu & Items Permissions",
+    permissions: [
+      "Add Menu Items",
+      "Edit Menu Items",
+      "Delete Menu Items",
+      "Manage Item Categories",
+      "Generate Table QR Codes",
+      "Adjust Item Stock"
+    ]
+  },
+  {
+    title: "AI Intelligence Tools",
+    permissions: [
+      "Access Profit Engine",
+      "Access Voice Command",
+      "Access Table Rotation"
     ]
   },
   {
     title: "Report Permissions",
     permissions: [
-      "Sale Report",
-      "Sale Wise Profit And Loss Report",
-      "Purchase Report",
-      "Expense Report",
-      "Estimate Report",
-      "Money In Report",
-      "Money Out Report",
-      "Party Ledger",
-      "Party Details Report",
-      "Party Receivable/Payable Report",
-      "Stock Summary Report",
-      "Item Sale Report",
-      "Item Category wise Sale Report",
-      "Item Report",
-      "Item Details Report",
-      "Day Book Report",
-      "Cut Off Day Report"
+      "Daily Sales Report",
+      "Weekly Sales Report",
+      "Monthly Sales Report",
+      "Item Sales Report",
+      "Deep Sale Records"
     ]
   },
   {
     title: "Settings Permissions",
     permissions: [
-      "Pin Access",
-      "Set Login Pin",
-      "Send Bill To Owner on WhatsApp",
-      "Send Bill To Party on WhatsApp",
-      "Reset Login Pin",
-      "Activate Online Shop",
-      "QR For Online Shop"
+      "App General Settings",
+      "Manage Staff",
+      "Set/Reset Login PIN",
+      "Printer Settings",
+      "WhatsApp Bill Notifications"
     ]
   }
 ];
 
-export const TOTAL_PERMISSIONS_COUNT = 114;
+export const TOTAL_PERMISSIONS_COUNT = 44;

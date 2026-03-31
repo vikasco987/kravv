@@ -18,6 +18,9 @@ import { rf, s, vs } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
 import TableRotation from "../../components/table-insights/TableRotation";
 
+import * as Haptics from 'expo-haptics';
+import { Audio } from 'expo-av';
+
 const THEME_PRIMARY = "#4F46E5";
 
 interface Table {
@@ -48,7 +51,6 @@ export default function OrderScreen() {
       fetchInProgress.current = true;
       const token = await getToken();
       
-      // Fetch tables with cache-buster
       const response = await fetch(`https://billing.kravy.in/api/tables?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -59,7 +61,6 @@ export default function OrderScreen() {
           const tablesData = await response.json();
           const tablesArray = Array.isArray(tablesData) ? tablesData : (tablesData.tables || []);
 
-          // Fetch all orders with cache-buster to get accurate counts
           const ordersResponse = await fetch(`https://billing.kravy.in/api/orders?t=${Date.now()}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -356,5 +357,39 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FEF3C7',
     zIndex: 10,
+  },
+  notificationPopup: {
+    position: 'absolute',
+    top: vs(80),
+    left: s(15),
+    right: s(15),
+    backgroundColor: '#10B981',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: s(15),
+    borderRadius: s(20),
+    elevation: 8,
+    zIndex: 9991, 
+    borderWidth: 1,
+    borderColor: '#ffffff30',
+  },
+  notiIconBg: {
+    width: s(40),
+    height: s(40),
+    backgroundColor: '#fff',
+    borderRadius: s(20),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: s(12),
+  },
+  notificationTitle: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: rf(16),
+  },
+  notificationSubtitle: {
+    color: '#fff',
+    fontSize: rf(13),
+    opacity: 0.9,
   }
 });

@@ -18,6 +18,17 @@ interface TableRotationProps {
 }
 
 const TableRotation = ({ visible, onClose, tableName, orders }: TableRotationProps) => {
+    const [currentTime, setCurrentTime] = React.useState(new Date());
+
+    // Update time every 10 seconds for real-time feel
+    React.useEffect(() => {
+        if (!visible) return;
+        const interval = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 10000);
+        return () => clearInterval(interval);
+    }, [visible]);
+
     const prediction = useMemo(() => {
         if (!orders || orders.length === 0) return null;
 
@@ -27,42 +38,64 @@ const TableRotation = ({ visible, onClose, tableName, orders }: TableRotationPro
         );
 
         const firstOrderTime = new Date(sortedOrders[0].createdAt);
-        const lastOrderTime = new Date(sortedOrders[sortedOrders.length - 1].createdAt);
-        const currentTime = new Date();
-
+        
         // Minutes since first order
         const timeSpent = Math.floor((currentTime.getTime() - firstOrderTime.getTime()) / (1000 * 60));
         
-        // Base estimate: 45 minutes for a typical meal
-        // Adjust based on number of orders (more orders usually means longer stay)
-        const estimatedTotalTime = 40 + (orders.length * 5); 
+        // Extract real customer data
+        const customerName = orders[0]?.customerName || orders[0]?.name || "Guest";
+        
+        // Calculate total items across all orders (KOTs)
+        let totalItemsCount = 0;
+        let allItems: any[] = [];
+        orders.forEach(order => {
+            const items = order.items || [];
+            items.forEach((item: any) => {
+                totalItemsCount += (item.qty || item.quantity || 0);
+                allItems.push(item);
+            });
+        });
+
+        // Get latest item added
+        const latestOrder = sortedOrders[sortedOrders.length - 1];
+        const latestItems = latestOrder.items || [];
+        const latestItemName = latestItems.length > 0 ? latestItems[latestItems.length - 1].name : "None";
+
+        // Base estimate calculation improves with more items
+        const estimatedTotalTime = 30 + (orders.length * 8) + (totalItemsCount * 2); 
         const remainingTime = Math.max(0, estimatedTotalTime - timeSpent);
 
-        // Status color and label
-        let status = { label: 'Just Started', color: '#3b82f6', percent: 0.2 };
-        if (timeSpent > 35) {
-            status = { label: 'Almost Done', color: '#ef4444', percent: 0.9 };
-        } else if (timeSpent > 20) {
-            status = { label: 'Mid-Meal', color: '#f59e0b', percent: 0.6 };
+        // Status color and label based on percentage of estimated time
+        const progressPercent = Math.min(0.95, timeSpent / estimatedTotalTime);
+        
+        let status = { label: 'Just Started', color: '#3b82f6', percent: progressPercent };
+        if (progressPercent > 0.8) {
+            status = { label: 'Almost Done', color: '#ef4444', percent: progressPercent };
+        } else if (progressPercent > 0.4) {
+            status = { label: 'In Progress', color: '#f59e0b', percent: progressPercent };
         }
 
         return {
             timeSpent,
             remainingTime,
             status,
+            customerName,
+            totalItemsCount,
+            latestItemName,
             orderCount: orders.length,
-            startTime: firstOrderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            startTime: firstOrderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            allItems: allItems.slice(-3) // Show last 3 items for context
         };
-    }, [orders]);
+    }, [orders, currentTime]);
 
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={styles.overlay}>
                 <View style={styles.modalContainer}>
                     <View style={styles.header}>
                         <View>
-                            <Text style={styles.headerTitle}>Table Progress</Text>
-                            <Text style={styles.subTitle}>{tableName}</Text>
+                            <Text style={styles.headerTitle}>Live Table Insights</Text>
+                            <Text style={styles.subTitle}>{tableName} • {prediction?.customerName || 'No Orders'}</Text>
                         </View>
                         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
                             <Ionicons name="close" size={rf(22)} color="#64748b" />
@@ -76,7 +109,7 @@ const TableRotation = ({ visible, onClose, tableName, orders }: TableRotationPro
                                     <Text style={[styles.statusText, { color: prediction.status.color }]}>
                                         {prediction.status.label}
                                     </Text>
-                                    <Text style={styles.timeLabel}>{prediction.timeSpent}m elapsed</Text>
+                                    <Text style={styles.timeLabel}>{prediction.timeSpent}m seated</Text>
                                 </View>
                                 <View style={styles.progressBarBg}>
                                     <View style={[styles.progressBarFill, { width: `${prediction.status.percent * 100}%`, backgroundColor: prediction.status.color }]} />
@@ -85,7 +118,11 @@ const TableRotation = ({ visible, onClose, tableName, orders }: TableRotationPro
 
                             <View style={styles.statsGrid}>
                                 <View style={styles.statItem}>
-                                    <Text style={styles.statLabel}>Orders</Text>
+                                    <Text style={styles.statLabel}>Total Items</Text>
+                                    <Text style={styles.statValue}>{prediction.totalItemsCount}</Text>
+                                </View>
+                                <View style={[styles.statItem, { borderLeftWidth: 1, borderLeftColor: '#f1f5f9' }]}>
+                                    <Text style={styles.statLabel}>KOT Count</Text>
                                     <Text style={styles.statValue}>{prediction.orderCount}</Text>
                                 </View>
                                 <View style={[styles.statItem, { borderLeftWidth: 1, borderLeftColor: '#f1f5f9' }]}>
@@ -94,10 +131,21 @@ const TableRotation = ({ visible, onClose, tableName, orders }: TableRotationPro
                                 </View>
                             </View>
 
+                            <View style={styles.itemSummary}>
+                                <Text style={styles.summaryLabel}>Recent Items:</Text>
+                                <View style={styles.itemsRow}>
+                                    {prediction.allItems.map((item, idx) => (
+                                        <View key={idx} style={styles.itemBadge}>
+                                            <Text style={styles.itemBadgeText} numberOfLines={1}>{item.name}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+
                             <View style={[styles.estimateBox, { backgroundColor: prediction.status.color + '10' }]}>
-                                <Ionicons name="time-outline" size={rf(18)} color={prediction.status.color} />
+                                <Ionicons name="sparkles" size={rf(16)} color={prediction.status.color} />
                                 <Text style={[styles.estimateText, { color: prediction.status.color }]}>
-                                    Estimated {prediction.remainingTime} mins remaining
+                                    Est. {prediction.remainingTime} mins to free table
                                 </Text>
                             </View>
                         </View>
@@ -109,7 +157,7 @@ const TableRotation = ({ visible, onClose, tableName, orders }: TableRotationPro
                     )}
 
                     <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
-                        <Text style={styles.doneBtnText}>Close</Text>
+                        <Text style={styles.doneBtnText}>Got it</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -237,6 +285,32 @@ const styles = StyleSheet.create({
         color: '#64748b',
         textAlign: 'center',
         marginTop: vs(10),
+    },
+    itemSummary: {
+        marginBottom: vs(20),
+    },
+    summaryLabel: {
+        fontSize: rf(12),
+        fontWeight: '600',
+        color: '#64748b',
+        marginBottom: vs(8),
+    },
+    itemsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: s(6),
+    },
+    itemBadge: {
+        backgroundColor: '#f1f5f9',
+        paddingVertical: vs(4),
+        paddingHorizontal: s(10),
+        borderRadius: s(20),
+        maxWidth: s(100),
+    },
+    itemBadgeText: {
+        fontSize: rf(11),
+        color: '#475569',
+        fontWeight: '500',
     }
 });
 

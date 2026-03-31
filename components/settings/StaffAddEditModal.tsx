@@ -63,7 +63,7 @@ const StaffAddEditModal = ({
         setName("");
         setPhone("");
         setAccessType("Sales Access");
-        setPermissions(["Sale Permissions - View", "Sale Permissions - Create"]); 
+        setPermissions(["Order & Billing Permissions - Create New Bill", "Invoices & Receipts - View Bill Records"]); 
       }
     }
   }, [visible, staff]);
@@ -92,7 +92,7 @@ const StaffAddEditModal = ({
     if (type === "Full Access") {
         setAllPermissions();
     } else if (type === "Sales Access") {
-        setPermissions(["Sale Permissions - View", "Sale Permissions - Create", "Sale Permissions - Reprint"]);
+        setPermissions(["Order & Billing Permissions - Create New Bill", "Invoices & Receipts - View Bill Records", "Invoices & Receipts - Reprint Bill"]);
     }
   };
 

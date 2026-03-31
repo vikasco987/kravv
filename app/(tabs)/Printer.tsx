@@ -26,9 +26,9 @@ export default function PrinterScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [granted, setGranted] = useState(false);
   const [logs, setLogs] = useState<string[]>(["Application Started"]);
-    const [isBtOffModalVisible, setIsBtOffModalVisible] = useState(false);
-    const [isNoDevicesModalVisible, setIsNoDevicesModalVisible] = useState(false);
-    const [isConnectionErrorModalVisible, setIsConnectionErrorModalVisible] = useState(false);
+  const [isBtOffModalVisible, setIsBtOffModalVisible] = useState(false);
+  const [isNoDevicesModalVisible, setIsNoDevicesModalVisible] = useState(false);
+  const [isConnectionErrorModalVisible, setIsConnectionErrorModalVisible] = useState(false);
 
   const addLog = (msg: string) => {
     console.log("[BluetoothLog]", msg);
@@ -112,17 +112,36 @@ export default function PrinterScreen() {
 
     try {
       setIsLoading(true);
-      addLog("Scanning for bonded devices...");
+      addLog("Scanning for devices...");
 
+      // 1. Pehle bonded (already paired) devices fetch karein
       const bonded = await RNBluetoothClassic.getBondedDevices();
-      console.log("Bonded devices found:", bonded);
+      addLog("Found bonded devices: " + bonded.length);
       setDevices(bonded);
 
-      if (bonded.length === 0) {
+      // 2. Ab naye devices scan (Discovery) karein
+      addLog("Searching for new printers (Discovery)...");
+      try {
+        await RNBluetoothClassic.cancelDiscovery(); // Puraana scan cancel karein
+      } catch (e) {}
+
+      const discovered = await RNBluetoothClassic.startDiscovery();
+      addLog("Discovery finished. Found " + discovered.length + " new devices.");
+
+      // Bonded aur Discovered ko merge karein bina duplicate address ke
+      setDevices((prev) => {
+        const consolidated = [...prev];
+        discovered.forEach((newDev: any) => {
+          if (!consolidated.some((d) => d.address === newDev.address)) {
+            consolidated.push(newDev);
+          }
+        });
+        return consolidated;
+      });
+
+      if (bonded.length === 0 && discovered.length === 0) {
         setIsNoDevicesModalVisible(true);
       }
-
-      addLog("Found bonded devices: " + bonded.length);
     } catch (e: any) {
       console.error("Scan error:", e);
       addLog("Scan error: " + e.message);
@@ -135,6 +154,28 @@ export default function PrinterScreen() {
   const connectDevice = async (device: any) => {
     try {
       setIsLoading(true);
+
+      // Agar device pair (bonded) nahi hai, toh pairing request bhejein
+      if (!device.bonded) {
+        addLog("Device not paired. Requesting pairing...");
+        try {
+          // @ts-ignore
+          const paired = await RNBluetoothClassic.pairDevice(device.address);
+          if (!paired) {
+            addLog("Pairing failed or cancelled by user.");
+            setIsLoading(false);
+            return;
+          }
+          addLog("Pairing successful! ✅ Now connecting...");
+          // Pairing ke baad device properties update karein
+          device.bonded = true;
+        } catch (pairErr: any) {
+          addLog("Pairing error: " + pairErr.message);
+          setIsLoading(false);
+          return;
+        }
+      }
+
       addLog("Connecting to " + (device.name || device.address) + "...");
       console.log("Connect attempt to:", device.address);
 
@@ -184,6 +225,28 @@ export default function PrinterScreen() {
       addLog("Disconnected");
     } catch (e: any) {
       addLog("Disconnect error: " + e.message);
+    }
+  };
+
+  // ================= FORGET =================
+  const forgetDevice = async (address: string) => {
+    try {
+      setDevices((prev) => prev.filter((d) => d.address !== address));
+      
+      if (connectedDevice?.address === address) {
+        await disconnectDevice();
+      }
+
+      // If it's saved in AsyncStorage, remove it
+      const savedPrinter = await AsyncStorage.getItem("saved_printer");
+      if (savedPrinter === address) {
+        await AsyncStorage.removeItem("saved_printer");
+      }
+
+      ToastAndroid.show("Device forgotten ✅", ToastAndroid.SHORT);
+      addLog("Device forgotten: " + address);
+    } catch (e: any) {
+      console.log("Forget device error:", e);
     }
   };
 
@@ -248,7 +311,7 @@ Thank You\n\n\n`;
       </View>
 
       <Text style={styles.sectionTitle}>Bonded Devices</Text>
-      
+
       {isLoading && <ActivityIndicator size="large" color="#4F46E5" style={{ marginVertical: vs(20) }} />}
 
       <ScrollView style={styles.deviceList}>
@@ -259,27 +322,46 @@ Thank You\n\n\n`;
           </View>
         )}
         {devices.map((d, i) => (
-          <TouchableOpacity
+          <View
             key={i}
             style={[
               styles.deviceCard,
               connectedDevice?.address === d.address && styles.activeDevice
             ]}
-            onPress={() => connectDevice(d)}
           >
-            <View style={styles.deviceIconBox}>
-              <Ionicons 
-                name={connectedDevice?.address === d.address ? "checkmark-circle" : "bluetooth"} 
-                size={rf(24)} 
-                color={connectedDevice?.address === d.address ? "#10B981" : "#4F46E5"} 
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.deviceName}>{d.name || "Unknown Printer"}</Text>
-              <Text style={styles.deviceAddress}>{d.address}</Text>
-            </View>
-            {connectedDevice?.address === d.address && <Text style={styles.connectedStatus}>Connected</Text>}
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: s(12) }}
+              onPress={() => connectDevice(d)}
+            >
+              <View style={styles.deviceIconBox}>
+                <Ionicons
+                  name={connectedDevice?.address === d.address ? "checkmark-circle" : "bluetooth"}
+                  size={rf(24)}
+                  color={connectedDevice?.address === d.address ? "#10B981" : "#4F46E5"}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+                  <Text style={styles.deviceName}>{d.name || "Unknown Printer"}</Text>
+                  {!d.bonded && (
+                    <View style={styles.newBadge}>
+                      <Text style={styles.newBadgeText}>NEW</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.deviceAddress}>{d.address}</Text>
+              </View>
+              {connectedDevice?.address === d.address && <Text style={styles.connectedStatus}>Connected</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.forgetBtn}
+              onPress={() => forgetDevice(d.address)}
+            >
+              <Ionicons name="trash-outline" size={rf(16)} color="#EF4444" />
+              <Text style={styles.forgetBtnText}>Forget</Text>
+            </TouchableOpacity>
+          </View>
         ))}
       </ScrollView>
 
@@ -306,11 +388,11 @@ Thank You\n\n\n`;
             </View>
             <Text style={[styles.modalTitle, { color: '#D97706' }]}>Bluetooth is Off</Text>
             <Text style={styles.modalDetail}>Please turn on your phone&apos;s Bluetooth to scan and connect to a printer.</Text>
-            
+
             <View style={styles.bottomLineBox}>
-               <View style={[styles.line, { backgroundColor: '#FDE68A' }]} />
-               <Text style={styles.bottomLineLabel}>KRAVY-PRINTER</Text>
-               <View style={[styles.line, { backgroundColor: '#FDE68A' }]} />
+              <View style={[styles.line, { backgroundColor: '#FDE68A' }]} />
+              <Text style={styles.bottomLineLabel}>KRAVY-PRINTER</Text>
+              <View style={[styles.line, { backgroundColor: '#FDE68A' }]} />
             </View>
 
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#D97706' }]} onPress={() => setIsBtOffModalVisible(false)}>
@@ -324,7 +406,7 @@ Thank You\n\n\n`;
       <Modal transparent visible={isNoDevicesModalVisible} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: '#F3F4F6' }]}>
-             <View style={styles.modalSubHeader}>
+            <View style={styles.modalSubHeader}>
               <View style={[styles.line, { backgroundColor: '#D1D5DB' }]} />
               <Text style={styles.lineLabel}>ATTENTION</Text>
               <View style={[styles.line, { backgroundColor: '#D1D5DB' }]} />
@@ -336,9 +418,9 @@ Thank You\n\n\n`;
             <Text style={styles.modalDetail}>Ensure your thermal printer is turned on and paired in your phone&apos;s Bluetooth settings.</Text>
 
             <View style={styles.bottomLineBox}>
-               <View style={[styles.line, { backgroundColor: '#D1D5DB' }]} />
-               <Text style={styles.bottomLineLabel}>KRAVY-PRINTER</Text>
-               <View style={[styles.line, { backgroundColor: '#D1D5DB' }]} />
+              <View style={[styles.line, { backgroundColor: '#D1D5DB' }]} />
+              <Text style={styles.bottomLineLabel}>KRAVY-PRINTER</Text>
+              <View style={[styles.line, { backgroundColor: '#D1D5DB' }]} />
             </View>
 
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4F46E5' }]} onPress={() => setIsNoDevicesModalVisible(false)}>
@@ -362,17 +444,17 @@ Thank You\n\n\n`;
             </View>
             <Text style={[styles.modalTitle, { color: '#B91C1C' }]}>Printer Refused Connection</Text>
             <Text style={styles.modalDetail}>The printer might be busy, too far away, or already connected to another device.</Text>
-            
+
             <View style={styles.troubleshootBox}>
-                <Text style={styles.troubleshootTitle}>Try these steps:</Text>
-                <Text style={styles.troubleshootItem}>• Turn Printer OFF and then ON again</Text>
-                <Text style={styles.troubleshootItem}>• Check if it's connected to another phone</Text>
-                <Text style={styles.troubleshootItem}>• Unpair and Repair the printer in BT settings</Text>
+              <Text style={styles.troubleshootTitle}>Try these steps:</Text>
+              <Text style={styles.troubleshootItem}>• Turn Printer OFF and then ON again</Text>
+              <Text style={styles.troubleshootItem}>• Check if it's connected to another phone</Text>
+              <Text style={styles.troubleshootItem}>• Unpair and Repair the printer in BT settings</Text>
             </View>
 
-            <TouchableOpacity 
-                style={[styles.modalBtn, { backgroundColor: '#EF4444' }]} 
-                onPress={() => setIsConnectionErrorModalVisible(false)}
+            <TouchableOpacity
+              style={[styles.modalBtn, { backgroundColor: '#EF4444' }]}
+              onPress={() => setIsConnectionErrorModalVisible(false)}
             >
               <Text style={styles.modalBtnText}>TRY AGAIN</Text>
             </TouchableOpacity>
@@ -470,6 +552,33 @@ const styles = StyleSheet.create({
     padding: s(15),
   },
   disconnectText: { color: '#EF4444', fontWeight: '600' },
+  forgetBtn: {
+    paddingHorizontal: s(8),
+    paddingVertical: vs(5),
+    backgroundColor: '#FEE2E2',
+    borderRadius: s(8),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s(4),
+  },
+  forgetBtnText: {
+    color: '#EF4444',
+    fontSize: rf(10),
+    fontWeight: 'bold',
+  },
+  newBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: s(6),
+    paddingVertical: vs(2),
+    borderRadius: s(4),
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  newBadgeText: {
+    fontSize: rf(8),
+    color: '#4F46E5',
+    fontWeight: 'bold',
+  },
   logSection: {
     backgroundColor: '#fff',
     borderTopWidth: 1,
