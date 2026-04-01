@@ -1,23 +1,25 @@
+import { useAuth, useUser } from '@clerk/clerk-expo';
+import { SimpleKOT } from './SimpleKOT';
+import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
+import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   Animated,
   Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@clerk/clerk-expo';
-import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
 import { rf, s, vs } from '../utils/responsive';
 
 const { width } = Dimensions.get('window');
 
 const NewOrderNotifier = () => {
   const { getToken, isSignedIn } = useAuth();
+  const { user } = useUser();
   const router = useRouter();
   const [showNotification, setShowNotification] = useState(false);
   const [newOrderInfo, setNewOrderInfo] = useState<any>(null);
@@ -30,7 +32,7 @@ const NewOrderNotifier = () => {
     try {
       // Loop the ringtone until user clicks
       const { sound } = await Audio.Sound.createAsync(
-        { uri: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' }, 
+        { uri: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' },
         { shouldPlay: true, isLooping: true, volume: 1.0 }
       );
       soundRef.current = sound;
@@ -45,14 +47,14 @@ const NewOrderNotifier = () => {
         await soundRef.current.stopAsync();
         await soundRef.current.unloadAsync();
         soundRef.current = null;
-      } catch (e) {}
+      } catch (e) { }
     }
   };
 
   const triggerNotification = (order: any) => {
     setNewOrderInfo(order);
     setShowNotification(true);
-    
+
     // Animation
     Animated.spring(slideAnim, {
       toValue: vs(40),
@@ -76,20 +78,37 @@ const NewOrderNotifier = () => {
     });
   };
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
     hideNotification();
+    
+    // START KOT PRINTING IMMEDIATELY ON ACCEPT
+    try {
+      const token = await getToken();
+      if (token && newOrderInfo) {
+        const cartItems = (newOrderInfo.items || []).map((it: any) => ({
+          name: it.name,
+          quantity: it.quantity
+        }));
+        if (cartItems.length > 0) {
+           await SimpleKOT(cartItems, token, user?.id || "unknown", newOrderInfo.tableName || newOrderInfo.table?.name || "Table");
+        }
+      }
+    } catch (e) {
+      console.log("Accept Print Error:", e);
+    }
+
     if (newOrderInfo?.tableId || (newOrderInfo?.table && (typeof newOrderInfo.table !== 'string'))) {
-        const tId = newOrderInfo.tableId || newOrderInfo.table.id || newOrderInfo.table._id;
-        router.push({
-            pathname: '/orders/[tableId]',
-            params: { tableId: tId, tableName: newOrderInfo.tableName || 'Table' }
-        });
+      const tId = newOrderInfo.tableId || newOrderInfo.table.id || newOrderInfo.table._id;
+      router.push({
+        pathname: '/orders/[tableId]',
+        params: { tableId: tId, tableName: newOrderInfo.tableName || newOrderInfo.table?.name || 'Table' }
+      });
     }
   };
 
   const fetchOrders = async () => {
-    if (!isSignedIn || fetchInProgress.current || showNotification) return; 
-    
+    if (!isSignedIn || fetchInProgress.current || showNotification) return;
+
     try {
       fetchInProgress.current = true;
       const token = await getToken();
@@ -98,11 +117,11 @@ const NewOrderNotifier = () => {
       const response = await fetch(`https://billing.kravy.in/api/orders?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (response.ok) {
         const oData = await response.json();
         const orders = Array.isArray(oData) ? oData : (oData.orders || []);
-        
+
         if (prevOrderCount.current > 0 && orders.length > prevOrderCount.current) {
           const latest = orders[orders.length - 1];
           triggerNotification(latest);
@@ -123,56 +142,56 @@ const NewOrderNotifier = () => {
     }
 
     fetchOrders();
-    const interval = setInterval(fetchOrders, 15000); // Check every 15s
+    const interval = setInterval(fetchOrders, 5000); // Faster polling (5s) for instant notification
     return () => clearInterval(interval);
   }, [isSignedIn]);
 
   if (!showNotification) return null;
 
   return (
-    <Animated.View 
+    <Animated.View
       style={[
-        styles.container, 
+        styles.container,
         { transform: [{ translateY: slideAnim }], opacity: showNotification ? 1 : 0 }
       ]}
     >
       <View style={styles.vibrantCard}>
         <View style={styles.topSection}>
-            <View style={styles.alertBadge}>
-                <Text style={styles.badgeText}>🔔 New Booking 🔔</Text>
-            </View>
-            <TouchableOpacity onPress={hideNotification}>
-                <Ionicons name="close-circle" size={rf(24)} color="#92400E" />
-            </TouchableOpacity>
+          <View style={styles.alertBadge}>
+            <Text style={styles.badgeText}>🔔 New Booking 🔔</Text>
+          </View>
+          <TouchableOpacity onPress={hideNotification}>
+            <Ionicons name="close-circle" size={rf(24)} color="#92400E" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.mainInfo}>
-            <View style={styles.iconBox}>
-              <Text style={{ fontSize: rf(30) }}>🍱</Text>
-            </View>
-            <View style={styles.textStack}>
-              <Text style={styles.mainTitle}>Order Received! 🍽️</Text>
-              <Text style={styles.mainSubtitle}>
-                {newOrderInfo?.tableName || 'Table'} has sent a new order. Check it now! 🏃‍♂️
-              </Text>
-            </View>
+          <View style={styles.iconBox}>
+            <Text style={{ fontSize: rf(30) }}>🍱</Text>
+          </View>
+          <View style={styles.textStack}>
+            <Text style={styles.mainTitle}>Order Received! 🍽️</Text>
+            <Text style={styles.mainSubtitle}>
+              {newOrderInfo?.tableName || 'Table'} has sent a new order. Check it now! 🏃‍♂️
+            </Text>
+          </View>
         </View>
 
         <View style={styles.btnStack}>
-            <TouchableOpacity 
-                style={[styles.btnBase, styles.ignoreBtn]} 
-                onPress={hideNotification}
-            >
-                <Text style={styles.ignoreTxt}>Remove</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnBase, styles.ignoreBtn]}
+            onPress={hideNotification}
+          >
+            <Text style={styles.ignoreTxt}>Remove</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity 
-                style={[styles.btnBase, styles.viewBtn]} 
-                onPress={handleAccept}
-            >
-                <Text style={styles.viewTxt}>Accept</Text>
-                <Ionicons name="restaurant" size={rf(18)} color="#fff" />
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnBase, styles.viewBtn]}
+            onPress={handleAccept}
+          >
+            <Text style={styles.viewTxt}>Accept</Text>
+            <Ionicons name="restaurant" size={rf(18)} color="#fff" />
+          </TouchableOpacity>
         </View>
       </View>
     </Animated.View>

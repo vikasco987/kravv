@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -11,10 +11,13 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  ToastAndroid
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
+import { SimpleKOT } from "../../components/SimpleKOT";
+import { SimpleBill } from "../../utils/SimpleBill";
 
 const THEME_PRIMARY = "#4F46E5";
 
@@ -37,6 +40,7 @@ export default function TableOrdersScreen() {
   const { tableId, tableName } = useLocalSearchParams();
   const router = useRouter();
   const { getToken } = useAuth();
+  const { user } = useUser();
   const { t } = useLanguage();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,6 +139,39 @@ export default function TableOrdersScreen() {
     }
   };
 
+  const handlePrintKOT = async (item: Order) => {
+    try {
+      const token = await getToken();
+      const cartItems = item.items.map((it: any) => ({
+        name: it.name,
+        quantity: it.quantity
+      }));
+      await SimpleKOT(cartItems, token!, user?.id!, (tableName as string) || "Table");
+    } catch (error) {
+      ToastAndroid.show("Print Error", ToastAndroid.SHORT);
+    }
+  };
+
+  const handlePrintBill = async (item: Order) => {
+    try {
+      const token = await getToken();
+      const cartItems = item.items.map((it: any) => ({
+        id: Math.random().toString(),
+        name: it.name,
+        price: it.price,
+        quantity: it.quantity
+      }));
+      await SimpleBill(cartItems, token!, user?.id!, { 
+        orderId: item.id as string,
+        customerName: "Table Guest",
+        paymentMode: "CASH",
+        tableName: (tableName as string) || "Table"
+      });
+    } catch (error) {
+       ToastAndroid.show("Print Error", ToastAndroid.SHORT);
+    }
+  };
+
   const renderOrderItem = ({ item }: { item: Order }) => (
     <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
@@ -161,6 +198,22 @@ export default function TableOrdersScreen() {
       <View style={styles.footer}>
         <Text style={styles.totalText}>{t('total') || 'Total'}: ₹{item.total.toFixed(2)}</Text>
         <View style={styles.actionRow}>
+          <TouchableOpacity
+              style={[styles.actionBtn, styles.kotBtn]}
+              onPress={() => handlePrintKOT(item)}
+            >
+              <Ionicons name="restaurant-outline" size={rf(14)} color="#fff" style={{marginRight: 4}} />
+              <Text style={styles.actionBtnText}>KOT</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+              style={[styles.actionBtn, styles.printBtn]}
+              onPress={() => handlePrintBill(item)}
+            >
+              <Ionicons name="print-outline" size={rf(14)} color="#fff" style={{marginRight: 4}} />
+              <Text style={styles.actionBtnText}>Print</Text>
+          </TouchableOpacity>
+
           {item.status === "PENDING" && (
             <TouchableOpacity
               style={[styles.actionBtn, { backgroundColor: "#3B82F6" }]}
@@ -261,9 +314,11 @@ const styles = StyleSheet.create({
   itemPrice: { fontSize: rf(14), fontWeight: '600', color: '#111827' },
   footer: { marginTop: vs(5), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalText: { fontSize: rf(16), fontWeight: 'bold', color: THEME_PRIMARY },
-  actionRow: { flexDirection: 'row', gap: s(8) },
-  actionBtn: { paddingHorizontal: s(12), paddingVertical: vs(8), borderRadius: s(10) },
-  actionBtnText: { color: '#fff', fontSize: rf(12), fontWeight: 'bold' },
+  actionRow: { flexDirection: 'row', gap: s(5), flexWrap: 'wrap', justifyContent: 'flex-end', flex: 1 },
+  actionBtn: { paddingHorizontal: s(8), paddingVertical: vs(8), borderRadius: s(8), flexDirection: 'row', alignItems: 'center' },
+  kotBtn: { backgroundColor: '#F59E0B' },
+  printBtn: { backgroundColor: '#10B981' },
+  actionBtnText: { color: '#fff', fontSize: rf(11), fontWeight: 'bold' },
   emptyContainer: { alignItems: 'center', marginTop: vs(100) },
   emptyText: { color: '#9CA3AF', fontSize: rf(16), marginTop: vs(15) }
 });

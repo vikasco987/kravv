@@ -129,7 +129,7 @@ export default function OrderScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchTables();
-      const interval = setInterval(fetchTables, 15000);
+      const interval = setInterval(fetchTables, 5000); // Fast sync (5s)
       return () => clearInterval(interval);
     }, [fetchTables])
   );

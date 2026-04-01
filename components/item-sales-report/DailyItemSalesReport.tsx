@@ -151,18 +151,18 @@ const DailyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
               <Text style={styles.summaryValue}>{reportData.totalQty}</Text>
             </View>
           </View>
-          
+
           {/* Categories Filter */}
           <Text style={styles.sectionTitle}>Categories</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.categoryChip, selectedCategory === "All" && styles.activeCategoryChip]}
               onPress={() => setSelectedCategory("All")}
             >
               <Text style={[styles.categoryChipText, selectedCategory === "All" && styles.activeCategoryChipText]}>All</Text>
             </TouchableOpacity>
             {categories.map((cat, idx) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 key={cat.id || idx}
                 style={[styles.categoryChip, selectedCategory === cat.name && styles.activeCategoryChip]}
                 onPress={() => setSelectedCategory(cat.name)}
@@ -183,8 +183,8 @@ const DailyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
 
             return filtered.length > 0 ? (
               filtered.map((item, index) => (
-                <TouchableOpacity 
-                  key={index} 
+                <TouchableOpacity
+                  key={index}
                   style={styles.itemRow}
                   onPress={() => setSelectedItem(item.name)}
                 >

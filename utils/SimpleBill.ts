@@ -25,8 +25,10 @@ export type BillOptions = {
   notes?: string;
   paymentMode?: string;
   billId?: string;
+  orderId?: string; // Add this for table orders
   silent?: boolean;
   staffName?: string;
+  tableName?: string; // Add this for table name
 };
 
 // @ts-ignore
@@ -482,10 +484,11 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
       isHeld: false,
       customerName: options?.customerName || "Walk-in Customer",
       customerPhone: (options?.phone && options.phone.trim().length >= 10) ? options.phone : null,
-      tableName: "POS",
+      tableName: options?.tableName || "POS",
       discountAmount: Number(discountAmount.toFixed(2)),
       discountCode: null,
-      auditNote: options?.notes || "App Order"
+      auditNote: options?.notes || "App Order",
+      userClerkId: userClerkId
     };
 
     let res;
@@ -526,6 +529,11 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
         const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
         if (options?.billId && !hiddenIds.includes(options.billId)) {
           hiddenIds.push(options.billId);
+        }
+        if (options?.orderId && !hiddenIds.includes(options.orderId)) {
+          hiddenIds.push(options.orderId);
+        }
+        if (hiddenIds.length > 0) {
           await AsyncStorage.setItem('@hidden_bill_ids', JSON.stringify(hiddenIds));
         }
         await AsyncStorage.removeItem('@resume_cart');

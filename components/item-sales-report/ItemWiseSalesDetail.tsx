@@ -87,8 +87,8 @@ const ItemWiseSalesDetail = ({ itemName, bills, onBack }: ItemWiseSalesDetailPro
 
   // If we are in "Bill Photo" mode (Preview)
   if (previewBill) {
-    let totalTaxable = 0;
-    let totalGst = 0;
+    let totalItemsTaxable = 0;
+    let totalItemsGstAtBase = 0;
     const ratesInCart = new Set<number>();
 
     (previewBill.items || []).forEach((it: any) => {
@@ -96,13 +96,8 @@ const ItemWiseSalesDetail = ({ itemName, bills, onBack }: ItemWiseSalesDetailPro
       const rate = Number(it.rate || it.price || 0);
       const lineTotal = qty * rate;
 
-      let itemGstRate = 0;
-      if (settings.tax_enabled) {
-        itemGstRate = settings.tax_rate;
-      } else if (settings.per_product_tax) {
-        itemGstRate = Number(it.gst || 0);
-      }
-
+      // Use the GST rate saved in the item record
+      const itemGstRate = (it.gst !== undefined && it.gst !== null) ? Number(it.gst) : 0;
       ratesInCart.add(itemGstRate);
 
       let taxable = 0;
@@ -116,39 +111,51 @@ const ItemWiseSalesDetail = ({ itemName, bills, onBack }: ItemWiseSalesDetailPro
         gst = (lineTotal * itemGstRate) / 100;
       }
 
-      totalTaxable += taxable;
-      totalGst += gst;
+      totalItemsTaxable += taxable;
+      totalItemsGstAtBase += gst;
     });
 
-    const discountAmount = settings.discount_enabled ? (totalTaxable * (settings.discount_rate / 100)) : 0;
-    const taxableAfterDiscount = totalTaxable - discountAmount;
-    const serviceChargeAmount = settings.service_charge_enabled ? (taxableAfterDiscount * (settings.service_charge_rate / 100)) : 0;
+    // Weighted average GST rate for the whole bill
+    const avgGstRate = totalItemsTaxable > 0 ? (totalItemsGstAtBase / totalItemsTaxable) : 0;
+
+    // 1. Discount (Check various possible field names from backend)
+    const savedDiscount = (previewBill.discountAmount ?? previewBill.discount_amount ?? previewBill.discount ?? 0);
+    const discountAmount = (savedDiscount > 0)
+      ? Number(savedDiscount)
+      : (settings.discount_enabled ? (totalItemsTaxable * (settings.discount_rate / 100)) : 0);
+
+    const taxableAfterDiscount = totalItemsTaxable - discountAmount;
+    
+    // 2. Service Charge (Recalc based on current settings for consistency)
+    const serviceChargeAmount = settings.service_charge_enabled 
+      ? (taxableAfterDiscount * (settings.service_charge_rate / 100))
+      : 0;
+
+    // 3. Taxable Amount (Value after discount + SC)
     const netTaxableValue = taxableAfterDiscount + serviceChargeAmount;
 
-    const avgGstRate = totalTaxable > 0 ? (totalGst / totalTaxable) : 0;
+    // 4. Final GST (Always recalculate based on the final net taxable value for the photo)
     const finalGstAmount = netTaxableValue * avgGstRate;
+
+    // 5. Grand Total (Recalculated for consistency in the breakdown)
     const displayTotal = netTaxableValue + finalGstAmount;
 
-    // Determine the GST label
+    // GST Label
     let gstLabel = "(0%)";
-    if (settings.tax_enabled) {
-      gstLabel = `(${settings.tax_rate}%)`;
-    } else if (settings.per_product_tax) {
-      const uniqueRates = Array.from(ratesInCart);
-      if (uniqueRates.length === 1) {
-        gstLabel = `(${uniqueRates[0]}%)`;
-      } else if (uniqueRates.length > 1) {
-        gstLabel = "(Multi)";
-      }
+    const uniqueRates = Array.from(ratesInCart);
+    if (uniqueRates.length === 1) {
+      gstLabel = `(${uniqueRates[0]}%)`;
+    } else if (uniqueRates.length > 1) {
+      gstLabel = "(Multi)";
     }
 
     return (
       <View style={{ flex: 1, backgroundColor: '#f0f0f0' }}>
         <View style={[styles.header, { backgroundColor: '#333' }]}>
           <TouchableOpacity onPress={() => setPreviewBill(null)} style={{ paddingRight: s(15) }}>
-             <Ionicons name="arrow-back" size={rf(28)} color="#fff" />
+            <Ionicons name="arrow-back" size={rf(28)} color="#fff" />
           </TouchableOpacity>
-          
+
           <Text style={[styles.headerTitle, { marginLeft: 0 }]} numberOfLines={1}>Bill Photo</Text>
 
           <TouchableOpacity
@@ -215,27 +222,27 @@ const ItemWiseSalesDetail = ({ itemName, bills, onBack }: ItemWiseSalesDetailPro
             {/* Totals */}
             <View style={styles.billTotals}>
               <View style={styles.totalLine}>
-                <Text style={styles.totalLineLabel}>subtotal</Text>
-                <Text style={styles.totalLineValue}>₹{totalTaxable.toFixed(2)}</Text>
+                <Text style={styles.totalLineLabel}>Subtotal</Text>
+                <Text style={styles.totalLineValue}>₹{totalItemsTaxable.toFixed(2)}</Text>
               </View>
 
-              {settings.discount_enabled && (
+              {discountAmount > 0 && (
                 <View style={styles.totalLine}>
-                  <Text style={styles.totalLineLabel}>Discount ({settings.discount_rate}%)</Text>
+                  <Text style={styles.totalLineLabel}>Discount</Text>
                   <Text style={[styles.totalLineValue, { color: '#10B981', fontWeight: 'bold' }]}>-₹{discountAmount.toFixed(2)}</Text>
                 </View>
               )}
 
-              {settings.service_charge_enabled && (
+              {serviceChargeAmount > 0 && (
                 <View style={styles.totalLine}>
-                  <Text style={styles.totalLineLabel}>Service charge ({settings.service_charge_rate}%)</Text>
+                  <Text style={styles.totalLineLabel}>Service Charge</Text>
                   <Text style={styles.totalLineValue}>₹{serviceChargeAmount.toFixed(2)}</Text>
                 </View>
               )}
 
-              {(settings.discount_enabled || settings.service_charge_enabled) && (
+              {(discountAmount > 0 || serviceChargeAmount > 0) && (
                 <View style={styles.totalLine}>
-                  <Text style={styles.totalLineLabel}>taxable_amount</Text>
+                  <Text style={styles.totalLineLabel}>Taxable Amount</Text>
                   <Text style={styles.totalLineValue}>₹{netTaxableValue.toFixed(2)}</Text>
                 </View>
               )}
@@ -283,12 +290,8 @@ const ItemWiseSalesDetail = ({ itemName, bills, onBack }: ItemWiseSalesDetailPro
             const price = Number(sale.rate || sale.price || 0);
             const lineTotal = qty * price;
 
-            let itemGstRate = 0;
-            if (settings.tax_enabled) {
-              itemGstRate = settings.tax_rate;
-            } else if (settings.per_product_tax) {
-              itemGstRate = Number(sale.gst || 0);
-            }
+            // 🔥 FIX: Use the GST rate saved in the item record itself
+            const itemGstRate = (sale.gst !== undefined && sale.gst !== null) ? Number(sale.gst) : 0;
 
             let taxable = 0;
             if (sale.taxType === "With Tax" || sale.taxStatus === "With Tax") {
@@ -297,12 +300,39 @@ const ItemWiseSalesDetail = ({ itemName, bills, onBack }: ItemWiseSalesDetailPro
               taxable = lineTotal;
             }
 
-            const discount = settings.discount_enabled ? (taxable * (settings.discount_rate / 100)) : 0;
-            const taxableAfterDisc = taxable - discount;
-            const sc = settings.service_charge_enabled ? (taxableAfterDisc * (settings.service_charge_rate / 100)) : 0;
-            const netTaxable = taxableAfterDisc + sc;
-            const finalGst = netTaxable * (itemGstRate / 100);
-            const finalItemTotal = netTaxable + finalGst;
+            // Calculate proportional discount and service charge based on saved totals or current settings
+            const billDiscSaved = Number(sale.fullBill?.discountAmount ?? sale.fullBill?.discount_amount ?? sale.fullBill?.discount ?? 0);
+            
+            // We need the items sum to calculate rates for this specific item's share
+            const itemsTaxableSum = (sale.fullBill?.items || []).reduce((acc: number, it: any) => {
+                const itQty = Number(it.qty || it.quantity || 1);
+                const itRate = Number(it.rate || it.price || 0);
+                const itLTotal = itQty * itRate;
+                const itGst = (it.gst !== undefined && it.gst !== null) ? Number(it.gst) : 0;
+                
+                if (it.taxType === "With Tax" || it.taxStatus === "With Tax") {
+                    return acc + (itLTotal / (1 + itGst / 100));
+                }
+                return acc + itLTotal;
+            }, 0);
+
+            // Proportional Discount
+            const itemD = (billDiscSaved > 0 && itemsTaxableSum > 0)
+              ? (taxable * (billDiscSaved / itemsTaxableSum))
+              : (settings.discount_enabled ? (taxable * (settings.discount_rate / 100)) : 0);
+              
+            const tAfterD = taxable - itemD;
+            
+            // Proportional Service Charge (Always recalculate based on current settings for consistency in reports)
+            const itemSC = settings.service_charge_enabled 
+              ? (tAfterD * (settings.service_charge_rate / 100))
+              : 0;
+            
+            const netT = tAfterD + itemSC;
+            
+            // GST (Recalculated for this specific item's share of the net total)
+            const finalGst = netT * (itemGstRate / 100);
+            const finalItemTotal = netT + finalGst;
 
             return (
               <View key={index} style={styles.saleCard}>
@@ -313,7 +343,7 @@ const ItemWiseSalesDetail = ({ itemName, bills, onBack }: ItemWiseSalesDetailPro
 
                 <View style={styles.divider} />
 
-                <View style={[styles.detailsGrid, { flexWrap: 'wrap' }]}>
+                <View style={[styles.detailsGrid, { flexDirection: 'row', flexWrap: 'wrap' }]}>
                   <View style={[styles.detailItem, { width: '33%', marginBottom: vs(10) }]}>
                     <Text style={styles.detailLabel}>Rate</Text>
                     <Text style={styles.detailValue}>₹{price.toFixed(2)}</Text>
@@ -323,34 +353,31 @@ const ItemWiseSalesDetail = ({ itemName, bills, onBack }: ItemWiseSalesDetailPro
                     <Text style={styles.detailValue}>{qty}</Text>
                   </View>
                   <View style={[styles.detailItem, { width: '33%', marginBottom: vs(10) }]}>
-                    <Text style={styles.detailLabel}>subtotal</Text>
+                    <Text style={styles.detailLabel}>Subtotal</Text>
                     <Text style={styles.detailValue}>₹{taxable.toFixed(2)}</Text>
                   </View>
-                  
-                  {settings.discount_enabled && (
-                    <View style={[styles.detailItem, { width: '33%', marginBottom: vs(10) }]}>
-                      <Text style={styles.detailLabel}>Discount ({settings.discount_rate}%)</Text>
-                      <Text style={[styles.detailValue, { color: '#10B981' }]}>-₹{discount.toFixed(2)}</Text>
-                    </View>
-                  )}
 
-                  {settings.service_charge_enabled && (
-                    <View style={[styles.detailItem, { width: '33%', marginBottom: vs(10) }]}>
-                      <Text style={styles.detailLabel}>Service charge ({settings.service_charge_rate}%)</Text>
-                      <Text style={styles.detailValue}>₹{sc.toFixed(2)}</Text>
-                    </View>
-                  )}
-
+                  {/* Row 2: Discount, SC, GST */}
+                  <View style={[styles.detailItem, { width: '33%', marginBottom: vs(10) }]}>
+                    <Text style={styles.detailLabel}>Discount</Text>
+                    <Text style={[styles.detailValue, { color: itemD > 0 ? '#10B981' : '#666' }]}>
+                      {itemD > 0 ? `-₹${itemD.toFixed(2)}` : '₹0.00'}
+                    </Text>
+                  </View>
+                  <View style={[styles.detailItem, { width: '33%', marginBottom: vs(10) }]}>
+                    <Text style={styles.detailLabel}>Srv. Charge</Text>
+                    <Text style={styles.detailValue}>₹{itemSC.toFixed(2)}</Text>
+                  </View>
                   <View style={[styles.detailItem, { width: '33%', marginBottom: vs(10) }]}>
                     <Text style={styles.detailLabel}>GST ({itemGstRate}%)</Text>
                     <Text style={styles.detailValue}>₹{finalGst.toFixed(2)}</Text>
                   </View>
                 </View>
 
-                {(settings.discount_enabled || settings.service_charge_enabled) && (
+                {(itemD > 0 || itemSC > 0) && (
                   <View style={[styles.totalRow, { backgroundColor: 'transparent', paddingVertical: 0, marginBottom: vs(5) }]}>
-                    <Text style={styles.detailLabel}>taxable_amount</Text>
-                    <Text style={[styles.detailValue, { fontSize: rf(13) }]}>₹{netTaxable.toFixed(2)}</Text>
+                    <Text style={styles.detailLabel}>Taxable Amount</Text>
+                    <Text style={[styles.detailValue, { fontSize: rf(13) }]}>₹{netT.toFixed(2)}</Text>
                   </View>
                 )}
 

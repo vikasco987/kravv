@@ -10,6 +10,9 @@ const MonthlyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [reportData, setReportData] = useState<{ items: any[], totalSales: number, totalQty: number }>({ items: [], totalSales: 0, totalQty: 0 });
+  const [categories, setCategories] = useState<{ id: string, name: string }[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [itemCategoryMap, setItemCategoryMap] = useState<Record<string, string>>({});
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [monthlyBills, setMonthlyBills] = useState<any[]>([]);
 
@@ -17,6 +20,44 @@ const MonthlyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
     try {
       setLoading(true);
       const token = await getToken();
+
+      // 1. Fetch Categories
+      const catRes = await fetch(`https://billing.kravy.in/api/categories?t=${Date.now()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        setCategories(Array.isArray(catData) ? catData : []);
+      }
+
+      // 2. Fetch Menu to map items to categories
+      const menuRes = await fetch(`https://billing.kravy.in/api/menu/view?t=${Date.now()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (menuRes.ok) {
+        let menuItemsRaw = await menuRes.json();
+        const mapping: Record<string, string> = {};
+        let allItems: any[] = [];
+        if (Array.isArray(menuItemsRaw)) {
+          allItems = menuItemsRaw;
+        } else if (menuItemsRaw?.menus) {
+          menuItemsRaw.menus.forEach((m: any) => {
+            if (m.items) {
+              m.items.forEach((it: any) => {
+                allItems.push({ ...it, categoryName: m.name });
+              });
+            }
+          });
+        }
+        allItems.forEach((item: any) => {
+          const name = (item.name || "").toLowerCase().trim();
+          const catName = item.category?.name || item.categoryName || "Others";
+          mapping[name] = catName;
+        });
+        setItemCategoryMap(mapping);
+      }
+
+      // 3. Fetch Bills
       const response = await fetch(`https://billing.kravy.in/api/bill-manager?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -25,14 +66,14 @@ const MonthlyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
         const data = await response.json();
         const bills = Array.isArray(data) ? data : (data.bills || []);
 
-        // Filter for start of current month
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
+        // Filter for last 30 days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        thirtyDaysAgo.setHours(0, 0, 0, 0);
 
         const monthlyBillsList = bills.filter((bill: any) => {
           const billDate = new Date(bill.createdAt);
-          return billDate >= startOfMonth;
+          return billDate >= thirtyDaysAgo;
         });
         setMonthlyBills(monthlyBillsList);
 
@@ -95,7 +136,7 @@ const MonthlyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
       {loading && !refreshing ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#4F46E5" />
-          <Text style={{ marginTop: vs(10), color: '#666' }}>Fetching this month's sales...</Text>
+          <Text style={{ marginTop: vs(10), color: '#666' }}>Fetching last 30 days sales...</Text>
         </View>
       ) : (
         <ScrollView 
@@ -105,7 +146,7 @@ const MonthlyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
           {/* Summary Cards */}
           <View style={styles.summaryContainer}>
             <View style={[styles.summaryCard, { backgroundColor: '#4F46E5' }]}>
-              <Text style={styles.summaryLabel}>Monthly Sales</Text>
+              <Text style={styles.summaryLabel}>Last 30 Days Sales</Text>
               <Text style={styles.summaryValue}>₹{reportData.totalSales.toFixed(2)}</Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: '#10B981' }]}>
@@ -114,31 +155,59 @@ const MonthlyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Monthly Breakdown</Text>
-          
-          {reportData.items.length > 0 ? (
-            reportData.items.map((item, index) => (
+          {/* Categories Filter */}
+          <Text style={styles.sectionTitle}>Categories</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+            <TouchableOpacity 
+              style={[styles.categoryChip, selectedCategory === "All" && styles.activeCategoryChip]}
+              onPress={() => setSelectedCategory("All")}
+            >
+              <Text style={[styles.categoryChipText, selectedCategory === "All" && styles.activeCategoryChipText]}>All</Text>
+            </TouchableOpacity>
+            {categories.map((cat, idx) => (
               <TouchableOpacity 
-                key={index} 
-                style={styles.itemRow}
-                onPress={() => setSelectedItem(item.name)}
+                key={cat.id || idx}
+                style={[styles.categoryChip, selectedCategory === cat.name && styles.activeCategoryChip]}
+                onPress={() => setSelectedCategory(cat.name)}
               >
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.itemMeta}>{item.qty} units this month</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={styles.itemAmount}>₹{item.total.toFixed(2)}</Text>
-                  <Ionicons name="chevron-forward" size={rf(18)} color="#ccc" style={{ marginLeft: s(8) }} />
-                </View>
+                <Text style={[styles.categoryChipText, selectedCategory === cat.name && styles.activeCategoryChipText]}>{cat.name}</Text>
               </TouchableOpacity>
-            ))
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="stats-chart-outline" size={rf(60)} color="#ccc" />
-              <Text style={styles.emptyText}>No sales recorded for this month.</Text>
-            </View>
-          )}
+            ))}
+          </ScrollView>
+
+          <Text style={styles.sectionTitle}>Breakdown (Last 30 Days - {selectedCategory})</Text>
+          
+          {(() => {
+            const filtered = reportData.items.filter(item => {
+              if (selectedCategory === "All") return true;
+              const catOfItem = itemCategoryMap[item.name.toLowerCase().trim()] || "Others";
+              return catOfItem === selectedCategory;
+            });
+
+            return filtered.length > 0 ? (
+              filtered.map((item, index) => (
+                <TouchableOpacity 
+                  key={index} 
+                  style={styles.itemRow}
+                  onPress={() => setSelectedItem(item.name)}
+                >
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    <Text style={styles.itemMeta}>{item.qty} units in 30 days</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={styles.itemAmount}>₹{item.total.toFixed(2)}</Text>
+                    <Ionicons name="chevron-forward" size={rf(18)} color="#ccc" style={{ marginLeft: s(8) }} />
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="stats-chart-outline" size={rf(60)} color="#ccc" />
+                <Text style={styles.emptyText}>{selectedCategory === "All" ? "No sales recorded in the last 30 days." : `No sales in ${selectedCategory} category.`}</Text>
+              </View>
+            );
+          })()}
         </ScrollView>
       )}
     </View>
@@ -198,7 +267,33 @@ const styles = StyleSheet.create({
     fontSize: rf(18),
     fontWeight: 'bold',
     color: '#1F2937',
-    marginBottom: vs(15)
+    marginBottom: vs(12),
+    marginTop: vs(5)
+  },
+  categoryScroll: {
+    marginBottom: vs(20),
+    flexDirection: 'row'
+  },
+  categoryChip: {
+    backgroundColor: '#fff',
+    paddingHorizontal: s(18),
+    paddingVertical: vs(8),
+    borderRadius: s(20),
+    marginRight: s(10),
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  activeCategoryChip: {
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
+  },
+  categoryChipText: {
+    color: '#6B7280',
+    fontSize: rf(14),
+    fontWeight: '600'
+  },
+  activeCategoryChipText: {
+    color: '#fff',
   },
   itemRow: {
     backgroundColor: '#fff',
