@@ -1,0 +1,13 @@
+node_modules
+android/build
+android/.gradle
+android/app/build
+android/app/.gradle
+ios/build
+ios/Pods
+dist
+.expo
+api_test_output.txt
+lint_output.txt
+*.log
+*.txt
