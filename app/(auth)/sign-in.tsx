@@ -250,20 +250,25 @@
 "use client";
 import { useClerk, useSignIn } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as AuthSession from "expo-auth-session";
-import * as Linking from "expo-linking";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
+  Modal,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { staffService } from "../../services/staffService";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -271,6 +276,53 @@ export default function SignInScreen() {
   const router = useRouter();
   const { setActive } = useClerk();
   const { signIn, isLoaded, setActive: setSignInActive } = useSignIn();
+
+  // --- Staff Login States ---
+  const [staffModalVisible, setStaffModalVisible] = React.useState(false);
+  const [staffEmail, setStaffEmail] = React.useState("");
+  const [staffPassword, setStaffPassword] = React.useState("");
+  const [showStaffPassword, setShowStaffPassword] = React.useState(false);
+  const [isStaffLoading, setIsStaffLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    checkExistingSession();
+  }, []);
+
+  const checkExistingSession = async () => {
+    try {
+      const session = await AsyncStorage.getItem("staff_session");
+      if (session) {
+        // router.replace("/(tabs)/menu");
+      }
+    } catch (e) { }
+  };
+
+  const handleStaffLogin = async () => {
+    if (!staffEmail || !staffPassword) {
+      Alert.alert("Error", "Please enter both Email and Password.");
+      return;
+    }
+    setIsStaffLoading(true);
+    try {
+      const res: any = await staffService.login(staffEmail, staffPassword);
+      if (res.success && res.data) {
+        // Save session locally
+        await AsyncStorage.setItem("staff_session", JSON.stringify(res.data));
+        // Also save businessId for other modules (Bills & Transactions, Party, etc.)
+        await AsyncStorage.setItem("staff_business_id", res.data.businessId);
+
+        setStaffModalVisible(false);
+        Alert.alert("Success", `Welcome back, ${res.data.name}!`);
+        router.replace("/(tabs)/menu");
+      } else {
+        Alert.alert("Login Failed", res.message || "Invalid credentials");
+      }
+    } catch (err) {
+      Alert.alert("Error", "Login failed. Please check your internet connection.");
+    } finally {
+      setIsStaffLoading(false);
+    }
+  };
 
   const handleGoogleSignIn = React.useCallback(async () => {
     if (!isLoaded) return;
@@ -375,15 +427,83 @@ export default function SignInScreen() {
           <Text style={styles.googleText}>Continue with Google</Text>
         </TouchableOpacity>
 
+        {/* Staff Login Button */}
+        <TouchableOpacity
+          style={[styles.staffLoginBtn, { backgroundColor: "rgba(255,255,255,0.2)", borderWidth: 1, borderColor: "#fff" }]}
+          onPress={() => setStaffModalVisible(true)}
+        >
+          <Ionicons name="people" size={24} color="#fff" style={{ marginRight: 15 }} />
+          <Text style={[styles.googleText, { color: "#fff" }]}>Staff Login</Text>
+        </TouchableOpacity>
+
         {/* Footer */}
         <Text style={styles.footer}>
           By signing in, you agree to our{" "}
-          <Text style={{ fontWeight: "700", color: "#c94c4cff" }}>Terms</Text> &{" "}
-          <Text style={{ fontWeight: "700", color: "#c94c4cff" }}>
+          <Text style={{ fontWeight: "700", color: "#FFFFFF" }}>Terms</Text> &{" "}
+          <Text style={{ fontWeight: "700", color: "#FFFFFF" }}>
             Privacy Policy
           </Text>
           .
         </Text>
+
+        {/* Staff Login Modal */}
+        <Modal
+          visible={staffModalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setStaffModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Staff Login</Text>
+                <TouchableOpacity onPress={() => setStaffModalVisible(false)}>
+                  <Ionicons name="close" size={24} color="#1F2937" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputBox}>
+                <Ionicons name="mail-outline" size={20} color="#6B7280" style={{ marginRight: 10 }} />
+                <TextInput
+                  placeholder="Staff Email ID"
+                  placeholderTextColor="#9CA3AF"
+                  style={styles.modalInput}
+                  value={staffEmail}
+                  onChangeText={setStaffEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputBox}>
+                <Ionicons name="lock-closed-outline" size={20} color="#6B7280" style={{ marginRight: 10 }} />
+                <TextInput
+                  placeholder="Password"
+                  placeholderTextColor="#9CA3AF"
+                  style={styles.modalInput}
+                  value={staffPassword}
+                  onChangeText={setStaffPassword}
+                  secureTextEntry={!showStaffPassword}
+                />
+                <TouchableOpacity onPress={() => setShowStaffPassword(!showStaffPassword)} style={{ padding: 5 }}>
+                  <Ionicons name={showStaffPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={styles.modalSubmitBtn}
+                onPress={handleStaffLogin}
+                disabled={isStaffLoading}
+              >
+                {isStaffLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.modalSubmitText}>Login Now</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </LinearGradient>
   );
@@ -487,7 +607,22 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 15,
-    marginBottom: 20,
+    marginBottom: 15,
+    width: "100%",
+    justifyContent: "center",
+  },
+  staffLoginBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 50,
+    paddingVertical: 16,
+    paddingHorizontal: 30,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    width: "100%",
+    justifyContent: "center",
   },
   googleIcon: {
     width: 24,
@@ -501,9 +636,63 @@ const styles = StyleSheet.create({
   },
   footer: {
     fontSize: 13,
-    color: "#c94c4c",
+    color: "#fff",
     textAlign: "center",
     marginTop: 40,
     fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 25,
+    minHeight: 400,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 25,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  inputBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
+    marginBottom: 15,
+  },
+  modalInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#1F2937",
+  },
+  modalSubmitBtn: {
+    backgroundColor: "#FF5F6D",
+    borderRadius: 15,
+    paddingVertical: 18,
+    alignItems: "center",
+    marginTop: 10,
+    elevation: 5,
+    shadowColor: "#FF5F6D",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  modalSubmitText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "800",
   },
 });

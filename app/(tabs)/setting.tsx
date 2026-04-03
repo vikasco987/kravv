@@ -9,6 +9,8 @@ import {
     StyleSheet,
     Text,
     View,
+    TouchableOpacity,
+    Alert,
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
@@ -28,6 +30,7 @@ import { LanguageSelectionModal } from "../../components/settings/LanguageSelect
 import { useLanguage } from "../../context/LanguageContext";
 import { StaffCard } from "../../components/settings/StaffCard";
 import { StaffModal } from "../../components/settings/StaffModal";
+import { PermissionGuard } from "../../components/PermissionGuard";
 
 const LOCAL_COLORS = {
     background: '#F9FAFB',
@@ -130,6 +133,17 @@ export default function SettingScreen() {
         router.push("/(auth)/sign-in" as any);
     };
 
+    const handleStaffLogout = async () => {
+        try {
+            await AsyncStorage.removeItem('staff_session');
+            await AsyncStorage.removeItem('staff_business_id');
+            Alert.alert("Logged Out", "Staff session ended successfully.");
+            router.replace("/(auth)/sign-in" as any);
+        } catch (e) {
+            console.error("Logout error:", e);
+        }
+    };
+
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -144,39 +158,49 @@ export default function SettingScreen() {
                 <WhySignInBox />
 
                 {/* Business Section */}
-                <BusinessManagementCard 
-                    user={user}
-                    onPress={() => router.push("/party/profile" as any)}
-                    onLoginRequired={() => setLoginModalVisible(true)}
-                />
+                <PermissionGuard requiredPermission="Settings Permissions - App General Settings">
+                  <BusinessManagementCard 
+                      user={user}
+                      onPress={() => router.push("/party/profile" as any)}
+                      onLoginRequired={() => setLoginModalVisible(true)}
+                  />
+                </PermissionGuard>
 
                 {/* Tax & Discounts Section */}
-                <TaxDiscountsCard 
-                    user={user}
-                    onPress={() => setTaxModalVisible(true)} 
-                    onLoginRequired={() => setLoginModalVisible(true)}
-                />
+                <PermissionGuard requiredPermission="Order & Billing Permissions - Apply GST/Tax">
+                  <TaxDiscountsCard 
+                      user={user}
+                      onPress={() => setTaxModalVisible(true)} 
+                      onLoginRequired={() => setLoginModalVisible(true)}
+                  />
+                </PermissionGuard>
 
                 {/* App Features Section */}
-                <AppFeaturesCard 
-                    user={user}
-                    onPress={() => setKotModalVisible(true)} 
-                    onLoginRequired={() => setLoginModalVisible(true)}
-                />
+                <PermissionGuard requiredPermission="Settings Permissions - App General Settings">
+                  <AppFeaturesCard 
+                      user={user}
+                      onPress={() => setKotModalVisible(true)} 
+                      onLoginRequired={() => setLoginModalVisible(true)}
+                  />
+                </PermissionGuard>
 
                 {/* Staff Management Section */}
-                <StaffCard
-                    user={user}
-                    onPress={() => setStaffModalVisible(true)}
-                    onLoginRequired={() => setLoginModalVisible(true)}
-                />
+                <PermissionGuard requiredPermission="Settings Permissions - App General Settings">
+                  <StaffCard
+                      user={user}
+                      onPress={() => setStaffModalVisible(true)}
+                      onLoginRequired={() => setLoginModalVisible(true)}
+                  />
+                </PermissionGuard>
 
                 {/* Advanced Discounts Section */}
-                <AdvancedDiscountCard
-                    user={user}
-                    onPress={() => setAdvancedDiscountModalVisible(true)}
-                    onLoginRequired={() => setLoginModalVisible(true)}
-                />
+                <PermissionGuard requiredPermission="Order & Billing Permissions - Apply Discount">
+                  <AdvancedDiscountCard
+                      user={user}
+                      onPress={() => setAdvancedDiscountModalVisible(true)}
+                      onLoginRequired={() => setLoginModalVisible(true)}
+                  />
+                </PermissionGuard>
 
                 {/* Language Section */}
                 <LanguageCard 
@@ -184,6 +208,19 @@ export default function SettingScreen() {
                     onLanguagePress={() => setLanguageModalVisible(true)}
                     onLoginRequired={() => setLoginModalVisible(true)}
                 />
+
+                {/* Sign Out for Staff */}
+                <PermissionGuard requiredPermission="any" fallback={
+                    <TouchableOpacity 
+                        style={[styles.saveBtn, { backgroundColor: '#EF4444', marginHorizontal: s(10), marginTop: vs(20) }]} 
+                        onPress={handleStaffLogout}
+                    >
+                        <Text style={{ color: '#fff', fontWeight: 'bold' }}>LOGOUT STAFF SESSION</Text>
+                    </TouchableOpacity>
+                }>
+                    {/* Only show this if it's NOT a staff session (meaning owner login) */}
+                    <View />
+                </PermissionGuard>
 
                 {/* Footer */}
                 <View style={styles.footer}>
@@ -287,6 +324,16 @@ const styles = StyleSheet.create({
         color: LOCAL_COLORS.textLight,
         marginTop: vs(4),
         fontWeight: '500',
+    },
+    saveBtn: {
+        paddingVertical: vs(15),
+        borderRadius: s(30),
+        alignItems: 'center',
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
     },
     footer: {
         marginTop: vs(30),

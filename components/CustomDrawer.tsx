@@ -270,9 +270,9 @@ export default function CustomDrawerContent(props: any) {
         visible={voiceModalVisible} 
         onClose={() => setVoiceModalVisible(false)} 
         menus={menus} 
-        onItemMatched={(item) => {
+        onItemMatched={(item, qty) => {
           // In sidebar, we just show it was matched
-          alert(`Recognized: ${item.name}. Please go to Menu to add to cart.`);
+          alert(`Recognized: ${qty} x ${item.name}. Please go to Menu to add to cart.`);
         }} 
       />
 

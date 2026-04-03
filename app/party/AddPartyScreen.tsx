@@ -13,9 +13,18 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
+    NativeModules,
+    Vibration,
 } from "react-native";
+// @ts-ignore
+import Voice from '@react-native-voice/voice';
 import { rf, s, vs } from "../../utils/responsive";
+
+// Global voice controllers to prevent double-speaking in Add Party
+let addPartyHasSpoken = false;
+let addPartyLastSpokenTime = 0;
+let addPartyLastSpokenValue = ""; // Strictly track EXACT text to avoid double-results
 
 export default function AddPartyScreen({
     onSuccess,
@@ -36,6 +45,8 @@ export default function AddPartyScreen({
     const [showSuccess, setShowSuccess] = useState(false);
     const [showError, setShowError] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
+    const [isListening, setIsListening] = useState(false);
+    const [voiceModalVisible, setVoiceModalVisible] = useState(false);
 
     const handleBack = () => onBack && onBack();
 
@@ -43,6 +54,121 @@ export default function AddPartyScreen({
         setShowPicker(false);
         if (selectedDate) setDob(selectedDate);
     };
+
+    React.useEffect(() => {
+        // Use DeviceEventEmitter for direct bridge communication
+        const { DeviceEventEmitter } = require('react-native');
+        
+        const subscriptions = [
+          DeviceEventEmitter.addListener('onSpeechStart', () => {
+            setIsListening(true);
+            addPartyHasSpoken = false;
+            addPartyLastSpokenTime = 0;
+            addPartyLastSpokenValue = "";
+          }),
+          DeviceEventEmitter.addListener('onSpeechEnd', () => setIsListening(false)),
+          DeviceEventEmitter.addListener('onSpeechResults', (e: any) => {
+            if (e.value && e.value.length > 0) {
+              const name = e.value[0];
+              setCustomerName(name);
+              setIsListening(false);
+              Vibration.vibrate(100);
+
+              // --- AI INTELLIGENCE: CONDITIONAL ADD CUSTOMER CONFIRMATION ---
+              const now = Date.now();
+              // Ultimate Lock: Never speak same value twice OR less than 3 seconds apart
+              if ((!addPartyHasSpoken || name !== addPartyLastSpokenValue) && (now - addPartyLastSpokenTime) > 3000) {
+                 addPartyHasSpoken = true;
+                 addPartyLastSpokenTime = now;
+                 addPartyLastSpokenValue = name;
+                 
+                 try {
+                     const ExpoSpeech = require('expo-speech');
+                     if (ExpoSpeech && typeof ExpoSpeech.speak === 'function') {
+                         ExpoSpeech.speak(`Successfully added new client, ${name}`, {
+                             language: 'hi-IN',
+                             pitch: 1.0,
+                             rate: 0.9,
+                         });
+                     }
+                 } catch (err) {}
+              }
+            }
+          }),
+          DeviceEventEmitter.addListener('onSpeechPartialResults', (e: any) => {
+            if (e.value && e.value.length > 0) {
+              setCustomerName(e.value[0]);
+            }
+          }),
+          DeviceEventEmitter.addListener('onSpeechError', (e: any) => {
+            // Silence terminal logs for non-fatal codes like 5, 7, 11
+            const code = e.error?.code || "";
+            if (!code.includes('5') && !code.includes('7') && !code.includes('11')) {
+               console.log("Party Voice Note:", e.error?.message);
+            }
+            setIsListening(false);
+          })
+        ];
+    
+        return () => {
+          subscriptions.forEach(sub => sub.remove());
+          if (Voice && typeof Voice.destroy === 'function') {
+            Voice.destroy().catch(() => {});
+          }
+        };
+    }, []);
+
+    const startListening = async () => {
+        try {
+          const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
+          if (!nativeBridge) return;
+    
+          // Safety: Try to cancel any existing session before starting
+          if (typeof nativeBridge.cancelSpeech === 'function') {
+              try {
+                  await nativeBridge.cancelSpeech(() => {});
+              } catch (e) {}
+          }
+    
+          if (typeof nativeBridge.startSpeech === 'function') {
+            const options = {
+              EXTRA_LANGUAGE_MODEL: 'LANGUAGE_MODEL_FREE_FORM',
+              EXTRA_MAX_RESULTS: 1,
+              EXTRA_PARTIAL_RESULTS: true,
+              REQUEST_PERMISSIONS_AUTO: true
+            };
+            await nativeBridge.startSpeech('en-IN', options, () => {});
+          } else {
+            await Voice.start('en-IN');
+          }
+          setIsListening(true);
+          Vibration.vibrate(50);
+        } catch (e) {
+          setIsListening(false);
+        }
+    };
+    
+    const stopListening = async () => {
+        try {
+          const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
+          if (nativeBridge && typeof nativeBridge.stopSpeech === 'function') {
+            await nativeBridge.stopSpeech(() => {});
+          } else {
+            await Voice.stop();
+          }
+          setIsListening(false);
+        } catch (e) {
+          setIsListening(false);
+        }
+    };
+
+    React.useEffect(() => {
+        if (voiceModalVisible) {
+          startListening();
+        } else {
+          stopListening();
+        }
+    }, [voiceModalVisible]);
 
     const handleSubmit = async () => {
         if (!customerName || !phone) {
@@ -166,6 +292,9 @@ export default function AddPartyScreen({
                         placeholderTextColor="#777"
                         style={styles.input}
                     />
+                    <TouchableOpacity onPress={() => setVoiceModalVisible(true)}>
+                        <Ionicons name="mic-outline" size={rf(22)} color="#4f46e5" />
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.inputContainer as any}>
@@ -263,6 +392,46 @@ export default function AddPartyScreen({
                     </View>
                 </View>
             </Modal>
+
+            {/* Voice Input Modal */}
+            <Modal visible={voiceModalVisible} transparent animationType="slide">
+                <View style={styles.voiceOverlay}>
+                    <View style={styles.voiceContainer}>
+                        <View style={styles.voiceHeader}>
+                            <Text style={styles.voiceTitle}>Customer Name Voice Input</Text>
+                            <TouchableOpacity onPress={() => setVoiceModalVisible(false)} style={{ padding: s(5) }}>
+                                <Ionicons name="close" size={rf(24)} color="#6B7280" />
+                            </TouchableOpacity>
+                        </View>
+                        
+                        <View style={styles.voiceContent}>
+                            <View style={styles.micCircleWrapper}>
+                                <View style={[styles.micCircle, isListening && styles.micCircleActive]}>
+                                    <Ionicons name="mic" size={rf(40)} color="#fff" />
+                                </View>
+                                {isListening && <View style={styles.pulse} />}
+                            </View>
+                            
+                            <Text style={styles.voiceInstruction}>
+                                {isListening ? "Listening... Speak name clearly" : "Tap the Mic to Start"}
+                            </Text>
+                            
+                            <View style={styles.resultBox}>
+                                <Text style={styles.resultText} numberOfLines={2}>
+                                  {customerName || "Customer Name here..."}
+                                </Text>
+                            </View>
+
+                            <TouchableOpacity 
+                                style={styles.voiceDoneBtn} 
+                                onPress={() => setVoiceModalVisible(false)}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>DONE</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </ScrollView>
     );
 }
@@ -336,4 +505,18 @@ const styles = StyleSheet.create({
         color: '#6B7280',
         textAlign: 'center',
     },
+    // Voice Modal Styles
+    voiceOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    voiceContainer: { backgroundColor: '#fff', borderTopLeftRadius: s(30), borderTopRightRadius: s(30), paddingBottom: vs(40) },
+    voiceHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: s(20), borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+    voiceTitle: { fontSize: rf(18), fontWeight: 'bold', color: '#1F2937' },
+    voiceContent: { alignItems: 'center', padding: s(30) },
+    micCircleWrapper: { width: s(100), height: s(100), justifyContent: 'center', alignItems: 'center', marginBottom: vs(20) },
+    micCircle: { width: s(70), height: s(70), borderRadius: s(35), backgroundColor: '#4f46e5', justifyContent: 'center', alignItems: 'center', elevation: 5 },
+    micCircleActive: { backgroundColor: '#EF4444' },
+    pulse: { position: 'absolute', width: s(90), height: s(90), borderRadius: s(45), borderWidth: 2, borderColor: '#EF4444', opacity: 0.5 },
+    voiceInstruction: { fontSize: rf(14), color: '#6B7280', marginBottom: vs(20) },
+    resultBox: { minHeight: vs(60), alignItems: 'center', justifyContent: 'center', width: '100%', backgroundColor: '#f9f9f9', borderRadius: s(12), padding: s(10), marginBottom: vs(20), borderStyle: 'dashed', borderWidth: 1, borderColor: '#d1d5db' },
+    resultText: { fontSize: rf(18), color: '#1F2937', fontStyle: 'italic', textAlign: 'center' },
+    voiceDoneBtn: { backgroundColor: '#1F2937', paddingHorizontal: s(60), paddingVertical: vs(15), borderRadius: s(30), elevation: 3, marginBottom: vs(20) }
 });

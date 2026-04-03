@@ -1,5 +1,6 @@
 
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
@@ -20,6 +21,8 @@ import {
 import Voice from '@react-native-voice/voice';
 import { rf, s, vs } from "../../utils/responsive";
 import { PERMISSION_GROUPS, StaffMember, TOTAL_PERMISSIONS_COUNT } from "./StaffPermissionsData";
+import { staffService } from "../../services/staffService";
+import StaffAddEditModal from "./StaffAddEditModal";
 
 const COLORS = {
   primary: "#4F46E5",
@@ -33,237 +36,6 @@ const COLORS = {
   inputBorder: "#D1D5DB",
 };
 
-// --- Sub-Component: StaffAddEditModal ---
-interface StaffAddEditModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onSave: (staff: StaffMember) => void;
-  onDelete: (id: string) => void;
-  staff: StaffMember | null;
-}
-
-const StaffAddEditModal = ({
-  visible,
-  onClose,
-  onSave,
-  onDelete,
-  staff,
-}: StaffAddEditModalProps) => {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [accessType, setAccessType] = useState("Sales Access");
-  const [permissions, setPermissions] = useState<string[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-
-  const [successVisible, setSuccessVisible] = useState(false);
-  const [missingVisible, setMissingVisible] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    if (visible) {
-      if (staff) {
-        setName(staff.name);
-        setPhone(staff.phone);
-        setAccessType(staff.accessType);
-        setPermissions(staff.permissions);
-      } else {
-        setName("");
-        setPhone("");
-        setAccessType("Sales Access");
-        setPermissions(["Sale Permissions - View", "Sale Permissions - Create"]);
-      }
-    }
-  }, [visible, staff]);
-
-  const togglePermission = (perm: string) => {
-    if (permissions.includes(perm)) {
-      setPermissions(permissions.filter((p) => p !== perm));
-    } else {
-      setPermissions([...permissions, perm]);
-    }
-  };
-
-  const setAllPermissions = () => {
-    const all: string[] = [];
-    PERMISSION_GROUPS.forEach(g => {
-      g.permissions.forEach(p => {
-        all.push(`${g.title} - ${p}`);
-      });
-    });
-    setPermissions(all);
-  };
-
-  const handleAccessTypeSelect = (type: string) => {
-    setAccessType(type);
-    setShowDropdown(false);
-    if (type === "Full Access") {
-      setAllPermissions();
-    } else if (type === "Sales Access") {
-      setPermissions(["Sale Permissions - View", "Sale Permissions - Create", "Sale Permissions - Reprint"]);
-    }
-  };
-
-  useEffect(() => {
-    if (Voice) {
-      Voice.onSpeechResults = (e: any) => {
-        if (e.value && e.value.length > 0) {
-          setName(e.value[0]);
-        }
-        setIsListening(false);
-      };
-      Voice.onSpeechError = (e: any) => {
-        console.log("Voice Error:", e);
-        setIsListening(false);
-      };
-    }
-    return () => {
-      if (Voice && typeof Voice.destroy === 'function') {
-        Voice.destroy().then(Voice.removeAllListeners).catch((err: any) => console.log("Voice Cleanup Error:", err));
-      }
-    };
-  }, []);
-
-  const handleVoicePress = async () => {
-    try {
-      // Multiple possible native module names for better detection
-      const nativeModule = NativeModules.RCTVoice || NativeModules.VoiceModule || NativeModules.VoiceTest || NativeModules.Voice;
-      const isVoiceNativeLoaded = !!nativeModule;
-
-      if (!isVoiceNativeLoaded || typeof Voice?.start !== 'function') {
-        Alert.alert("Voice Error", "Native voice module not found. Please rebuild the app (npx expo run:android) to enable this feature.");
-        return;
-      }
-
-      if (isListening) {
-        await Voice.stop();
-        setIsListening(false);
-      } else {
-        setName("");
-        // Double check if start throws immediately
-        await Voice.start('en-US');
-        setIsListening(true);
-      }
-    } catch (e) {
-      console.log("Voice Press Caught Error:", e);
-      Alert.alert("Voice Error", "Voice service is not linked correctly. Please re-run the android build.");
-      setIsListening(false);
-    }
-  };
-
-  const handleSave = () => {
-    if (!name.trim() || !phone.trim() || phone.trim().length < 10) {
-      setErrorMessage("Please enter correct name and 10-digit phone number.");
-      setMissingVisible(true);
-      return;
-    }
-    const payload: StaffMember = {
-      id: staff?.id || Math.random().toString(36).substr(2, 9),
-      name,
-      phone,
-      accessType,
-      permissions
-    };
-    onSave(payload);
-    setSuccessVisible(true);
-    setTimeout(() => { setSuccessVisible(false); }, 2000);
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
-        <View style={[subStyles.header, { paddingTop: vs(50) }]}>
-          <TouchableOpacity onPress={onClose} style={{ padding: s(5) }}>
-            <Ionicons name="arrow-back" size={rf(24)} color={COLORS.white} />
-          </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: s(10) }}>
-            <Text style={subStyles.title}>Staff</Text>
-            <Text style={subStyles.headerInfo}>FAST v39.08 | 7838491780 | 3307</Text>
-          </View>
-          {staff && (
-            <TouchableOpacity onPress={() => onDelete(staff.id)} style={{ padding: s(5) }}>
-              <Ionicons name="trash-outline" size={rf(24)} color={COLORS.white} />
-            </TouchableOpacity>
-          )}
-        </View>
-        <ScrollView style={{ flex: 1, backgroundColor: COLORS.background }} showsVerticalScrollIndicator={false}>
-          <View style={{ padding: s(20), backgroundColor: COLORS.white }}>
-            <View style={subStyles.inputContainer}>
-              <TextInput placeholder="Staff Name" placeholderTextColor="#9CA3AF" style={subStyles.input} value={name} onChangeText={setName} />
-              <TouchableOpacity onPress={handleVoicePress}>
-                <Ionicons
-                  name={isListening ? "mic" : "mic-outline"}
-                  size={rf(22)}
-                  color={isListening ? COLORS.primary : COLORS.textLight}
-                />
-              </TouchableOpacity>
-            </View>
-            <View style={subStyles.inputContainer}>
-              <TextInput placeholder="Staff Phone No" placeholderTextColor="#9CA3AF" style={subStyles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-            </View>
-            <View style={{ marginTop: vs(5) }}>
-              <Text style={subStyles.floatLabel}>Select Access Type</Text>
-              <TouchableOpacity style={subStyles.dropdownHeader} onPress={() => setShowDropdown(!showDropdown)}>
-                <Text style={{ fontSize: rf(16), color: COLORS.text }}>{accessType}</Text>
-                <Ionicons name={showDropdown ? "caret-up" : "caret-down"} size={rf(14)} color={COLORS.textLight} />
-              </TouchableOpacity>
-              {showDropdown && (
-                <View style={subStyles.dropdownMenu}>
-                  {["Sales Access", "Full Access", "Custom Access"].map((type) => (
-                    <TouchableOpacity key={type} style={subStyles.dropdownItem} onPress={() => handleAccessTypeSelect(type)}>
-                      <Text style={{ fontSize: rf(16), color: COLORS.text }}>{type}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          </View>
-          {PERMISSION_GROUPS.map((group, gIdx) => (
-            <View key={gIdx} style={{ marginTop: vs(20), paddingHorizontal: s(20) }}>
-              <Text style={{ fontSize: rf(15), fontWeight: "bold", color: COLORS.primary, marginBottom: vs(10) }}>{group.title}</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: s(8) }}>
-                {group.permissions.map((p, pIdx) => {
-                  const permKey = `${group.title} - ${p}`;
-                  const isSelected = permissions.includes(permKey);
-                  return (
-                    <TouchableOpacity key={pIdx} style={[subStyles.chip, isSelected && subStyles.chipSelected]} onPress={() => togglePermission(permKey)}>
-                      <Text style={[subStyles.chipText, isSelected && { fontWeight: "bold" }]}>{p}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          ))}
-          <View style={{ height: vs(160) }} />
-        </ScrollView>
-        <View style={[subStyles.saveBar, { paddingBottom: vs(53) }]}>
-          <TouchableOpacity style={subStyles.saveBtn} onPress={handleSave}>
-            <Text style={{ color: COLORS.white, fontWeight: "bold", fontSize: rf(16) }}>SAVE</Text>
-          </TouchableOpacity>
-        </View>
-        <Modal visible={successVisible} transparent animationType="fade">
-          <View style={subStyles.modalOverlay}>
-            <View style={subStyles.popupContent}>
-              <View style={[subStyles.circle, { backgroundColor: COLORS.success }]}><Ionicons name="checkmark" size={rf(40)} color={COLORS.white} /></View>
-              <Text style={subStyles.popupTitle}>Saved Successfully!</Text>
-            </View>
-          </View>
-        </Modal>
-        <Modal visible={missingVisible} transparent animationType="fade">
-          <View style={subStyles.modalOverlay}>
-            <View style={subStyles.popupContent}>
-              <View style={[subStyles.circle, { backgroundColor: COLORS.danger }]}><Ionicons name="alert" size={rf(40)} color={COLORS.white} /></View>
-              <Text style={subStyles.popupTitle}>Missing Info</Text>
-              <Text style={subStyles.popupText}>{errorMessage}</Text>
-              <TouchableOpacity style={{ marginTop: vs(30) }} onPress={() => setMissingVisible(false)}><Text style={{ color: COLORS.primary, fontWeight: "bold", fontSize: rf(16) }}>DISMISS</Text></TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      </SafeAreaView>
-    </Modal>
-  );
-};
-
 // --- Sub-Component: StaffTransferModal ---
 interface StaffTransferModalProps {
   visible: boolean;
@@ -274,9 +46,9 @@ interface StaffTransferModalProps {
 
 const StaffTransferModal = ({ visible, onClose, onUpdate, staff }: StaffTransferModalProps) => {
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  useEffect(() => { if (visible && staff) { setName(""); setPhone(""); } }, [visible, staff]);
-  const handleUpdate = () => { if (staff && name.trim() && phone.trim()) { onUpdate(staff.id, name, phone); } };
+  const [email, setEmail] = useState("");
+  useEffect(() => { if (visible && staff) { setName(""); setEmail(""); } }, [visible, staff]);
+  const handleUpdate = () => { if (staff && name.trim() && email.trim()) { onUpdate(staff.id, name, email); } };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -288,14 +60,14 @@ const StaffTransferModal = ({ visible, onClose, onUpdate, staff }: StaffTransfer
               <TextInput value={staff?.name || ""} editable={false} style={{ fontSize: rf(16), color: "#000" }} />
             </View>
             <View style={subStyles.transferInputBox}>
-              <Text style={subStyles.transferLabel}>Current Staff Phone</Text>
-              <TextInput value={staff?.phone || ""} editable={false} style={{ fontSize: rf(16), color: "#000" }} />
+              <Text style={subStyles.transferLabel}>Current Staff Email</Text>
+              <TextInput value={staff?.email || ""} editable={false} style={{ fontSize: rf(16), color: "#000" }} />
             </View>
             <View style={subStyles.transferInputBox}>
               <TextInput placeholder="Transfer Staff Name" placeholderTextColor="#9CA3AF" value={name} onChangeText={setName} style={{ fontSize: rf(16), color: COLORS.text }} />
             </View>
             <View style={subStyles.transferInputBox}>
-              <TextInput placeholder="Transfer Staff Phone" placeholderTextColor="#9CA3AF" value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={{ fontSize: rf(16), color: COLORS.text }} />
+              <TextInput placeholder="Transfer Staff Email" placeholderTextColor="#9CA3AF" value={email} onChangeText={setEmail} keyboardType="email-address" style={{ fontSize: rf(16), color: COLORS.text }} />
             </View>
           </View>
           <TouchableOpacity style={subStyles.transferBtn} onPress={handleUpdate}>
@@ -325,6 +97,9 @@ export const StaffModal = ({ visible, onClose }: StaffModalProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMode, setSearchMode] = useState(false);
 
+  const { getToken } = useAuth();
+  const { user } = useUser();
+
   useEffect(() => { if (visible) { loadStaffData(); } }, [visible]);
 
   const loadStaffData = async () => {
@@ -332,8 +107,20 @@ export const StaffModal = ({ visible, onClose }: StaffModalProps) => {
     try {
       const enabled = await AsyncStorage.getItem("assign_staff_enabled");
       setAssignEnabled(enabled === "true");
-      const listStr = await AsyncStorage.getItem("staff_list");
-      if (listStr) setStaffList(JSON.parse(listStr));
+      
+      const token = await getToken();
+      if (token && user?.id) {
+        const res = await staffService.getStaffList(user.id, token);
+        if (res.success) {
+          setStaffList(res.data);
+          // Optional: Sync with AsyncStorage for offline usage
+          await AsyncStorage.setItem("staff_list", JSON.stringify(res.data));
+        }
+      } else {
+        // Fallback to AsyncStorage if no token/user
+        const listStr = await AsyncStorage.getItem("staff_list");
+        if (listStr) setStaffList(JSON.parse(listStr));
+      }
     } catch (err) { console.log(err); } finally { setLoading(false); }
   };
 
@@ -347,31 +134,70 @@ export const StaffModal = ({ visible, onClose }: StaffModalProps) => {
   const handleTransferPress = (staff: StaffMember) => { setTransferringStaff(staff); setTransferVisible(true); };
 
   const handleSaveStaff = async (staff: StaffMember) => {
-    let newList = [...staffList];
-    const index = newList.findIndex((s) => s.id === staff.id);
-    if (index !== -1) newList[index] = staff; else newList.push(staff);
-    setStaffList(newList);
-    await AsyncStorage.setItem("staff_list", JSON.stringify(newList));
-    setAddEditVisible(false);
+    const token = await getToken();
+    if (!token || !user?.id) return;
+
+    try {
+      let res;
+      // If staff has a real MongoDB ID format (24 chars), it's likely an update
+      if (staff.id && staff.id.length > 20) {
+        res = await staffService.updateStaff(staff.id, staff, token);
+      } else {
+        // Create new
+        res = await staffService.addStaff({
+          ...staff,
+          businessId: user.id
+        }, token);
+      }
+
+      if (res.success) {
+        loadStaffData(); // Refresh list from backend
+        setAddEditVisible(false);
+      } else {
+        Alert.alert("Error", res.message || "Failed to save staff");
+      }
+    } catch (err: any) {
+      Alert.alert("Error", err.message);
+    }
   };
 
   const handleDeleteStaff = async (id: string) => {
-    const newList = staffList.filter((s) => s.id !== id);
-    setStaffList(newList);
-    await AsyncStorage.setItem("staff_list", JSON.stringify(newList));
-    setAddEditVisible(false);
+    const token = await getToken();
+    if (!token) return;
+
+    try {
+      const res = await staffService.deleteStaff(id, token);
+      if (res.success) {
+        loadStaffData();
+        setAddEditVisible(false);
+      } else {
+        Alert.alert("Error", res.message || "Failed to delete staff");
+      }
+    } catch (err: any) {
+      Alert.alert("Error", err.message);
+    }
   };
 
-  const handleUpdateStaffTransfer = async (id: string, name: string, phone: string) => {
-    const newList = staffList.map((s) => (s.id === id ? { ...s, name, phone } : s));
-    setStaffList(newList);
-    await AsyncStorage.setItem("staff_list", JSON.stringify(newList));
-    setTransferVisible(false);
+  const handleUpdateStaffTransfer = async (id: string, name: string, email: string) => {
+    const token = await getToken();
+    if (!token) return;
+
+    try {
+      const res = await staffService.updateStaff(id, { name, email }, token);
+      if (res.success) {
+        loadStaffData();
+        setTransferVisible(false);
+      } else {
+        Alert.alert("Error", res.message || "Failed to transfer staff");
+      }
+    } catch (err: any) {
+      Alert.alert("Error", err.message);
+    }
   };
 
   const filteredStaff = staffList.filter((s) =>
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.phone.includes(searchQuery)
+    s.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -384,7 +210,7 @@ export const StaffModal = ({ visible, onClose }: StaffModalProps) => {
                 <Ionicons name="arrow-back" size={rf(24)} color={COLORS.white} />
               </TouchableOpacity>
               <TextInput
-                placeholder="Search staff Name or phone..."
+                placeholder="Search staff Name or Email..."
                 placeholderTextColor="rgba(255,255,255,0.7)"
                 style={{ flex: 1, color: COLORS.white, fontSize: rf(16), marginLeft: s(10) }}
                 autoFocus
@@ -423,8 +249,8 @@ export const StaffModal = ({ visible, onClose }: StaffModalProps) => {
               return (
                 <TouchableOpacity key={item.id} style={styles.staffItem} onPress={() => handleEditStaff(item)}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: s(5) }}>
-                    <View style={styles.badge}><Text style={{ fontSize: rf(14) }}>{item.name}</Text></View>
-                    <View style={[styles.badge, { flex: 1 }]}><Text style={{ fontSize: rf(14) }}>{item.phone}</Text></View>
+                    <View style={[styles.badge, { flex: 1 }]}><Text style={{ fontSize: rf(14) }}>{item.name}</Text></View>
+                    <View style={[styles.badge, { flex: 1 }]}><Text style={{ fontSize: rf(14) }} numberOfLines={1}>{item.email}</Text></View>
                     <TouchableOpacity style={styles.transferBtn} onPress={() => handleTransferPress(item)}><Text style={{ color: COLORS.primary, fontWeight: "bold", fontSize: rf(12) }}>TRANSFER</Text></TouchableOpacity>
                   </View>
                   <View style={styles.permRow}><Text style={{ fontSize: rf(11), color: "silver", fontWeight: "bold" }}>{item.permissions.length} OUT OF {TOTAL_PERMISSIONS_COUNT} PERMISSIONS GRANTED</Text><Ionicons name="checkmark-done" size={rf(16)} color={COLORS.success} /></View>
@@ -447,9 +273,11 @@ const subStyles = StyleSheet.create({
   header: { backgroundColor: COLORS.primary, flexDirection: "row", alignItems: "center", paddingHorizontal: s(15), paddingVertical: vs(12) },
   title: { fontSize: rf(20), fontWeight: "bold", color: COLORS.white },
   headerInfo: { fontSize: rf(11), color: "rgba(255,255,255,0.7)" },
-  inputContainer: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: s(4), paddingHorizontal: s(15), paddingVertical: vs(10), marginBottom: vs(15) },
-  input: { flex: 1, fontSize: rf(16), color: COLORS.text },
-  floatLabel: { position: "absolute", top: -vs(10), left: s(10), backgroundColor: "#fff", paddingHorizontal: s(5), zIndex: 1, fontSize: rf(12), color: COLORS.textLight },
+  inputContainer: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: s(12), paddingHorizontal: s(15), paddingVertical: vs(8), marginBottom: vs(5), backgroundColor: "#F9FAFB" },
+  input: { flex: 1, fontSize: rf(16), color: "#000", minHeight: vs(45) },
+  autoGenBtn: { backgroundColor: "#fff", paddingHorizontal: s(10), paddingVertical: vs(6), borderRadius: s(8), borderWidth: 1, borderColor: "#E5E7EB", elevation: 1 },
+  autoGenText: { color: "#000", fontSize: rf(12), fontWeight: "600" },
+  floatLabel: { fontSize: rf(11), fontWeight: "800", color: "#9CA3AF", marginBottom: vs(5), marginLeft: s(5) },
   dropdownHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: s(4), paddingHorizontal: s(15), paddingVertical: vs(12) },
   dropdownMenu: { backgroundColor: "#fff", borderWidth: 1, borderColor: COLORS.inputBorder, marginTop: 1, borderRadius: s(4), elevation: 4 },
   dropdownItem: { padding: s(15), borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },

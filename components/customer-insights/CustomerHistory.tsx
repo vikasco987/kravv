@@ -9,7 +9,11 @@ import {
     Dimensions,
     TextInput,
     DeviceEventEmitter,
+    NativeModules,
+    Vibration,
 } from 'react-native';
+// @ts-ignore
+import Voice from '@react-native-voice/voice';
 import { Ionicons } from '@expo/vector-icons';
 import { rf, s, vs } from '../../utils/responsive';
 import { useRouter } from 'expo-router';
@@ -23,9 +27,15 @@ interface CustomerHistoryProps {
     bills: any[];
 }
 
+// Global voice controllers to prevent double-speaking in Customer Search
+let customerSearchHasSpoken = false;
+let customerSearchLastSpokenTime = 0;
+
 const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProps) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedItemNames, setSelectedItemNames] = useState<string[]>([]);
+    const [isListening, setIsListening] = useState(false);
+    const [voiceModalVisible, setVoiceModalVisible] = useState(false);
     const [taxEnabled, setTaxEnabled] = useState(false);
     const [perProductTax, setPerProductTax] = useState(false);
     const [taxRate, setTaxRate] = useState(5);
@@ -34,7 +44,8 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
     const [serviceChargeEnabled, setServiceChargeEnabled] = useState(false);
     const [serviceChargeRate, setServiceChargeRate] = useState(0);
     const router = useRouter();
-
+    
+    // Auth and loading logic...
     const loadSettings = async () => {
         try {
             const settings = await AsyncStorage.multiGet([
@@ -60,6 +71,128 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
     useEffect(() => {
         if (visible) loadSettings();
     }, [visible]);
+
+    useEffect(() => {
+        if (!visible) return;
+
+        const subscriptions = [
+          DeviceEventEmitter.addListener('onSpeechStart', () => {
+            setIsListening(true);
+            customerSearchHasSpoken = false;
+            customerSearchLastSpokenTime = 0;
+          }),
+          DeviceEventEmitter.addListener('onSpeechEnd', () => setIsListening(false)),
+          DeviceEventEmitter.addListener('onSpeechResults', (e: any) => {
+            if (e.value && e.value.length > 0) {
+              const name = e.value[0];
+              setSearchQuery(name);
+              setIsListening(false);
+              Vibration.vibrate(100);
+
+              // --- AI INTELLIGENCE: CONDITIONAL SEARCH FEEDBACK ---
+              const now = Date.now();
+              if (!customerSearchHasSpoken && (now - customerSearchLastSpokenTime) > 2000) {
+                 customerSearchHasSpoken = true;
+                 customerSearchLastSpokenTime = now;
+                 
+                 try {
+                     const ExpoSpeech = require('expo-speech');
+                     if (ExpoSpeech && typeof ExpoSpeech.speak === 'function') {
+                         // PRE-CHECK: See if this name has any bills
+                         const query = name.toLowerCase().trim();
+                         const hasMatch = (bills || []).some(bill => {
+                            const bName = (bill.customerName || bill.name || "").toLowerCase().trim();
+                            const bPhoneRaw = (bill.customerPhone || bill.phone || "").replace(/\D/g, '');
+                            return bName.includes(query) || (query.length > 5 && bPhoneRaw.includes(query));
+                         });
+
+                         const msg = hasMatch 
+                            ? `Successfully found records for ${name}` 
+                            : `No records found for ${name}. Try a different name.`;
+
+                         ExpoSpeech.speak(msg, {
+                             language: 'hi-IN',
+                             pitch: 1.0,
+                             rate: 0.9,
+                         });
+                     }
+                 } catch (err) {}
+              }
+            }
+          }),
+          DeviceEventEmitter.addListener('onSpeechPartialResults', (e: any) => {
+            if (e.value && e.value.length > 0) {
+              setSearchQuery(e.value[0]);
+            }
+          }),
+          DeviceEventEmitter.addListener('onSpeechError', (e: any) => {
+            // Silence terminal logs for non-fatal codes like 5, 7, 11
+            const code = e.error?.code || "";
+            if (!code.includes('5') && !code.includes('7') && !code.includes('11')) {
+               console.log("Customer Search Voice Note:", e.error?.message);
+            }
+            setIsListening(false);
+          })
+        ];
+    
+        return () => {
+          subscriptions.forEach(sub => sub.remove());
+          if (Voice && typeof Voice.destroy === 'function') {
+            Voice.destroy().catch(() => {});
+          }
+        };
+    }, [visible]);
+
+    const startListening = async () => {
+        try {
+          const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
+          if (!nativeBridge) return;
+    
+          if (typeof nativeBridge.cancelSpeech === 'function') {
+              try {
+                  await nativeBridge.cancelSpeech(() => {});
+              } catch (e) {}
+          }
+    
+          if (typeof nativeBridge.startSpeech === 'function') {
+            const options = {
+              EXTRA_LANGUAGE_MODEL: 'LANGUAGE_MODEL_FREE_FORM',
+              EXTRA_MAX_RESULTS: 1,
+              EXTRA_PARTIAL_RESULTS: true,
+              REQUEST_PERMISSIONS_AUTO: true
+            };
+            await nativeBridge.startSpeech('en-IN', options, () => {});
+          } else {
+            await Voice.start('en-IN');
+          }
+          setIsListening(true);
+          Vibration.vibrate(50);
+        } catch (e) {
+          setIsListening(false);
+        }
+    };
+    
+    const stopListening = async () => {
+        try {
+          const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
+          if (nativeBridge && typeof nativeBridge.stopSpeech === 'function') {
+            await nativeBridge.stopSpeech(() => {});
+          } else {
+            await Voice.stop();
+          }
+          setIsListening(false);
+        } catch (e) {
+          setIsListening(false);
+        }
+    };
+
+    useEffect(() => {
+        if (voiceModalVisible) {
+          startListening();
+        } else {
+          stopListening();
+        }
+    }, [voiceModalVisible]);
 
     const insights = useMemo(() => {
         // --- ADVANCED FUZZY MATCHING ENGINE ---
@@ -276,6 +409,9 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
                                     onChangeText={setSearchQuery}
                                     autoFocus={true}
                                 />
+                                <TouchableOpacity onPress={() => setVoiceModalVisible(true)} style={{ marginRight: s(5) }}>
+                                    <Ionicons name="mic-outline" size={rf(20)} color="#6366f1" />
+                                </TouchableOpacity>
                                 {searchQuery.length > 0 && (
                                     <TouchableOpacity onPress={() => setSearchQuery("")}>
                                         <Ionicons name="close-circle" size={rf(18)} color="#cbd5e1" />
@@ -379,6 +515,46 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
                     )}
                 </View>
             </View>
+            
+            {/* Voice Search Modal */}
+            <Modal visible={voiceModalVisible} transparent animationType="slide">
+                <View style={[styles.overlay, { justifyContent: 'flex-end', padding: 0 }]}>
+                    <View style={[styles.modalContainer, { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }]}>
+                        <View style={styles.header}>
+                            <Text style={styles.headerTitle}>Voice Search Intelligence</Text>
+                            <TouchableOpacity onPress={() => setVoiceModalVisible(false)} style={styles.closeBtn}>
+                                <Ionicons name="close-circle" size={rf(26)} color="#64748b" />
+                            </TouchableOpacity>
+                        </View>
+                        
+                        <View style={{ alignItems: 'center', padding: s(30) }}>
+                            <View style={styles.micCircleWrapper}>
+                                <View style={[styles.micCircle, isListening && styles.micCircleActive]}>
+                                    <Ionicons name="mic" size={rf(40)} color="#fff" />
+                                </View>
+                                {isListening && <View style={styles.pulse} />}
+                            </View>
+                            
+                            <Text style={styles.voiceInstruction}>
+                                {isListening ? "Listening... Speak name or phone" : "Tap the Mic to Start"}
+                            </Text>
+                            
+                            <View style={styles.voiceResultBox}>
+                                <Text style={styles.voiceResultText} numberOfLines={2}>
+                                  {searchQuery || "Say something to search..."}
+                                </Text>
+                            </View>
+
+                            <TouchableOpacity 
+                                style={styles.voiceDoneBtn} 
+                                onPress={() => setVoiceModalVisible(false)}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>SEARCH NOW</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </Modal>
     );
 };
@@ -615,7 +791,16 @@ const styles = StyleSheet.create({
         marginTop: vs(10),
         lineHeight: rf(18),
         paddingHorizontal: s(20),
-    }
+    },
+    // Voice Styles
+    micCircleWrapper: { width: s(100), height: s(100), justifyContent: 'center', alignItems: 'center', marginBottom: vs(20) },
+    micCircle: { width: s(70), height: s(70), borderRadius: s(35), backgroundColor: '#6366f1', justifyContent: 'center', alignItems: 'center', elevation: 5 },
+    micCircleActive: { backgroundColor: '#EF4444' },
+    pulse: { position: 'absolute', width: s(90), height: s(90), borderRadius: s(45), borderWidth: 2, borderColor: '#EF4444', opacity: 0.5 },
+    voiceInstruction: { fontSize: rf(14), color: '#64748b', marginBottom: vs(20) },
+    voiceResultBox: { minHeight: vs(60), alignItems: 'center', justifyContent: 'center', width: '100%', backgroundColor: '#f9f9f9', borderRadius: s(12), padding: s(10), marginBottom: vs(20), borderStyle: 'dashed', borderWidth: 1, borderColor: '#d1d5db' },
+    voiceResultText: { fontSize: rf(18), color: '#1F2937', fontStyle: 'italic', textAlign: 'center' },
+    voiceDoneBtn: { backgroundColor: '#1e293b', paddingHorizontal: s(60), paddingVertical: vs(15), borderRadius: s(30), elevation: 3, marginBottom: vs(20) }
 });
 
 export default CustomerHistory;

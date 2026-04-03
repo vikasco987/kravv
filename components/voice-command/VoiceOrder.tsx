@@ -18,8 +18,13 @@ interface VoiceOrderProps {
     visible: boolean;
     onClose: () => void;
     menus: any[];
-    onItemMatched: (item: any) => void;
+    onItemMatched: (item: any, quantity: number) => void;
 }
+
+// Global state trackers to prevent double-speaking across component re-renders
+let globalHasSpoken = false;
+let globalHasAdded = false; // Prevent adding same item twice in one session
+let globalLastSpokenTime = 0;
 
 const VoiceOrder = ({ visible, onClose, menus, onItemMatched }: VoiceOrderProps) => {
     const [isListening, setIsListening] = useState(false);
@@ -28,145 +33,265 @@ const VoiceOrder = ({ visible, onClose, menus, onItemMatched }: VoiceOrderProps)
     const [voiceLoaded, setVoiceLoaded] = useState(false);
 
     useEffect(() => {
-        // Direct event listening from Native bridge
         const { DeviceEventEmitter } = require('react-native');
-        
-        const subscriptions = [
-            DeviceEventEmitter.addListener('onSpeechStart', () => setIsListening(true)),
-            DeviceEventEmitter.addListener('onSpeechEnd', () => setIsListening(false)),
-            DeviceEventEmitter.addListener('onSpeechResults', (e: any) => {
-                if (e.value && e.value.length > 0) {
-                    const text = e.value[0];
-                    setRecognizedText(text);
-                    findMatch(text);
-                }
-            }),
-            DeviceEventEmitter.addListener('onSpeechPartialResults', (e: any) => {
-                if (e.value && e.value.length > 0) {
-                    setRecognizedText(e.value[0]);
-                }
-            }),
-            DeviceEventEmitter.addListener('onSpeechError', (e: any) => {
-                const code = e.error?.code || "";
-                const message = e.error?.message || "";
-                
-                // 7 is 'No Match', 11 is 'Didn't understand'
-                if (code.includes('7') || code.includes('11') || message.includes('No match') || message.includes('understand')) {
-                    console.log("Speech recognition could not match or understand the input.");
-                } else {
-                    console.error("Native Speech Error:", message);
-                }
-                
-                setIsListening(false);
-                setMatchStatus('fail');
-            })
-        ];
+        let subscriptions: any[] = [];
 
         const initVoice = async () => {
-             // We know RCTVoice is true from logs, so we'll use it directly
             const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
-            
             if (!nativeBridge) {
-                console.warn("Voice: Direct bridge not found.");
                 setVoiceLoaded(false);
                 return;
             }
-
-            try {
-                setVoiceLoaded(true);
-            } catch (err) {
-                console.warn("Voice initialization exception.");
-                setVoiceLoaded(false);
-            }
+            setVoiceLoaded(true);
         };
 
         if (visible) {
             setRecognizedText('');
             setMatchStatus('idle');
             initVoice();
+
+            subscriptions = [
+                DeviceEventEmitter.addListener('onSpeechStart', () => {
+                    setIsListening(true);
+                    globalHasSpoken = false; 
+                    globalHasAdded = false; 
+                    globalLastSpokenTime = 0;
+                }),
+                DeviceEventEmitter.addListener('onSpeechEnd', () => setIsListening(false)),
+                DeviceEventEmitter.addListener('onSpeechResults', (e: any) => {
+                    if (e.value && e.value.length > 0) {
+                        const text = e.value[0];
+                        setRecognizedText(text);
+                        findMatch(text);
+                    }
+                }),
+                DeviceEventEmitter.addListener('onSpeechPartialResults', (e: any) => {
+                    if (e.value && e.value.length > 0) {
+                        setRecognizedText(e.value[0]);
+                    }
+                }),
+                DeviceEventEmitter.addListener('onSpeechError', (e: any) => {
+                    const code = e.error?.code || "";
+                    const message = e.error?.message || "";
+                    if (code.includes('5') || code.includes('7') || code.includes('11')) {
+                        // Silent
+                    } else if (visible && !code.includes('5')) {
+                        console.log("Voice Note:", message);
+                    }
+                    setIsListening(false);
+                    setMatchStatus('fail');
+                })
+            ];
         }
 
         return () => {
             subscriptions.forEach(sub => sub.remove());
-            if (Voice && typeof Voice.destroy === 'function') {
-                Voice.destroy().catch(() => {});
-            }
         };
-    }, [visible, menus]);
+    }, [visible]);
 
     const findMatch = useCallback((text: string) => {
         setMatchStatus('matching');
         const query = text.toLowerCase().trim();
+        const words = query.split(/\s+/);
+        
+        const QUANTITY_MAP: Record<string, number> = {
+            'ek': 1, 'one': 1, '1': 1, 'do': 2, 'two': 2, '2': 2,
+            'teen': 3, 'three': 3, '3': 3, 'char': 4, 'four': 4, '4': 4,
+            'paanch': 5, 'five': 5, '5': 5, 'che': 6, 'six': 6, '6': 6,
+            'saat': 7, 'seven': 7, '7': 7, 'aath': 8, 'eight': 8, '8': 8,
+            'nau': 9, 'nine': 9, '9': 9, 'dus': 10, 'ten': 10, '10': 10
+        };
 
-        let bestMatch = null;
-        let highestScore = 0;
+        // Helper for Menu matching (Can match Items OR whole Categories)
+        function findBestMatchInMenu(searchQuery: string) {
+            const q = searchQuery.trim().toLowerCase().replace(/[^\w\s]/gi, ''); // Clean junk
+            if (!q || q.length < 2) return null;
 
-        menus.forEach(cat => {
-            if (cat.items) {
-                cat.items.forEach((item: any) => {
-                    const itemName = item.name.toLowerCase();
-                    if (query.includes(itemName) || itemName.includes(query)) {
-                        const score = itemName.length / query.length;
-                        if (score > highestScore) {
-                            highestScore = score;
-                            bestMatch = item;
-                        }
+            // 1. PRIORITIZE CATEGORY MATCH (Flexible/Fuzzy)
+            let bestCat = null;
+            let bestCatScore = 0;
+
+            for (let cat of menus) {
+                const catName = (cat.name || "").toLowerCase().replace(/[^\w\s]/gi, '');
+                if (catName === q || catName.includes(q) || q.includes(catName)) {
+                    const score = Math.max(q.length/catName.length, catName.length/q.length);
+                    if (score > bestCatScore) {
+                        bestCatScore = score;
+                        bestCat = cat;
                     }
-                });
+                }
             }
-        });
 
-        if (bestMatch) {
+            if (bestCat && bestCatScore > 0.4) {
+                return { isCategory: true, items: bestCat.items || [], name: bestCat.name };
+            }
+
+            // 2. Fallback: MATCH INDIVIDUAL ITEM
+            let bestItem = null;
+            let highestItemScore = 0;
+            menus.forEach(cat => {
+                if (cat.items) {
+                    cat.items.forEach((item: any) => {
+                        const itemName = item.name.toLowerCase().replace(/[^\w\s]/gi, '');
+                        if (q.includes(itemName) || itemName.includes(q)) {
+                            const score = Math.max(q.length/itemName.length, itemName.length/q.length);
+                            if (score > highestItemScore) {
+                                highestItemScore = score;
+                                bestItem = item;
+                            }
+                        }
+                    });
+                }
+            });
+            return bestItem;
+        }
+
+        const matches: Array<{item: any, qty: number, categoryName?: string}> = [];
+        let currentQty = 1;
+        let currentSearchWords: string[] = [];
+
+        const processMatch = (match: any, qty: number) => {
+            if (match && match.isCategory) {
+                match.items.forEach((item: any) => {
+                    matches.push({ item, qty: 1, categoryName: match.name });
+                });
+            } else if (match) {
+                matches.push({ item: match, qty: qty });
+            }
+        };
+
+        for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            const qtyValue = QUANTITY_MAP[word];
+
+            if (qtyValue !== undefined) {
+                if (currentSearchWords.length > 0) {
+                    const match = findBestMatchInMenu(currentSearchWords.join(' '));
+                    processMatch(match, currentQty);
+                    currentSearchWords = [];
+                }
+                currentQty = qtyValue;
+            } else if (word !== 'aur' && word !== 'and') {
+                currentSearchWords.push(word);
+            }
+        }
+
+        // Final item process
+        if (currentSearchWords.length > 0) {
+            const match = findBestMatchInMenu(currentSearchWords.join(' '));
+            processMatch(match, currentQty);
+        }
+
+        if (matches.length > 0) {
             setMatchStatus('success');
-            onItemMatched(bestMatch);
-            Vibration.vibrate(100);
+            const now = Date.now();
+            
+            // 1. ACTION: Process all items (Once per session)
+            if (!globalHasAdded) {
+                globalHasAdded = true;
+                matches.forEach(m => onItemMatched(m.item, m.qty));
+                Vibration.vibrate(100);
+            }
+
+            // 2. SPEECH: Collective Verbal confirmation
+            if (!globalHasSpoken && (now - globalLastSpokenTime) > 2000) {
+                globalHasSpoken = true;
+                globalLastSpokenTime = now;
+
+                try {
+                    const ExpoSpeech = require('expo-speech');
+                    if (ExpoSpeech && typeof ExpoSpeech.speak === 'function') {
+                        // Intelligent Hybrid Confirmation Text
+                        const processedGroups: string[] = [];
+                        const categoriesSeen = new Set<string>();
+
+                        matches.forEach(m => {
+                            if ((m as any).categoryName) {
+                                if (!categoriesSeen.has((m as any).categoryName)) {
+                                    processedGroups.push(`all items from ${(m as any).categoryName}`);
+                                    categoriesSeen.add((m as any).categoryName);
+                                }
+                            } else {
+                                processedGroups.push(m.qty > 1 ? `${m.qty} ${m.item.name}` : m.item.name);
+                            }
+                        });
+
+                        const confirmText = "Successfully added " + processedGroups.join(" and ");
+                        
+                        ExpoSpeech.speak(confirmText, { 
+                            language: 'hi-IN',
+                            pitch: 1.0,
+                            rate: 0.9,
+                        });
+                    }
+                } catch (speakError) {}
+            }
+
+            const recognizedLabel = matches.map(m => `${m.qty}x ${m.item.name}`).join(', ');
+            setRecognizedText(`Added: ${recognizedLabel}`);
+            
+            // Increased timeout for long 6-7 item orders so processing isn't cut off early
             setTimeout(() => {
-                onClose();
-            }, 1000);
+                if (visible) onClose();
+            }, 4500); 
         } else {
             setMatchStatus('fail');
+            const now = Date.now();
+            if (!globalHasSpoken && (now - globalLastSpokenTime) > 2000) {
+                globalHasSpoken = true;
+                globalLastSpokenTime = now;
+                try {
+                    const ExpoSpeech = require('expo-speech');
+                    if (ExpoSpeech && typeof ExpoSpeech.speak === 'function') {
+                        ExpoSpeech.speak("Sorry, I could not find those items in your menu. please try again.", {
+                            language: 'hi-IN',
+                            pitch: 1.0,
+                            rate: 0.9,
+                        });
+                    }
+                } catch (e) {}
+            }
         }
-    }, [menus, onItemMatched, onClose]);
+    }, [menus, onItemMatched, onClose, visible]);
 
     const startListening = async () => {
         setRecognizedText('');
         setMatchStatus('idle');
-
         try {
             const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
-            if (!nativeBridge) {
-                throw new Error("Native voice bridge missing");
-            }
-
+            
             // Safety: Try to cancel any existing session before starting
             if (typeof nativeBridge.cancelSpeech === 'function') {
                 try {
-                    await nativeBridge.cancelSpeech(() => {});
+                    await new Promise((resolve) => {
+                        nativeBridge.cancelSpeech(() => resolve(true));
+                        setTimeout(() => resolve(true), 200); // safety timeout
+                    });
+                    // Small delay to allow bridge to cleanup
+                    await new Promise(resolve => setTimeout(resolve, 350));
                 } catch (e) {}
             }
 
             // Using direct bridge call for RN 0.81 compatibility
-            // The native method expects: (locale, options, callback)
-            if (typeof nativeBridge.startSpeech === 'function') {
-                console.log("Starting speech via direct bridge call with required options");
+            if (nativeBridge && typeof nativeBridge.startSpeech === 'function') {
+                console.log("Starting speech via direct bridge call");
                 const options = {
                     EXTRA_LANGUAGE_MODEL: 'LANGUAGE_MODEL_FREE_FORM',
                     EXTRA_MAX_RESULTS: 5,
                     EXTRA_PARTIAL_RESULTS: true,
                     REQUEST_PERMISSIONS_AUTO: true
                 };
+                
+                // Force a small additional prep delay
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
                 await nativeBridge.startSpeech('en-IN', options, () => {});
-                setIsListening(true);
-            } else {
-                console.log("Starting speech via library");
-                await Voice.start('en-IN');
+                console.log("🎤 Voice Recording Started...");
                 setIsListening(true);
             }
-        } catch (e: any) {
-            console.error("Direct Speech start failed:", e.message);
+        } catch (e) {
             setIsListening(false);
             setMatchStatus('fail');
-            Vibration.vibrate([0, 100, 50, 100]);
         }
     };
 
@@ -174,14 +299,11 @@ const VoiceOrder = ({ visible, onClose, menus, onItemMatched }: VoiceOrderProps)
         try {
             const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
             if (nativeBridge && typeof nativeBridge.stopSpeech === 'function') {
-                console.log("Stopping speech via direct bridge call");
+                console.log("🎤 Voice Recording Stopped.");
                 await nativeBridge.stopSpeech(() => {});
-            } else if (Voice) {
-                await Voice.stop();
             }
             setIsListening(false);
         } catch (e) {
-            console.error("Stop speech error:", e);
             setIsListening(false);
         }
     };
@@ -196,7 +318,6 @@ const VoiceOrder = ({ visible, onClose, menus, onItemMatched }: VoiceOrderProps)
                             <Ionicons name="close" size={rf(22)} color="#64748b" />
                         </TouchableOpacity>
                     </View>
-
                     <View style={styles.content}>
                         <View style={styles.micWrapper}>
                             <TouchableOpacity
@@ -204,20 +325,13 @@ const VoiceOrder = ({ visible, onClose, menus, onItemMatched }: VoiceOrderProps)
                                 style={[styles.micBtn, isListening && styles.micBtnActive, !voiceLoaded && { backgroundColor: '#94a3b8' }]}
                                 disabled={!voiceLoaded}
                             >
-                                <Ionicons
-                                    name={isListening ? "mic" : "mic-outline"}
-                                    size={rf(40)}
-                                    color="#fff"
-                                />
+                                <Ionicons name={isListening ? "mic" : "mic-outline"} size={rf(40)} color="#fff" />
                             </TouchableOpacity>
                             {isListening && <View style={styles.pulseRing} />}
                         </View>
-
                         <Text style={styles.instruction}>
-                            {!voiceLoaded ? "Voice not available in this build" : (isListening ? "Listening..." : "Tap to Speak Item Name")}
+                            {!voiceLoaded ? "Voice not initialized" : (isListening ? "Listening..." : "Tap to Speak Item Name")}
                         </Text>
-
-                        {/* Result Area (Recognized text) */}
                         <View style={styles.resultBox}>
                             {matchStatus === 'matching' && <ActivityIndicator color="#6366f1" />}
                             {matchStatus === 'success' && (
@@ -233,16 +347,11 @@ const VoiceOrder = ({ visible, onClose, menus, onItemMatched }: VoiceOrderProps)
                                 </View>
                             )}
                         </View>
-
-                        {/* Suggestions Area: Starts empty, shows spoken word, resets on reopen */}
                         <View style={styles.tipsContainer}>
-                            <Text style={styles.tipTitle}>Try speaking from your menu:</Text>
-                            {recognizedText ? (
-                                <Text style={styles.tipText}>• "{recognizedText}"</Text>
-                            ) : null}
+                            <Text style={styles.tipTitle}>Spoken:</Text>
+                            {recognizedText ? <Text style={styles.tipText}>"{recognizedText}"</Text> : null}
                         </View>
                     </View>
-
                     <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
                         <Text style={styles.doneBtnText}>Done</Text>
                     </TouchableOpacity>
@@ -253,137 +362,25 @@ const VoiceOrder = ({ visible, onClose, menus, onItemMatched }: VoiceOrderProps)
 };
 
 const styles = StyleSheet.create({
-    overlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        justifyContent: 'flex-end',
-    },
-    container: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: s(30),
-        borderTopRightRadius: s(30),
-        paddingBottom: vs(50),
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: vs(15),
-        paddingHorizontal: s(20),
-        borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
-    },
-    title: {
-        fontSize: rf(18),
-        fontWeight: 'bold',
-        color: '#1e293b',
-    },
-    closeHeaderBtn: {
-        padding: s(5)
-    },
-    content: {
-        alignItems: 'center',
-        padding: s(30),
-    },
-    micWrapper: {
-        width: s(100),
-        height: s(100),
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: vs(15),
-    },
-    micBtn: {
-        width: s(70),
-        height: s(70),
-        borderRadius: s(35),
-        backgroundColor: '#4F46E5',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 10,
-        elevation: 5,
-    },
-    micBtnActive: {
-        backgroundColor: '#ef4444',
-    },
-    pulseRing: {
-        position: 'absolute',
-        width: s(90),
-        height: s(90),
-        borderRadius: s(45),
-        borderWidth: 2,
-        borderColor: '#ef4444',
-        opacity: 0.5,
-    },
-    instruction: {
-        fontSize: rf(14),
-        color: '#64748b',
-        fontWeight: '600',
-        marginBottom: vs(10),
-    },
-    resultBox: {
-        height: vs(50),
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '100%',
-    },
-    speechText: {
-        fontSize: rf(15),
-        color: '#1e293b',
-        fontWeight: '500',
-        fontStyle: 'italic',
-        marginBottom: vs(5),
-    },
-    statusRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#ecfdf5', // Soft green bg
-        paddingVertical: vs(8),
-        paddingHorizontal: s(20),
-        borderRadius: s(25),
-        borderWidth: 1,
-        borderColor: '#10b981',
-        gap: s(8),
-        // Premium Elevation
-        shadowColor: "#10b981",
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
-        elevation: 3,
-        marginTop: vs(5),
-    },
-    statusLabel: {
-        fontSize: rf(14),
-        fontWeight: 'bold',
-    },
-    tipsContainer: {
-        backgroundColor: '#f8fafc',
-        padding: s(15),
-        borderRadius: s(12),
-        width: '100%',
-        marginTop: vs(5),
-    },
-    tipTitle: {
-        fontSize: rf(12),
-        fontWeight: 'bold',
-        color: '#475569',
-        marginBottom: vs(2),
-    },
-    tipText: {
-        fontSize: rf(11),
-        color: '#64748b',
-    },
-    doneBtn: {
-        marginHorizontal: s(20),
-        backgroundColor: '#111827',
-        paddingVertical: vs(12),
-        borderRadius: s(15),
-        alignItems: 'center',
-    },
-    doneBtnText: {
-        color: '#fff',
-        fontSize: rf(15),
-        fontWeight: 'bold',
-    }
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    container: { backgroundColor: '#fff', borderTopLeftRadius: s(30), borderTopRightRadius: s(30), paddingBottom: vs(30) },
+    header: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: vs(15), paddingHorizontal: s(20), borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+    title: { fontSize: rf(18), fontWeight: 'bold', color: '#1e293b' },
+    closeHeaderBtn: { padding: s(5) },
+    content: { alignItems: 'center', padding: s(30) },
+    micWrapper: { width: s(100), height: s(100), justifyContent: 'center', alignItems: 'center', marginBottom: vs(15) },
+    micBtn: { width: s(70), height: s(70), borderRadius: s(35), backgroundColor: '#4F46E5', justifyContent: 'center', alignItems: 'center', zIndex: 10, elevation: 5 },
+    micBtnActive: { backgroundColor: '#ef4444' },
+    pulseRing: { position: 'absolute', width: s(90), height: s(90), borderRadius: s(45), borderWidth: 2, borderColor: '#ef4444', opacity: 0.5 },
+    instruction: { fontSize: rf(14), color: '#64748b', fontWeight: '600', marginBottom: vs(10) },
+    resultBox: { height: vs(50), alignItems: 'center', justifyContent: 'center', width: '100%' },
+    statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ecfdf5', paddingVertical: vs(8), paddingHorizontal: s(20), borderRadius: s(25), borderWidth: 1, borderColor: '#10b981', gap: s(8), elevation: 3, marginTop: vs(5) },
+    statusLabel: { fontSize: rf(14), fontWeight: 'bold' },
+    tipsContainer: { backgroundColor: '#f8fafc', padding: s(15), borderRadius: s(12), width: '100%', marginTop: vs(5) },
+    tipTitle: { fontSize: rf(12), fontWeight: 'bold', color: '#475569', marginBottom: vs(2) },
+    tipText: { fontSize: rf(11), color: '#64748b' },
+    doneBtn: { marginHorizontal: s(20), backgroundColor: '#111827', paddingVertical: vs(12), borderRadius: s(s(15)), alignItems: 'center', marginBottom: vs(20) },
+    doneBtnText: { color: '#fff', fontSize: rf(15), fontWeight: 'bold' }
 });
 
 export default VoiceOrder;

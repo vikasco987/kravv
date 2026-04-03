@@ -1,7 +1,8 @@
 export type StaffMember = {
   id: string;
   name: string;
-  phone: string;
+  email: string;
+  password?: string;
   accessType: string;
   permissions: string[];
 };

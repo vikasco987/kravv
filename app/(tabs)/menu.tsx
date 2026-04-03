@@ -634,7 +634,11 @@ export default function MenuScreen() {
         visible={isVoiceModalVisible} 
         onClose={() => setIsVoiceModalVisible(false)} 
         menus={menus} 
-        onItemMatched={(item) => addToCart(item)} 
+        onItemMatched={(item, qty) => {
+          for(let i=0; i < qty; i++) {
+            addToCart(item);
+          }
+        }} 
       />
     </View>
   );
