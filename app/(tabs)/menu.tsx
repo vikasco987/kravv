@@ -415,9 +415,14 @@ export default function MenuScreen() {
   const totalItems = Object.values(cart).reduce((sum, i) => sum + i.quantity, 0);
   const totalAmount = Object.values(cart).reduce((sum, i) => sum + ((i.editedPrice ?? i.price ?? 0) * i.quantity), 0);
 
-  const confirmPauseOrder = async () => {
+  const confirmPauseOrder = async (itemsToHold?: any[], totalOverride?: number) => {
     try {
       const token = await getToken();
+      const itemsSnapshot = itemsToHold || Object.values(cart);
+      const totalValue = totalOverride || totalAmount;
+
+      if (itemsSnapshot.length === 0) return;
+
       if (token && user?.id) {
         try {
           const method = activeOrderId ? "PUT" : "POST";
@@ -426,7 +431,7 @@ export default function MenuScreen() {
             method: method,
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({
-              items: Object.values(cart).map(i => ({
+              items: itemsSnapshot.map(i => ({
                 itemId: i.id || Math.random().toString(16).padEnd(24, '0'),
                 productId: i.id,
                 name: i.name, 
@@ -438,9 +443,9 @@ export default function MenuScreen() {
                 taxStatus: (i as any).taxStatus || i.taxType || "Without Tax",
                 hsnCode: i.hsnCode || ""
               })),
-              subtotal: Number((totalAmount / 1.05).toFixed(2)),
-              tax: Number((totalAmount - (totalAmount / 1.05)).toFixed(2)),
-              total: Number(totalAmount.toFixed(2)),
+              subtotal: Number((totalValue / 1.05).toFixed(2)),
+              tax: Number((totalValue - (totalValue / 1.05)).toFixed(2)),
+              total: Number(totalValue.toFixed(2)),
               paymentMode: "Cash", 
               paymentStatus: "HELD", 
               isHeld: true, 
@@ -458,19 +463,19 @@ export default function MenuScreen() {
               setIsHoldModalVisible(false); setShowHoldSuccess(false);
               setCart({}); setActiveOrderId(null); fetchHeldCount();
             }, 2000);
-          } else { await saveToLocalFallback(); }
-        } catch (fetchError) { await saveToLocalFallback(); }
-      } else { await saveToLocalFallback(); }
+          } else { await saveToLocalFallback(itemsSnapshot, totalValue); }
+        } catch (fetchError) { await saveToLocalFallback(itemsSnapshot, totalValue); }
+      } else { await saveToLocalFallback(itemsSnapshot, totalValue); }
 
-      async function saveToLocalFallback() {
+      async function saveToLocalFallback(snapshot: any[], totalVal: number) {
         if (activeOrderId && activeOrderId.startsWith("BILL-")) {
           const localData = await AsyncStorage.getItem('@held_orders');
           let orders = localData ? JSON.parse(localData) : [];
-          orders = orders.map((o: any) => o.id === activeOrderId ? { ...o, items: Object.values(cart), total: totalAmount, timestamp: new Date().toISOString() } : o);
+          orders = orders.map((o: any) => o.id === activeOrderId ? { ...o, items: snapshot, total: totalVal, timestamp: new Date().toISOString() } : o);
           await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
         } else {
           const id = "BILL-" + Date.now();
-          const newOrder = { id, items: Object.values(cart), total: totalAmount, timestamp: new Date().toISOString() };
+          const newOrder = { id, items: snapshot, total: totalVal, timestamp: new Date().toISOString() };
           const localData = await AsyncStorage.getItem('@held_orders');
           const orders = localData ? JSON.parse(localData) : [];
           orders.push(newOrder);
@@ -485,14 +490,18 @@ export default function MenuScreen() {
     } catch (e) { ToastAndroid.show("Failed to hold order", ToastAndroid.SHORT); }
   };
 
-  const handlePrintKot = async () => {
+  const handlePrintKot = async (itemsOverride?: any[]) => {
     const token = await getToken();
-    await SimpleKOT(Object.values(cart), token!, user?.id!, selectedTable);
+    const itemsToPrint = itemsOverride || Object.values(cart);
+    if (itemsToPrint.length === 0) return;
+    await SimpleKOT(itemsToPrint, token!, user?.id!, selectedTable);
   };
 
-  const handlePrintBill = async () => {
+  const handlePrintBill = async (itemsOverride?: any[], totalOverride?: number) => {
     const token = await getToken();
-    const result = await SimpleBill(Object.values(cart), token!, user?.id!, { paymentMode: paymentMethod, billId: activeOrderId || undefined });
+    const itemsToPrint = itemsOverride || Object.values(cart);
+    if (itemsToPrint.length === 0) return;
+    const result = await SimpleBill(itemsToPrint, token!, user?.id!, { paymentMode: paymentMethod, billId: activeOrderId || undefined });
     if (result?.status === "success") {
       setCart({}); setActiveOrderId(null); setSelectedTable(null); fetchHeldCount();
     }
@@ -639,6 +648,9 @@ export default function MenuScreen() {
             addToCart(item);
           }
         }} 
+        onSaveRequested={confirmPauseOrder}
+        onKOTRequested={handlePrintKot}
+        onBillRequested={handlePrintBill}
       />
     </View>
   );

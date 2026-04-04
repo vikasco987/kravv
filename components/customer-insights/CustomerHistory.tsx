@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
     Modal,
     View,
@@ -18,7 +18,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { rf, s, vs } from '../../utils/responsive';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect } from 'react';
 
 interface CustomerHistoryProps {
     visible: boolean;
@@ -99,11 +98,24 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
                      const ExpoSpeech = require('expo-speech');
                      if (ExpoSpeech && typeof ExpoSpeech.speak === 'function') {
                          // PRE-CHECK: See if this name has any bills
-                         const query = name.toLowerCase().trim();
+                         const query = name.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
+                         const queryNumeric = name.replace(/\D/g, '');
+                         
                          const hasMatch = (bills || []).some(bill => {
                             const bName = (bill.customerName || bill.name || "").toLowerCase().trim();
                             const bPhoneRaw = (bill.customerPhone || bill.phone || "").replace(/\D/g, '');
-                            return bName.includes(query) || (query.length > 5 && bPhoneRaw.includes(query));
+                            const cleanBillPhone = bPhoneRaw.length > 10 ? bPhoneRaw.slice(-10) : bPhoneRaw;
+
+                            // Name match
+                            if (query && bName.includes(query)) return true;
+                            
+                            // Phone suffix match (handles +91 etc)
+                            if (queryNumeric && queryNumeric.length >= 7) {
+                                const cleanQueryPhone = queryNumeric.length > 10 ? queryNumeric.slice(-10) : queryNumeric;
+                                if (cleanBillPhone && cleanBillPhone.includes(cleanQueryPhone)) return true;
+                            }
+                            
+                            return false;
                          });
 
                          const msg = hasMatch 
@@ -141,16 +153,21 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
             Voice.destroy().catch(() => {});
           }
         };
-    }, [visible]);
+    }, [visible, bills]);
 
     const startListening = async () => {
         try {
           const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
           if (!nativeBridge) return;
     
+          // --- ROBUST START: Safety Cancel \u0026 Delay ---
           if (typeof nativeBridge.cancelSpeech === 'function') {
               try {
-                  await nativeBridge.cancelSpeech(() => {});
+                  await new Promise((resolve) => {
+                      nativeBridge.cancelSpeech(() => resolve(true));
+                      setTimeout(() => resolve(true), 200); 
+                  });
+                  await new Promise(resolve => setTimeout(resolve, 350));
               } catch (e) {}
           }
     
@@ -161,6 +178,8 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
               EXTRA_PARTIAL_RESULTS: true,
               REQUEST_PERMISSIONS_AUTO: true
             };
+            
+            await new Promise(resolve => setTimeout(resolve, 150));
             await nativeBridge.startSpeech('en-IN', options, () => {});
           } else {
             await Voice.start('en-IN');
@@ -528,12 +547,15 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
                         </View>
                         
                         <View style={{ alignItems: 'center', padding: s(30) }}>
-                            <View style={styles.micCircleWrapper}>
+                            <TouchableOpacity 
+                                style={styles.micCircleWrapper} 
+                                onPress={isListening ? stopListening : startListening}
+                            >
                                 <View style={[styles.micCircle, isListening && styles.micCircleActive]}>
                                     <Ionicons name="mic" size={rf(40)} color="#fff" />
                                 </View>
                                 {isListening && <View style={styles.pulse} />}
-                            </View>
+                            </TouchableOpacity>
                             
                             <Text style={styles.voiceInstruction}>
                                 {isListening ? "Listening... Speak name or phone" : "Tap the Mic to Start"}
