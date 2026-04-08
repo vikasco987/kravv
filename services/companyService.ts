@@ -1,4 +1,5 @@
 const BACKEND_URL = "https://billing.kravy.in";
+import { Alert, ToastAndroid } from "react-native";
 
 /**
  * Fetch company profile data from backend.
@@ -35,8 +36,16 @@ export async function getRecentCompanyProfile(token: string) {
       upi: (data.upi as string) || "",
       upiId: (data.upiId as string) || "",
     };
-  } catch (err) {
-    console.error("❌ getRecentCompanyProfile Error:", err);
+  } catch (err: any) {
+    if (err.message === "Network request failed") {
+      Alert.alert(
+        "Connectivity Issue", 
+        "It seems you are offline. Please check your internet connection and try again.",
+        [{ text: "OK" }]
+      );
+    } else {
+      console.error("❌ getRecentCompanyProfile Error:", err);
+    }
     return null;
   }
 }

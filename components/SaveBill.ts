@@ -165,6 +165,9 @@ export async function SaveBill(
     paymentMode?: string;
     notes?: string;
     billId?: string;
+    partyId?: string;
+    customerName?: string;
+    customerPhone?: string;
   }
 ) {
   console.log("🔥 SaveBill called");
@@ -294,15 +297,15 @@ export async function SaveBill(
       paymentMode: options?.paymentMode || "Cash",
       paymentStatus: "Paid",
       isHeld: false,
-      customerName: "Walk-in Customer",
-      customerPhone: null,
+      customerName: options?.customerName || "Walk-in Customer",
+      customerPhone: options?.customerPhone || null,
       tableName: "POS",
       discountAmount: Number(discountAmount.toFixed(2)),
       discountCode: null,
       auditNote: options?.notes || "App Order",
-
-      // 🔥 IMPORTANT (backend ke liye helpful)
-      userClerkId: userClerkId
+      userClerkId: userClerkId,
+      customerId: options?.partyId || null,
+      partyId: options?.partyId || null
     };
 
     console.log("📤 URL:", url);

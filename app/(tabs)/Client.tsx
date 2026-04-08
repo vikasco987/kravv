@@ -1,30 +1,32 @@
 "use client";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   FlatList,
+  Linking,
   Modal,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  RefreshControl,
-  Linking,
+  View
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { rf, s, vs } from "../../utils/responsive";
-import { useRefresh } from "../../context/RefreshContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { useRefresh } from "../../context/RefreshContext";
+import { rf, s, vs } from "../../utils/responsive";
 
 // ✅ Import AddPartyScreen component
-import AddPartyScreen from "../party/AddPartyScreen";
 import CustomerHistory from "../../components/customer-insights/CustomerHistory";
+import NetworkErrorModal from "../../components/NetworkErrorModal";
+import { PermissionGuard } from "../../components/PermissionGuard";
+import AddPartyScreen from "../party/AddPartyScreen";
 
 const THEME_PRIMARY = "#4F46E5";
 const COLOR_BG_LIGHT = "#F5F5F5";
@@ -273,8 +275,9 @@ const styles = StyleSheet.create({
   },
 });
 
-const PartyListItem: React.FC<{ item: Party; onSelect: (party: Party) => void }> = ({
+const PartyListItem: React.FC<{ item: Party; lifetimeSpend: number; onSelect: (party: Party) => void }> = ({
   item,
+  lifetimeSpend,
   onSelect,
 }) => {
   const { t } = useLanguage();
@@ -285,24 +288,21 @@ const PartyListItem: React.FC<{ item: Party; onSelect: (party: Party) => void }>
           {item.name || t('no_items')}
         </Text>
         <Text style={styles.partyPhone}>{item.phone}</Text>
-        <Text style={styles.billingType}>{t('regular_billing')}: {t('regular')}</Text>
+        <Text style={styles.billingType}>Lifetime Sales: ₹{lifetimeSpend.toFixed(2)}</Text>
       </View>
 
-    <View style={styles.iconGroup}>
-      <View style={styles.balanceIndicator}>
-        <Text style={styles.balanceText}>₹{(item.balance || 0).toFixed(0)}</Text>
-      </View>
-      <Ionicons name="call-outline" size={rf(20)} color="#FFD700" style={styles.icon} />
-      <Ionicons name="logo-whatsapp" size={rf(20)} color="#25D366" style={styles.icon} />
-      <Ionicons
-        name={item.isFavorite ? "star" : "star-outline"}
-        size={rf(20)}
-        color="#FFC107"
-        style={styles.icon}
-      />
-      {item.hasCheckedOut && (
-        <Ionicons name="checkmark-circle" size={rf(20)} color="#10B981" style={styles.icon} />
-      )}
+      <View style={styles.iconGroup}>
+        <View style={styles.balanceIndicator}>
+          <Text style={styles.balanceText}>₹{(item.balance || 0).toFixed(2)}</Text>
+        </View>
+        <Ionicons name="call-outline" size={rf(20)} color="#FFD700" style={styles.icon} />
+        <Ionicons name="logo-whatsapp" size={rf(20)} color="#25D366" style={styles.icon} />
+        <Ionicons
+          name={item.isFavorite ? "star" : "star-outline"}
+          size={rf(20)}
+          color="#FFC107"
+          style={styles.icon}
+        />
       </View>
     </TouchableOpacity>
   );
@@ -311,6 +311,7 @@ const PartyListItem: React.FC<{ item: Party; onSelect: (party: Party) => void }>
 export default function CustomersScreen() {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn } = useUser();
+  const router = useRouter();
 
   const [parties, setParties] = useState<Party[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -331,17 +332,18 @@ export default function CustomersScreen() {
   const [serviceChargeEnabled, setServiceChargeEnabled] = useState(false);
   const [serviceChargeRate, setServiceChargeRate] = useState(0);
   const { t } = useLanguage();
+  const [showNetworkError, setShowNetworkError] = useState(false);
 
   const loadSettings = async () => {
     try {
       const settings = await AsyncStorage.multiGet([
-        'tax_enabled', 'per_product_tax', 'tax_rate', 
+        'tax_enabled', 'per_product_tax', 'tax_rate',
         'discount_enabled', 'discount_rate',
         'service_charge_enabled', 'service_charge_rate'
       ]);
-      const sMap: Record<string, string|null> = {};
+      const sMap: Record<string, string | null> = {};
       settings.forEach(([key, val]) => sMap[key] = val);
-      
+
       setTaxEnabled(sMap['tax_enabled'] === 'true');
       setPerProductTax(sMap['per_product_tax'] === 'true');
       setTaxRate(parseFloat(sMap['tax_rate'] || '5'));
@@ -399,8 +401,12 @@ export default function CustomersScreen() {
         console.error("Failed to fetch parties:", errorText);
         setParties([]);
       }
-    } catch (err) {
-      console.error("Error fetching parties:", err);
+    } catch (err: any) {
+      if (err.message === "Network request failed") {
+        setShowNetworkError(true);
+      } else {
+        console.log("Error fetching parties:", err.message);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -425,15 +431,19 @@ export default function CustomersScreen() {
           setAllBills(data.bills);
         }
       }
-    } catch (err) {
-      console.error("Critical Sync Error:", err);
+    } catch (err: any) {
+      if (err.message === "Network request failed") {
+        setShowNetworkError(true);
+      } else {
+        console.log("Critical Sync Log:", err.message);
+      }
     }
   };
 
   useEffect(() => {
     if (refreshSignal > 0) {
       fetchParties(true);
-      fetchBills(); 
+      fetchBills();
     }
   }, [refreshSignal]);
 
@@ -454,8 +464,8 @@ export default function CustomersScreen() {
     }, [isLoaded, isSignedIn])
   );
 
-  const handleSelectParty = (party: Party) => {
-    fetchBills(); 
+  const handleSelectAccount = (party: Party) => {
+    fetchBills();
     setSelectedParty(party);
     setShowDetailsModal(true);
   };
@@ -463,7 +473,7 @@ export default function CustomersScreen() {
   // ✅ INDUSTRIAL PAYMENT CALCULATOR (Using ID + Phone for 100% Accuracy)
   const customerStats = React.useMemo(() => {
     if (!selectedParty || !allBills || allBills.length === 0) return { lifetimeSpend: 0, pending: 0 };
-    
+
     // Unique Indicators
     const pId = (selectedParty as any).id || (selectedParty as any)._id;
     const tPhone = (selectedParty.phone || "").replace(/\D/g, '');
@@ -488,40 +498,40 @@ export default function CustomersScreen() {
 
     let lifetimeSpend = 0;
     let pending = 0;
-    
+
     relatedBills.forEach((bill: any) => {
       // 🛡️ DYNAMIC OVERRIDE LOGIC (Exact Dashboard Parity)
       let totalTaxable = 0;
       let totalGst = 0;
-      
+
       (bill.items || []).forEach((item: any) => {
-          const itemPrice = Number(item.price || item.rate || 0);
-          const qty = Number(item.quantity || item.qty || 1);
-          const lineTotal = itemPrice * qty;
+        const itemPrice = Number(item.price || item.rate || 0);
+        const qty = Number(item.quantity || item.qty || 1);
+        const lineTotal = itemPrice * qty;
 
-          // ⚖️ POS-PARITY PRIORITY: 
-          // 1. If Global Tax is ON -> It overrides EVERYTHING (12% for Bill 2)
-          // 2. If Global is OFF -> It respects individual Product GST (28% for Bill 1)
-          let itemGstRate = 0;
-          if (taxEnabled) {
-              itemGstRate = taxRate;
-          } else if (perProductTax) {
-              itemGstRate = Number(item.gst || item.gst_percent || 0);
-          }
+        // ⚖️ POS-PARITY PRIORITY: 
+        // 1. If Global Tax is ON -> It overrides EVERYTHING (12% for Bill 2)
+        // 2. If Global is OFF -> It respects individual Product GST (28% for Bill 1)
+        let itemGstRate = 0;
+        if (taxEnabled) {
+          itemGstRate = taxRate;
+        } else if (perProductTax) {
+          itemGstRate = Number(item.gst || item.gst_percent || 0);
+        }
 
-          let taxable = 0;
-          let gst = 0;
-          const mode = (item.taxStatus || item.taxType || "Without Tax");
-          
-          if (mode === "With Tax") {
-              taxable = lineTotal / (1 + itemGstRate / 100);
-              gst = lineTotal - taxable;
-          } else {
-              taxable = lineTotal;
-              gst = (lineTotal * itemGstRate) / 100;
-          }
-          totalTaxable += taxable;
-          totalGst += gst;
+        let taxable = 0;
+        let gst = 0;
+        const mode = (item.taxStatus || item.taxType || "Without Tax");
+
+        if (mode === "With Tax") {
+          taxable = lineTotal / (1 + itemGstRate / 100);
+          gst = lineTotal - taxable;
+        } else {
+          taxable = lineTotal;
+          gst = (lineTotal * itemGstRate) / 100;
+        }
+        totalTaxable += taxable;
+        totalGst += gst;
       });
 
       const dAmt = discountEnabled ? (totalTaxable * (discountRate / 100)) : 0;
@@ -531,14 +541,15 @@ export default function CustomersScreen() {
 
       const avgGstRate = totalTaxable > 0 ? (totalGst / totalTaxable) : 0;
       const finalGstAmt = netTaxableVal * avgGstRate;
-      
+
       const calculatedTotal = Math.floor((netTaxableVal + finalGstAmt) * 100) / 100;
       const storedTotal = Number(bill.total || bill.grandTotal || bill.totalAmount || 0);
       const received = Number(bill.receivedAmount || 0);
 
       // Using Max preserves the historical 41.47 bill even while current Global is 12%
+      // This is the EXACT logic from CustomerHistory.tsx (Order Intelligence)
       const effectiveTotal = Math.max(calculatedTotal, storedTotal, received);
-      
+
       const status = (bill.paymentStatus || "").toUpperCase();
       lifetimeSpend += effectiveTotal;
       if (status !== "PAID") {
@@ -546,8 +557,72 @@ export default function CustomersScreen() {
       }
     });
 
-    return { lifetimeSpend, pending };
+    return {
+      lifetimeSpend: Number(lifetimeSpend.toFixed(2)),
+      pending: Number(pending.toFixed(2))
+    };
   }, [selectedParty, allBills, taxEnabled, perProductTax, taxRate, discountEnabled, discountRate, serviceChargeEnabled, serviceChargeRate]);
+
+  // ✅ PRE-CALCULATE ALL PARTIES STATS (For unified display in list)
+  const partiesStatsMap = React.useMemo(() => {
+    const map: Record<string, { lifetimeSpend: number }> = {};
+    if (!allBills || allBills.length === 0) return map;
+
+    allBills.forEach((bill: any) => {
+      const pId = bill.partyId || bill.customerId || bill.party;
+      const bPhone = (bill.customerPhone || bill.phone || "").replace(/\D/g, '');
+      const cleanBP = bPhone.length > 10 ? bPhone.slice(-10) : bPhone;
+
+      // ✅ SMART MULTI-STEP CALCULATION (Exact Dashboard Mirror)
+      let billTaxable = 0;
+      let billGst = 0;
+      (bill.items || []).forEach((item: any) => {
+        const p = Number(item.price || item.rate || 0);
+        const q = Number(item.quantity || item.qty || 1);
+        const line = p * q;
+        let gRate = taxEnabled ? taxRate : Number(item.gst || 0);
+        let mode = item.taxStatus || item.taxType || "Without Tax";
+
+        let t = 0, g = 0;
+        if (mode === "With Tax") {
+          t = line / (1 + gRate / 100);
+          g = line - t;
+        } else {
+          t = line;
+          g = (line * gRate) / 100;
+        }
+        billTaxable += t;
+        billGst += g;
+      });
+
+      const disc = discountEnabled ? (billTaxable * (discountRate / 100)) : 0;
+      const sc = serviceChargeEnabled ? ((billTaxable - disc) * (serviceChargeRate / 100)) : 0;
+      const net = (billTaxable - disc) + sc;
+      const avgG = billTaxable > 0 ? (billGst / billTaxable) : 0;
+      const calcTotal = Math.floor((net + (net * avgG)) * 100) / 100;
+
+      const storedTotal = Number(bill.total || bill.grandTotal || bill.totalAmount || 0);
+      const received = Number(bill.receivedAmount || 0);
+      const billTotal = Math.max(calcTotal, storedTotal, received);
+
+      // Link by ID or Phone
+      const keys = [];
+      if (pId) keys.push(String(pId));
+      if (cleanBP) keys.push(`phone_${cleanBP}`);
+
+      keys.forEach(k => {
+        if (!map[k]) map[k] = { lifetimeSpend: 0 };
+        map[k].lifetimeSpend += billTotal;
+      });
+    });
+
+    // Cleanup: toFixed rounding inside the map values
+    Object.keys(map).forEach(k => {
+      map[k].lifetimeSpend = Number(map[k].lifetimeSpend.toFixed(2));
+    });
+
+    return map;
+  }, [allBills]);
 
   const filteredParties = parties.filter(
     (p) =>
@@ -557,8 +632,6 @@ export default function CustomersScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Search Filter */}
-
       {/* Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
@@ -603,7 +676,22 @@ export default function CustomersScreen() {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => fetchParties(true)} colors={[THEME_PRIMARY]} />
           }
-          renderItem={({ item }) => <PartyListItem item={item} onSelect={handleSelectParty} />}
+          renderItem={({ item }) => {
+            const pId = item.id || (item as any)._id;
+            const phone = (item.phone || "").replace(/\D/g, '');
+            const cleanP = phone.length > 10 ? phone.slice(-10) : phone;
+            const stats = partiesStatsMap[pId] || partiesStatsMap[`phone_${cleanP}`] || { lifetimeSpend: 0 };
+
+            return (
+              <PartyListItem
+                item={item}
+                lifetimeSpend={stats.lifetimeSpend}
+                onSelect={(p) => {
+                  handleSelectAccount(p);
+                }}
+              />
+            );
+          }}
           contentContainerStyle={{ paddingHorizontal: s(15), paddingBottom: vs(100) }}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -620,13 +708,15 @@ export default function CustomersScreen() {
       )}
 
       {/* Floating Add Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setShowAddPartyForm(true)}
-      >
-        <Feather name="plus-circle" size={rf(22)} color="#fff" />
-        <Text style={styles.fabText}>{t('add_customer')}</Text>
-      </TouchableOpacity>
+      <PermissionGuard requiredPermission="Customer Permissions - Add New Customer">
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setShowAddPartyForm(true)}
+        >
+          <Feather name="plus-circle" size={rf(22)} color="#fff" />
+          <Text style={styles.fabText}>{t('add_customer')}</Text>
+        </TouchableOpacity>
+      </PermissionGuard>
 
       {/* Modal for Add Party Form */}
       <Modal
@@ -659,8 +749,8 @@ export default function CustomersScreen() {
               <View style={styles.avatarLarge}>
                 <Ionicons name="person" size={rf(40)} color={THEME_PRIMARY} />
               </View>
-              <TouchableOpacity 
-                style={styles.closeModalBtn} 
+              <TouchableOpacity
+                style={styles.closeModalBtn}
                 onPress={() => setShowDetailsModal(false)}
               >
                 <Ionicons name="close" size={rf(26)} color="#64748B" />
@@ -670,9 +760,9 @@ export default function CustomersScreen() {
             <View style={styles.detailsBody}>
               <Text style={styles.detailsName}>{selectedParty?.name || t('no_items')}</Text>
               <Text style={styles.detailsPhone}>{selectedParty?.phone}</Text>
-              
+
               <View style={styles.detailsDivider} />
-              
+
               <View style={styles.detailItem}>
                 <View style={styles.detailIconWrapper}>
                   <Ionicons name="bar-chart-outline" size={rf(20)} color="#10B981" />
@@ -685,7 +775,7 @@ export default function CustomersScreen() {
 
               <View style={styles.detailItem}>
                 <View style={styles.detailIconWrapper}>
-                  <Ionicons name="alert-circle-outline" size={rf(20)} color={customerStats.pending > 0 ? "#EF4444" : "#64748B"} />
+                  <Ionicons name="alert-circle-outline" size={rf(20)} color={(customerStats?.pending || 0) > 0 ? "#EF4444" : "#64748B"} />
                 </View>
                 <View>
                   <Text style={styles.detailLabel}>Pending Balance</Text>
@@ -719,7 +809,7 @@ export default function CustomersScreen() {
             </View>
 
             <View style={styles.detailsActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: "#EEF2FF" }]}
                 onPress={() => {
                   if (selectedParty?.phone) {
@@ -730,16 +820,13 @@ export default function CustomersScreen() {
                 <Ionicons name="call" size={rf(20)} color={THEME_PRIMARY} />
                 <Text style={[styles.actionBtnText, { color: THEME_PRIMARY }]}>{t('call')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: "#F0FDF4" }]}
                 onPress={async () => {
                   if (selectedParty?.phone) {
-                    // Clean phone number: remove any non-digit characters
                     const cleanPhone = selectedParty.phone.replace(/\D/g, '');
-                    // Add 91 prefix if it's 10 digits
                     const finalPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
                     const url = `https://wa.me/${finalPhone}`;
-                    
                     try {
                       const supported = await Linking.canOpenURL(url);
                       if (supported) {
@@ -748,7 +835,6 @@ export default function CustomersScreen() {
                         Alert.alert("WhatsApp Not Found", "WhatsApp is not installed on this device.");
                       }
                     } catch (err) {
-                      // Fallback: direct browser link
                       Linking.openURL(url);
                     }
                   }
@@ -759,14 +845,31 @@ export default function CustomersScreen() {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity 
-              style={[styles.mainActionBtn, { backgroundColor: "#6366F1", marginBottom: vs(12) }]}
-              onPress={() => setShowHistoryModal(true)}
-            >
-              <Text style={styles.mainActionBtnText}>View Customer Insights</Text>
-            </TouchableOpacity>
+            <PermissionGuard requiredPermission="Customer Permissions - View Customer Data">
+              <TouchableOpacity
+                style={[styles.mainActionBtn, { backgroundColor: "#6366F1", marginBottom: vs(12) }]}
+                onPress={() => setShowHistoryModal(true)}
+              >
+                <Text style={styles.mainActionBtnText}>View Customer Insights</Text>
+              </TouchableOpacity>
+            </PermissionGuard>
 
-            <TouchableOpacity 
+            <PermissionGuard requiredPermission="Customer Permissions - View Customer Data">
+              <TouchableOpacity
+                style={[styles.mainActionBtn, { backgroundColor: "#10B981", marginBottom: vs(12) }]}
+                onPress={async () => {
+                  if (selectedParty) {
+                    await AsyncStorage.setItem('@active_customer', JSON.stringify(selectedParty));
+                    setShowDetailsModal(false);
+                    router.push("/(tabs)/menu");
+                  }
+                }}
+              >
+                <Text style={styles.mainActionBtnText}>+ New Order for this Customer</Text>
+              </TouchableOpacity>
+            </PermissionGuard>
+
+            <TouchableOpacity
               style={[styles.mainActionBtn, { backgroundColor: "#1e293b" }]}
               onPress={() => setShowDetailsModal(false)}
             >
@@ -776,13 +879,17 @@ export default function CustomersScreen() {
         </View>
       </Modal>
 
-      <CustomerHistory 
-        visible={showHistoryModal} 
-        onClose={() => setShowHistoryModal(false)} 
-        party={selectedParty} 
-        bills={allBills} 
+      <CustomerHistory
+        visible={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        party={selectedParty}
+        bills={allBills}
+      />
+
+      <NetworkErrorModal
+        visible={showNetworkError}
+        onClose={() => setShowNetworkError(false)}
       />
     </View>
   );
 }
-

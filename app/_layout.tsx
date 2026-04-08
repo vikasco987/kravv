@@ -14,8 +14,9 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import CustomDrawerContent from "../components/CustomDrawer";
-import { RefreshProvider } from "../context/RefreshContext";
+import { RefreshProvider, useRefresh } from "../context/RefreshContext";
 import { LanguageProvider, useLanguage } from "../context/LanguageContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import NewOrderNotifier from "../components/NewOrderNotifier";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -67,21 +68,36 @@ function AuthRedirect() {
   const { session } = useSession();
   const [ready, setReady] = useState(false);
   const [lastSessionId, setLastSessionId] = useState<string | null>(null);
+  const [isStaffSignedIn, setIsStaffSignedIn] = useState<boolean | null>(null);
   const { t } = useLanguage();
 
-  useEffect(() => setReady(true), []);
+  const { refreshSignal } = useRefresh();
 
   useEffect(() => {
-    if (!ready || !isLoaded) return;
+    setReady(true);
+    checkStaffSession();
+  }, [refreshSignal]);
+
+  const checkStaffSession = async () => {
+    try {
+      const session = await AsyncStorage.getItem("staff_session");
+      setIsStaffSignedIn(!!session);
+    } catch (e) {
+      setIsStaffSignedIn(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!ready || !isLoaded || isStaffSignedIn === null) return;
 
     // Only redirect to menu if we are at the root or just signed in and not yet on a screen
-    if (isSignedIn && session?.id && session.id !== lastSessionId) {
+    if ((isSignedIn || isStaffSignedIn) && session?.id && session.id !== lastSessionId) {
       setLastSessionId(session.id);
       // Removed the forced router.replace("/(tabs)/menu") to allow navigation to other screens
     }
-  }, [ready, isLoaded, isSignedIn, session?.id]);
+  }, [ready, isLoaded, isSignedIn, session?.id, isStaffSignedIn]);
 
-  if (!isLoaded || !ready) {
+  if (!isLoaded || !ready || isStaffSignedIn === null) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#007AFF" />

@@ -3,22 +3,22 @@
 import { useClerk, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore
+import { useAuth } from "@clerk/clerk-expo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DrawerContentScrollView, DrawerItem } from "@react-navigation/drawer";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Modal, StyleSheet, Text, View } from "react-native";
 import { useLanguage } from "../context/LanguageContext";
+import { useRefresh } from "../context/RefreshContext";
 import { rf, s, vs } from "../utils/responsive";
+import CustomerHistory from "./customer-insights/CustomerHistory";
 import ItemSalesReport from "./item-sales-report/item-sales-report";
 import { EditMenuItem } from "./menu/EditMenuItem";
 import { TableQrCodes } from "./menu/TableQrCodes";
-import { LoginRequiredModal } from "./settings/LoginRequiredModal";
 import ProfitEngine from "./profit-engine/ProfitEngine";
-import CustomerHistory from "./customer-insights/CustomerHistory";
-import TableRotation from "./table-insights/TableRotation";
+import { LoginRequiredModal } from "./settings/LoginRequiredModal";
 import VoiceOrder from "./voice-command/VoiceOrder";
-import { useAuth } from "@clerk/clerk-expo";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function CustomDrawerContent(props: any) {
   const { user } = useUser();
@@ -30,6 +30,21 @@ export default function CustomDrawerContent(props: any) {
   const [editMenuModalVisible, setEditMenuModalVisible] = useState(false);
   const [inventoryModalVisible, setInventoryModalVisible] = useState(false);
   const { getToken } = useAuth();
+
+  // --- Staff Session Info ---
+  const [staffData, setStaffData] = useState<any>(null);
+  const { refreshSignal } = useRefresh();
+
+  React.useEffect(() => {
+    const loadStaff = async () => {
+      const session = await AsyncStorage.getItem("staff_session");
+      if (session) setStaffData(JSON.parse(session));
+      else setStaffData(null);
+    };
+    loadStaff();
+  }, [refreshSignal]);
+
+  const isAnySignedIn = !!user || !!staffData;
 
   // Smart AI Modal States
   const [profitModalVisible, setProfitModalVisible] = useState(false);
@@ -48,7 +63,7 @@ export default function CustomDrawerContent(props: any) {
   };
 
   const handleAuthenticatedNavigation = (screen: string, params?: any) => {
-    if (!user) {
+    if (!isAnySignedIn) {
       setLoginModalVisible(true);
     } else {
       if (params) {
@@ -62,11 +77,13 @@ export default function CustomDrawerContent(props: any) {
   const fetchAIData = async () => {
     try {
       const token = await getToken();
-      if (!token) return;
+      // If no clerk token, try staff token
+      const authToken = token || staffData?.token;
+      if (!authToken) return;
 
       // Fetch Bills
       const billRes = await fetch("https://billing.kravy.in/api/bill-manager", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       if (billRes.ok) {
         const data = await billRes.json();
@@ -75,7 +92,7 @@ export default function CustomDrawerContent(props: any) {
 
       // Fetch Orders
       const orderRes = await fetch("https://billing.kravy.in/api/orders", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       if (orderRes.ok) {
         const oData = await orderRes.json();
@@ -95,81 +112,117 @@ export default function CustomDrawerContent(props: any) {
     router.push("/(auth)/sign-in");
   };
 
+  const handleLogout = async () => {
+    if (user) {
+      await signOut();
+    } else {
+      await AsyncStorage.removeItem('staff_session');
+      await AsyncStorage.removeItem('staff_business_id');
+      setStaffData(null);
+    }
+    router.replace("/(auth)/sign-in");
+  };
+
+  const hasPermission = (permission: string) => {
+    if (!isAnySignedIn) return true; // Show all to guest/logged-out users
+    if (user) return true; // Owner has all permissions
+    if (!staffData) return false;
+    const userPermissions = staffData.permissions || [];
+    return userPermissions.some((p: string) => p.toLowerCase().includes(permission.toLowerCase()));
+  };
+
   return (
     <>
       <DrawerContentScrollView {...props}>
         <View style={styles.header}>
           <Ionicons name="person-circle-outline" size={rf(70)} color="#fff" />
-          <Text style={styles.welcome}>{user ? `${t('hi')}, ${user.firstName || 'User'}` : t('welcome_guest')}</Text>
+          <Text style={styles.welcome}>
+            {user ? `${t('hi')}, ${user.firstName || 'User'}` : (staffData ? `${t('hi')}, ${staffData.name}` : t('welcome_guest'))}
+          </Text>
           {user && <Text style={styles.userId}>{user.primaryEmailAddress?.emailAddress}</Text>}
+          {staffData && <Text style={styles.userId}>{staffData.email} (Staff)</Text>}
         </View>
 
-        <DrawerItem
-          label={t('dashboard')}
-          icon={({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />}
-          onPress={() => props.navigation.navigate("(tabs)", { screen: "Dashboard" })}
-        />
+        {hasPermission("Dashboard Permissions") && (
+          <DrawerItem
+            label={t('dashboard')}
+            icon={({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />}
+            onPress={() => props.navigation.navigate("(tabs)", { screen: "Dashboard" })}
+          />
+        )}
 
-        <DrawerItem
-          label={t('home_menu')}
-          icon={({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />}
-          onPress={() => props.navigation.navigate("(tabs)", { screen: "menu" })}
-        />
-        <DrawerItem
-          label={t('orders')}
-          icon={({ color, size }) => <Ionicons name="list-outline" size={size} color={color} />}
-          onPress={() => handleAuthenticatedNavigation("(tabs)", { screen: "orders" })}
-        />
+        {hasPermission("Order & Billing Permissions") && (
+          <DrawerItem
+            label={t('home_menu')}
+            icon={({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />}
+            onPress={() => props.navigation.navigate("(tabs)", { screen: "menu" })}
+          />
+        )}
 
-        <DrawerItem
-          label={t('table_qr_codes')}
-          icon={({ color, size }) => <Ionicons name="qr-code-outline" size={size} color={color} />}
-          onPress={() => {
-            if (!user) {
-              setLoginModalVisible(true);
-            } else {
-              props.navigation.closeDrawer();
-              setQrModalVisible(true);
-            }
-          }}
-        />
-        <DrawerItem
-          label={t('edit_menu_item')}
-          icon={({ color, size }) => <Ionicons name="create-outline" size={size} color={color} />}
-          onPress={() => {
-            if (!user) {
-              setLoginModalVisible(true);
-            } else {
-              props.navigation.closeDrawer();
-              // Thoda aur zada delay (400ms) taaki Android par animation poori ho jaye
-              setTimeout(() => {
-                setEditMenuModalVisible(true);
-              }, 400);
-            }
-          }}
-        />
+        {hasPermission("Invoices & Receipts - View Bill Records") && (
+          <DrawerItem
+            label={t('orders')}
+            icon={({ color, size }) => <Ionicons name="list-outline" size={size} color={color} />}
+            onPress={() => handleAuthenticatedNavigation("(tabs)", { screen: "orders" })}
+          />
+        )}
 
-        <DrawerItem
-          label="Items Sales Report"
-          icon={({ color, size }) => <Ionicons name="cube-outline" size={size} color={color} />}
-          onPress={() => {
-            if (!user) {
-              setLoginModalVisible(true);
-            } else {
-              props.navigation.closeDrawer();
-              setTimeout(() => {
-                setInventoryModalVisible(true);
-              }, 400);
-            }
-          }}
-        />
+        {hasPermission("Menu & Items Permissions - Generate Table QR Codes") && (
+          <DrawerItem
+            label={t('table_qr_codes')}
+            icon={({ color, size }) => <Ionicons name="qr-code-outline" size={size} color={color} />}
+            onPress={() => {
+              if (!isAnySignedIn) {
+                setLoginModalVisible(true);
+              } else {
+                props.navigation.closeDrawer();
+                setQrModalVisible(true);
+              }
+            }}
+          />
+        )}
+
+        {hasPermission("Menu & Items Permissions - Edit Menu Items") && (
+          <DrawerItem
+            label={t('edit_menu_item')}
+            icon={({ color, size }) => <Ionicons name="create-outline" size={size} color={color} />}
+            onPress={() => {
+              if (!isAnySignedIn) {
+                setLoginModalVisible(true);
+              } else {
+                props.navigation.closeDrawer();
+                // Thoda aur zada delay (400ms) taaki Android par animation poori ho jaye
+                setTimeout(() => {
+                  setEditMenuModalVisible(true);
+                }, 400);
+              }
+            }}
+          />
+        )}
+
+        {hasPermission("Report Permissions - Item Sales Report") && (
+          <DrawerItem
+            label="Items Sales Report"
+            icon={({ color, size }) => <Ionicons name="cube-outline" size={size} color={color} />}
+            onPress={() => {
+              if (!isAnySignedIn) {
+                setLoginModalVisible(true);
+              } else {
+                props.navigation.closeDrawer();
+                setTimeout(() => {
+                  setInventoryModalVisible(true);
+                }, 400);
+              }
+            }}
+          />
+        )}
 
 
         <DrawerItem
           label={t('settings')}
           icon={({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />}
           onPress={() => {
-            if (!user) {
+            if (!isAnySignedIn) {
               setLoginModalVisible(true);
             } else {
               props.navigation.navigate("(tabs)", { screen: "setting" });
@@ -180,49 +233,55 @@ export default function CustomDrawerContent(props: any) {
         <View style={styles.divider} />
         <Text style={styles.sectionTitle}>Smart Intelligence</Text>
 
-        <DrawerItem
-          label="Profit Engine"
-          icon={({ size }) => <Ionicons name="trending-up-outline" size={size} color="#10B981" />}
-          onPress={() => {
-            if (!user) {
-              setLoginModalVisible(true);
-            } else {
-              fetchAIData();
-              props.navigation.closeDrawer();
-              setTimeout(() => setProfitModalVisible(true), 400);
-            }
-          }}
-        />
+        {hasPermission("AI Intelligence Tools - Access Profit Engine") && (
+          <DrawerItem
+            label="Profit Engine"
+            icon={({ size }) => <Ionicons name="trending-up-outline" size={size} color="#10B981" />}
+            onPress={() => {
+              if (!isAnySignedIn) {
+                setLoginModalVisible(true);
+              } else {
+                fetchAIData();
+                props.navigation.closeDrawer();
+                setTimeout(() => setProfitModalVisible(true), 400);
+              }
+            }}
+          />
+        )}
 
-        <DrawerItem
-          label="Voice Command"
-          icon={({ size }) => <Ionicons name="mic-outline" size={size} color="#6366F1" />}
-          onPress={() => {
-            if (!user) {
-              setLoginModalVisible(true);
-            } else {
-              fetchAIData();
-              props.navigation.closeDrawer();
-              setTimeout(() => setVoiceModalVisible(true), 400);
-            }
-          }}
-        />
+        {hasPermission("AI Intelligence Tools - Access Voice Command") && (
+          <DrawerItem
+            label="Voice Command"
+            icon={({ size }) => <Ionicons name="mic-outline" size={size} color="#6366F1" />}
+            onPress={() => {
+              if (!isAnySignedIn) {
+                setLoginModalVisible(true);
+              } else {
+                fetchAIData();
+                props.navigation.closeDrawer();
+                setTimeout(() => setVoiceModalVisible(true), 400);
+              }
+            }}
+          />
+        )}
 
-        <DrawerItem
-          label="Customer Search"
-          icon={({ size }) => <Ionicons name="search-outline" size={size} color="#f59e0b" />}
-          onPress={() => {
-            if (!user) {
-              setLoginModalVisible(true);
-            } else {
-              fetchAIData();
-              props.navigation.closeDrawer();
-              setTimeout(() => setHistoryModalVisible(true), 400);
-            }
-          }}
-        />
+        {hasPermission("Customer Permissions - View Customer Insights") && (
+          <DrawerItem
+            label="Customer Search"
+            icon={({ size }) => <Ionicons name="search-outline" size={size} color="#f59e0b" />}
+            onPress={() => {
+              if (!isAnySignedIn) {
+                setLoginModalVisible(true);
+              } else {
+                fetchAIData();
+                props.navigation.closeDrawer();
+                setTimeout(() => setHistoryModalVisible(true), 400);
+              }
+            }}
+          />
+        )}
 
-        {!user ? (
+        {!isAnySignedIn ? (
           <DrawerItem
             label={t('sign_in')}
             icon={({ color, size }) => <Ionicons name="log-in-outline" size={size} color={COLORS.primary} />}
@@ -233,10 +292,7 @@ export default function CustomDrawerContent(props: any) {
           <DrawerItem
             label={t('sign_out')}
             icon={({ color, size }) => <Ionicons name="log-out-outline" size={size} color={COLORS.danger} />}
-            onPress={async () => {
-              await signOut();
-              router.replace("/(auth)/sign-in");
-            }}
+            onPress={handleLogout}
             labelStyle={{ color: COLORS.danger }}
           />
         )}
@@ -260,27 +316,27 @@ export default function CustomDrawerContent(props: any) {
         <ItemSalesReport onBack={() => setInventoryModalVisible(false)} />
       </Modal>
 
-      <ProfitEngine 
-        visible={profitModalVisible} 
-        onClose={() => setProfitModalVisible(false)} 
-        bills={allBills} 
+      <ProfitEngine
+        visible={profitModalVisible}
+        onClose={() => setProfitModalVisible(false)}
+        bills={allBills}
       />
 
-      <VoiceOrder 
-        visible={voiceModalVisible} 
-        onClose={() => setVoiceModalVisible(false)} 
-        menus={menus} 
+      <VoiceOrder
+        visible={voiceModalVisible}
+        onClose={() => setVoiceModalVisible(false)}
+        menus={menus}
         onItemMatched={(item, qty) => {
           // In sidebar, we just show it was matched
           alert(`Recognized: ${qty} x ${item.name}. Please go to Menu to add to cart.`);
-        }} 
+        }}
       />
 
-      <CustomerHistory 
-        visible={historyModalVisible} 
-        onClose={() => setHistoryModalVisible(false)} 
-        party={null} 
-        bills={allBills} 
+      <CustomerHistory
+        visible={historyModalVisible}
+        onClose={() => setHistoryModalVisible(false)}
+        party={null}
+        bills={allBills}
       />
     </>
   );

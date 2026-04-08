@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { useUser } from '@clerk/clerk-expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useState } from 'react';
 
 interface PermissionGuardProps {
   children: React.ReactNode;
@@ -8,48 +8,51 @@ interface PermissionGuardProps {
   fallback?: React.ReactNode;
 }
 
-/**
- * A wrapper component that only renders its children if the logged-in staff
- * has the required permission. Works for both Admin (no staff_session) 
- * and Staff (filtered by permissions array).
- */
-export const PermissionGuard = ({ 
-  children, 
-  requiredPermission, 
-  fallback = null 
+export const PermissionGuard = ({
+  children,
+  requiredPermission,
+  fallback = null
 }: PermissionGuardProps) => {
+  const { isSignedIn, isLoaded } = useUser();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
   useEffect(() => {
+    if (!isLoaded) return;
+
     const checkPermission = async () => {
       try {
-        const sessionStr = await AsyncStorage.getItem('staff_session');
-        
-        // If no staff_session, assume it's the Admin/Owner who has all permissions
-        if (!sessionStr) {
+        // 1. If Owner is signed in via Clerk, they have full access
+        if (isSignedIn) {
           setHasPermission(true);
+          return;
+        }
+
+        // 2. Check for Staff Session
+        const sessionStr = await AsyncStorage.getItem('staff_session');
+        if (!sessionStr) {
+          // If no staff session and no clerk session, it's a Guest
+          setHasPermission(false);
           return;
         }
 
         const staffData = JSON.parse(sessionStr);
         const userPermissions = staffData.permissions || [];
 
-        // Check if the required permission is in the staff's permissions list
-        const allowed = userPermissions.some((p: string) => 
-          p.toLowerCase().includes(requiredPermission.toLowerCase())
+        // 3. Match against requiredPermission
+        const allowed = userPermissions.some((p: string) =>
+          p.toLowerCase().trim() === requiredPermission.toLowerCase().trim() ||
+          p.toLowerCase().includes(requiredPermission.toLowerCase().trim())
         );
 
         setHasPermission(allowed);
       } catch (error) {
-        console.error("Permission check error:", error);
         setHasPermission(false);
       }
     };
 
     checkPermission();
-  }, [requiredPermission]);
+  }, [requiredPermission, isSignedIn, isLoaded]);
 
-  // While checking, render nothing or fallback
   if (hasPermission === null) return null;
 
   return hasPermission ? <>{children}</> : <>{fallback}</>;

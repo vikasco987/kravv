@@ -32,9 +32,10 @@ interface AddItemCategoryProps {
     categories: { id: string; name: string }[];
     onRefresh: () => Promise<void>;
     onOptimisticAdd?: (category: { id: string; name: string }) => void;
+    onSuccess?: (category: { id: string; name: string }) => void; // New: Callback for real DB ID
 }
 
-export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd }: AddItemCategoryProps) => {
+export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd, onSuccess }: AddItemCategoryProps) => {
     const { getToken } = useAuth();
     const { t } = useLanguage();
     const [categoryName, setCategoryName] = useState("");
@@ -96,6 +97,11 @@ export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd
                 });
 
                 if (response.ok) {
+                    const savedData = await response.json().catch(() => ({}));
+                    const realId = savedData.id || savedData._id;
+                    if (realId && onSuccess) {
+                        onSuccess({ id: realId, name: trimmedName });
+                    }
                     onRefresh();
                 } else {
                     console.error("BG Save failed:", await response.text());

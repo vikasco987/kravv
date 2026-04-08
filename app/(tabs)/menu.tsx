@@ -1,28 +1,31 @@
 "use client";
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  DeviceEventEmitter,
   Dimensions,
   FlatList,
   StyleSheet,
   Text,
   // @ts-ignore
   ToastAndroid,
-  View,
-  DeviceEventEmitter
+  TouchableOpacity,
+  View
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
 // Project level imports
 import { SaveBill } from "../../components/SaveBill";
+import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
 import { SimpleKOT } from "../../components/SimpleKOT";
+import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
 import { SimpleBill } from "../../utils/SimpleBill";
-import { useLanguage } from "../../context/LanguageContext";
 
 // Menu Components
 import { CartBar } from "../../components/menu/CartBar";
@@ -32,9 +35,11 @@ import { ClearCartModal } from "../../components/menu/ClearCartModal";
 import { ConfirmHoldModal } from "../../components/menu/ConfirmHoldModal";
 import { MenuHeader } from "../../components/menu/MenuHeader";
 import { MenuItemCard } from "../../components/menu/MenuItemCard";
-import { TableSelectionModal } from "../../components/menu/TableSelectionModal";
 import { QuickAddItemCard } from "../../components/menu/QuickAddItemCard";
 import { QuickAddItemModal } from "../../components/menu/QuickAddItemModal";
+import { TableSelectionModal } from "../../components/menu/TableSelectionModal";
+import NetworkErrorModal from "../../components/NetworkErrorModal";
+import { PermissionGuard } from "../../components/PermissionGuard";
 import VoiceOrder from "../../components/voice-command/VoiceOrder";
 
 // --- TYPE DEFINITIONS ---
@@ -92,7 +97,10 @@ export default function MenuScreen() {
   const [isQuickAddModalVisible, setIsQuickAddModalVisible] = useState(false);
   const [quickAddCategoryId, setQuickAddCategoryId] = useState("");
   const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
-
+  const [activeCustomer, setActiveCustomer] = useState<any>(null);
+  const [showNetworkError, setShowNetworkError] = useState(false);
+  const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
+  const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
   // @ts-ignore
   const flatListRef = useRef<any>(null);
 
@@ -101,34 +109,60 @@ export default function MenuScreen() {
 
   const fetchMenus = async (isManualRefresh = false) => {
     try {
-      if (isManualRefresh) {
-         setRefreshing(true);
-      } else {
-         // Performance optimization: only show full-screen loader if we have NO items
-         // If we have items in state or cache, show those immediately and update in background
-         if (menus.length === 0) {
-           const cachedData = await AsyncStorage.getItem('@cached_menu');
-           if (cachedData) {
-             setMenus(JSON.parse(cachedData));
-             setLoading(false); // Hide loader immediately if cache available
-           } else {
-             setLoading(true); // No data and no cache, show loader
-           }
-         } else {
-           setLoading(false); // We have data, don't show loader during fetch
-         }
-      }
+      if (!isLoaded) return;
 
-      if (!isLoaded || !isSignedIn) {
+      const staffSession = await AsyncStorage.getItem("staff_session");
+      const isStaffSignedIn = !!staffSession;
+
+      // ✅ REVOLUTIONARY FIX: If NOT logged in, clear state and cache-view immediately!
+      if (!isSignedIn && !isStaffSignedIn) {
         setMenus([]);
         setLoading(false);
         setRefreshing(false);
         return;
       }
 
-      const token = await getToken();
+      if (isManualRefresh) {
+        setRefreshing(true);
+      } else {
+        if (menus.length === 0) {
+          const cachedData = await AsyncStorage.getItem('@cached_menu');
+          if (cachedData) {
+            setMenus(JSON.parse(cachedData));
+            setLoading(false);
+          } else {
+            setLoading(true);
+          }
+        }
+      }
+
+      // 1. Load from cache immediately for a "fast" feel
+      const cachedData = await AsyncStorage.getItem('@cached_menu');
+      if (cachedData) {
+        try {
+          const parsed = JSON.parse(cachedData);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setMenus(parsed);
+            setLoading(false);
+          }
+        } catch (e) {
+          console.error("Cache parse error", e);
+        }
+      }
+
+      const clerkToken = isSignedIn ? await getToken() : null;
+      const staffData = staffSession ? JSON.parse(staffSession) : null;
+      const authToken = clerkToken || staffData?.token;
+
+      if (!authToken) {
+        setMenus([]);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
       const response = await fetch("https://billing.kravy.in/api/menu/view", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
 
       if (!response.ok) {
@@ -188,7 +222,7 @@ export default function MenuScreen() {
 
       // 3. Fetch ALL categories from the database to include empty ones
       const catRes = await fetch("https://billing.kravy.in/api/categories", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       if (catRes.ok) {
         const allCats = await catRes.json();
@@ -213,6 +247,9 @@ export default function MenuScreen() {
       setMenus(sortedMenus);
 
     } catch (err: any) {
+      if (err.message === "Network request failed") {
+        setShowNetworkError(true);
+      }
       const cachedData = await AsyncStorage.getItem('@cached_menu');
       if (cachedData) setMenus(JSON.parse(cachedData));
     } finally {
@@ -268,8 +305,12 @@ export default function MenuScreen() {
       }
 
       setHeldCount(backendValidCount + localValidCount);
-    } catch (e) {
-      console.error("Fetch held count error:", e);
+    } catch (e: any) {
+      if (e.message === "Network request failed") {
+        setShowNetworkError(true);
+      } else {
+        console.log("Fetch held count log:", e.message);
+      }
     }
   };
 
@@ -280,6 +321,9 @@ export default function MenuScreen() {
         fetchHeldCount();
         fetchSettings();
 
+        const staffSession = await AsyncStorage.getItem("staff_session");
+        setIsStaffSignedIn(!!staffSession);
+
         // Check if cart needs to be cleared (after Success in Bill Dashboard)
         try {
           const clearSignal = await AsyncStorage.getItem('@clear_cart_after_bill');
@@ -287,10 +331,19 @@ export default function MenuScreen() {
             setCart({});
             setActiveOrderId(null);
             setSelectedTable(null);
+            setActiveCustomer(null);
             await AsyncStorage.removeItem('@clear_cart_after_bill');
           }
+
+          // ✅ AUTO-LINK ACTIVE CUSTOMER
+          const activeCustStr = await AsyncStorage.getItem('@active_customer');
+          if (activeCustStr) {
+            setActiveCustomer(JSON.parse(activeCustStr));
+          } else {
+            setActiveCustomer(null);
+          }
         } catch (e) {
-          console.log("Error checking clear signal:", e);
+          console.log("Error checking clear/active signals:", e);
         }
       };
       resetFocus();
@@ -328,7 +381,7 @@ export default function MenuScreen() {
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('add_to_cart_remote', (data) => {
       const itemsToAdd = Array.isArray(data) ? data : [data];
-      
+
       if (itemsToAdd.length === 0) return;
 
       // 1. Auto-Scroll to the first item's category
@@ -337,7 +390,7 @@ export default function MenuScreen() {
       if (catIndex !== -1 && flatListRef.current) {
         try {
           flatListRef.current.scrollToIndex({ index: catIndex, animated: true });
-        } catch (e) {}
+        } catch (e) { }
       }
 
       // 2. Add all items to cart
@@ -346,7 +399,7 @@ export default function MenuScreen() {
           addToCart(item);
         }
       });
-      
+
       ToastAndroid.show(`Selected ${itemsToAdd.length} Favorite Items Added!`, ToastAndroid.SHORT);
     });
     return () => sub.remove();
@@ -434,7 +487,7 @@ export default function MenuScreen() {
               items: itemsSnapshot.map(i => ({
                 itemId: i.id || Math.random().toString(16).padEnd(24, '0'),
                 productId: i.id,
-                name: i.name, 
+                name: i.name,
                 qty: Number(i.quantity || 1),
                 quantity: Number(i.quantity || 1),
                 rate: i.editedPrice ?? i.price ?? 0,
@@ -446,10 +499,10 @@ export default function MenuScreen() {
               subtotal: Number((totalValue / 1.05).toFixed(2)),
               tax: Number((totalValue - (totalValue / 1.05)).toFixed(2)),
               total: Number(totalValue.toFixed(2)),
-              paymentMode: "Cash", 
-              paymentStatus: "HELD", 
-              isHeld: true, 
-              customerName: "Walk-in Customer", 
+              paymentMode: "Cash",
+              paymentStatus: "HELD",
+              isHeld: true,
+              customerName: "Walk-in Customer",
               tableName: "POS",
               discountAmount: 0,
               discountCode: null,
@@ -501,17 +554,31 @@ export default function MenuScreen() {
     const token = await getToken();
     const itemsToPrint = itemsOverride || Object.values(cart);
     if (itemsToPrint.length === 0) return;
-    const result = await SimpleBill(itemsToPrint, token!, user?.id!, { paymentMode: paymentMethod, billId: activeOrderId || undefined });
+    const result = await SimpleBill(itemsToPrint, token!, user?.id!, {
+      paymentMode: paymentMethod,
+      billId: activeOrderId || undefined,
+      partyId: activeCustomer?.id || activeCustomer?._id
+    });
     if (result?.status === "success") {
       setCart({}); setActiveOrderId(null); setSelectedTable(null); fetchHeldCount();
+      setActiveCustomer(null);
+      await AsyncStorage.removeItem('@active_customer');
     }
   };
 
   const handleSaveBill = async () => {
     const token = await getToken();
-    const result = await SaveBill(Object.values(cart), token!, user?.id!, { paymentMode: paymentMethod, billId: activeOrderId || undefined });
+    const result = await SaveBill(Object.values(cart), token!, user?.id!, {
+      paymentMode: paymentMethod,
+      billId: activeOrderId || undefined,
+      partyId: activeCustomer?.id || activeCustomer?._id,
+      customerName: activeCustomer?.name,
+      customerPhone: activeCustomer?.phone
+    });
     if (result?.status === "saved") {
       setCart({}); setActiveOrderId(null); setSelectedTable(null); fetchHeldCount();
+      setActiveCustomer(null);
+      await AsyncStorage.removeItem('@active_customer');
     }
   };
 
@@ -527,8 +594,23 @@ export default function MenuScreen() {
         onAddItem={() => router.push("/party/items")}
         onPauseOrder={() => Object.keys(cart).length === 0 ? ToastAndroid.show(t('no_items'), ToastAndroid.SHORT) : setIsHoldModalVisible(true)}
         onViewHeldOrders={() => router.push("/party/hold")}
-        onVoicePress={() => setIsVoiceModalVisible(true)}
+        onVoicePress={() => {
+          if (!isSignedIn && !isStaffSignedIn) {
+            setIsLoginModalVisible(true);
+          } else {
+            setIsVoiceModalVisible(true);
+          }
+        }}
         heldCount={heldCount}
+      />
+
+      <LoginRequiredModal
+        visible={isLoginModalVisible}
+        onClose={() => setIsLoginModalVisible(false)}
+        onSignIn={() => {
+          setIsLoginModalVisible(false);
+          router.push("/(auth)/sign-in");
+        }}
       />
 
       <View style={styles.row}>
@@ -542,7 +624,22 @@ export default function MenuScreen() {
           ref={flatListRef}
           data={filteredMenus}
           keyExtractor={(cat) => cat.id}
-          contentContainerStyle={{ paddingBottom: 450 }}
+          contentContainerStyle={{ paddingBottom: 450, flexGrow: 1 }}
+          ListEmptyComponent={
+            (!isSignedIn && !isStaffSignedIn) ? (
+              <View style={styles.loginPlaceholder}>
+                <Ionicons name="lock-closed-outline" size={rf(60)} color="#94A3B8" />
+                <Text style={styles.loginTitle}>Menu Locked</Text>
+                <Text style={styles.loginSubtitle}>Please login as Owner or Staff to view and manage menu items.</Text>
+                <TouchableOpacity
+                  style={styles.loginBtn}
+                  onPress={() => router.push("/(auth)/sign-in")}
+                >
+                  <Text style={styles.loginBtnText}>Go to Login</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null
+          }
           onScrollToIndexFailed={(info) => {
             const estimatedOffset = info.averageItemLength * info.index;
             flatListRef.current?.scrollToOffset({ offset: estimatedOffset, animated: false });
@@ -563,13 +660,15 @@ export default function MenuScreen() {
                   />
                 ))}
                 {!searchQuery && (
-                  <QuickAddItemCard
-                    itemWidth={itemWidth}
-                    onPress={() => {
-                      setQuickAddCategoryId(cat.id);
-                      setIsQuickAddModalVisible(true);
-                    }}
-                  />
+                  <PermissionGuard requiredPermission="Menu & Items Permissions - Add Menu Items">
+                    <QuickAddItemCard
+                      itemWidth={itemWidth}
+                      onPress={() => {
+                        setQuickAddCategoryId(cat.id);
+                        setIsQuickAddModalVisible(true);
+                      }}
+                    />
+                  </PermissionGuard>
                 )}
               </View>
             </View>
@@ -639,18 +738,23 @@ export default function MenuScreen() {
         onSuccess={() => fetchMenus(true)}
       />
 
-      <VoiceOrder 
-        visible={isVoiceModalVisible} 
-        onClose={() => setIsVoiceModalVisible(false)} 
-        menus={menus} 
+      <VoiceOrder
+        visible={isVoiceModalVisible}
+        onClose={() => setIsVoiceModalVisible(false)}
+        menus={menus}
         onItemMatched={(item, qty) => {
-          for(let i=0; i < qty; i++) {
+          for (let i = 0; i < qty; i++) {
             addToCart(item);
           }
-        }} 
+        }}
         onSaveRequested={confirmPauseOrder}
         onKOTRequested={handlePrintKot}
         onBillRequested={handlePrintBill}
+      />
+
+      <NetworkErrorModal
+        visible={showNetworkError}
+        onClose={() => setShowNetworkError(false)}
       />
     </View>
   );
@@ -662,4 +766,41 @@ const styles = StyleSheet.create({
   row: { flex: 1, flexDirection: "row" },
   categoryHeader: { fontSize: rf(11), fontWeight: "bold", backgroundColor: "#E0E7FF", padding: s(3), marginTop: vs(10), borderRadius: s(6), textAlign: "center", color: THEME_PRIMARY, marginHorizontal: s(10) },
   gridContainer: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: s(4), marginTop: vs(5) },
+  loginPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: s(40),
+    marginTop: vs(50),
+  },
+  loginTitle: {
+    fontSize: rf(24),
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: vs(20),
+  },
+  loginSubtitle: {
+    fontSize: rf(14),
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: vs(10),
+    lineHeight: vs(20),
+    paddingHorizontal: s(20),
+  },
+  loginBtn: {
+    backgroundColor: THEME_PRIMARY,
+    paddingVertical: vs(14),
+    paddingHorizontal: s(35),
+    borderRadius: s(16),
+    marginTop: vs(25),
+    shadowColor: THEME_PRIMARY,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  loginBtnText: {
+    color: '#fff',
+    fontSize: rf(16),
+    fontWeight: 'bold',
+  },
 });

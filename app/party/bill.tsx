@@ -20,6 +20,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { PermissionGuard } from "../../components/PermissionGuard";
 import { useLanguage } from "../../context/LanguageContext";
 import { getRecentCompanyProfile } from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
@@ -100,6 +101,25 @@ export default function BillPage() {
       }
     };
     checkStaffSetting();
+
+    // ✅ AUTO-SELECT ACTIVE CUSTOMER (linked from Clients tab)
+    const checkActiveCustomer = async () => {
+      try {
+        const activeCustStr = await AsyncStorage.getItem('@active_customer');
+        if (activeCustStr) {
+          const activeCust = JSON.parse(activeCustStr);
+          setSelectedParty(activeCust);
+          setCustomerName(activeCust.name);
+          setPhone(activeCust.phone);
+          setBillingAddress(activeCust.address || "");
+          // Clean up so it doesn't auto-select on next unrelated bill
+          await AsyncStorage.removeItem('@active_customer');
+        }
+      } catch (err) {
+        console.log("Error reading active customer:", err);
+      }
+    };
+    checkActiveCustomer();
   }, [getToken]);
 
   useFocusEffect(
@@ -196,13 +216,13 @@ export default function BillPage() {
 
       let itemGstRate = 0;
       if (isTaxEnabled) {
-          itemGstRate = globalTaxRate;
+        itemGstRate = globalTaxRate;
       } else if (perProductTaxEnabled) {
-          itemGstRate = (item.gst !== null && item.gst !== undefined) ? Number(item.gst) : 0;
+        itemGstRate = (item.gst !== null && item.gst !== undefined) ? Number(item.gst) : 0;
       } else {
-          itemGstRate = 0;
+        itemGstRate = 0;
       }
-      
+
       ratesInCart.add(itemGstRate);
 
       let taxable = 0;
@@ -229,7 +249,7 @@ export default function BillPage() {
 
     // 2. Service Charge on Discounted Value
     const serviceChargeAmount = isServiceChargeEnabled ? (taxableAfterDiscount * (serviceChargeRate / 100)) : 0;
-    
+
     // 3. Taxable Amount Display Row (Base + SC)
     const netTaxableValue = taxableAfterDiscount + serviceChargeAmount;
 
@@ -243,18 +263,18 @@ export default function BillPage() {
     // Determine the GST label
     let gstLabel = "(0%)";
     if (isTaxEnabled) {
-        gstLabel = `(${globalTaxRate}%)`;
+      gstLabel = `(${globalTaxRate}%)`;
     } else if (perProductTaxEnabled) {
-        const uniqueRates = Array.from(ratesInCart);
-        if (uniqueRates.length === 1) {
-            gstLabel = `(${uniqueRates[0]}%)`;
-        } else if (uniqueRates.length > 1) {
-            gstLabel = "(Multi)";
-        }
+      const uniqueRates = Array.from(ratesInCart);
+      if (uniqueRates.length === 1) {
+        gstLabel = `(${uniqueRates[0]}%)`;
+      } else if (uniqueRates.length > 1) {
+        gstLabel = "(Multi)";
+      }
     }
 
     setCalc({
-      subtotalExcl: totalTaxable, 
+      subtotalExcl: totalTaxable,
       gstAmount: Math.floor(finalGstAmount * 100) / 100, // Truncate to achieve 12.09 instead of 12.10
       discountAmount: Number(discountAmount.toFixed(2)),
       serviceChargeAmount: Number(serviceChargeAmount.toFixed(2)),
@@ -337,6 +357,7 @@ export default function BillPage() {
         billId: params.heldOrderId as string, // Pass the held ID to convert it to a real bill
         silent: true,
         staffName: selectedStaff?.name,
+        partyId: (selectedParty as any)?.id || (selectedParty as any)?._id,
       });
 
       if (result?.status === "success" || result?.status === "saved") {
@@ -447,18 +468,18 @@ export default function BillPage() {
           {cart.map((item) => (
             <View key={item.id} style={{ marginRight: s(16), width: s(130) }}>
               {/* Item Card with Image */}
-              <View style={{ 
-                width: s(130), 
-                height: s(130), 
-                borderRadius: s(16), 
-                backgroundColor: '#f3f4f6', 
-                overflow: 'hidden', 
-                position: 'relative' 
+              <View style={{
+                width: s(130),
+                height: s(130),
+                borderRadius: s(16),
+                backgroundColor: '#f3f4f6',
+                overflow: 'hidden',
+                position: 'relative'
               }}>
                 {item.imageUrl ? (
-                  <Image 
-                    source={{ uri: item.imageUrl }} 
-                    style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+                  <Image
+                    source={{ uri: item.imageUrl }}
+                    style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
                   />
                 ) : (
                   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -467,29 +488,29 @@ export default function BillPage() {
                 )}
 
                 {/* Top Right Price Badge */}
-                <View style={{ 
-                  position: 'absolute', 
-                  top: s(8), 
-                  right: s(8), 
-                  backgroundColor: 'rgba(0,0,0,0.4)', 
-                  paddingHorizontal: s(8), 
-                  paddingVertical: s(4), 
-                  borderRadius: s(6) 
+                <View style={{
+                  position: 'absolute',
+                  top: s(8),
+                  right: s(8),
+                  backgroundColor: 'rgba(0,0,0,0.4)',
+                  paddingHorizontal: s(8),
+                  paddingVertical: s(4),
+                  borderRadius: s(6)
                 }}>
                   <Text style={{ color: '#fff', fontSize: rf(13), fontWeight: 'bold' }}>₹{item.price}</Text>
                 </View>
 
                 {/* Floating Quantity Bar (Blue) */}
-                <View style={{ 
-                  position: 'absolute', 
-                  bottom: s(10), 
-                  left: s(10), 
-                  right: s(10), 
+                <View style={{
+                  position: 'absolute',
+                  bottom: s(10),
+                  left: s(10),
+                  right: s(10),
                   backgroundColor: '#2563eb', // Standard business blue
-                  height: vs(34), 
-                  borderRadius: s(10), 
-                  flexDirection: 'row', 
-                  alignItems: 'center', 
+                  height: vs(34),
+                  borderRadius: s(10),
+                  flexDirection: 'row',
+                  alignItems: 'center',
                   justifyContent: 'space-around',
                   shadowColor: '#000',
                   shadowOpacity: 0.2,
@@ -507,12 +528,12 @@ export default function BillPage() {
               </View>
 
               {/* Name below Card */}
-              <Text style={{ 
-                marginTop: vs(8), 
-                fontSize: rf(16), 
-                fontWeight: '500', 
-                color: '#111827', 
-                paddingLeft: s(2) 
+              <Text style={{
+                marginTop: vs(8),
+                fontSize: rf(16),
+                fontWeight: '500',
+                color: '#111827',
+                paddingLeft: s(2)
               }} numberOfLines={1}>
                 {item.name}
               </Text>
@@ -580,20 +601,6 @@ export default function BillPage() {
             keyboardType="phone-pad"
             style={styles.input}
           />
-          {/* <TextInput
-            value={billingAddress}
-            onChangeText={setBillingAddress}
-            placeholder="Billing Address"
-            multiline
-            numberOfLines={3}
-            style={[styles.input, { height: 80 }]}
-          /> */}
-          {/* <TouchableOpacity
-            onPress={() => setShowPicker(true)}
-            style={[styles.input, { justifyContent: "center" }]}
-          >
-            <Text>{dob ? dob.toDateString() : "Select DOB"}</Text>
-          </TouchableOpacity> */}
           {showPicker && (
             <DateTimePicker
               value={dob || new Date()}
@@ -605,6 +612,12 @@ export default function BillPage() {
               }}
             />
           )}
+
+          <PermissionGuard requiredPermission="Customer Permissions - Add New Customer">
+            <TouchableOpacity onPress={handleAddCustomer} style={[styles.printBtn, { backgroundColor: '#4F46E5', marginTop: 10 }]}>
+              <Text style={styles.printBtnText}>➕ ADD AS NEW CUSTOMER</Text>
+            </TouchableOpacity>
+          </PermissionGuard>
         </View>
       </View>
 
@@ -684,9 +697,11 @@ export default function BillPage() {
               </TouchableOpacity>
             </View>
             <Text style={styles.itemTotal}>₹{(item.price || 0) * item.quantity}</Text>
-            <TouchableOpacity onPress={() => deleteItem(item.id)} style={{ marginLeft: s(12) }}>
-              <Ionicons name="trash" size={rf(18)} color="#ef4444" />
-            </TouchableOpacity>
+            <PermissionGuard requiredPermission="Order & Billing Permissions - Delete Items from Cart">
+              <TouchableOpacity onPress={() => deleteItem(item.id)} style={{ marginLeft: s(12) }}>
+                <Ionicons name="trash" size={rf(18)} color="#ef4444" />
+              </TouchableOpacity>
+            </PermissionGuard>
           </View>
         ))}
         {/* Combined Summary & Footer Section */}
@@ -697,17 +712,21 @@ export default function BillPage() {
           </View>
 
           {calc.isDiscountEnabled && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryText}>{t('discount') || 'Discount'} ({calc.discountRate}%)</Text>
-              <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₹{calc.discountAmount.toFixed(2)}</Text>
-            </View>
+            <PermissionGuard requiredPermission="Order & Billing Permissions - Apply Discount">
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryText}>{t('discount') || 'Discount'} ({calc.discountRate}%)</Text>
+                <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₹{calc.discountAmount.toFixed(2)}</Text>
+              </View>
+            </PermissionGuard>
           )}
 
           {calc.isServiceChargeEnabled && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryText}>{t('service_charge') || 'S. Charge'} ({calc.serviceChargeRate}%)</Text>
-              <Text style={styles.summaryValue}>₹{calc.serviceChargeAmount.toFixed(2)}</Text>
-            </View>
+            <PermissionGuard requiredPermission="Order & Billing Permissions - Apply Service Charge">
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryText}>{t('service_charge') || 'S. Charge'} ({calc.serviceChargeRate}%)</Text>
+                <Text style={styles.summaryValue}>₹{calc.serviceChargeAmount.toFixed(2)}</Text>
+              </View>
+            </PermissionGuard>
           )}
 
           <View style={styles.summaryRow}>
@@ -716,10 +735,12 @@ export default function BillPage() {
           </View>
 
           {(calc.isTaxEnabled || calc.perProductTaxEnabled) && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryText}>GST {calc.gstLabel}</Text>
-              <Text style={styles.summaryValue}>₹{calc.gstAmount.toFixed(2)}</Text>
-            </View>
+            <PermissionGuard requiredPermission="Order & Billing Permissions - Apply GST/Tax">
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryText}>GST {calc.gstLabel}</Text>
+                <Text style={styles.summaryValue}>₹{calc.gstAmount.toFixed(2)}</Text>
+              </View>
+            </PermissionGuard>
           )}
 
           <View style={[styles.summaryRow, { marginTop: vs(10), borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: vs(15) }]}>
@@ -728,14 +749,18 @@ export default function BillPage() {
           </View>
 
           {cart.length > 0 && (
-            <TouchableOpacity onPress={handlePrintAndSave} style={styles.printBtn}>
-              <Text style={styles.printBtnText}>🧾 {t('print_save_bill') || 'PRINT & SAVE BILL'}</Text>
-            </TouchableOpacity>
+            <PermissionGuard requiredPermission="Order & Billing Permissions - Create New Bill">
+              <TouchableOpacity onPress={handlePrintAndSave} style={styles.printBtn}>
+                <Text style={styles.printBtnText}>🧾 {t('print_save_bill') || 'PRINT & SAVE BILL'}</Text>
+              </TouchableOpacity>
+            </PermissionGuard>
           )}
 
-          <TouchableOpacity onPress={clearCart}>
-            <Text style={styles.clearCart}>🗑️ {t('clear_cart') || 'Clear Cart'}</Text>
-          </TouchableOpacity>
+          <PermissionGuard requiredPermission="Order & Billing Permissions - Clear Cart">
+            <TouchableOpacity onPress={clearCart}>
+              <Text style={styles.clearCart}>🗑️ {t('clear_cart') || 'Clear Cart'}</Text>
+            </TouchableOpacity>
+          </PermissionGuard>
         </View>
       </View>
 

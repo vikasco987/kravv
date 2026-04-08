@@ -1,7 +1,9 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useRouter, useFocusEffect } from "expo-router";
-import React, { useEffect, useState, useCallback } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+// @ts-ignore
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useCallback, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
@@ -20,8 +22,9 @@ import {
 
 import { AddItemCategory } from "../../components/menu/AddItemCategory";
 import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
-import { rf, s, vs } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
+import { rf, s, vs } from "../../utils/responsive";
+import { PermissionGuard } from "../../components/PermissionGuard";
 
 const THEME_PRIMARY = "#4F46E5"; // Indigo
 const COLOR_BG = "#F9FAFB";
@@ -38,6 +41,9 @@ export default function ItemsPage() {
     const [isAddCatModalVisible, setIsAddCatModalVisible] = useState(false);
     const [allCategoriesList, setAllCategoriesList] = useState<{ id: string, name: string }[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [uploadedImageUrl, setUploadedImageUrl] = useState("");
+    const [isCustomGst, setIsCustomGst] = useState(false); // New: Tracking custom GST mode
     const [showSuccess, setShowSuccess] = useState(false);
     const [showCategorySuccess, setShowCategorySuccess] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -54,7 +60,13 @@ export default function ItemsPage() {
         category: "",
         categoryId: "", // Track DB ID
         imageUrl: "",
+        taxType: "Without Tax" as "Without Tax" | "With Tax",
+        gst: null as number | null,
+        hsnCode: "",
     });
+
+    const taxTypeOptions: ("Without Tax" | "With Tax")[] = ["Without Tax", "With Tax"];
+    const gstOptions = [5, 12, 18, 28];
 
 
     const fetchCategories = useCallback(async () => {
@@ -150,7 +162,7 @@ export default function ItemsPage() {
         try {
             const token = await getToken();
             const response = await fetch("https://billing.kravy.in/api/categories", {
-                headers: { 
+                headers: {
                     Authorization: `Bearer ${token}`,
                     "Cache-Control": "no-cache"
                 },
@@ -230,7 +242,21 @@ export default function ItemsPage() {
             });
 
             if (!result.canceled && result.assets && result.assets[0]) {
-                setNewItem(prev => ({ ...prev, imageUrl: result.assets[0].uri }));
+                const localUri = result.assets[0].uri;
+                setNewItem(prev => ({ ...prev, imageUrl: localUri }));
+                
+                // 🔥 Eager Upload to Cloudinary immediately
+                setIsUploadingImage(true);
+                (async () => {
+                    try {
+                        const cloudinaryUrl = await uploadImageToCloudinary(localUri);
+                        setUploadedImageUrl(cloudinaryUrl);
+                    } catch (err) {
+                        console.error("Eager Upload Error:", err);
+                    } finally {
+                        setIsUploadingImage(false);
+                    }
+                })();
             }
         } catch (error) {
             console.error("ImagePicker Error:", error);
@@ -307,60 +333,143 @@ export default function ItemsPage() {
             return;
         }
 
-        // Optimistic UI for Item
-        setShowSuccess(true);
-        const itemCopy = { ...newItem };
-        setNewItem({ name: "", price: "", category: "", categoryId: "", imageUrl: "" });
-        setTimeout(() => setShowSuccess(false), 2000);
-
         try {
             setIsSaving(true);
-            let finalImageUrl = itemCopy.imageUrl || "";
 
-            // 1. Upload to Cloudinary if image exists and is local
-            if (itemCopy.imageUrl && (itemCopy.imageUrl.startsWith("file://") || itemCopy.imageUrl.startsWith("content://"))) {
-                try {
-                    finalImageUrl = await uploadImageToCloudinary(itemCopy.imageUrl);
-                } catch (uploadError: any) {
-                    console.error("Cloudinary Upload Error:", uploadError);
-                }
-            }
-
-            // 2. Save Item details to MongoDB (Backend API)
+            // 1. Resolve Category ID (Background/Fast)
             const token = await getToken();
-            let finalCategoryId = itemCopy.categoryId;
+            let finalCategoryId = newItem.categoryId;
 
-            // If it is a new category (starts with 'temp-' or 'new-'), try to resolve it
-            // This is background sync
-            if (finalCategoryId.startsWith("temp-") || finalCategoryId.startsWith("new-")) {
+            // If it is a new/temp category, resolve it
+            if (!finalCategoryId || finalCategoryId.startsWith("temp-") || finalCategoryId.startsWith("new-") || finalCategoryId === "others") {
+                const catName = newItem.category || "General";
                 const createCatRes = await fetch("https://billing.kravy.in/api/categories", {
                     method: "POST",
                     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                    body: JSON.stringify({ name: itemCopy.category }),
+                    body: JSON.stringify({ name: catName }),
                 });
-                const catData = await createCatRes.json().catch(() => ({}));
-                finalCategoryId = catData.id || catData._id || finalCategoryId;
+                
+                if (createCatRes.ok) {
+                    const catData = await createCatRes.json().catch(() => ({}));
+                    finalCategoryId = catData.id || catData._id || finalCategoryId;
+                }
             }
 
-            const payload: any = {
-                name: itemCopy.name,
-                price: parseFloat(itemCopy.price),
-                sellingPrice: parseFloat(itemCopy.price),
-                imageUrl: finalImageUrl,
+            // Validation: Final check for ObjectId
+            if (!/^[0-9a-fA-F]{24}$/.test(finalCategoryId)) {
+                setIsSaving(false);
+                setErrorModalTitle("Invalid Category");
+                setErrorModalDetail("Category could not be resolved. Please try again.");
+                setShowError(true);
+                return;
+            }
+
+            // 2. Resolve Image URL (Wait for eager upload if still running)
+            let finalImageUrl = uploadedImageUrl;
+            if (isUploadingImage) {
+                // If still uploading, wait a bit or re-upload as fallback
+                let retryCount = 0;
+                while (isUploadingImage && retryCount < 10) {
+                    await new Promise(r => setTimeout(r, 500));
+                    retryCount++;
+                    finalImageUrl = uploadedImageUrl;
+                    if (finalImageUrl) break;
+                }
+            }
+            
+            // Final fallback if eager upload failed
+            if (!finalImageUrl && newItem.imageUrl && (newItem.imageUrl.startsWith("file://") || newItem.imageUrl.startsWith("content://"))) {
+                try {
+                    finalImageUrl = await uploadImageToCloudinary(newItem.imageUrl);
+                } catch (e) {
+                    console.error("Fallback upload failed", e);
+                }
+            }
+
+            const itemPrice = parseFloat(newItem.price);
+            const payload = {
+                name: newItem.name.trim(),
+                price: itemPrice,
+                sellingPrice: itemPrice,
+                selling_price: itemPrice, 
                 categoryId: finalCategoryId,
+                imageUrl: finalImageUrl || null,
+                taxType: newItem.taxType || "Without Tax",
+                gst: Number(newItem.gst) || 0,
+                hsnCode: newItem.hsnCode || "",
             };
 
             const response = await fetch("https://billing.kravy.in/api/items", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                headers: { 
+                    "Content-Type": "application/json", 
+                    Authorization: `Bearer ${token}` 
+                },
                 body: JSON.stringify(payload),
             });
 
             if (response.ok) {
-                console.log("Item saved in background successfully");
+                const savedItem = await response.json().catch(() => ({}));
+                
+                // 🚀 Instant Cache Update: Update the @cached_menu in AsyncStorage
+                (async () => {
+                    try {
+                        const cachedData = await AsyncStorage.getItem('@cached_menu');
+                        if (cachedData) {
+                            let menus = JSON.parse(cachedData);
+                            // Find or create category
+                            let categoryIndex = menus.findIndex((c: any) => c.id === finalCategoryId || c.name === newItem.category);
+                            
+                            const newMenuItem = {
+                                id: String(savedItem.id || savedItem._id || Math.random()),
+                                name: newItem.name.trim(),
+                                price: itemPrice,
+                                imageUrl: finalImageUrl || null,
+                                taxType: newItem.taxType || "Without Tax",
+                                gst: Number(newItem.gst) || 0,
+                                hsnCode: newItem.hsnCode || "",
+                            };
+
+                            if (categoryIndex > -1) {
+                                menus[categoryIndex].items = [...menus[categoryIndex].items, newMenuItem];
+                            } else {
+                                menus.push({
+                                    id: finalCategoryId,
+                                    name: newItem.category || "General",
+                                    items: [newMenuItem]
+                                });
+                            }
+                            await AsyncStorage.setItem('@cached_menu', JSON.stringify(menus));
+                        }
+                    } catch (e) {
+                        console.error("BG Cache Update Error:", e);
+                    }
+                })();
+
+                setShowSuccess(true);
+                setNewItem({ 
+                    name: "", 
+                    price: "", 
+                    category: "", 
+                    categoryId: "", 
+                    imageUrl: "",
+                    taxType: "Without Tax",
+                    gst: null,
+                    hsnCode: ""
+                });
+                setUploadedImageUrl("");
+                setTimeout(() => setShowSuccess(false), 2000);
+            } else {
+                const resText = await response.text();
+                setErrorModalTitle("Save Failed");
+                setErrorModalDetail(`Server returned error ${response.status}`);
+                setShowError(true);
             }
         } catch (error: any) {
-            console.error("Background Item Save Error:", error);
+            console.error("Save error:", error);
+            setErrorModalTitle("Error");
+            setErrorModalDetail("Failed to save item. Please try again.");
+            setShowError(true);
         } finally {
             setIsSaving(false);
         }
@@ -389,9 +498,11 @@ export default function ItemsPage() {
 
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>{t('item_image') || 'Item Image'}</Text>
-                        <TouchableOpacity style={styles.uploadIconButton} onPress={pickImage}>
-                            <Ionicons name="camera" size={rf(28)} color={THEME_PRIMARY} />
-                        </TouchableOpacity>
+                        <PermissionGuard requiredPermission="Menu & Items Permissions - Add Menu Items">
+                            <TouchableOpacity style={styles.uploadIconButton} onPress={pickImage}>
+                                <Ionicons name="camera" size={rf(28)} color={THEME_PRIMARY} />
+                            </TouchableOpacity>
+                        </PermissionGuard>
                     </View>
 
                     <View style={styles.inputGroup}>
@@ -404,7 +515,6 @@ export default function ItemsPage() {
                             onChangeText={(text) => setNewItem({ ...newItem, name: text })}
                         />
                     </View>
-
                     <View style={styles.inputRow}>
                         <View style={[styles.inputGroup, { flex: 1, marginRight: s(8) }]}>
                             <Text style={styles.label}>{t('price')}</Text>
@@ -420,17 +530,19 @@ export default function ItemsPage() {
                         <View style={[styles.inputGroup, { flex: 1, marginLeft: s(8) }]}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(8) }}>
                                 <Text style={[styles.label, { marginBottom: 0 }]}>{t('category') || 'Category'}</Text>
-                                <TouchableOpacity onPress={() => {
-                                    if (!isSignedIn) {
-                                        setLoginModalVisible(true);
-                                    } else {
-                                        setIsAddCatModalVisible(true);
-                                    }
-                                }}>
-                                    <View style={styles.addCategoryBtnSmall}>
-                                        <Ionicons name="add" size={rf(16)} color={THEME_PRIMARY} />
-                                    </View>
-                                </TouchableOpacity>
+                                <PermissionGuard requiredPermission="Menu & Items Permissions - Add Menu Items">
+                                    <TouchableOpacity onPress={() => {
+                                        if (!isSignedIn) {
+                                            setLoginModalVisible(true);
+                                        } else {
+                                            setIsAddCatModalVisible(true);
+                                        }
+                                    }}>
+                                        <View style={styles.addCategoryBtnSmall}>
+                                            <Ionicons name="add" size={rf(16)} color={THEME_PRIMARY} />
+                                        </View>
+                                    </TouchableOpacity>
+                                </PermissionGuard>
                             </View>
                             <TouchableOpacity
                                 style={styles.dropdownButton}
@@ -453,6 +565,92 @@ export default function ItemsPage() {
                         </View>
                     </View>
 
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>HSN Code</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Enter HSN Code (Optional)"
+                            placeholderTextColor="#9CA3AF"
+                            value={newItem.hsnCode}
+                            onChangeText={(text) => setNewItem({ ...newItem, hsnCode: text })}
+                        />
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Tax Type</Text>
+                        <View style={styles.taxSection}>
+                            {taxTypeOptions.map((type) => (
+                                <TouchableOpacity
+                                    key={type}
+                                    style={[
+                                        styles.taxBtn,
+                                        newItem.taxType === type && styles.taxBtnActive
+                                    ]}
+                                    onPress={() => setNewItem({ ...newItem, taxType: type })}
+                                >
+                                    <Text style={[
+                                        styles.taxBtnText,
+                                        newItem.taxType === type && styles.taxBtnTextActive
+                                    ]}>{type}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>GST Percentage</Text>
+                        <View style={styles.gstSection}>
+                            {gstOptions.map((opt) => (
+                                <TouchableOpacity
+                                    key={opt}
+                                    style={[
+                                        styles.gstBtn,
+                                        newItem.gst === opt && !isCustomGst && styles.gstBtnActive
+                                    ]}
+                                    onPress={() => {
+                                        setNewItem({ ...newItem, gst: opt });
+                                        setIsCustomGst(false);
+                                    }}
+                                >
+                                    <Text style={[
+                                        styles.gstBtnText,
+                                        newItem.gst === opt && !isCustomGst && styles.gstBtnTextActive
+                                    ]}>{opt}%</Text>
+                                </TouchableOpacity>
+                            ))}
+                            {/* Others Button */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.gstBtn,
+                                    isCustomGst && styles.gstBtnActive
+                                ]}
+                                onPress={() => setIsCustomGst(true)}
+                            >
+                                <Text style={[
+                                    styles.gstBtnText,
+                                    isCustomGst && styles.gstBtnTextActive
+                                ]}>{t('others') || 'Others'}</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {isCustomGst && (
+                            <View style={styles.customGstWrapper}>
+                                <TextInput
+                                    style={styles.customGstInputBox}
+                                    placeholder="Enter GST %"
+                                    placeholderTextColor="#9CA3AF"
+                                    keyboardType="numeric"
+                                    value={newItem.gst?.toString() || ""}
+                                    onChangeText={(val) => setNewItem({ ...newItem, gst: parseFloat(val) || 0 })}
+                                    autoFocus
+                                />
+                                <View style={styles.percentDecorator}>
+                                    <Text style={styles.percentText}>%</Text>
+                                </View>
+                            </View>
+                        )}
+                    </View>
+
                     {/* Add Category Modal (Intergrated with AddItemCategory) */}
                     <Modal
                         animationType="slide"
@@ -465,6 +663,19 @@ export default function ItemsPage() {
                             onOptimisticAdd={(newCat) => {
                                 setAllCategoriesList(prev => [...prev, newCat]);
                                 setNewItem(prev => ({ ...prev, category: newCat.name, categoryId: newCat.id }));
+                            }}
+                            onSuccess={(realCat) => {
+                                // Important: Update state with the REAL database ID once saved on server
+                                // but ONLY if it's currently the selected category
+                                setAllCategoriesList(prev => prev.map(c => 
+                                    c.name === realCat.name ? realCat : c
+                                ));
+                                setNewItem(prev => {
+                                    if (prev.category === realCat.name) {
+                                        return { ...prev, categoryId: realCat.id };
+                                    }
+                                    return prev;
+                                });
                             }}
                             onRefresh={async () => {
                                 await fetchCategories();
@@ -553,21 +764,28 @@ export default function ItemsPage() {
                         </View>
                     )}
 
-                    <TouchableOpacity
-                        style={[
-                            styles.saveBtn,
-                            (isSaving || showSuccess) && { backgroundColor: "#10B981" },
-                            isSaving && { opacity: 0.7 }
-                        ]}
-                        onPress={handleSaveItem}
-                        disabled={isSaving}
-                    >
-                        {isSaving ? (
-                            <ActivityIndicator color="#fff" />
-                        ) : (
-                            <Text style={styles.saveBtnText}>{t('save_item')}</Text>
-                        )}
-                    </TouchableOpacity>
+                    <PermissionGuard requiredPermission="Menu & Items Permissions - Add Menu Items">
+                        <TouchableOpacity
+                            style={[
+                                styles.saveBtn,
+                                (isSaving || showSuccess) && { backgroundColor: "#10B981" },
+                                isSaving && { opacity: 0.7 }
+                            ]}
+                            onPress={handleSaveItem}
+                            disabled={isSaving}
+                        >
+                            {isSaving ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : isUploadingImage ? (
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <ActivityIndicator color="#fff" size="small" />
+                                    <Text style={[styles.saveBtnText, { marginLeft: s(8) }]}>Uploading Image...</Text>
+                                </View>
+                            ) : (
+                                <Text style={styles.saveBtnText}>{t('save_item')}</Text>
+                            )}
+                        </TouchableOpacity>
+                    </PermissionGuard>
 
                     <TouchableOpacity
                         style={styles.clearBtn}
@@ -604,7 +822,16 @@ export default function ItemsPage() {
                                     style={{ flex: 1, padding: s(14), backgroundColor: '#EF4444', borderRadius: s(12), marginLeft: s(8), alignItems: 'center' }}
                                     onPress={() => {
                                         setShowClearConfirm(false);
-                                        setNewItem({ name: "", price: "", category: "", categoryId: "", imageUrl: "" });
+                                        setNewItem({ 
+                                            name: "", 
+                                            price: "", 
+                                            category: "", 
+                                            categoryId: "", 
+                                            imageUrl: "",
+                                            taxType: "Without Tax",
+                                            gst: null,
+                                            hsnCode: ""
+                                        });
                                         setShowClearSuccess(true);
                                         setTimeout(() => setShowClearSuccess(false), 2000);
                                     }}
@@ -1021,5 +1248,86 @@ const styles = StyleSheet.create({
         fontSize: rf(16),
         color: '#6B7280',
         textAlign: 'center',
+    },
+    taxSection: {
+        flexDirection: 'row',
+        gap: s(10),
+    },
+    taxBtn: {
+        flex: 1,
+        padding: s(12),
+        borderRadius: s(10),
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+    },
+    taxBtnActive: {
+        borderColor: THEME_PRIMARY,
+        backgroundColor: '#EEF2FF',
+    },
+    taxBtnText: {
+        fontSize: rf(14),
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    taxBtnTextActive: {
+        color: THEME_PRIMARY,
+        fontWeight: '600',
+    },
+    gstSection: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: s(8),
+    },
+    gstBtn: {
+        paddingHorizontal: s(12),
+        paddingVertical: s(8),
+        borderRadius: s(8),
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        backgroundColor: '#fff',
+    },
+    gstBtnActive: {
+        borderColor: THEME_PRIMARY,
+        backgroundColor: '#EEF2FF',
+    },
+    gstBtnText: {
+        fontSize: rf(12),
+        color: '#6B7280',
+    },
+    gstBtnTextActive: {
+        color: THEME_PRIMARY,
+        fontWeight: '600',
+    },
+    customGstWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: vs(12),
+        backgroundColor: '#F9FAFB', // Match placeholder bg
+        borderRadius: s(12),
+        borderWidth: 1,
+        borderColor: THEME_PRIMARY,
+        borderStyle: 'dashed', // 🔥 Added dashed style as requested
+        paddingHorizontal: s(12),
+        width: s(150),
+        alignSelf: 'center', // Center it to make it look like a "column"
+        height: vs(45),
+    },
+    customGstInputBox: {
+        flex: 1,
+        height: '100%',
+        fontSize: rf(15),
+        color: '#1E293B',
+        textAlign: 'center',
+        fontWeight: '600',
+    },
+    percentDecorator: {
+        marginLeft: s(4),
+    },
+    percentText: {
+        color: THEME_PRIMARY,
+        fontWeight: 'bold',
+        fontSize: rf(16),
     },
 });

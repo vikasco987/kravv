@@ -27,6 +27,8 @@ interface CartBarProps {
     selectedTable: string | null;
 }
 
+import { PermissionGuard } from '../PermissionGuard';
+
 export const CartBar: React.FC<CartBarProps> = ({
     totalItems,
     totalAmount,
@@ -81,34 +83,42 @@ export const CartBar: React.FC<CartBarProps> = ({
             <View style={styles.actionButtonsRow}>
                 {/* KOT */}
                 {kotEnabled && (
-                    <TouchableOpacity style={styles.printKotButton} onPress={onPrintKot}>
-                        <Feather name="file-text" size={16} color="#fff" />
-                        <Text style={styles.printBillText}>KOT</Text>
-                    </TouchableOpacity>
+                    <PermissionGuard requiredPermission="Order & Billing Permissions - Create New Bill">
+                        <TouchableOpacity style={styles.printKotButton} onPress={onPrintKot}>
+                            <Feather name="file-text" size={16} color="#fff" />
+                            <Text style={styles.printBillText}>KOT</Text>
+                        </TouchableOpacity>
+                    </PermissionGuard>
                 )}
 
                 {/* TABLE BOOKING */}
                 {tableBookingEnabled && (
-                    <TouchableOpacity 
-                        style={[styles.printKotButton, { backgroundColor: "#8B5CF6" }]} 
-                        onPress={onSelectTable}
-                    >
-                        <Ionicons name="grid-outline" size={16} color="#fff" />
-                        <Text style={styles.printBillText}>{selectedTable ? `T-${selectedTable}` : "TABLE"}</Text>
-                    </TouchableOpacity>
+                    <PermissionGuard requiredPermission="Order & Billing Permissions - Create New Bill">
+                        <TouchableOpacity 
+                            style={[styles.printKotButton, { backgroundColor: "#8B5CF6" }]} 
+                            onPress={onSelectTable}
+                        >
+                            <Ionicons name="grid-outline" size={16} color="#fff" />
+                            <Text style={styles.printBillText}>{selectedTable ? `T-${selectedTable}` : "TABLE"}</Text>
+                        </TouchableOpacity>
+                    </PermissionGuard>
                 )}
 
                 {/* BILL */}
-                <TouchableOpacity style={styles.printBillButton} onPress={onPrintBill}>
-                    <Feather name="printer" size={16} color="#fff" />
-                    <Text style={styles.printBillText}>{t('bill')}</Text>
-                </TouchableOpacity>
+                <PermissionGuard requiredPermission="Order & Billing Permissions - Create New Bill">
+                    <TouchableOpacity style={styles.printBillButton} onPress={onPrintBill}>
+                        <Feather name="printer" size={16} color="#fff" />
+                        <Text style={styles.printBillText}>{t('bill')}</Text>
+                    </TouchableOpacity>
+                </PermissionGuard>
 
                 {/* SAVE BILL */}
-                <TouchableOpacity style={styles.saveBillButton} onPress={onSaveBill}>
-                    <Feather name="save" size={16} color="#fff" />
-                    <Text style={styles.printBillText}>{t('save')}</Text>
-                </TouchableOpacity>
+                <PermissionGuard requiredPermission="Order & Billing Permissions - Create New Bill">
+                    <TouchableOpacity style={styles.saveBillButton} onPress={onSaveBill}>
+                        <Feather name="save" size={16} color="#fff" />
+                        <Text style={styles.printBillText}>{t('save')}</Text>
+                    </TouchableOpacity>
+                </PermissionGuard>
 
                 {/* NEXT / TOTAL */}
                 <TouchableOpacity style={styles.primaryButton} onPress={onProceed}>

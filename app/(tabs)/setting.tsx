@@ -28,6 +28,7 @@ import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal
 import { SuccessFeedback } from "../../components/settings/SuccessFeedback";
 import { LanguageSelectionModal } from "../../components/settings/LanguageSelectionModal";
 import { useLanguage } from "../../context/LanguageContext";
+import { useRefresh } from "../../context/RefreshContext";
 import { StaffCard } from "../../components/settings/StaffCard";
 import { StaffModal } from "../../components/settings/StaffModal";
 import { PermissionGuard } from "../../components/PermissionGuard";
@@ -69,6 +70,7 @@ export default function SettingScreen() {
     const [staffModalVisible, setStaffModalVisible] = React.useState(false);
     // Remove local state and use context
     const { language: currentLanguage, setLanguage: setCurrentLanguage, t } = useLanguage();
+    const { triggerRefresh } = useRefresh();
 
     React.useEffect(() => {
         loadSettings();
@@ -137,6 +139,7 @@ export default function SettingScreen() {
         try {
             await AsyncStorage.removeItem('staff_session');
             await AsyncStorage.removeItem('staff_business_id');
+            triggerRefresh();
             Alert.alert("Logged Out", "Staff session ended successfully.");
             router.replace("/(auth)/sign-in" as any);
         } catch (e) {

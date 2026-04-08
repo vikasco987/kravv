@@ -1,7 +1,7 @@
 import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from 'react';
 import * as ImagePicker from "expo-image-picker";
+import React, { useState } from 'react';
 import {
     ActivityIndicator,
     Image,
@@ -10,9 +10,9 @@ import {
     StyleSheet,
     Text,
     TextInput,
+    ToastAndroid,
     TouchableOpacity,
-    View,
-    ToastAndroid
+    View
 } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
 
@@ -135,11 +135,11 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
                     console.error("Cloudinary Upload Error:", uploadError);
                 }
             }
-            
+
             const payload = {
                 name: name.trim(),
                 sellingPrice: parseFloat(price),
-                price: parseFloat(price), 
+                price: parseFloat(price),
                 categoryId: categoryId,
                 imageUrl: finalImageUrl,
                 taxType: taxType,

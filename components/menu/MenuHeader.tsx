@@ -14,6 +14,8 @@ interface MenuHeaderProps {
     heldCount: number;
 }
 
+import { PermissionGuard } from "../PermissionGuard";
+
 export const MenuHeader: React.FC<MenuHeaderProps> = ({
     onAddItem,
     onPauseOrder,
@@ -25,36 +27,46 @@ export const MenuHeader: React.FC<MenuHeaderProps> = ({
         <View style={styles.integratedHeaderBar}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
                 <Text style={styles.headerTitle}>Menu</Text>
-                <TouchableOpacity 
-                    style={styles.voiceTrigger} 
-                    onPress={onVoicePress}
-                >
-                    <Ionicons name="mic" size={rf(18)} color={THEME_PRIMARY} />
-                </TouchableOpacity>
+                <PermissionGuard requiredPermission="AI Intelligence Tools - Access Voice Command">
+                    <TouchableOpacity
+                        style={styles.voiceTrigger}
+                        onPress={onVoicePress}
+                    >
+                        <Ionicons name="mic" size={rf(18)} color={THEME_PRIMARY} />
+                    </TouchableOpacity>
+                </PermissionGuard>
             </View>
             <View style={styles.headerActionGroup}>
-                <TouchableOpacity style={styles.integratedActionButton} onPress={onAddItem}>
-                    <Feather name="plus" size={rf(16)} color="#FFF" style={{ marginRight: s(4) }} />
-                    <Text style={styles.integratedButtonText}>Item</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={styles.integratedActionButton}
-                    onPress={onPauseOrder}
-                >
-                    <Text style={styles.integratedButtonText}>Pause</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.integratedActionButton, { position: 'relative' }]}
-                    onPress={onViewHeldOrders}
-                >
-                    <Ionicons name="timer-outline" size={rf(16)} color="#FFF" style={{ marginRight: s(4) }} />
-                    <Text style={styles.integratedButtonText}>HOLD</Text>
-                    {heldCount > 0 && (
-                        <View style={styles.headerBadge}>
-                            <Text style={styles.headerBadgeText}>{heldCount}</Text>
-                        </View>
-                    )}
-                </TouchableOpacity>
+                <PermissionGuard requiredPermission="Menu & Items Permissions - Add Menu Items">
+                    <TouchableOpacity style={styles.integratedActionButton} onPress={onAddItem}>
+                        <Feather name="plus" size={rf(16)} color="#FFF" style={{ marginRight: s(4) }} />
+                        <Text style={styles.integratedButtonText}>Item</Text>
+                    </TouchableOpacity>
+                </PermissionGuard>
+
+                <PermissionGuard requiredPermission="Order & Billing Permissions - Hold Bill">
+                    <TouchableOpacity
+                        style={styles.integratedActionButton}
+                        onPress={onPauseOrder}
+                    >
+                        <Text style={styles.integratedButtonText}>Pause</Text>
+                    </TouchableOpacity>
+                </PermissionGuard>
+
+                <PermissionGuard requiredPermission="Order & Billing Permissions - Hold Bill">
+                    <TouchableOpacity
+                        style={[styles.integratedActionButton, { position: 'relative' }]}
+                        onPress={onViewHeldOrders}
+                    >
+                        <Ionicons name="timer-outline" size={rf(16)} color="#FFF" style={{ marginRight: s(4) }} />
+                        <Text style={styles.integratedButtonText}>HOLD</Text>
+                        {heldCount > 0 && (
+                            <View style={styles.headerBadge}>
+                                <Text style={styles.headerBadgeText}>{heldCount}</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                </PermissionGuard>
             </View>
         </View>
     );

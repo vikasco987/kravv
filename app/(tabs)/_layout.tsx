@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import TopNavBar from "../../components/TopNavBar";
 import { LoginRequiredModal } from "../../components/settings/LoginRequiredModal";
 import { useLanguage } from "../../context/LanguageContext";
+import { useRefresh } from "../../context/RefreshContext";
 import { View } from "react-native";
 // @ts-ignore
 import RNBluetoothClassic from "react-native-bluetooth-classic";
@@ -21,6 +22,50 @@ export default function TabsLayout() {
   const { isSignedIn } = useAuth();
   const [loginModalVisible, setLoginModalVisible] = useState(false);
   const [isPrinterConnected, setIsPrinterConnected] = useState(false);
+  const [staffPerms, setStaffPerms] = useState<string[]>([]);
+  const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
+  const { refreshSignal } = useRefresh();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+       const staffSession = await AsyncStorage.getItem("staff_session");
+       if (staffSession) {
+         const data = JSON.parse(staffSession);
+         setIsStaffSignedIn(true);
+         setStaffPerms(data.permissions || []);
+       } else {
+         setIsStaffSignedIn(false);
+         setStaffPerms([]);
+       }
+    };
+    checkAuth();
+  }, [pathname, refreshSignal]);
+
+  const hasTabPermission = (tabName: string) => {
+    if (isSignedIn) return true; // Owner has all
+    if (!isStaffSignedIn) return true; // Show all if no session exists (guest mode)
+    
+    const permissions = staffPerms.map(p => p.toLowerCase());
+    
+    switch (tabName) {
+      case "Dashboard":
+        return permissions.some(p => p.includes("sales") || p.includes("analytics") || p.includes("view"));
+      case "Menu":
+        return permissions.some(p => p.includes("create") || p.includes("bill") || p.includes("cart") || p.includes("discount") || p.includes("tax") || p.includes("items") || p.includes("categories"));
+      case "Orders":
+        return permissions.some(p => p.includes("records") || p.includes("reprint") || p.includes("edit saved"));
+      case "Client":
+        return permissions.some(p => p.includes("customer") || p.includes("ledger"));
+      case "Intelligence":
+        return permissions.some(p => p.includes("profit") || p.includes("voice") || p.includes("rotation"));
+      case "Reports":
+        return permissions.some(p => p.includes("report") || p.includes("records"));
+      case "Settings":
+        return permissions.some(p => p.includes("manage staff") || p.includes("printer") || p.includes("pin") || p.includes("whatsapp"));
+      default:
+        return false;
+    }
+  };
 
   useEffect(() => {
     const checkPrinter = async () => {
@@ -49,6 +94,33 @@ export default function TabsLayout() {
     const interval = setInterval(checkPrinter, 5000); // Check every 5 seconds
     return () => clearInterval(interval);
   }, []);
+
+  // ✅ AUTO-REDIRECT FOR STAFF
+  useEffect(() => {
+    if (!isStaffSignedIn || isSignedIn) return;
+
+    const currentTab = pathname.split('/').pop() || "";
+    const tabMapping: Record<string, string> = {
+      "Dashboard": "Dashboard",
+      "menu": "Menu",
+      "orders": "Orders",
+      "Client": "Client",
+      "setting": "Settings",
+      "Printer": "Settings"
+    };
+
+    const activeTabName = tabMapping[currentTab];
+    if (activeTabName && !hasTabPermission(activeTabName)) {
+      // Redirect to first allowed tab
+      const order = ["Dashboard", "menu", "Client", "orders", "setting"];
+      for (const tab of order) {
+        if (hasTabPermission(tabMapping[tab] || tab)) {
+          router.replace(`/(tabs)/${tab}` as any);
+          return;
+        }
+      }
+    }
+  }, [pathname, isStaffSignedIn, isSignedIn]);
 
   // Dynamic title logic: matches file names
   const getTitle = () => {
@@ -87,6 +159,7 @@ export default function TabsLayout() {
           name="Dashboard"
           options={{
             title: t('dashboard'),
+            href: hasTabPermission("Dashboard") ? undefined : null,
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "stats-chart" : "stats-chart-outline") as any}
@@ -101,6 +174,7 @@ export default function TabsLayout() {
           name="menu"
           options={{
             title: t('menu'),
+            href: hasTabPermission("Menu") ? undefined : null,
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "grid" : "grid-outline") as any}
@@ -115,6 +189,7 @@ export default function TabsLayout() {
           name="orders"
           options={{
             title: t('orders'),
+            href: hasTabPermission("Orders") ? undefined : null,
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "list" : "list-outline") as any}
@@ -125,7 +200,7 @@ export default function TabsLayout() {
           }}
           listeners={{
             tabPress: (e: any) => {
-              if (!isSignedIn) {
+              if (!isSignedIn && !isStaffSignedIn) {
                 e.preventDefault();
                 setLoginModalVisible(true);
               }
@@ -137,6 +212,7 @@ export default function TabsLayout() {
           name="Client"
           options={{
             title: t('client'),
+            href: hasTabPermission("Client") ? undefined : null,
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "people" : "people-outline") as any}
@@ -151,6 +227,7 @@ export default function TabsLayout() {
           name="Printer"
           options={{
             title: t('printer'),
+            href: hasTabPermission("Settings") ? undefined : null,
             tabBarIcon: ({ color, size, focused }) => (
               <View>
                 <Ionicons
@@ -178,6 +255,7 @@ export default function TabsLayout() {
           name="setting"
           options={{
             title: t('settings'),
+            href: hasTabPermission("Settings") ? undefined : null,
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons
                 name={(focused ? "settings" : "settings-outline") as any}

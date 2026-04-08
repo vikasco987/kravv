@@ -12,11 +12,12 @@ import {
     View,
     RefreshControl,
 } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { rf, s, vs } from "../../utils/responsive";
 import { useRefresh } from "../../context/RefreshContext";
 import { useLanguage } from "../../context/LanguageContext";
 import ProfitEngine from "../../components/profit-engine/ProfitEngine";
-
+import { PermissionGuard } from "../../components/PermissionGuard";
 
 // --- Constants ---
 const COLORS = {
@@ -74,18 +75,34 @@ export default function SalesDashboard() {
     const { refreshSignal } = useRefresh();
 
     const fetchStats = async () => {
-        if (!isLoaded || !isSignedIn) {
-            setStats({ daily: 0, weekly: 0, monthly: 0 });
-            setLoading(false);
-            setRefreshing(false);
-            return;
-        }
+        if (!isLoaded) return;
+        
         try {
+            const staffSession = await AsyncStorage.getItem("staff_session");
+            const isStaffSignedIn = !!staffSession;
+
+            if (!isSignedIn && !isStaffSignedIn) {
+                setStats({ daily: 0, weekly: 0, monthly: 0 });
+                setLoading(false);
+                setRefreshing(false);
+                return;
+            }
+
             if (stats.daily === 0) setLoading(true);
             else setRefreshing(true);
-            const token = await getToken();
+
+            const clerkToken = isSignedIn ? await getToken() : null;
+            const staffData = staffSession ? JSON.parse(staffSession) : null;
+            const authToken = clerkToken || staffData?.token;
+
+            if (!authToken) {
+                setLoading(false);
+                setRefreshing(false);
+                return;
+            }
+
             const res = await fetch("https://billing.kravy.in/api/bill-manager", {
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
             });
 
             if (res.ok) {
@@ -183,9 +200,15 @@ export default function SalesDashboard() {
                         </View>
                     ) : (
                         <View style={styles.statsRow}>
-                            <SalesSummaryCard label={t('today')} amount={stats.daily} icon="today-outline" color={COLORS.primary} />
-                            <SalesSummaryCard label={t('weekly')} amount={stats.weekly} icon="trending-up-outline" color={COLORS.secondary} />
-                            <SalesSummaryCard label={t('monthly')} amount={stats.monthly} icon="pie-chart-outline" color={COLORS.accent} />
+                            <PermissionGuard requiredPermission="View Today Sales">
+                                <SalesSummaryCard label={t('today')} amount={stats.daily} icon="today-outline" color={COLORS.primary} />
+                            </PermissionGuard>
+                            <PermissionGuard requiredPermission="View Weekly Sales">
+                                <SalesSummaryCard label={t('weekly')} amount={stats.weekly} icon="trending-up-outline" color={COLORS.secondary} />
+                            </PermissionGuard>
+                            <PermissionGuard requiredPermission="View Monthly Sales">
+                                <SalesSummaryCard label={t('monthly')} amount={stats.monthly} icon="pie-chart-outline" color={COLORS.accent} />
+                            </PermissionGuard>
                         </View>
                     )}
                 </View>
@@ -194,14 +217,60 @@ export default function SalesDashboard() {
                 <View style={styles.analyticsSection}>
                     <Text style={styles.sectionTitle}>{t('analytics_reports')}</Text>
                     <View style={styles.menuGrid}>
-                        {menuItems.map((item, idx) => (
+                        <PermissionGuard requiredPermission="View Today Sales">
                             <DashboardMenuItem
-                                key={idx}
+                                title={t('daily_sales')}
+                                path="/sales/DailySalesScreen"
+                                iconName="sunny"
+                                color={COLORS.primary}
+                                subtitle={t('performance')}
                                 router={router}
-                                {...item}
-                                onPress={item.onPress ? item.onPress : () => router.push(item.path)}
+                                onPress={() => router.push("/sales/DailySalesScreen")}
                             />
-                        ))}
+                        </PermissionGuard>
+                        <PermissionGuard requiredPermission="View Weekly Sales">
+                            <DashboardMenuItem
+                                title={t('weekly_sales')}
+                                path="/sales/WeeklySalesScreen"
+                                iconName="calendar"
+                                color={COLORS.secondary}
+                                subtitle={t('trends')}
+                                router={router}
+                                onPress={() => router.push("/sales/WeeklySalesScreen")}
+                            />
+                        </PermissionGuard>
+                        <PermissionGuard requiredPermission="View Monthly Sales">
+                            <DashboardMenuItem
+                                title={t('monthly_sales')}
+                                path="/sales/MonthlySalesScreen"
+                                iconName="stats-chart"
+                                color={COLORS.accent}
+                                subtitle={t('growth')}
+                                router={router}
+                                onPress={() => router.push("/sales/MonthlySalesScreen")}
+                            />
+                        </PermissionGuard>
+                        <PermissionGuard requiredPermission="View Bill Records">
+                            <DashboardMenuItem
+                                title={t('bill_records')}
+                                path="/sales/deepsale"
+                                iconName="receipt"
+                                color="#6366F1"
+                                subtitle={t('invoices')}
+                                router={router}
+                                onPress={() => router.push("/sales/deepsale")}
+                            />
+                        </PermissionGuard>
+                        <PermissionGuard requiredPermission="Access Profit Engine">
+                            <DashboardMenuItem
+                                title="Profit Intelligence"
+                                iconName="bulb"
+                                color="#F59E0B"
+                                subtitle="Optimize your menu items"
+                                router={router}
+                                onPress={() => setInsightVisible(true)}
+                            />
+                        </PermissionGuard>
                     </View>
                 </View>
 

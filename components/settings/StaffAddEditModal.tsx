@@ -200,6 +200,32 @@ const StaffAddEditModal = ({
     setPermissions(all);
   };
 
+  const { getToken } = require("@clerk/clerk-expo").useAuth();
+  const [businessSlug, setBusinessSlug] = useState("kravypos");
+
+  useEffect(() => {
+    const fetchBusinessProfile = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const res = await fetch("https://billing.kravy.in/api/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.businessName) {
+            // Slugify: "My Bakery" -> "mybakery"
+            const slug = data.businessName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (slug) setBusinessSlug(slug);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch business profile for slug:", err);
+      }
+    };
+    if (visible) fetchBusinessProfile();
+  }, [visible]);
+
   const handleAccessTypeSelect = (type: string) => {
     setAccessType(type);
     setShowDropdown(false);
@@ -211,21 +237,21 @@ const StaffAddEditModal = ({
   };
 
   const handleAutoGenerate = (type: 'email' | 'password') => {
+    if (!name.trim()) {
+      Alert.alert("Input Required", `Please enter the staff member's full name first to generate ${type}.`);
+      return;
+    }
+
     if (type === 'email') {
-      if (!name.trim()) {
-        Alert.alert("Input Required", "Please enter the staff member's full name first to generate an email ID.");
-        return;
-      }
       const namePart = name.toLowerCase().trim().replace(/\s+/g, '.');
-      const autoEmail = namePart ? `${namePart}@kravypos.com` : "";
+      // Use business slug for the domain
+      const autoEmail = namePart ? `${namePart}@${businessSlug}.com` : "";
       console.log("Generating Email:", autoEmail);
       setEmail(autoEmail);
     } else {
-      const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%";
-      let autoPassword = "";
-      for (let i = 0; i < 8; i++) {
-        autoPassword += charset.charAt(Math.floor(Math.random() * charset.length));
-      }
+      // Simpler password as requested: name@123
+      const namePart = name.split(" ")[0].toLowerCase().trim();
+      const autoPassword = `${namePart}@1123`;
       console.log("Generating Password:", autoPassword);
       setPassword(autoPassword);
       setShowPassword(true);

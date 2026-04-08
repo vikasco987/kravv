@@ -29,6 +29,7 @@ export type BillOptions = {
   silent?: boolean;
   staffName?: string;
   tableName?: string; // Add this for table name
+  partyId?: string;
 };
 
 // @ts-ignore
@@ -333,6 +334,27 @@ export async function SimpleBill(
       )
       .join("\n");
 
+    // --- Build Summary Rows ---
+    let summaryRows = `${line('-')}\n`;
+    summaryRows += `Subtotal:${`₹${totalTaxable.toFixed(2)}`.padStart(23)}\n`;
+    
+    if (isDiscountEnabled) {
+        summaryRows += `Discount (${discountRatePercent}%):${`-₹${discountAmount.toFixed(2)}`.padStart(16)}\n`;
+    }
+    
+    if (isServiceChargeEnabled) {
+        summaryRows += `S.Charge (${serviceChargeRatePercent}%):${`₹${serviceChargeAmount.toFixed(2)}`.padStart(16)}\n`;
+    }
+
+    // 🔥 Added "Taxable Amount" row (Subtotal - Discount + Service Charge)
+    summaryRows += `Taxable Amount:${`₹${netTaxableValue.toFixed(2)}`.padStart(17)}\n`;
+
+    if (isTaxEnabled || perProductTaxEnabled) {
+        const gstLabelStr = perProductTaxEnabled ? "GST (Multi):" : `GST (${globalTaxRate}%):`;
+        summaryRows += `${gstLabelStr}${`₹${gstAmount.toFixed(2)}`.padStart(32 - gstLabelStr.length)}\n`;
+    }
+    summaryRows += line('-');
+
     const bodyText =
       `Bill No: ${tempBillNo}
 Date: ${date.toLocaleString()}
@@ -342,10 +364,9 @@ ${line('-')}
 Item         Qty  Price   Total
 ${line('-')}
 ${itemsText}
+${summaryRows}
+GRAND TOTAL:${`₹${finalTotalFixed.toFixed(2)}`.padStart(20)}
 ${line('-')}
-Subtotal:${`₹${totalTaxable.toFixed(2)}`.padStart(21)}
-${(isTaxEnabled || perProductTaxEnabled) && !perProductTaxEnabled ? `GST (${globalTaxRate}%):${`₹${gstAmount.toFixed(2)}`.padStart(19)}\n` : ''}${perProductTaxEnabled ? `GST (Multi):${`₹${gstAmount.toFixed(2)}`.padStart(20)}\n` : ''}${isDiscountEnabled ? `Discount (${discountRatePercent}%):${`-₹${discountAmount.toFixed(2)}`.padStart(14)}\n` : ''}${isServiceChargeEnabled ? `S.Charge (${serviceChargeRatePercent}%):${`₹${serviceChargeAmount.toFixed(2)}`.padStart(14)}\n` : ''}${line('-')}
-GRAND TOTAL:${`₹${finalTotalFixed.toFixed(2)}`.padStart(18)}
 ${line('-')}
 ${(isTaxEnabled || perProductTaxEnabled) && taxBreakupText.length > 0 ? 
   `${centerText("TAX BREAKUP", 32)}\nRate   | Taxable Value | GST\n${line('-')}\n${taxBreakupText}\n${line('-')}\n` : ''}
@@ -419,10 +440,10 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
         const cleanBody = bodyText.replace(/[^\x00-\x7F]/g, "");
         await connectedPrinter?.write(encoder.encode(cleanBody));
 
-        // If UPI is available, print QR Code
-        if (upi) {
-          const upiUrl = `upi://pay?pa=${upi}&pn=${encodeURIComponent(companyName)}&am=${finalTotal.toFixed(2)}&cu=INR&tn=Order_${tempBillNo}`;
+    const upi = companyInfo?.upiId || companyInfo?.upi || "";
+    const upiUrl = upi ? `upi://pay?pa=${upi}&pn=${encodeURIComponent(companyName.slice(0, 20))}&am=${finalTotalFixed.toFixed(2)}&cu=INR&tn=BILL_${tempBillNo.slice(-4)}` : "";
           
+    if (upiUrl) {
           // ESC/POS QR Code commands
           const size = upiUrl.length + 3;
           const pL = size % 256;
@@ -431,16 +452,16 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
           const qrCommands = new Uint8Array([
             0x1B, 0x61, 0x01,                         // Align center
             0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00,    // Function 167: Set model
-            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x06,          // Function 169: Set size (6)
+            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x08,          // Function 169: Set size (8 for better scanning)
             0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30,          // Function 171: Set error correction
             0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30, ...Array.from(upiUrl).map(c => c.charCodeAt(0)), // Function 180: Store data
             0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30,          // Function 181: Print QR
             0x0A,                                     // New line
-            ...Array.from(centerText(`ID: ${tempBillNo}`, 32)).map(c => c.charCodeAt(0)),
+            ...Array.from(centerText(`SCAN TO PAY ₹${finalTotalFixed.toFixed(2)}`, 32)).map(c => c.charCodeAt(0)),
             0x0A, 0x0A                                // Padding
           ]);
           await connectedPrinter?.write(qrCommands);
-        }
+    }
 
         // Feed 3 lines & cut paper
         await connectedPrinter?.write(new Uint8Array([0x1b, 0x64, 0x03])); // ESC d 3
@@ -488,7 +509,9 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
       discountAmount: Number(discountAmount.toFixed(2)),
       discountCode: null,
       auditNote: options?.notes || "App Order",
-      userClerkId: userClerkId
+      userClerkId: userClerkId,
+      customerId: options?.partyId || null,
+      partyId: options?.partyId || null
     };
 
     let res;

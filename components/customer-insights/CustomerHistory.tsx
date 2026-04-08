@@ -371,6 +371,11 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
         });
 
         if (itemsToBatch.length > 0) {
+            // ✅ LINK CUSTOMER TO SESSION: Save party data so menu/bill can recognize them
+            if (party) {
+                AsyncStorage.setItem('@active_customer', JSON.stringify(party)).catch(() => {});
+            }
+
             DeviceEventEmitter.emit('add_to_cart_remote', itemsToBatch);
             setSelectedItemNames([]);
             setSearchQuery("");

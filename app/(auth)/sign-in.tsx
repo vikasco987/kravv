@@ -248,7 +248,7 @@
 // });
 
 "use client";
-import { useClerk, useSignIn } from "@clerk/clerk-expo";
+import { useClerk, useSignIn, useOAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as AuthSession from "expo-auth-session";
@@ -269,6 +269,7 @@ import {
   View,
 } from "react-native";
 import { staffService } from "../../services/staffService";
+import { useRefresh } from "../../context/RefreshContext";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -276,6 +277,8 @@ export default function SignInScreen() {
   const router = useRouter();
   const { setActive } = useClerk();
   const { signIn, isLoaded, setActive: setSignInActive } = useSignIn();
+  const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
+  const { triggerRefresh } = useRefresh();
 
   // --- Staff Login States ---
   const [staffModalVisible, setStaffModalVisible] = React.useState(false);
@@ -311,6 +314,7 @@ export default function SignInScreen() {
         // Also save businessId for other modules (Bills & Transactions, Party, etc.)
         await AsyncStorage.setItem("staff_business_id", res.data.businessId);
 
+        triggerRefresh(); // Update root layout & drawer auth status
         setStaffModalVisible(false);
         Alert.alert("Success", `Welcome back, ${res.data.name}!`);
         router.replace("/(tabs)/menu");
@@ -330,53 +334,30 @@ export default function SignInScreen() {
     try {
       await WebBrowser.warmUpAsync();
 
-      // Generating the redirect URI
       const redirectUrl = AuthSession.makeRedirectUri({
         path: "oauth-native-callback",
       });
 
-      console.log("🚀 Starting Google OAuth...");
-      console.log("🔗 Redirect URL:", redirectUrl);
-
-      // Start the flow manually to see where it fails
-      const response = await signIn.create({
-        strategy: "oauth_google",
+      console.log("🚀 Starting Google OAuth with useOAuth...");
+      
+      const { createdSessionId, setActive: setSessionActive } = await startOAuthFlow({
         redirectUrl,
       });
 
-      console.log("📥 SignIn Response Status:", response.status);
-
-      const { externalVerificationRedirectURL } = response.firstFactorVerification;
-
-      if (!externalVerificationRedirectURL) {
-        throw new Error("Clerk failed to generate a Google Login URL. Please check your Clerk Dashboard settings.");
-      }
-
-      console.log("🌐 Opening Browser...");
-      const result = await WebBrowser.openAuthSessionAsync(
-        externalVerificationRedirectURL.toString(),
-        redirectUrl
-      );
-
-      if (result.type === "success") {
-        const url = new URL(result.url);
-        const rotatingTokenNonce = url.searchParams.get("rotating_token_nonce") || "";
-
-        await signIn.reload({ rotatingTokenNonce });
-
-        if (signIn.status === "complete") {
-          await setSignInActive({ session: signIn.createdSessionId });
-          console.log("✅ Sign-in Complete!");
-        } else {
-          console.warn("⚠️ Sign-in status not complete:", signIn.status);
-        }
+      if (createdSessionId) {
+        console.log("✅ OAuth Success, setting session...");
+        await setSessionActive?.({ session: createdSessionId });
+        router.replace("/(tabs)/menu");
+      } else {
+        console.warn("⚠️ OAuth flow did not result in a session immediately. Check Clerk dashboard for required steps.");
       }
     } catch (err: any) {
-      console.error("❌ Manual Google Sign-in error:", err.message || err);
+      console.error("❌ Google Sign-in error:", err.message || err);
+      Alert.alert("Sign-in Failed", "Could not complete Google sign-in. Please try again.");
     } finally {
       await WebBrowser.coolDownAsync();
     }
-  }, [isLoaded, signIn, setSignInActive]);
+  }, [isLoaded, startOAuthFlow, router]);
 
   return (
     <LinearGradient colors={["#FF5F6D", "#FFC371"]} style={styles.container}>

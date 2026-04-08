@@ -1,263 +1,95 @@
-// import { View, Button, Text, TextInput, Alert } from "react-native";
-// import { useSignUp } from "@clerk/clerk-expo";
-// import { useState } from "react";
-// import { useRouter } from "expo-router";
+import { useRouter } from "expo-router";
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 
-// export default function SignUpScreen() {
-//   const { signUp, setActive, isLoaded } = useSignUp();
-//   const router = useRouter();
-//   const [email, setEmail] = useState("");
-//   const [password, setPassword] = useState("");
-//   const [code, setCode] = useState(""); // for OTP if enabled
-//   const [pendingVerification, setPendingVerification] = useState(false);
-//   const [loading, setLoading] = useState(false);
-
-//   const handleSignUp = async () => {
-//     if (!isLoaded) return;
-//     setLoading(true);
-//     try {
-//       await signUp.create({
-//         emailAddress: email,
-//         password,
-//       });
-
-//       // If your Clerk instance requires email verification
-//       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-//       setPendingVerification(true);
-//       Alert.alert("Check your email", "Enter the verification code below");
-//     } catch (err: any) {
-//       console.error("Sign up error:", err.errors);
-//       Alert.alert("Sign up failed", err.errors?.[0]?.message || "Unknown error");
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleVerify = async () => {
-//     if (!isLoaded) return;
-//     setLoading(true);
-//     try {
-//       const completeSignUp = await signUp.attemptEmailAddressVerification({
-//         code,
-//       });
-//       await setActive({ session: completeSignUp.createdSessionId });
-//       router.replace("/menu");
-//     } catch (err: any) {
-//       console.error("Verification error:", err.errors);
-//       Alert.alert("Verification failed", err.errors?.[0]?.message || "Try again");
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   return (
-//     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-//       {!pendingVerification ? (
-//         <>
-//           <Text>Email</Text>
-//           <TextInput
-//             value={email}
-//             onChangeText={setEmail}
-//             placeholder="Enter email"
-//             autoCapitalize="none"
-//             style={{
-//               borderWidth: 1,
-//               padding: 8,
-//               width: 200,
-//               marginBottom: 10,
-//             }}
-//           />
-//           <Text>Password</Text>
-//           <TextInput
-//             value={password}
-//             onChangeText={setPassword}
-//             placeholder="Enter password"
-//             secureTextEntry
-//             style={{
-//               borderWidth: 1,
-//               padding: 8,
-//               width: 200,
-//               marginBottom: 20,
-//             }}
-//           />
-//           <Button
-//             title={loading ? "Signing up..." : "Sign Up"}
-//             onPress={handleSignUp}
-//           />
-//         </>
-//       ) : (
-//         <>
-//           <Text>Enter the verification code sent to your email</Text>
-//           <TextInput
-//             value={code}
-//             onChangeText={setCode}
-//             placeholder="Enter code"
-//             style={{
-//               borderWidth: 1,
-//               padding: 8,
-//               width: 200,
-//               marginBottom: 20,
-//             }}
-//           />
-//           <Button
-//             title={loading ? "Verifying..." : "Verify Email"}
-//             onPress={handleVerify}
-//           />
-//         </>
-//       )}
-//     </View>
-//   );
-// }
-
-
-
-
-
-
-
-
-// // app/SignOut.tsx
-// import React from "react";
-// import { View, Text, Button, StyleSheet, Alert } from "react-native";
-// import { useAuth } from "@clerk/clerk-expo";
-
-// export default function SignOut({ navigation }: any) {
-//   const { isSignedIn, signOut } = useAuth();
-
-//   const handleSignOut = async () => {
-//     try {
-//       if (!isSignedIn) {
-//         Alert.alert("Not signed in", "You are not currently signed in.");
-//         return;
-//       }
-
-//       await signOut();
-//       Alert.alert("Signed out successfully!");
-//       console.log("✅ User signed out");
-
-//       // Optionally navigate to SignIn page
-//       navigation.replace("signin"); // 👈 Make sure your route name matches SignIn
-//     } catch (err) {
-//       console.error("❌ Sign-out error:", err);
-//       Alert.alert("Error", "Failed to sign out. Please try again.");
-//     }
-//   };
-
-//   return (
-//     <View style={styles.container}>
-//       <Text style={styles.title}>Are you sure you want to sign out?</Text>
-//       <Button title="Sign Out" color="red" onPress={handleSignOut} />
-//       <View style={{ height: 10 }} />
-//       <Button title="Cancel" onPress={() => navigation.goBack()} />
-//     </View>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
-//   title: { fontSize: 20, fontWeight: "bold", marginBottom: 20, textAlign: "center" },
-// });
-
-
-
-
-// app/_layout.tsx
-// import { ClerkProvider } from "@clerk/clerk-expo";
-// import Constants from "expo-constants";
-// import * as Linking from "expo-linking";
-// import { Stack } from "expo-router";
-// import * as SecureStore from "expo-secure-store";
-// import * as WebBrowser from "expo-web-browser";
-
-// WebBrowser.maybeCompleteAuthSession();
-
-// const tokenCache = {
-//   async getToken(key: string) {
-//     return SecureStore.getItemAsync(key);
-//   },
-//   async saveToken(key: string, value: string) {
-//     return SecureStore.setItemAsync(key, value);
-//   },
-// };
-
-// const prefix = Linking.createURL("/");
-
-// export default function RootLayout() {
-//   const publishableKey =
-//     Constants.expoConfig?.extra?.clerkPublishableKey ||
-//     process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
-
-//   if (!publishableKey) {
-//     throw new Error("Missing Clerk Publishable Key");
-//   }
-
-//   return (
-//     <ClerkProvider
-//       publishableKey={publishableKey}
-//       tokenCache={tokenCache}
-//       signInFallbackRedirectUrl={`${prefix}oauth-native-callback`}
-//     >
-//       <Stack screenOptions={{ headerShown: false }}>
-//         <Stack.Screen name="(tabs)" />
-//         <Stack.Screen name="(auth)/sign-in" />
-//         <Stack.Screen name="(auth)/sign-up" />
-//         <Stack.Screen name="SignOut" />
-//       </Stack>
-//     </ClerkProvider>
-//   );
-// }
-
-
-import { ClerkProvider } from "@clerk/clerk-expo";
-import Constants from "expo-constants";
-import * as Linking from "expo-linking";
-import { Stack } from "expo-router";
-import * as SecureStore from "expo-secure-store";
-import * as WebBrowser from "expo-web-browser";
-
-WebBrowser.maybeCompleteAuthSession();
-
-const tokenCache = {
-  async getToken(key: string) {
-    try {
-      return SecureStore.getItemAsync(key);
-    } catch (err) {
-      return null;
-    }
-  },
-  async saveToken(key: string, value: string) {
-    try {
-      return SecureStore.setItemAsync(key, value);
-    } catch (err) {
-      return;
-    }
-  },
-};
-
-const prefix = Linking.createURL("/");
-
-export default function RootLayout() {
-  const publishableKey =
-    Constants.expoConfig?.extra?.clerkPublishableKey ||
-    process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
-
-  if (!publishableKey) {
-    throw new Error("Missing Clerk Publishable Key");
-  }
+export default function SignUpScreen() {
+  const router = useRouter();
 
   return (
-    <ClerkProvider
-      publishableKey={publishableKey}
-      tokenCache={tokenCache}
-      signInFallbackRedirectUrl={`${prefix}oauth-native-callback`}
-      signUpFallbackRedirectUrl={`${prefix}oauth-native-callback`}
-    >
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="(auth)/sign-in" />
-        <Stack.Screen name="(auth)/sign-up" />
-        <Stack.Screen name="SignOut" />
-      </Stack>
-    </ClerkProvider>
+    <LinearGradient colors={["#FF5F6D", "#FFC371"]} style={styles.container}>
+      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <View style={styles.backButtonCircle}>
+          <Ionicons name="arrow-back" size={24} color="#FF5F6D" />
+        </View>
+      </TouchableOpacity>
+
+      <View style={styles.content}>
+        <Text style={styles.title}>Join Kravy</Text>
+        <Text style={styles.subtitle}>
+          Create an account to start managing your business smarter.
+        </Text>
+
+        <Text style={styles.infoText}>
+          Sign up is currently handled via Google Sign-In on the Login screen for a seamless experience.
+        </Text>
+
+        <TouchableOpacity 
+          style={styles.button} 
+          onPress={() => router.replace("/(auth)/sign-in")}
+        >
+          <Text style={styles.buttonText}>Go to Login</Text>
+        </TouchableOpacity>
+      </View>
+    </LinearGradient>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  backButton: {
+    position: "absolute",
+    top: 50,
+    left: 20,
+    zIndex: 10,
+  },
+  backButtonCircle: {
+    width: 45,
+    height: 45,
+    borderRadius: 25,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+  },
+  content: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 30,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 18,
+    color: "rgba(255,255,255,0.9)",
+    textAlign: "center",
+    marginBottom: 30,
+  },
+  infoText: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
+    textAlign: "center",
+    marginBottom: 40,
+    fontStyle: "italic",
+  },
+  button: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 40,
+    paddingVertical: 15,
+    borderRadius: 30,
+    elevation: 5,
+  },
+  buttonText: {
+    color: "#FF5F6D",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+});
