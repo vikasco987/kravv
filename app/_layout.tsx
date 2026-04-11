@@ -13,11 +13,11 @@ import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import CustomDrawerContent from "../components/CustomDrawer";
+import CustomDrawerContent from "../components/sidebar/CustomDrawer";
 import { RefreshProvider, useRefresh } from "../context/RefreshContext";
 import { LanguageProvider, useLanguage } from "../context/LanguageContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import NewOrderNotifier from "../components/NewOrderNotifier";
+import NewOrderNotifier from "../components/common/NewOrderNotifier";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -123,41 +123,7 @@ function AuthRedirect() {
             drawerIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
           }}
         />
-        <Drawer.Screen
-          name="party/index"
-          options={{
-            drawerLabel: t('parties'),
-            drawerIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
-          }}
-        />
-        <Drawer.Screen
-          name="party/items"
-          options={{
-            drawerItemStyle: { display: 'none' },
-            headerShown: false,
-          }}
-        />
-        <Drawer.Screen
-          name="party/bill"
-          options={{
-            drawerItemStyle: { display: 'none' },
-            headerShown: false,
-          }}
-        />
-        <Drawer.Screen
-          name="party/add"
-          options={{
-            drawerItemStyle: { display: 'none' },
-            headerShown: false,
-          }}
-        />
-        <Drawer.Screen
-          name="party/info"
-          options={{
-            drawerItemStyle: { display: 'none' },
-            headerShown: false,
-          }}
-        />
+
 
       </Drawer>
     </GestureHandlerRootView>

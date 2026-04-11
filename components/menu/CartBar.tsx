@@ -27,7 +27,7 @@ interface CartBarProps {
     selectedTable: string | null;
 }
 
-import { PermissionGuard } from '../PermissionGuard';
+import { PermissionGuard } from '../common/PermissionGuard';
 
 export const CartBar: React.FC<CartBarProps> = ({
     totalItems,

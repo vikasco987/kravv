@@ -708,7 +708,8 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                     style={styles.addButton}
                     onPress={() => {
                         onBack();
-                        router.push("/party/items");
+                        router.push("/(tabs)/menu");
+
                     }}
                 >
                     <Text style={styles.addButtonText}>{t('add_item')}</Text>

@@ -13,6 +13,7 @@ import {
   Alert,
   NativeModules,
   Vibration,
+  Switch,
 } from "react-native";
 // @ts-ignore
 import Voice from '@react-native-voice/voice';
@@ -20,15 +21,16 @@ import { rf, s, vs } from "../../utils/responsive";
 import { PERMISSION_GROUPS, TOTAL_PERMISSIONS_COUNT, StaffMember } from "./StaffPermissionsData";
 
 const COLORS = {
-  primary: "#4F46E5",
+  primary: "#0066FF", // More vibrant blue to match screenshot
   background: "#F9FAFB",
   white: "#FFFFFF",
   text: "#111827",
   textLight: "#6B7280",
   success: "#10B981",
   danger: "#EF4444",
-  border: "#D1D5DB",
+  border: "#E5E7EB",
   card: "#FFFFFF",
+  lightBlue: "#EEF2FF",
 };
 
 interface StaffAddEditModalProps {
@@ -200,6 +202,40 @@ const StaffAddEditModal = ({
     setPermissions(all);
   };
 
+  const isGroupEnabled = (group: any) => {
+    if (!group.permissions || group.permissions.length === 0) return false;
+    return group.permissions.every((p: string) => permissions.includes(`${group.title} - ${p}`));
+  };
+
+  const toggleGroupPermissions = (group: any) => {
+    const groupPerms = group.permissions.map((p: string) => `${group.title} - ${p}`);
+    const alreadyEnabled = isGroupEnabled(group);
+    
+    if (alreadyEnabled) {
+      setPermissions(permissions.filter(p => !groupPerms.includes(p)));
+    } else {
+      const newPerms = [...permissions];
+      groupPerms.forEach((p: string) => {
+        if (!newPerms.includes(p)) newPerms.push(p);
+      });
+      setPermissions(newPerms);
+    }
+  };
+
+  const getGroupDisplayInfo = (title: string) => {
+    const mappings: Record<string, { displayTitle: string, displaySubtitle: string }> = {
+      "Dashboard Permissions": { displayTitle: "Dashboard", displaySubtitle: "Dashboard Permissions" },
+      "Order & Billing Permissions": { displayTitle: "Ordering & Billing", displaySubtitle: "Order & Billing Permissions" },
+      "Invoices & Receipts": { displayTitle: "Invoices & Records", displaySubtitle: "Invoices & Receipts" },
+      "Customer Permissions": { displayTitle: "Customers Management", displaySubtitle: "Customer Permissions" },
+      "Menu & Items Permissions": { displayTitle: "Menu & Items", displaySubtitle: "Menu & Items Permissions" },
+      "AI Intelligence Tools": { displayTitle: "AI Intelligence Tools", displaySubtitle: "AI Intelligence Tools" },
+      "Report Permissions": { displayTitle: "Sales Reports", displaySubtitle: "Report Permissions" },
+      "Settings Permissions": { displayTitle: "General App Settings", displaySubtitle: "Settings Permissions" },
+    };
+    return mappings[title] || { displayTitle: title, displaySubtitle: title };
+  };
+
   const { getToken } = require("@clerk/clerk-expo").useAuth();
   const [businessSlug, setBusinessSlug] = useState("kravypos");
 
@@ -295,8 +331,10 @@ const StaffAddEditModal = ({
           <TouchableOpacity onPress={onClose} style={styles.backButton}>
             <Ionicons name="arrow-back" size={rf(24)} color={COLORS.white} />
           </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: s(10), flexDirection: "row", alignItems: "center", gap: s(8) }}>
-            <Ionicons name="person-circle-outline" size={rf(30)} color={COLORS.white} />
+          <View style={{ flex: 1, marginLeft: s(10), flexDirection: "row", alignItems: "center", gap: s(12) }}>
+            <View style={styles.headerIconCircle}>
+               <Ionicons name="person" size={rf(20)} color={COLORS.primary} />
+            </View>
             <View>
               <Text style={styles.title} numberOfLines={1}>{staff ? staff.name : "Add New Staff Member"}</Text>
               <Text style={styles.headerInfo}>Staff Details & Full Permissions Control</Text>
@@ -400,36 +438,35 @@ const StaffAddEditModal = ({
              </View>
           </View>
 
-          <View style={{ paddingVertical: vs(15), paddingHorizontal: s(20), backgroundColor: "#EEF2FF", borderBottomWidth: 1, borderBottomColor: "#E0E7FF" }}>
-            <Text style={{ fontSize: rf(14), fontWeight: "bold", color: COLORS.primary }}>
-              <Ionicons name="shield-checkmark" size={rf(14)} /> MANAGE STAFF ACCESS & PERMISSIONS
+          <View style={styles.managePermissionsHeader}>
+            <Text style={styles.managePermissionsHeaderText}>
+              <Ionicons name="shield-checkmark" size={rf(16)} color={COLORS.primary} /> MANAGE STAFF ACCESS & PERMISSIONS
             </Text>
           </View>
 
           {/* Permissions Sections */}
-          {PERMISSION_GROUPS.map((group, gIdx) => (
-            <View key={gIdx} style={styles.permissionGroup}>
-              <Text style={styles.groupTitle}>{group.title}</Text>
-              <View style={styles.chipsContainer}>
-                {group.permissions.map((p, pIdx) => {
-                  const permKey = `${group.title} - ${p}`;
-                  const isSelected = permissions.includes(permKey);
-                  return (
-                    <TouchableOpacity
-                      key={pIdx}
-                      style={[styles.chip, isSelected && styles.chipSelected]}
-                      onPress={() => togglePermission(permKey)}
-                    >
-                      <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                        {p}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          ))}
-          <View style={{ height: vs(160) }} />
+          <View style={styles.permissionsList}>
+            {PERMISSION_GROUPS.map((group, gIdx) => {
+              const { displayTitle, displaySubtitle } = getGroupDisplayInfo(group.title);
+              const isEnabled = isGroupEnabled(group);
+              
+              return (
+                <View key={gIdx} style={styles.permissionItem}>
+                  <View style={styles.permissionInfo}>
+                    <Text style={styles.permissionTitle}>{displayTitle}</Text>
+                    <Text style={styles.permissionSubtitle}>{displaySubtitle}</Text>
+                  </View>
+                  <Switch
+                    value={isEnabled}
+                    onValueChange={() => toggleGroupPermissions(group)}
+                    trackColor={{ false: "#D1D5DB", true: "#BFDBFE" }}
+                    thumbColor={isEnabled ? COLORS.primary : "#F3F4F6"}
+                  />
+                </View>
+              );
+            })}
+          </View>
+          <View style={{ height: vs(180) }} />
         </ScrollView>
 
         <View style={styles.footer}>
@@ -621,12 +658,67 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     backgroundColor: COLORS.primary,
-    paddingVertical: vs(15),
+    paddingVertical: vs(16),
     borderRadius: s(30),
     alignItems: "center",
-    elevation: 5,
+    elevation: 4,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
-  saveBtnText: { color: COLORS.white, fontWeight: "bold", fontSize: rf(16) },
+  saveBtnText: { color: COLORS.white, fontWeight: "800", fontSize: rf(17), letterSpacing: 0.5 },
+
+  // New Redesigned Styles
+  headerIconCircle: {
+    width: s(36),
+    height: s(36),
+    borderRadius: s(18),
+    backgroundColor: COLORS.white,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  managePermissionsHeader: {
+    paddingVertical: vs(18),
+    paddingHorizontal: s(20),
+    backgroundColor: "#F0F7FF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E0E7FF",
+  },
+  managePermissionsHeaderText: {
+    fontSize: rf(14),
+    fontWeight: "bold",
+    color: COLORS.primary,
+    letterSpacing: 0.2,
+  },
+  permissionsList: {
+    backgroundColor: COLORS.white,
+  },
+  permissionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: vs(18),
+    paddingHorizontal: s(22),
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  permissionInfo: {
+    flex: 1,
+    paddingRight: s(10),
+  },
+  permissionTitle: {
+    fontSize: rf(18),
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+  permissionSubtitle: {
+    fontSize: rf(14),
+    color: "#9CA3AF",
+    marginTop: vs(2),
+    fontWeight: "500",
+  },
 
   // Popup Styles
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },

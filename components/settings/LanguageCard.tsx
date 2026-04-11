@@ -26,11 +26,7 @@ export const LanguageCard: React.FC<LanguageCardProps> = ({
     const { t } = useLanguage();
 
     const handleLanguagePress = () => {
-        if (user) {
-            onLanguagePress();
-        } else {
-            onLoginRequired();
-        }
+        onLanguagePress();
     };
 
     return (
