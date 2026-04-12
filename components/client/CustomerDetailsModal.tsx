@@ -108,9 +108,9 @@ const CustomerDetailsModal = ({
                                 <Ionicons name="location-outline" size={rf(20)} color={THEME_PRIMARY} />
                             </View>
                             <View style={{ flex: 1 }}>
-                                <Text style={styles.detailLabel}>{t('address')}</Text>
-                                <Text style={styles.detailValue} numberOfLines={1}>
-                                    {party?.address || "No Address Added"}
+                                <Text style={styles.detailLabel}>Billing Address</Text>
+                                <Text style={styles.detailValue} numberOfLines={2}>
+                                    {party?.address || (party as any)?.billingAddress || (party as any)?.billing_address || (party as any)?.location || "No Address Added"}
                                 </Text>
                             </View>
                         </View>

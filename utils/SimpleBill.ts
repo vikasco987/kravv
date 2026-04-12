@@ -30,10 +30,16 @@ export type BillOptions = {
   staffName?: string;
   tableName?: string; // Add this for table name
   partyId?: string;
+  businessProfile?: any;
+  taxSettings?: any;
 };
 
 // @ts-ignore
 let connectedPrinter: any = null;
+
+// --- LOGO CACHE ---
+let cachedLogoData: Uint8Array | null = null;
+let lastLogoUrl: string | null = null;
 
 // Center text for thermal printer width (32 chars)
 const centerText = (text: string, width: number = 32): string => {
@@ -107,57 +113,64 @@ async function processAndPrintLogo(printer: any, url: string, silent?: boolean) 
       }
     }
 
-    const response = await fetch(transformedUrl);
-    if (!response.ok) return;
-    
-    const buffer = await response.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
+    let printerData: Uint8Array;
 
-    // 2. BMP Parsing (Windows BMP V3 Header)
-    if (bytes[0] !== 0x42 || bytes[1] !== 0x4D) return; // 'BM'
-    const dataOffset = bytes[10] | (bytes[11] << 8) | (bytes[12] << 16) | (bytes[13] << 24);
-    const width = bytes[18] | (bytes[19] << 8) | (bytes[20] << 16) | (bytes[21] << 24);
-    const height = Math.abs(bytes[22] | (bytes[23] << 8) | (bytes[24] << 16) | (bytes[25] << 24));
-    const bpp = bytes[28] | (bytes[29] << 8);
+    // --- CACHE CHECK ---
+    if (cachedLogoData && lastLogoUrl === transformedUrl) {
+      printerData = cachedLogoData;
+    } else {
+      const response = await fetch(transformedUrl);
+      if (!response.ok) return;
+      
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
 
-    if (bpp !== 24 && bpp !== 32) return; // Standard RGB formats
+      // 2. BMP Parsing (Windows BMP V3 Header)
+      if (bytes[0] !== 0x42 || bytes[1] !== 0x4D) return; // 'BM'
+      const dataOffset = bytes[10] | (bytes[11] << 8) | (bytes[12] << 16) | (bytes[13] << 24);
+      const width = bytes[18] | (bytes[19] << 8) | (bytes[20] << 16) | (bytes[21] << 24);
+      const height = Math.abs(bytes[22] | (bytes[23] << 8) | (bytes[24] << 16) | (bytes[25] << 24));
+      const bpp = bytes[28] | (bytes[29] << 8);
 
-    const bytesPerLine = Math.ceil(width / 8);
-    const bppBytes = bpp / 8;
-    // Scanlines in BMP are multiple of 4 bytes
-    const bmpStride = Math.ceil((width * bppBytes) / 4) * 4;
+      if (bpp !== 24 && bpp !== 32) return; // Standard RGB formats
 
-    // ESC/POS GS v 0 (Print raster bit image)
-    const xL = bytesPerLine % 256;
-    const xH = Math.floor(bytesPerLine / 256);
-    const yL = height % 256;
-    const yH = Math.floor(height / 256);
+      const bytesPerLine = Math.ceil(width / 8);
+      const bppBytes = bpp / 8;
+      const bmpStride = Math.ceil((width * bppBytes) / 4) * 4;
 
-    const printerData = new Uint8Array(8 + (bytesPerLine * height));
-    printerData.set([0x1D, 0x76, 0x30, 0, xL, xH, yL, yH]);
+      const xL = bytesPerLine % 256;
+      const xH = Math.floor(bytesPerLine / 256);
+      const yL = height % 256;
+      const yH = Math.floor(height / 256);
 
-    let pos = 8;
-    // BMP is bottom-up (y = height-1 down to 0)
-    for (let y = height - 1; y >= 0; y--) {
-      const lineStart = dataOffset + y * bmpStride;
-      for (let xByte = 0; xByte < bytesPerLine; xByte++) {
-        let byteValue = 0;
-        for (let bit = 0; bit < 8; bit++) {
-          const x = xByte * 8 + bit;
-          if (x < width) {
-            const p = lineStart + x * bppBytes;
-            // RGB to Grayscale: 0.299R + 0.587G + 0.114B (BMP stores B-G-R)
-            const luminance = bytes[p+2] * 0.299 + bytes[p+1] * 0.587 + bytes[p] * 0.114;
-            if (luminance < 128) byteValue |= (1 << (7 - bit)); // If dark, set bit to 1
+      printerData = new Uint8Array(8 + (bytesPerLine * height));
+      printerData.set([0x1D, 0x76, 0x30, 0, xL, xH, yL, yH]);
+
+      let pos = 8;
+      for (let y = height - 1; y >= 0; y--) {
+        const lineStart = dataOffset + y * bmpStride;
+        for (let xByte = 0; xByte < bytesPerLine; xByte++) {
+          let byteValue = 0;
+          for (let bit = 0; bit < 8; bit++) {
+            const x = xByte * 8 + bit;
+            if (x < width) {
+              const p = lineStart + x * bppBytes;
+              const luminance = bytes[p+2] * 0.299 + bytes[p+1] * 0.587 + bytes[p] * 0.114;
+              if (luminance < 128) byteValue |= (1 << (7 - bit));
+            }
           }
+          printerData[pos++] = byteValue;
         }
-        printerData[pos++] = byteValue;
       }
+      
+      // Update Cache
+      cachedLogoData = printerData;
+      lastLogoUrl = transformedUrl;
     }
 
-    // 3. Write in small chunks to the printer (CRITICAL for Bluetooth stability)
-    for (let i = 0; i < printerData.length; i += 512) {
-      const chunk = printerData.slice(i, i + 512);
+    // 3. Write in larger chunks for speed (1024 is usually safe for most printers)
+    for (let i = 0; i < printerData.length; i += 1024) {
+      const chunk = printerData.slice(i, i + 1024);
       await printer.write(chunk);
     }
     await printer.write("\n\n"); // Extra padding after logo
@@ -199,8 +212,9 @@ export async function SimpleBill(
   try {
     if (!token) throw new Error("❌ Clerk token missing!");
     if (!userClerkId) throw new Error("❌ userClerkId missing!");
-
-    const companyInfo = await getRecentCompanyProfile(token);
+    
+    // Use pre-computed info if available to speed up processing
+    const companyInfo = options?.businessProfile || await getRecentCompanyProfile(token);
     const date = new Date();
     // Use a transient identifier for the print if we can't wait for backend
     const tempBillNo = `NEW-${Date.now().toString().slice(-4)}`;
@@ -216,15 +230,27 @@ export async function SimpleBill(
     const logoUrl = companyInfo?.logoUrl || "";
     const upi = companyInfo?.upi || "";
 
-    // --- Load Settings from AsyncStorage ---
-    const settings = await AsyncStorage.multiGet([
-      'tax_enabled', 'tax_rate', 'per_product_tax',
-      'discount_enabled', 'discount_rate',
-      'service_charge_enabled', 'service_charge_rate'
-    ]);
-    
-    const sMap: Record<string, string | null> = {};
-    settings.forEach(([key, val]) => sMap[key] = val);
+    // --- Load Settings from AsyncStorage (Optimized if passed) ---
+    let sMap: Record<string, string | null> = {};
+    if (options?.taxSettings) {
+        const ts = options.taxSettings;
+        sMap = {
+            'tax_enabled': String(ts.enabled),
+            'tax_rate': String(ts.rate),
+            'per_product_tax': String(ts.perProduct),
+            'discount_enabled': String(ts.discountEnabled),
+            'discount_rate': String(ts.discountRate),
+            'service_charge_enabled': String(ts.serviceChargeEnabled),
+            'service_charge_rate': String(ts.serviceChargeRate)
+        };
+    } else {
+        const settings = await AsyncStorage.multiGet([
+            'tax_enabled', 'tax_rate', 'per_product_tax',
+            'discount_enabled', 'discount_rate',
+            'service_charge_enabled', 'service_charge_rate'
+        ]);
+        settings.forEach(([key, val]) => sMap[key] = val);
+    }
 
     const isTaxEnabled = sMap['tax_enabled'] === 'true';
     const globalTaxRate = parseFloat(sMap['tax_rate'] || "5.00");
@@ -237,6 +263,7 @@ export async function SimpleBill(
     let totalTaxable = 0;
     let totalGst = 0;
     let totalGross = 0;
+    const usedGstRates = new Set<number>();
 
     const productsForBackend = cartItems.map((item) => {
       const unitPrice = item.editedPrice ?? item.price ?? 0;
@@ -268,6 +295,7 @@ export async function SimpleBill(
 
       totalTaxable += taxable;
       totalGst += gst;
+      if (itemGstRate > 0) usedGstRates.add(itemGstRate);
 
       return {
         productId: item.id,
@@ -350,7 +378,16 @@ export async function SimpleBill(
     summaryRows += `Taxable Amount:${`₹${netTaxableValue.toFixed(2)}`.padStart(17)}\n`;
 
     if (isTaxEnabled || perProductTaxEnabled) {
-        const gstLabelStr = perProductTaxEnabled ? "GST (Multi):" : `GST (${globalTaxRate}%):`;
+        let gstLabelStr = "GST:";
+        if (isTaxEnabled) {
+            gstLabelStr = `GST (${globalTaxRate}%):`;
+        } else if (perProductTaxEnabled) {
+            if (usedGstRates.size === 1) {
+                gstLabelStr = `GST (${Array.from(usedGstRates)[0]}%):`;
+            } else if (usedGstRates.size > 1) {
+                gstLabelStr = "GST (Multi):";
+            }
+        }
         summaryRows += `${gstLabelStr}${`₹${gstAmount.toFixed(2)}`.padStart(32 - gstLabelStr.length)}\n`;
     }
     summaryRows += line('-');
@@ -562,6 +599,9 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
         await AsyncStorage.removeItem('@resume_cart');
         await AsyncStorage.removeItem('@resume_cart_id');
       } catch (e) {}
+
+      // Await print to ensure it starts before returning
+      await printPromise;
 
       return { 
         status: "success", 

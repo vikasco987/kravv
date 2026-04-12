@@ -160,10 +160,27 @@ const MainClientView = () => {
         }
     }, [refreshSignal]);
 
-    const handleSelectAccount = (party: Party) => {
-        fetchBills();
+    const handleSelectAccount = async (party: Party) => {
+        const pId = party.id || (party as any)._id;
         setSelectedParty(party);
         setShowDetailsModal(true);
+        fetchBills();
+
+        // --- NEW: Fetch full details to ensure we have the address ---
+        try {
+            const token = await getToken();
+            const res = await fetch(`https://billing.kravy.in/api/parties/${pId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.party) {
+                    setSelectedParty(data.party);
+                }
+            }
+        } catch (e) {
+            console.log("Error fetching party profile:", e);
+        }
     };
 
     const customerStats = React.useMemo(() => {

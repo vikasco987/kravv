@@ -119,7 +119,7 @@ const MainMenuView = () => {
 
 
     const addSound = { play: () => { } };
-    const removeSound = { play: () => { } };    const prevSignedIn = useRef(isSignedIn);
+    const removeSound = { play: () => { } }; const prevSignedIn = useRef(isSignedIn);
 
     useEffect(() => {
         if (login === 'true') {
@@ -481,78 +481,86 @@ const MainMenuView = () => {
     const totalAmount = Object.values(cart).reduce((sum, i) => sum + ((i.editedPrice ?? i.price ?? 0) * i.quantity), 0);
 
     const confirmPauseOrder = async (itemsToHold?: any[], totalOverride?: number) => {
+        const itemsSnapshot = itemsToHold || Object.values(cart);
+        const totalValue = totalOverride || totalAmount;
+        if (itemsSnapshot.length === 0) return;
+
+        // 🚀 INSTANT UI FEEDBACK
+        setShowHoldSuccess(true);
+        setIsHoldModalVisible(false);
+        setCart({}); 
+        setActiveOrderId(null);
+        setSelectedTable(null);
+        setHeldCount(prev => prev + 1);
+        
+        // Auto-hide success message shortly after
+        setTimeout(() => setShowHoldSuccess(false), 800);
+
         try {
             const token = await getToken();
-            const itemsSnapshot = itemsToHold || Object.values(cart);
-            const totalValue = totalOverride || totalAmount;
-
-            if (itemsSnapshot.length === 0) return;
-
             if (token && user?.id) {
-                try {
-                    const method = activeOrderId ? "PUT" : "POST";
-                    const url = activeOrderId ? `https://billing.kravy.in/api/bill-manager/${activeOrderId}` : "https://billing.kravy.in/api/bill-manager";
-                    const response = await fetch(url, {
-                        method: method,
-                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                        body: JSON.stringify({
-                            items: itemsSnapshot.map(i => ({
-                                itemId: i.id || Math.random().toString(16).padEnd(24, '0'),
-                                productId: i.id,
-                                name: i.name,
-                                qty: Number(i.quantity || 1),
-                                quantity: Number(i.quantity || 1),
-                                rate: i.editedPrice ?? i.price ?? 0,
-                                price: i.editedPrice ?? i.price ?? 0,
-                                gst: Number(i.gst || 0),
-                                taxStatus: (i as any).taxStatus || i.taxType || "Without Tax",
-                                hsnCode: i.hsnCode || ""
-                            })),
-                            subtotal: Number((totalValue / 1.05).toFixed(2)),
-                            tax: Number((totalValue - (totalValue / 1.05)).toFixed(2)),
-                            total: Number(totalValue.toFixed(2)),
-                            paymentMode: "Cash",
-                            paymentStatus: "HELD",
-                            isHeld: true,
-                            customerName: "Walk-in Customer",
-                            tableName: "POS",
-                            discountAmount: 0,
-                            discountCode: null,
-                            auditNote: "Held Order"
-                        }),
-                    });
-
-                    if (response.ok) {
-                        setShowHoldSuccess(true);
-                        setTimeout(() => {
-                            setIsHoldModalVisible(false); setShowHoldSuccess(false);
-                            setCart({}); setActiveOrderId(null); fetchHeldCount();
-                        }, 2000);
-                    } else { await saveToLocalFallback(itemsSnapshot, totalValue); }
-                } catch (fetchError) { await saveToLocalFallback(itemsSnapshot, totalValue); }
-            } else { await saveToLocalFallback(itemsSnapshot, totalValue); }
+                const method = activeOrderId ? "PUT" : "POST";
+                const url = activeOrderId ? `https://billing.kravy.in/api/bill-manager/${activeOrderId}` : "https://billing.kravy.in/api/bill-manager";
+                
+                // Background fetch (don't await for UI)
+                fetch(url, {
+                    method: method,
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                        items: itemsSnapshot.map(i => ({
+                            itemId: i.id || Math.random().toString(16).padEnd(24, '0'),
+                            productId: i.id,
+                            name: i.name,
+                            qty: Number(i.quantity || 1),
+                            quantity: Number(i.quantity || 1),
+                            rate: i.editedPrice ?? i.price ?? 0,
+                            price: i.editedPrice ?? i.price ?? 0,
+                            gst: Number(i.gst || 0),
+                            taxStatus: (i as any).taxStatus || i.taxType || "Without Tax",
+                            hsnCode: i.hsnCode || ""
+                        })),
+                        subtotal: Number((totalValue / 1.05).toFixed(2)),
+                        tax: Number((totalValue - (totalValue / 1.05)).toFixed(2)),
+                        total: Number(totalValue.toFixed(2)),
+                        paymentMode: "Cash",
+                        paymentStatus: "HELD",
+                        isHeld: true,
+                        customerName: "Walk-in Customer",
+                        tableName: "POS",
+                        discountAmount: 0,
+                        discountCode: null,
+                        auditNote: "Held Order"
+                    }),
+                }).then(async (res) => {
+                    if (!res.ok) await saveToLocalFallback(itemsSnapshot, totalValue);
+                    fetchHeldCount(); // Refresh real count
+                }).catch(async () => {
+                    await saveToLocalFallback(itemsSnapshot, totalValue);
+                });
+            } else { 
+                await saveToLocalFallback(itemsSnapshot, totalValue); 
+            }
 
             async function saveToLocalFallback(snapshot: any[], totalVal: number) {
-                if (activeOrderId && activeOrderId.startsWith("BILL-")) {
+                try {
                     const localData = await AsyncStorage.getItem('@held_orders');
                     let orders = localData ? JSON.parse(localData) : [];
-                    orders = orders.map((o: any) => o.id === activeOrderId ? { ...o, items: snapshot, total: totalVal, timestamp: new Date().toISOString() } : o);
+                    
+                    if (activeOrderId && activeOrderId.startsWith("BILL-")) {
+                        orders = orders.map((o: any) => o.id === activeOrderId ? { ...o, items: snapshot, total: totalVal, timestamp: new Date().toISOString() } : o);
+                    } else {
+                        const id = "BILL-" + Date.now();
+                        orders.push({ id, items: snapshot, total: totalVal, timestamp: new Date().toISOString() });
+                    }
                     await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
-                } else {
-                    const id = "BILL-" + Date.now();
-                    const newOrder = { id, items: snapshot, total: totalVal, timestamp: new Date().toISOString() };
-                    const localData = await AsyncStorage.getItem('@held_orders');
-                    const orders = localData ? JSON.parse(localData) : [];
-                    orders.push(newOrder);
-                    await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
+                    fetchHeldCount();
+                } catch (e) {
+                    console.error("Local fallback failed:", e);
                 }
-                setShowHoldSuccess(true);
-                setTimeout(() => {
-                    setIsHoldModalVisible(false); setShowHoldSuccess(false);
-                    setCart({}); setActiveOrderId(null); fetchHeldCount();
-                }, 2000);
             }
-        } catch (e) { ToastAndroid.show("Failed to hold order", ToastAndroid.SHORT); }
+        } catch (e) { 
+            console.error("Hold process error:", e);
+        }
     };
 
     const handlePrintKot = async (itemsOverride?: any[]) => {
@@ -625,7 +633,19 @@ const MainMenuView = () => {
 
     if (currentView === "addItem") return <AddItemView onBack={() => setCurrentView("main")} />;
     if (currentView === "heldOrders") return <HeldOrdersView onBack={() => { setCurrentView("main"); fetchHeldCount(); }} />;
-    if (currentView === "checkout") return <CheckoutView onBack={() => setCurrentView("main")} cartParams={checkoutParams} />;
+    if (currentView === "checkout") return (
+        <CheckoutView 
+            onBack={(clearCart) => {
+                if (clearCart) {
+                    setCart({});
+                    setActiveOrderId(null);
+                    setSelectedTable(null);
+                }
+                setCurrentView("main");
+            }} 
+            cartParams={checkoutParams} 
+        />
+    );
 
     return (
         <View style={styles.container}>
@@ -769,7 +789,7 @@ const MainMenuView = () => {
             <ConfirmHoldModal
                 visible={isHoldModalVisible}
                 onClose={() => setIsHoldModalVisible(false)}
-                onConfirm={confirmPauseOrder}
+                onConfirm={() => confirmPauseOrder()}
                 totalAmount={totalAmount}
                 totalItems={totalItems}
                 showSuccess={showHoldSuccess}
@@ -796,7 +816,7 @@ const MainMenuView = () => {
                 onItemMatched={(item, qty) => {
                     for (let i = 0; i < qty; i++) addToCart(item);
                 }}
-                onSaveRequested={confirmPauseOrder}
+                onSaveRequested={() => confirmPauseOrder()}
                 onKOTRequested={handlePrintKot}
                 onBillRequested={handlePrintBill}
             />

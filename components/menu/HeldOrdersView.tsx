@@ -5,20 +5,19 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
+    Modal,
+    RefreshControl,
     SafeAreaView,
     StyleSheet,
     Text,
     ToastAndroid,
     TouchableOpacity,
-    View,
-    RefreshControl,
-    Modal
+    View
 } from 'react-native';
-import { rf, s, vs } from '../../utils/responsive';
-import { useRefresh } from '../../context/RefreshContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useRefresh } from '../../context/RefreshContext';
+import { rf, s, vs } from '../../utils/responsive';
 
 type HeldOrder = {
     id: string;
@@ -115,6 +114,29 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
         finally { setLoading(false); }
     };
 
+    const handleBulkDelete = async () => {
+        setIsBulkDeleteModalVisible(true);
+    };
+
+    const confirmBulkDelete = async () => {
+        const idsToDelete = [...selectedOrders];
+        setHeldOrders(prev => prev.filter(o => !idsToDelete.includes(o.id)));
+        setSelectedOrders([]);
+        setIsBulkDeleteModalVisible(false);
+
+        const token = await getToken();
+        for (const id of idsToDelete) {
+            await hideOrderLocally(id);
+            if (token) {
+                fetch(`https://billing.kravy.in/api/bill-manager/${id}`, {
+                    method: "DELETE",
+                    headers: { Authorization: `Bearer ${token}` }
+                }).catch(() => { });
+            }
+        }
+        ToastAndroid.show(`${idsToDelete.length} orders deleted`, ToastAndroid.SHORT);
+    };
+
     useFocusEffect(useCallback(() => { fetchHeldOrders(); }, []));
 
     const hideOrderLocally = async (id: string) => {
@@ -167,6 +189,24 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
                     <Text style={styles.headerTitle}>{t('hold_orders')}</Text>
                     <Text style={styles.headerSubtitle}>{heldOrders.length} {t('orders_saved')}</Text>
                 </View>
+
+                {heldOrders.length > 0 && (
+                    <TouchableOpacity
+                        style={styles.selectAllBtn}
+                        onPress={() => {
+                            if (selectedOrders.length === heldOrders.length) setSelectedOrders([]);
+                            else setSelectedOrders(heldOrders.map(o => o.id));
+                        }}
+                    >
+                        <Ionicons
+                            name={selectedOrders.length === heldOrders.length ? "checkbox" : "square-outline"}
+                            size={rf(22)}
+                            color="#4F46E5"
+                        />
+                        <Text style={styles.selectAllText}>All</Text>
+                    </TouchableOpacity>
+                )}
+
                 <TouchableOpacity onPress={triggerRefresh} style={styles.reloadButton}>
                     <Ionicons name="refresh" size={rf(24)} color="#4F46E5" />
                 </TouchableOpacity>
@@ -178,26 +218,59 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
                 <FlatList
                     data={heldOrders}
                     keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                        <View style={styles.orderCard}>
-                            <View style={styles.orderHeader}>
-                                <View>
-                                    <Text style={styles.orderId}>Order #{item.id.toString().slice(-4)}</Text>
-                                    <Text style={styles.orderTime}>{new Date(item.timestamp).toLocaleString()}</Text>
+                    renderItem={({ item }) => {
+                        const isSelected = selectedOrders.includes(item.id);
+                        return (
+                            <TouchableOpacity
+                                style={[styles.orderCard, isSelected && styles.orderCardSelected]}
+                                onPress={() => {
+                                    if (selectedOrders.includes(item.id)) setSelectedOrders(selectedOrders.filter(id => id !== item.id));
+                                    else setSelectedOrders([...selectedOrders, item.id]);
+                                }}
+                                activeOpacity={0.9}
+                            >
+                                <View style={styles.selectionCircle}>
+                                    <Ionicons
+                                        name={isSelected ? "checkmark-circle" : "ellipse-outline"}
+                                        size={rf(24)}
+                                        color={isSelected ? "#4F46E5" : "#D1D5DB"}
+                                    />
                                 </View>
-                                <View style={styles.totalBadge}><Text style={styles.totalText}>₹{item.total}</Text></View>
-                            </View>
-                            <View style={styles.cardActions}>
-                                <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => { setOrderToDelete(item); setIsDeleteModalVisible(true); }}>
-                                    <Feather name="trash-2" size={rf(16)} color="#DC2626" />
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[styles.actionBtn, styles.resumeBtn]} onPress={() => { setOrderToResume(item); setIsResumeModalVisible(true); }}>
-                                    <Feather name="play" size={rf(16)} color="#FFF" />
-                                    <Text style={styles.resumeBtnText}>{t('resume')}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}
+                                <View style={{ flex: 1 }}>
+                                    <View style={styles.orderHeader}>
+                                        <View>
+                                            <Text style={styles.orderId}>Order #{item.id.toString().slice(-4)}</Text>
+                                            <Text style={styles.orderTime}>{new Date(item.timestamp).toLocaleString()}</Text>
+                                        </View>
+                                        <View style={styles.totalBadge}><Text style={styles.totalText}>₹{item.total}</Text></View>
+                                    </View>
+                                    <View style={styles.cardActions}>
+                                        <TouchableOpacity
+                                            style={[styles.actionBtn, styles.deleteBtn]}
+                                            onPress={(e) => {
+                                                e.stopPropagation();
+                                                setOrderToDelete(item);
+                                                setIsDeleteModalVisible(true);
+                                            }}
+                                        >
+                                            <Feather name="trash-2" size={rf(16)} color="#DC2626" />
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.actionBtn, styles.resumeBtn]}
+                                            onPress={(e) => {
+                                                e.stopPropagation();
+                                                setOrderToResume(item);
+                                                setIsResumeModalVisible(true);
+                                            }}
+                                        >
+                                            <Feather name="play" size={rf(16)} color="#FFF" />
+                                            <Text style={styles.resumeBtnText}>{t('resume')}</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    }}
                     contentContainerStyle={styles.listContent}
                     ListEmptyComponent={<View style={styles.emptyContainer}><Text>{t('no_hold_orders')}</Text></View>}
                     refreshControl={<RefreshControl refreshing={false} onRefresh={triggerRefresh} />}
@@ -231,13 +304,44 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
                     </View>
                 </View>
             </Modal>
+
+            <Modal transparent visible={isBulkDeleteModalVisible} animationType="slide">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHandle} />
+                        <View style={styles.holdCircleRed}>
+                            <Ionicons name="trash-outline" size={rf(40)} color="#EF4444" />
+                        </View>
+                        <Text style={styles.modalTitle}>Delete {selectedOrders.length} Orders?</Text>
+                        <Text style={styles.modalSubtext}>
+                            Are you sure you want to permanently delete these {selectedOrders.length} orders?
+                            This action cannot be undone.
+                        </Text>
+
+                        <TouchableOpacity style={styles.confirmBulkDeleteBtn} onPress={confirmBulkDelete}>
+                            <Text style={styles.confirmButtonText}>Yes, Delete All</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.cancelBtn} onPress={() => setIsBulkDeleteModalVisible(false)}>
+                            <Text style={styles.cancelBtnText}>Go Back</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {selectedOrders.length > 0 && (
+                <TouchableOpacity style={styles.bulkDeleteFloatingBtn} onPress={handleBulkDelete}>
+                    <Ionicons name="trash" size={rf(24)} color="#FFF" />
+                    <Text style={styles.bulkDeleteText}>Delete Selected ({selectedOrders.length})</Text>
+                </TouchableOpacity>
+            )}
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F3F4F6' },
-    header: { flexDirection: 'row', alignItems: 'center', padding: s(16), backgroundColor: '#FFF', elevation: 2, marginTop: vs(25) },
+    header: { flexDirection: 'row', alignItems: 'center', padding: s(16), backgroundColor: '#FFF', elevation: 2, marginTop: vs(5) },
     backButton: { marginRight: s(15) },
     headerTitle: { fontSize: rf(20), fontWeight: 'bold' },
     headerSubtitle: { fontSize: rf(12), color: '#6B7280' },
@@ -257,11 +361,28 @@ const styles = StyleSheet.create({
     resumeBtnText: { color: '#FFF', marginLeft: s(5), fontWeight: '600' },
     emptyContainer: { alignItems: 'center', marginTop: vs(100) },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: s(32), borderTopRightRadius: s(32), padding: s(24), alignItems: 'center' },
+    modalContent: {
+        backgroundColor: '#FFF',
+        borderTopLeftRadius: s(32),
+        borderTopRightRadius: s(32),
+        padding: s(24),
+        alignItems: 'center',
+        paddingBottom: vs(45),
+    },
     modalTitle: { fontSize: rf(24), fontWeight: 'bold', marginBottom: vs(12) },
     confirmDeleteBtn: { width: '100%', backgroundColor: '#EF4444', paddingVertical: vs(18), borderRadius: s(20), alignItems: 'center' },
     confirmResumeBtn: { width: '100%', backgroundColor: '#047857', paddingVertical: vs(18), borderRadius: s(20), alignItems: 'center' },
     confirmButtonText: { color: '#FFF', fontWeight: 'bold' },
     cancelBtn: { paddingVertical: vs(15) },
-    cancelBtnText: { color: '#9CA3AF' }
+    cancelBtnText: { color: '#9CA3AF' },
+    selectAllBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: s(10), paddingVertical: vs(5), borderRadius: s(20), marginRight: s(10) },
+    selectAllText: { marginLeft: s(5), fontWeight: 'bold', color: '#4F46E5', fontSize: rf(14) },
+    orderCardSelected: { borderColor: '#4F46E5', borderWidth: 1, backgroundColor: '#F5F7FF' },
+    selectionCircle: { marginRight: s(12), justifyContent: 'center' },
+    bulkDeleteFloatingBtn: { position: 'absolute', bottom: vs(30), left: s(20), right: s(20), backgroundColor: '#EF4444', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: vs(15), borderRadius: s(30), elevation: 5 },
+    bulkDeleteText: { color: '#FFF', fontWeight: 'bold', marginLeft: s(10), fontSize: rf(16) },
+    modalHandle: { width: s(40), height: vs(5), backgroundColor: '#E5E7EB', borderRadius: s(3), marginBottom: vs(20), alignSelf: 'center' },
+    holdCircleRed: { width: s(80), height: s(80), borderRadius: s(40), backgroundColor: '#FEF2F2', justifyContent: 'center', alignItems: 'center', marginBottom: vs(20), borderWidth: 2, borderColor: '#EF4444' },
+    modalSubtext: { fontSize: rf(16), color: '#6B7280', textAlign: 'center', marginBottom: vs(24), lineHeight: rf(22), paddingHorizontal: s(10) },
+    confirmBulkDeleteBtn: { width: '100%', backgroundColor: '#EF4444', paddingVertical: vs(18), borderRadius: s(20), alignItems: 'center', marginBottom: vs(10), elevation: 4 },
 });

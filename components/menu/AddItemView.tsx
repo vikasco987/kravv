@@ -15,7 +15,8 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
+    Image
 } from "react-native";
 
 import { useLanguage } from "../../context/LanguageContext";
@@ -258,6 +259,21 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
         return data.secure_url;
     };
 
+    const handleClear = () => {
+        setNewItem({ 
+            name: "", 
+            price: "", 
+            category: "", 
+            categoryId: "", 
+            imageUrl: "", 
+            taxType: "Without Tax", 
+            gst: null, 
+            hsnCode: "" 
+        });
+        setUploadedImageUrl("");
+        // Optional: show a small toast or visual feedback
+    };
+
     const handleSaveItem = async () => {
         if (!isSignedIn) { setLoginModalVisible(true); return; }
         if (!newItem.name || !newItem.price || !newItem.categoryId) {
@@ -397,6 +413,87 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
                         </View>
                     </View>
 
+                    {newItem.taxType === "With Tax" && (
+                        <>
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>GST Percentage (%)</Text>
+                                <View style={[styles.taxSection, { flexWrap: 'wrap' }]}>
+                                    {gstOptions.map((val) => (
+                                        <TouchableOpacity
+                                            key={val}
+                                            style={[styles.taxBtn, newItem.gst === val && !isCustomGst && styles.taxBtnActive, { minWidth: s(60), marginBottom: vs(8) }]}
+                                            onPress={() => {
+                                                setIsCustomGst(false);
+                                                setNewItem({ ...newItem, gst: val });
+                                            }}
+                                        >
+                                            <Text style={[styles.taxBtnText, newItem.gst === val && !isCustomGst && styles.taxBtnTextActive]}>{val}%</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                    <TouchableOpacity
+                                        style={[styles.taxBtn, isCustomGst && styles.taxBtnActive, { minWidth: s(80), marginBottom: vs(8) }]}
+                                        onPress={() => {
+                                            setIsCustomGst(true);
+                                            setNewItem({ ...newItem, gst: null });
+                                        }}
+                                    >
+                                        <Text style={[styles.taxBtnText, isCustomGst && styles.taxBtnTextActive]}>Custom</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {isCustomGst && (
+                                    <TextInput
+                                        style={[styles.input, { marginTop: vs(10) }]}
+                                        placeholder="Enter Manual GST % (e.g. 3)"
+                                        placeholderTextColor="#9CA3AF"
+                                        keyboardType="numeric"
+                                        value={newItem.gst !== null ? String(newItem.gst) : ""}
+                                        onChangeText={(text) => setNewItem({ ...newItem, gst: Number(text) || 0 })}
+                                    />
+                                )}
+                            </View>
+
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>HSN Code</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="e.g. 123456"
+                                    placeholderTextColor="#9CA3AF"
+                                    keyboardType="numeric"
+                                    value={newItem.hsnCode}
+                                    onChangeText={(text) => setNewItem({ ...newItem, hsnCode: text })}
+                                />
+                            </View>
+                        </>
+                    )}
+
+                    <View style={styles.imagePreviewContainer}>
+                        <Text style={styles.label}>Item Preview Image</Text>
+                        {newItem.imageUrl ? (
+                            <View style={styles.previewImageWrapper}>
+                                <Image 
+                                    source={{ uri: newItem.imageUrl }} 
+                                    style={styles.imagePreview} 
+                                    resizeMode="cover" 
+                                />
+                                <TouchableOpacity 
+                                    style={styles.removeImageIcon}
+                                    onPress={() => {
+                                        setNewItem({ ...newItem, imageUrl: "" });
+                                        setUploadedImageUrl("");
+                                    }}
+                                >
+                                    <Ionicons name="close-circle" size={rf(24)} color="#EF4444" />
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <TouchableOpacity style={styles.imagePlaceholder} onPress={pickImage}>
+                                <Ionicons name="image-outline" size={rf(32)} color="#94A3B8" />
+                                <Text style={styles.placeholderText}>Tap to select photo</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
                     <PermissionGuard requiredPermission="Menu & Items Permissions - Add Menu Items">
                         <TouchableOpacity
                             style={[styles.saveBtn, isSaving && { opacity: 0.7 }]}
@@ -404,6 +501,13 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
                             disabled={isSaving}
                         >
                             {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>{t('save_item')}</Text>}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.clearBtn}
+                            onPress={handleClear}
+                        >
+                            <Text style={styles.clearBtnText}>Clear Details</Text>
                         </TouchableOpacity>
                     </PermissionGuard>
                 </ScrollView>
@@ -507,4 +611,64 @@ const styles = StyleSheet.create({
     taxBtnActive: { borderColor: THEME_PRIMARY, backgroundColor: '#EEF2FF' },
     taxBtnText: { fontSize: rf(14), color: '#6B7280' },
     taxBtnTextActive: { color: THEME_PRIMARY, fontWeight: '600' },
+    clearBtn: {
+        marginTop: vs(15),
+        padding: s(14),
+        borderRadius: s(14),
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        alignItems: 'center',
+        backgroundColor: '#fff'
+    },
+    clearBtnText: {
+        color: '#64748B',
+        fontSize: rf(16),
+        fontWeight: '600'
+    },
+    imagePreviewContainer: {
+        marginBottom: vs(20),
+        width: '100%',
+    },
+    previewImageWrapper: {
+        width: '100%',
+        height: vs(140),
+        borderRadius: s(12),
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        position: 'relative',
+    },
+    imagePreview: {
+        width: '100%',
+        height: '100%',
+    },
+    imagePlaceholder: {
+        width: '100%',
+        height: vs(140),
+        borderRadius: s(12),
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+        borderStyle: 'dashed',
+        backgroundColor: '#F8FAFC',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    placeholderText: {
+        color: '#94A3B8',
+        fontSize: rf(14),
+        marginTop: vs(8),
+        fontWeight: '500'
+    },
+    removeImageIcon: {
+        position: 'absolute',
+        top: s(8),
+        right: s(8),
+        backgroundColor: '#fff',
+        borderRadius: s(12),
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+    },
 });

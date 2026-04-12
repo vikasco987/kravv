@@ -25,16 +25,21 @@ export async function getRecentCompanyProfile(token: string) {
     if (!data) return null;
 
     return {
-      companyName: (data.businessName as string) || "KRAVY Billing",
-      companyAddress: (data.businessAddress as string) || "New Delhi, India",
-      companyPhone: (data.contactPersonPhone as string) || "+91-9999999999",
-      contactPerson: (data.contactPersonName as string) || "Walk-in",
+      companyName: (data.businessName as string) || "",
+      companyAddress: (data.businessAddress as string) || "",
+      companyPhone: (data.contactPersonPhone as string) || "",
+      contactPerson: (data.contactPersonName as string) || "",
       gstNumber: (data.gstNumber as string) || "",
       logoUrl: (data.profileImageUrl as string) || (data.logoUrl as string) || "",
       signatureUrl: (data.signatureUrl as string) || "",
       businessTagLine: (data.businessTagLine as string) || "",
       upi: (data.upi as string) || "",
       upiId: (data.upiId as string) || "",
+      businessType: (data.businessType as string) || "",
+      email: (data.email as string) || "",
+      state: (data.state as string) || "",
+      pinCode: (data.pinCode as string) || "",
+      googleReviewLink: (data.googleReviewLink as string) || "",
     };
   } catch (err: any) {
     if (err.message === "Network request failed") {

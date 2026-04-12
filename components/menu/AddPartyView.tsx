@@ -15,6 +15,7 @@ import {
     View,
     NativeModules,
     Vibration,
+    ToastAndroid,
 } from "react-native";
 // @ts-ignore
 import Voice from '@react-native-voice/voice';
@@ -43,50 +44,61 @@ export default function AddPartyView({ onBack, onSuccess }: AddPartyViewProps) {
 
     const handleSubmit = async () => {
         if (!customerName || !phone) {
-            setErrorMessage("Please enter name and phone number.");
-            setShowError(true);
+            ToastAndroid.show("Enter Name and Phone", ToastAndroid.SHORT);
             return;
         }
 
         try {
             setLoading(true);
-            const token = isLoaded && isSignedIn ? await getToken() : null;
-            if (!token) {
-                setErrorMessage("Please log in again.");
-                setShowError(true);
-                return;
+            const token = await getToken();
+
+            // 1. First, check if customer already exists to avoid 500 server error on unique index
+            const checkRes = await fetch("https://billing.kravy.in/api/parties", {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (checkRes.ok) {
+                const existingParties = await checkRes.json();
+                const exists = existingParties.find((p: any) => p.phone === phone.trim());
+                if (exists) {
+                    ToastAndroid.show("User already exists with this phone!", ToastAndroid.LONG);
+                    setLoading(false);
+                    return;
+                }
             }
-
-            const payload = {
-                name: customerName.trim(),
-                phone: phone.trim(),
-                address: billingAddress.trim() || null,
-                dob: dob ? dob.toISOString() : null,
-            };
-
+            
+            // 2. Exact same logic as CheckoutView
             const response = await fetch("https://billing.kravy.in/api/parties", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body: JSON.stringify(payload),
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "Authorization": `Bearer ${token}` 
+                },
+                body: JSON.stringify({ 
+                    name: customerName.trim(), 
+                    phone: phone.trim(), 
+                    address: billingAddress.trim() || ""
+                }),
             });
 
             if (response.ok) {
                 setShowSuccess(true);
+                ToastAndroid.show("Customer saved successfully!", ToastAndroid.SHORT);
                 setCustomerName("");
                 setPhone("");
+                setBillingAddress("");
                 setTimeout(() => {
                     setShowSuccess(false);
                     onSuccess && onSuccess();
                     handleBack();
-                }, 2000);
+                }, 1000);
             } else {
+                const status = response.status;
                 const data = await response.json().catch(() => ({}));
-                setErrorMessage(data.error || "Failed to add party.");
-                setShowError(true);
+                const err = data.message || data.error || "Server rejection";
+                ToastAndroid.show(`Save Error (${status}): ${err}`, ToastAndroid.LONG);
             }
-        } catch (err: any) {
-            setErrorMessage("Something went wrong.");
-            setShowError(true);
+        } catch (err) {
+            ToastAndroid.show("Network connection error", ToastAndroid.SHORT);
         } finally {
             setLoading(false);
         }
@@ -119,6 +131,16 @@ export default function AddPartyView({ onBack, onSuccess }: AddPartyViewProps) {
                         onChangeText={setPhone}
                         placeholder="Phone Number"
                         keyboardType="phone-pad"
+                        style={styles.input}
+                    />
+                </View>
+
+                <View style={styles.inputGroup}>
+                    <Ionicons name="location" size={rf(22)} color="#4f46e5" />
+                    <TextInput
+                        value={billingAddress}
+                        onChangeText={setBillingAddress}
+                        placeholder="Billing Address"
                         style={styles.input}
                     />
                 </View>

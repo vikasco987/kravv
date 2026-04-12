@@ -426,7 +426,7 @@ export default function DeepSaleView({ onBack }) {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { paddingTop: vs(50), paddingBottom: vs(20), paddingHorizontal: s(18), borderBottomLeftRadius: s(25), borderBottomRightRadius: s(25), elevation: 10 },
+  header: { paddingTop: vs(10), paddingBottom: vs(10), paddingHorizontal: s(18), borderBottomLeftRadius: s(25), borderBottomRightRadius: s(25), elevation: 10 },
   headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: vs(15) },
   backButton: { padding: s(5) },
   headerTitle: { fontSize: rf(20), fontWeight: "700", color: "white", flex: 1, textAlign: "center" },
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
   itemQty: { flex: 1, textAlign: "center", fontSize: rf(14) },
   itemRate: { flex: 1, textAlign: "right", fontSize: rf(14) },
   itemTotal: { flex: 1, textAlign: "right", fontWeight: "700", fontSize: rf(14) },
-  paginationRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: s(15), paddingTop: vs(15), paddingBottom: vs(50), backgroundColor: "#fff", elevation: 4 },
+  paginationRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: s(15), paddingTop: vs(25), paddingBottom: vs(10), backgroundColor: "#fff", elevation: 4 },
   pageBtn: { backgroundColor: "#6C63FF", paddingHorizontal: s(18), paddingVertical: vs(8), borderRadius: s(25) },
   pageText: { color: "white", fontWeight: "700", fontSize: rf(14) },
   pageNumber: { fontSize: rf(16), fontWeight: "700" },
