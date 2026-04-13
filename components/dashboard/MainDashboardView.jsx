@@ -38,7 +38,7 @@ const COLORS = {
 const MainDashboardView = () => {
     const router = useRouter();
     const { getToken } = useAuth();
-    const { isLoaded, isSignedIn } = useUser();
+    const { isLoaded, isSignedIn, user } = useUser();
     const { t } = useLanguage();
 
     const [stats, setStats] = useState({ daily: 0, weekly: 0, monthly: 0 });
@@ -47,7 +47,16 @@ const MainDashboardView = () => {
     const [allBills, setAllBills] = useState([]);
     const [insightVisible, setInsightVisible] = useState(false);
     const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
+    const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
     const { refreshSignal } = useRefresh();
+
+    useEffect(() => {
+        const checkStaff = async () => {
+            const session = await AsyncStorage.getItem('staff_session');
+            setIsStaffSignedIn(!!session);
+        };
+        checkStaff();
+    }, []);
 
     // State for switching views inside the same tab
     const [currentView, setCurrentView] = useState("main"); // 'main', 'daily', 'weekly', 'monthly', 'deepsale'
@@ -56,7 +65,7 @@ const MainDashboardView = () => {
         if (!isLoaded) return;
 
         try {
-            if (!isSignedIn) {
+            if (!isSignedIn && !isStaffSignedIn) {
                 setStats({ daily: 0, weekly: 0, monthly: 0 });
                 setLoading(false);
                 setRefreshing(false);
@@ -77,23 +86,31 @@ const MainDashboardView = () => {
             }
 
             const authToken = await getToken();
-            if (!authToken) {
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            
+            // Use helper to get correct business ID
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            
+            // Use staff token if clerk token is not available
+            const finalToken = authToken || staffSession?.token;
+
+            if (!finalToken && !bId) {
                 setLoading(false);
                 setRefreshing(false);
                 return;
             }
 
-            // ADDED CACHE BUSTER ?t=...
-            const res = await fetch(`https://billing.kravy.in/api/bill-manager?t=${Date.now()}`, {
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+            const url = bId ? `https://billing.kravy.in/api/bill-manager?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/bill-manager?t=${Date.now()}`;
+            const res = await fetch(url, {
+                headers: finalToken ? { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` } : { "Content-Type": "application/json" },
             });
 
             if (res.ok) {
                 const data = await res.json();
-                if (data.bills) {
-                    setAllBills(data.bills);
-                    calculateStats(data.bills);
-                }
+                const billsList = Array.isArray(data) ? data : (data.bills || []);
+                setAllBills(billsList);
+                calculateStats(billsList);
             }
         } catch {
             const cached = await AsyncStorage.getItem('@cached_dash_stats');
@@ -156,7 +173,7 @@ const MainDashboardView = () => {
 
     useEffect(() => {
         fetchStats();
-    }, [isLoaded, isSignedIn]);
+    }, [isLoaded, isSignedIn, isStaffSignedIn]);
 
     useEffect(() => {
         if (refreshSignal > 0) {
@@ -166,7 +183,7 @@ const MainDashboardView = () => {
 
     const handleProtectedAction = (viewName) => {
 
-        if (!isSignedIn) {
+        if (!isSignedIn && !isStaffSignedIn) {
             setIsLoginModalVisible(true);
         } else {
             setCurrentView(viewName);

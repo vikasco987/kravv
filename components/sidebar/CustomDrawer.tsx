@@ -17,6 +17,21 @@ export default function CustomDrawerContent(props: any) {
     const { getToken } = useAuth();
     const router = useRouter();
     const { t } = useLanguage();
+    const { refreshSignal } = useRefresh();
+    
+    const [staffMember, setStaffMember] = useState<any>(null);
+
+    React.useEffect(() => {
+        const checkStaff = async () => {
+            const session = await AsyncStorage.getItem("staff_session");
+            if (session) {
+                setStaffMember(JSON.parse(session));
+            } else {
+                setStaffMember(null);
+            }
+        };
+        checkStaff();
+    }, [refreshSignal]);
     
     // Modal Visibility State
     const [modals, setModals] = useState({
@@ -36,8 +51,21 @@ export default function CustomDrawerContent(props: any) {
 
     const fetchAIData = async () => {
         try {
-            const authToken = await getToken();
-            if (!authToken) return;
+            // Safety Check: Fetch if we have ANY active session (Clerk or Staff)
+            const staffSession = await AsyncStorage.getItem("staff_session");
+            const isStaff = !!staffSession;
+            
+            if (!isSignedIn && !isStaff) return;
+
+            let authToken: string | null = null;
+            if (isSignedIn) {
+                authToken = await getToken();
+            }
+            
+            // If it's a staff member without a Clerk token, we might need a different way 
+            // to call the API or the API might need to be unprotected/differently protected.
+            // For now, assuming staff uses the same API but we might need to handle token null.
+            if (isSignedIn && !authToken) return;
 
             const billRes = await fetch("https://billing.kravy.in/api/bill-manager", {
                 headers: { Authorization: `Bearer ${authToken}` },
@@ -63,7 +91,7 @@ export default function CustomDrawerContent(props: any) {
     };
 
     const handleAction = (type: string) => {
-        if (!isSignedIn && type !== 'signIn') {
+        if (!isSignedIn && !staffMember && type !== 'signIn') {
             setModals({ ...modals, login: true });
             return;
         }
@@ -105,19 +133,23 @@ export default function CustomDrawerContent(props: any) {
     };
 
     const handleLogout = async () => {
-        await signOut();
+        if (isSignedIn) {
+            await signOut();
+        }
+        await AsyncStorage.removeItem("staff_session");
+        setStaffMember(null);
         router.replace("/(auth)/sign-in");
     };
 
     return (
         <>
             <DrawerContentScrollView {...props}>
-                <SidebarHeader user={user} t={t} />
+                <SidebarHeader user={user || staffMember} t={t} />
                 
                 <SidebarItems 
                     t={t} 
                     navigation={props.navigation} 
-                    isSignedIn={isSignedIn}
+                    isSignedIn={isSignedIn || !!staffMember}
                     onAction={handleAction}
                     onLogout={handleLogout}
                 />

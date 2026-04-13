@@ -18,6 +18,7 @@ import {
 import { useLanguage } from '../../context/LanguageContext';
 import { useRefresh } from '../../context/RefreshContext';
 import { rf, s, vs } from '../../utils/responsive';
+import { StaffPermissionEngine } from '../staff creat/StaffPermissionEngine';
 
 type HeldOrder = {
     id: string;
@@ -41,7 +42,7 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
     const [showSuccess, setShowSuccess] = useState(false);
     const [successType, setSuccessType] = useState<'delete' | 'resume'>('delete');
     const { getToken } = useAuth();
-    const { isLoaded, isSignedIn } = useUser();
+    const { isLoaded, isSignedIn, user } = useUser();
     const { refreshSignal, triggerRefresh } = useRefresh();
     const { t } = useLanguage();
     const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -58,24 +59,44 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
         }
     }, [refreshSignal]);
 
+    const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
+
+    useEffect(() => {
+        const checkStaff = async () => {
+            const session = await AsyncStorage.getItem('staff_session');
+            setIsStaffSignedIn(!!session);
+        };
+        checkStaff();
+    }, []);
+
     const fetchHeldOrders = async () => {
-        if (!isLoaded || !isSignedIn) {
-            setHeldOrders([]);
-            setLoading(false);
-            return;
-        }
+        if (!isLoaded) return;
+        
         try {
             setLoading(true);
-            const token = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const isStaff = !!sessionStr;
+
+            if (!isSignedIn && !isStaff) {
+                setHeldOrders([]);
+                setLoading(false);
+                return;
+            }
+            const authToken = await getToken();
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const finalToken = authToken || staffSession?.token;
+
+            const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? user?.id : undefined);
             const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
             const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
 
             let combinedOrders: HeldOrder[] = [];
 
-            if (token) {
+            if (finalToken || bId) {
                 try {
-                    const response = await fetch("https://billing.kravy.in/api/bill-manager?isHeld=true", {
-                        headers: { Authorization: `Bearer ${token}` }
+                    const url = bId ? `https://billing.kravy.in/api/bill-manager?isHeld=true&businessId=${bId}` : "https://billing.kravy.in/api/bill-manager?isHeld=true";
+                    const response = await fetch(url, {
+                        headers: finalToken ? { Authorization: `Bearer ${finalToken}` } : {}
                     });
                     if (response.ok) {
                         const data = await response.json();
@@ -124,13 +145,17 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
         setSelectedOrders([]);
         setIsBulkDeleteModalVisible(false);
 
-        const token = await getToken();
+        const authToken = await getToken();
+        const sessionStr = await AsyncStorage.getItem('staff_session');
+        const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+        const finalToken = authToken || staffSession?.token;
+
         for (const id of idsToDelete) {
             await hideOrderLocally(id);
-            if (token) {
+            if (finalToken) {
                 fetch(`https://billing.kravy.in/api/bill-manager/${id}`, {
                     method: "DELETE",
-                    headers: { Authorization: `Bearer ${token}` }
+                    headers: { Authorization: `Bearer ${finalToken}` }
                 }).catch(() => { });
             }
         }
@@ -156,10 +181,14 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
         setShowSuccess(true);
         await hideOrderLocally(id);
         try {
-            const token = await getToken();
+            const authToken = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const finalToken = authToken || staffSession?.token;
+
             await fetch(`https://billing.kravy.in/api/bill-manager/${id}`, {
                 method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` }
+                headers: finalToken ? { Authorization: `Bearer ${finalToken}` } : {}
             });
         } catch (e) { }
         setTimeout(() => { setIsDeleteModalVisible(false); setShowSuccess(false); setOrderToDelete(null); }, 2000);

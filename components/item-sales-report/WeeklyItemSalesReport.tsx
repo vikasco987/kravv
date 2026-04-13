@@ -1,12 +1,15 @@
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import ItemWiseSalesDetail from './ItemWiseSalesDetail';
 
 const WeeklyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
   const { getToken } = useAuth();
+  const { isLoaded, isSignedIn, user } = useUser();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [reportData, setReportData] = useState<{ items: any[], totalSales: number, totalQty: number }>({ items: [], totalSales: 0, totalQty: 0 });
@@ -17,13 +20,26 @@ const WeeklyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
   const [weeklyBills, setWeeklyBills] = useState<any[]>([]);
 
   const fetchSalesReport = async () => {
+    if (!isLoaded) return;
     try {
       setLoading(true);
-      const token = await getToken();
+      const authToken = await getToken();
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const finalToken = authToken || staffSession?.token;
+
+      if (!finalToken && !bId) {
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
 
       // 1. Fetch Categories
-      const catRes = await fetch(`https://billing.kravy.in/api/categories?t=${Date.now()}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const catUrl = bId ? `https://billing.kravy.in/api/categories?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/categories?t=${Date.now()}`;
+      const catRes = await fetch(catUrl, {
+        headers: { Authorization: `Bearer ${finalToken}` },
       });
       if (catRes.ok) {
         const catData = await catRes.json();
@@ -31,8 +47,9 @@ const WeeklyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
       }
 
       // 2. Fetch Menu to map items to categories
-      const menuRes = await fetch(`https://billing.kravy.in/api/menu/view?t=${Date.now()}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const menuUrl = bId ? `https://billing.kravy.in/api/menu/view?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/menu/view?t=${Date.now()}`;
+      const menuRes = await fetch(menuUrl, {
+        headers: { Authorization: `Bearer ${finalToken}` },
       });
       if (menuRes.ok) {
         let menuItemsRaw = await menuRes.json();
@@ -58,8 +75,9 @@ const WeeklyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
       }
 
       // 3. Fetch Bills
-      const response = await fetch(`https://billing.kravy.in/api/bill-manager?t=${Date.now()}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const billUrl = bId ? `https://billing.kravy.in/api/bill-manager?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/bill-manager?t=${Date.now()}`;
+      const response = await fetch(billUrl, {
+        headers: { Authorization: `Bearer ${finalToken}` },
       });
 
       if (response.ok) {
@@ -112,7 +130,7 @@ const WeeklyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
 
   useEffect(() => {
     fetchSalesReport();
-  }, []);
+  }, [isLoaded, isSignedIn, user]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -337,4 +355,3 @@ const styles = StyleSheet.create({
 });
 
 export default WeeklyItemSalesReport;
-

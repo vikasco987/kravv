@@ -28,6 +28,7 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { rf, s, vs } from "../../utils/responsive";
 import { AddItemCategory } from "./AddItemCategory";
 import { useLanguage } from "../../context/LanguageContext";
@@ -66,7 +67,7 @@ type MenuCategory = {
 
 export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
     const { getToken } = useAuth();
-    const { isLoaded, isSignedIn } = useUser();
+    const { isLoaded, isSignedIn, user } = useUser();
     const router = useRouter();
     const { t } = useLanguage();
 
@@ -121,10 +122,18 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
     const fetchAllCategories = async () => {
         try {
-            const token = await getToken();
-            const response = await fetch("https://billing.kravy.in/api/categories", {
+            const authToken = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || staffSession?.token;
+
+            if (!finalToken && !bId) return;
+
+            const url = bId ? `https://billing.kravy.in/api/categories?businessId=${bId}` : "https://billing.kravy.in/api/categories";
+            const response = await fetch(url, {
                 headers: {
-                    Authorization: `Bearer ${token}`,
+                    Authorization: `Bearer ${finalToken}`,
                     "Cache-Control": "no-cache"
                 },
             });
@@ -182,13 +191,24 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
     }, [isEditModalVisible, isCreateCategoryModalVisible, showCategoryModal, onBack, showAddItemCategoryScreen]);
 
     const fetchMenus = useCallback(async () => {
-        if (!isLoaded || !isSignedIn) return;
+        if (!isLoaded) return;
         try {
             setLoading(true);
-            const token = await getToken();
-            const response = await fetch("https://billing.kravy.in/api/menu/view", {
+            const authToken = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || staffSession?.token;
+
+            if (!finalToken && !bId) {
+                setLoading(false);
+                return;
+            }
+
+            const url = bId ? `https://billing.kravy.in/api/menu/view?businessId=${bId}` : "https://billing.kravy.in/api/menu/view";
+            const response = await fetch(url, {
                 headers: {
-                    Authorization: `Bearer ${token}`,
+                    Authorization: `Bearer ${finalToken}`,
                     "Cache-Control": "no-cache"
                 },
             });
@@ -240,14 +260,14 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         } finally {
             setLoading(false);
         }
-    }, [isLoaded, isSignedIn, getToken]);
+    }, [isLoaded, isSignedIn, user, getToken]);
 
     useEffect(() => {
-        if (isLoaded && isSignedIn) {
+        if (isLoaded) {
             fetchMenus();
             fetchAllCategories();
         }
-    }, [isLoaded, isSignedIn]);
+    }, [isLoaded, isSignedIn, user]);
 
     const handleItemClick = async (item: MenuItem, catId: string, catName: string) => {
         try {
@@ -258,9 +278,15 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
             setEditCategoryId(catId);
             setEditCategoryName(catName);
 
-            const token = await getToken();
-            const response = await fetch(`https://billing.kravy.in/api/items?id=${item.id}`, {
-                headers: { Authorization: `Bearer ${token}` },
+            const authToken = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || staffSession?.token;
+
+            const url = bId ? `https://billing.kravy.in/api/items?id=${item.id}&businessId=${bId}` : `https://billing.kravy.in/api/items?id=${item.id}`;
+            const response = await fetch(url, {
+                headers: { Authorization: `Bearer ${finalToken}` },
             });
             if (response.ok) {
                 const details = await response.json();
@@ -361,10 +387,17 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
         try {
             setIsDeleting(true);
-            const token = await getToken();
-            const response = await fetch(`https://billing.kravy.in/api/items?id=${itemId}`, {
+            const authToken = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || staffSession?.token;
+
+            const url = bId ? `https://billing.kravy.in/api/items?id=${itemId}&businessId=${bId}` : `https://billing.kravy.in/api/items?id=${itemId}`;
+
+            const response = await fetch(url, {
                 method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
+                headers: { Authorization: `Bearer ${finalToken}` },
             });
 
             if (response.ok) {
@@ -392,7 +425,11 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
         try {
             setIsUpdatingCategory(true);
-            const token = await getToken();
+            const authToken = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || staffSession?.token;
 
             // Optimistic UI Update
             setMenus(prev => prev.map(cat =>
@@ -404,10 +441,11 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
             const response = await fetch(`https://billing.kravy.in/api/categories`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
                 body: JSON.stringify({
                     id: selectedCategoryToEdit.id,
-                    name: editCategoryNewName
+                    name: editCategoryNewName,
+                    businessId: bId
                 }),
             });
 
@@ -440,15 +478,19 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
         try {
             setIsDeletingCategory(true);
-            const token = await getToken();
+            const authToken = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || staffSession?.token;
 
             const response = await fetch(`https://billing.kravy.in/api/categories`, {
                 method: "DELETE",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`
+                    Authorization: `Bearer ${finalToken}`
                 },
-                body: JSON.stringify({ id: selectedCategoryToEdit.id })
+                body: JSON.stringify({ id: selectedCategoryToEdit.id, businessId: bId })
             });
 
             if (response.ok) {
@@ -510,7 +552,12 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
         try {
             setIsSaving(true);
-            const token = await getToken();
+            const authToken = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || staffSession?.token;
+
             let finalImageUrl = editImageUrl;
 
             if (editImageUrl.startsWith("file://") || editImageUrl.startsWith("content://")) {
@@ -519,7 +566,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
             const response = await fetch("https://billing.kravy.in/api/items", {
                 method: "PUT",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
                 body: JSON.stringify({
                     id: selectedItem?.id,
                     name: editName,
@@ -528,7 +575,8 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                     imageUrl: finalImageUrl,
                     unit: editUnit,
                     isVeg: editIsVeg,
-                    description: editDescription
+                    description: editDescription,
+                    businessId: bId
                 }),
             });
 
@@ -760,14 +808,19 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                     }
                                     try {
                                         setIsCreatingCategory(true);
-                                        const token = await getToken();
+                                        const authToken = await getToken();
+                                        const sessionStr = await AsyncStorage.getItem('staff_session');
+                                        const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+                                        const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+                                        const finalToken = authToken || staffSession?.token;
+
                                         const response = await fetch("https://billing.kravy.in/api/categories", {
                                             method: "POST",
                                             headers: {
                                                 "Content-Type": "application/json",
-                                                Authorization: `Bearer ${token}`,
+                                                Authorization: `Bearer ${finalToken}`,
                                             },
-                                            body: JSON.stringify({ name: newCategoryName }),
+                                            body: JSON.stringify({ name: newCategoryName, businessId: bId }),
                                         });
 
                                         if (response.ok) {

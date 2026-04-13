@@ -22,6 +22,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { getRecentCompanyProfile } from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill } from "../../utils/SimpleBill";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const THEME_COLOR = "#2563EB";
@@ -62,6 +63,7 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
     serviceChargeRate: 0
   });
   const [businessProfile, setBusinessProfile] = useState<any>(null);
+  const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
 
   const loadTaxSettings = async () => {
     try {
@@ -90,8 +92,16 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
 
   const loadBusinessProfile = async () => {
     try {
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      setActiveBusinessId(bId);
+
       const token = await getToken();
-      const profile = await getRecentCompanyProfile(token || "");
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const finalToken = token || staffSession?.token;
+
+      if (!finalToken) return;
+      const profile = await getRecentCompanyProfile(finalToken);
       if (profile) setBusinessProfile(profile);
     } catch (e) { console.error("Error loading profile in Checkout:", e); }
   };
@@ -116,8 +126,15 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
   const fetchParties = useCallback(async () => {
     try {
       const token = await getToken();
-      const res = await fetch("https://billing.kravy.in/api/parties", {
-        headers: { Authorization: `Bearer ${token}` },
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const finalToken = token || staffSession?.token;
+      
+      const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const url = bId ? `https://billing.kravy.in/api/parties?businessId=${bId}` : "https://billing.kravy.in/api/parties";
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${finalToken}` },
       });
       if (res.ok) {
         const data = await res.json();
@@ -238,8 +255,12 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
     if (cart.length === 0) return;
     try {
       setIsProcessing(true);
-      const token = await getToken();
-      
+      const bId = (activeBusinessId && activeBusinessId !== "") ? activeBusinessId : await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const authToken = await getToken();
+      const finalToken = (authToken && authToken !== "") ? authToken : staffSession?.token;
+
       let finalPartyId = selectedParty?.id || selectedParty?._id;
       const customerName = (newParty.name || searchQuery).trim();
       const customerPhone = newParty.phone.trim();
@@ -255,8 +276,8 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
             // Create new party
             const pRes = await fetch("https://billing.kravy.in/api/parties", {
               method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ name: customerName, phone: customerPhone, address: newParty.address.trim() }),
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+              body: JSON.stringify({ name: customerName, phone: customerPhone, address: newParty.address.trim(), businessId: bId }),
             });
             if (pRes.ok) {
               const pData = await pRes.json();
@@ -266,7 +287,7 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
         } catch (e) { console.error("Auto Party Create Error:", e); }
       }
 
-      const result = await SimpleBill(cart, token!, user?.id!, {
+      const result = await SimpleBill(cart, finalToken!, bId!, {
         paymentMode,
         partyId: finalPartyId,
         customerName: customerName,

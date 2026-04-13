@@ -9,13 +9,16 @@ interface SidebarHeaderProps {
 }
 
 const SidebarHeader = ({ user, t }: SidebarHeaderProps) => {
+    const displayName = user?.firstName || user?.name || 'User';
+    const displayEmail = user?.primaryEmailAddress?.emailAddress || user?.email || "";
+
     return (
         <View style={styles.header}>
             <Ionicons name="person-circle-outline" size={rf(70)} color="#fff" />
             <Text style={styles.welcome}>
-                {user ? `${t('hi')}, ${user.firstName || 'User'}` : t('welcome_guest')}
+                {user ? `${t('hi')}, ${displayName}` : t('welcome_guest')}
             </Text>
-            {user && <Text style={styles.userId}>{user.primaryEmailAddress?.emailAddress}</Text>}
+            {user && <Text style={styles.userId}>{displayEmail}</Text>}
         </View>
     );
 };

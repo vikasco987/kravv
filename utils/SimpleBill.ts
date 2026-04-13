@@ -210,11 +210,35 @@ export async function SimpleBill(
   options?: BillOptions
 ) {
   try {
-    if (!token) throw new Error("❌ Clerk token missing!");
-    if (!userClerkId) throw new Error("❌ userClerkId missing!");
+    let finalToken = (token && token !== "null") ? token : null;
+    let finalUserId = (userClerkId && userClerkId !== "null") ? userClerkId : null;
+
+    if (!finalToken || !finalUserId) {
+        const sessionStr = await AsyncStorage.getItem('staff_session');
+        if (sessionStr) {
+            try {
+                const session = JSON.parse(sessionStr);
+                if (!finalToken) finalToken = session.token || session.token_id || "";
+                if (!finalUserId) finalUserId = session.id || session._id || "";
+            } catch (e) {
+                console.error("SimpleBill: Failed to parse staff_session", e);
+            }
+        }
+    }
+
+    if (!finalToken || finalToken === "" || finalToken === "null") {
+        const errorMsg = "❌ Billing Token Missing (Staff Session Error)";
+        ToastAndroid.show(errorMsg, ToastAndroid.LONG);
+        console.error("SimpleBill: Missing Token", { finalToken, finalUserId });
+        throw new Error("❌ Clerk token missing!");
+    } else {
+        // Log token availability (safe check)
+        console.log("SimpleBill: Token verified, proceeding with bill...");
+    }
+    // if (!finalUserId) throw new Error("❌ userClerkId missing!");
     
     // Use pre-computed info if available to speed up processing
-    const companyInfo = options?.businessProfile || await getRecentCompanyProfile(token);
+    const companyInfo = options?.businessProfile || await getRecentCompanyProfile(finalToken);
     const date = new Date();
     // Use a transient identifier for the print if we can't wait for backend
     const tempBillNo = `NEW-${Date.now().toString().slice(-4)}`;
@@ -526,7 +550,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
       discountAmount: Number(discountAmount.toFixed(2)),
       discountCode: null,
       auditNote: options?.notes || "App Order",
-      userClerkId: userClerkId,
+      userClerkId: finalUserId,
       customerId: options?.partyId || null,
       partyId: options?.partyId || null
     };
@@ -536,7 +560,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
         method: method,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          "Authorization": `Bearer ${finalToken}`,
         },
         body: JSON.stringify(body),
       });

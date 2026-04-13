@@ -1,5 +1,6 @@
 import { useUser } from '@clerk/clerk-expo';
 import React, { useEffect, useState } from 'react';
+import { StaffPermissionEngine } from '../staff creat/StaffPermissionEngine';
 
 interface PermissionGuardProps {
   children: React.ReactNode;
@@ -16,10 +17,13 @@ export const PermissionGuard = ({
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (!isLoaded) return;
-    // Only Owner (Clerk user) has full access, Staff access is disabled as requested.
-    setHasPermission(isSignedIn);
-  }, [isSignedIn, isLoaded]);
+    const check = async () => {
+      if (!isLoaded) return;
+      const allowed = await StaffPermissionEngine.hasAccess(requiredPermission, !!isSignedIn);
+      setHasPermission(allowed);
+    };
+    check();
+  }, [isSignedIn, isLoaded, requiredPermission]);
 
   if (hasPermission === null) return null;
 

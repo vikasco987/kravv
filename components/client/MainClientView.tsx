@@ -27,6 +27,7 @@ import CustomerHistory from "../AI intelligence tools/CustomerHistory";
 import NetworkErrorModal from "../common/NetworkErrorModal";
 import { PermissionGuard } from "../common/PermissionGuard";
 import AddPartyView from "../menu/AddPartyView";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 
 
@@ -61,6 +62,15 @@ const MainClientView = () => {
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [allBills, setAllBills] = useState([]);
     const [showNetworkError, setShowNetworkError] = useState(false);
+    const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
+
+    useEffect(() => {
+        const checkStaff = async () => {
+            const session = await AsyncStorage.getItem('staff_session');
+            setIsStaffSignedIn(!!session);
+        };
+        checkStaff();
+    }, []);
 
     // Settings states
     const [taxEnabled, setTaxEnabled] = useState(false);
@@ -94,7 +104,7 @@ const MainClientView = () => {
     };
 
     const fetchParties = async (silent = false) => {
-        if (!isLoaded || !isSignedIn) {
+        if (!isLoaded || (!isSignedIn && !isStaffSignedIn)) {
             setParties([]);
             setLoading(false);
             setRefreshing(false);
@@ -105,10 +115,14 @@ const MainClientView = () => {
             if (silent) setRefreshing(true);
             else setLoading(true);
             const token = await getToken();
-            const res = await fetch("https://billing.kravy.in/api/parties", {
+            const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? (useUser() as any).user?.id : undefined);
+            
+            const url = bId ? `https://billing.kravy.in/api/parties?businessId=${bId}` : "https://billing.kravy.in/api/parties";
+            
+            const res = await fetch(url, {
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
+                    Authorization: token ? `Bearer ${token}` : "",
                 },
             });
 
@@ -127,12 +141,16 @@ const MainClientView = () => {
     const fetchBills = async () => {
         try {
             const token = await getToken();
-            if (!token) return;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? (useUser() as any).user?.id : undefined);
+            
+            if (!token && !bId) return;
 
-            const res = await fetch(`https://billing.kravy.in/api/bill-manager?t=${Date.now()}`, {
+            const url = bId ? `https://billing.kravy.in/api/bill-manager?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/bill-manager?t=${Date.now()}`;
+            
+            const res = await fetch(url, {
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
+                    "Authorization": token ? `Bearer ${token}` : ""
                 },
             });
 
@@ -150,7 +168,7 @@ const MainClientView = () => {
             loadSettings();
             fetchParties(true);
             fetchBills();
-        }, [isLoaded, isSignedIn])
+        }, [isLoaded, isSignedIn, isStaffSignedIn])
     );
 
     useEffect(() => {

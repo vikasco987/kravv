@@ -18,6 +18,8 @@ import {
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 import { getRecentCompanyProfile } from "../../services/companyService";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface CompanyInfoViewProps {
   onBack?: () => void;
@@ -37,6 +39,17 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
   const [loading, setLoading] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
+
+  useEffect(() => {
+    const checkStaff = async () => {
+      const session = await AsyncStorage.getItem('staff_session');
+      if (session) {
+        setIsStaffSignedIn(true);
+      }
+    };
+    checkStaff();
+  }, []);
 
   // Modal State
   const [modalVisible, setModalVisible] = useState(false);
@@ -64,35 +77,58 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
   const [hasProfile, setHasProfile] = useState(false);
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
+    if (isLoaded && (isSignedIn || isStaffSignedIn)) {
       loadProfile();
     }
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, isStaffSignedIn]);
 
   const loadProfile = async () => {
     try {
       const token = await getToken();
-      if (!token) return;
-      const data = await getRecentCompanyProfile(token);
-      if (data && data.companyName) {
+      const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? undefined : undefined);
+      
+      if (!token && !bId) {
+        setIsInitialLoading(false);
+        return;
+      }
+
+      // Fetch by businessId if staff, otherwise normal
+      const url = bId ? `https://billing.kravy.in/api/profile?businessId=${bId}` : "https://billing.kravy.in/api/profile";
+      
+      const response = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+
+      if (!response.ok) {
+        setIsInitialLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+      
+      // The backend returns fields like businessName, businessAddress, etc.
+      if (data && (data.businessName || data.companyName)) {
         setForm({
           businessType: data.businessType || "",
-          businessName: data.companyName || "",
+          businessName: data.businessName || data.companyName || "",
           tagline: data.businessTagLine || "",
-          contactPerson: data.contactPerson || "",
-          phone: data.companyPhone || "",
+          contactPerson: data.contactPersonName || data.contactPerson || "",
+          phone: data.contactPersonPhone || data.companyPhone || "",
           email: data.email || "",
           gstNumber: data.gstNumber || "",
-          businessAddress: data.companyAddress || "",
+          businessAddress: data.businessAddress || data.companyAddress || "",
           state: data.state || "",
           pinCode: data.pinCode || "",
           upiId: data.upiId || data.upi || "",
           googleReviewLink: data.googleReviewLink || "",
-          profileImage: data.logoUrl || "",
+          profileImage: data.profileImageUrl || data.logoUrl || "",
           signatureUrl: data.signatureUrl || "",
         });
         setHasProfile(true);
         setStep(-1); // Show summary if profile exists
+      } else {
+        setHasProfile(false);
+        setStep(0); // Show landing/setup if no profile
       }
     } catch (e) {
       console.error("Load Profile Error:", e);

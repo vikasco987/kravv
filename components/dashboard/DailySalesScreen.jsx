@@ -1,8 +1,10 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
@@ -74,7 +76,7 @@ const TableListView = ({ data, refreshing, onRefresh, t }) => (
 export default function DailySalesScreen({ onBack }) {
 
   const { getToken } = useAuth();
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
 
   const handleBack = () => {
@@ -118,26 +120,35 @@ export default function DailySalesScreen({ onBack }) {
   };
 
   const fetchBills = async (silent = false) => {
-    if (!isLoaded || !isSignedIn) {
-      setDailySales([]);
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
+    if (!isLoaded) return;
+
     try {
       if (silent) setRefreshing(true);
       else setLoading(true);
-      const token = await getToken();
-      const res = await fetch("https://billing.kravy.in/api/bill-manager", {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const authToken = await getToken();
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const finalToken = authToken || staffSession?.token;
+
+      if (!finalToken && !bId) {
+        setDailySales([]);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      const url = bId ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}` : "https://billing.kravy.in/api/bill-manager";
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${finalToken}` }
       });
 
       if (res.ok) {
         const data = await res.json();
-        if (data.bills) {
-          setDailySales(groupSalesByDate(data.bills.filter((b) => b.isHeld !== true)));
-
-        }
+        const billsList = Array.isArray(data) ? data : (data.bills || []);
+        setDailySales(groupSalesByDate(billsList.filter((b) => b.isHeld !== true)));
       }
     } catch (err) {
       const errorMsg = err && typeof err === 'object' && 'message' in err ? String(err.message) : String(err);
@@ -149,7 +160,7 @@ export default function DailySalesScreen({ onBack }) {
     }
   };
 
-  useEffect(() => { fetchBills(); }, [isLoaded, isSignedIn]);
+  useEffect(() => { fetchBills(); }, [isLoaded, isSignedIn, user]);
 
   useEffect(() => {
     if (refreshSignal > 0) {

@@ -13,6 +13,9 @@ import { View } from "react-native";
 import RNBluetoothClassic from "react-native-bluetooth-classic";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect } from "react";
+import { StaffPermissionEngine } from "../../components/staff creat/StaffPermissionEngine";
+
+import { NoAccessView } from "../../components/staff creat/NoAccessView";
 
 export default function TabsLayout() {
   const { t } = useLanguage();
@@ -22,49 +25,37 @@ export default function TabsLayout() {
   const { isSignedIn } = useAuth();
   const [loginModalVisible, setLoginModalVisible] = useState(false);
   const [isPrinterConnected, setIsPrinterConnected] = useState(false);
-  const [staffPerms, setStaffPerms] = useState<string[]>([]);
   const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
+  const [allowedTabs, setAllowedTabs] = useState<Record<string, boolean>>({});
   const { refreshSignal } = useRefresh();
+
+  // Determine if there is at least one accessible tab for staff
+  const hasAnyAccess = Object.values(allowedTabs).some(v => v === true);
 
   useEffect(() => {
     const checkAuth = async () => {
        const staffSession = await AsyncStorage.getItem("staff_session");
-       if (staffSession) {
-         const data = JSON.parse(staffSession);
-         setIsStaffSignedIn(true);
-         setStaffPerms(data.permissions || []);
-       } else {
-         setIsStaffSignedIn(false);
-         setStaffPerms([]);
+       const isStaff = !!staffSession;
+       setIsStaffSignedIn(isStaff);
+       
+       // Pre-calculate permissions for all tabs
+       const tabs = ["Dashboard", "Menu", "Orders", "Client", "Intelligence", "Reports", "Settings"];
+       const results: Record<string, boolean> = {};
+       
+       for (const tab of tabs) {
+         results[tab] = await StaffPermissionEngine.hasCategoryAccess(tab, !!isSignedIn);
        }
+       setAllowedTabs(results);
     };
     checkAuth();
-  }, [pathname, refreshSignal]);
+  }, [pathname, refreshSignal, isSignedIn]);
 
   const hasTabPermission = (tabName: string) => {
-    if (isSignedIn) return true; // Owner has all
-    if (!isStaffSignedIn) return true; // Show all if no session exists (guest mode)
+    // If not signed in at all (guest), show all (they'll be blocked by modals later)
+    if (!isSignedIn && !isStaffSignedIn) return true;
     
-    const permissions = staffPerms.map(p => p.toLowerCase());
-    
-    switch (tabName) {
-      case "Dashboard":
-        return permissions.some(p => p.includes("sales") || p.includes("analytics") || p.includes("view"));
-      case "Menu":
-        return permissions.some(p => p.includes("create") || p.includes("bill") || p.includes("cart") || p.includes("discount") || p.includes("tax") || p.includes("items") || p.includes("categories"));
-      case "Orders":
-        return permissions.some(p => p.includes("records") || p.includes("reprint") || p.includes("edit saved"));
-      case "Client":
-        return permissions.some(p => p.includes("customer") || p.includes("ledger"));
-      case "Intelligence":
-        return permissions.some(p => p.includes("profit") || p.includes("voice") || p.includes("rotation"));
-      case "Reports":
-        return permissions.some(p => p.includes("report") || p.includes("records"));
-      case "Settings":
-        return permissions.some(p => p.includes("manage staff") || p.includes("printer") || p.includes("pin") || p.includes("whatsapp"));
-      default:
-        return false;
-    }
+    // In other cases, use pre-calculated state
+    return !!allowedTabs[tabName];
   };
 
   useEffect(() => {
@@ -120,7 +111,7 @@ export default function TabsLayout() {
         }
       }
     }
-  }, [pathname, isStaffSignedIn, isSignedIn]);
+  }, [pathname, isStaffSignedIn, isSignedIn, allowedTabs]);
 
   // Dynamic title logic: matches file names
   const getTitle = () => {
@@ -132,6 +123,11 @@ export default function TabsLayout() {
     if (pathname.includes("setting")) return t('settings');
     return "App";
   };
+
+  // If a staff is signed in but has ZERO permissions, show the NoAccessView
+  if (isStaffSignedIn && !isSignedIn && !hasAnyAccess && Object.keys(allowedTabs).length > 0) {
+      return <NoAccessView />;
+  }
 
   return (
     <>

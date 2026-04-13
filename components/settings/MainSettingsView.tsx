@@ -30,6 +30,7 @@ import { StaffCard } from "./StaffCard";
 import { StaffModal } from "./StaffModal";
 import SettingsHeader from "./SettingsHeader";
 import CompanyInfoView from "./CompanyInfoView";
+import { PermissionGuard } from "../common/PermissionGuard";
 
 
 const LOCAL_COLORS = {
@@ -62,9 +63,17 @@ const MainSettingsView = () => {
     const [languageModalVisible, setLanguageModalVisible] = React.useState(false);
     const [staffModalVisible, setStaffModalVisible] = React.useState(false);
     const [currentView, setCurrentView] = React.useState<"main" | "profile">("main");
+    const [isStaffSignedIn, setIsStaffSignedIn] = React.useState(false);
 
 
-    React.useEffect(() => { loadSettings(); }, []);
+    React.useEffect(() => { 
+        loadSettings(); 
+        const checkStaff = async () => {
+            const session = await AsyncStorage.getItem('staff_session');
+            setIsStaffSignedIn(!!session);
+        };
+        checkStaff();
+    }, []);
 
     const loadSettings = async () => {
         try {
@@ -107,20 +116,26 @@ const MainSettingsView = () => {
 
     if (currentView === "profile") return <CompanyInfoView onBack={() => setCurrentView("main")} />;
 
+    const effectiveUser = user || (isStaffSignedIn ? { id: 'staff_user', firstName: 'Staff' } : null);
+
     return (
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <SettingsHeader title={t('settings')} subtitle={t('manage_account')} />
 
-            <WhySignInBox />
+            {!user && !isStaffSignedIn && <WhySignInBox />}
             
-            <BusinessManagementCard user={user} onPress={() => setCurrentView("profile")} onLoginRequired={() => setLoginModalVisible(true)} />
-            <TaxDiscountsCard user={user} onPress={() => setTaxModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
+            <BusinessManagementCard user={effectiveUser} onPress={() => setCurrentView("profile")} onLoginRequired={() => setLoginModalVisible(true)} />
+            
+            <TaxDiscountsCard user={effectiveUser} onPress={() => setTaxModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
 
-            <AppFeaturesCard user={user} onPress={() => setKotModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
-            <StaffCard user={user} onPress={() => setStaffModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
-            <AdvancedDiscountCard user={user} onPress={() => setAdvancedDiscountModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
-            <LanguageCard user={user} onLanguagePress={() => setLanguageModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
+            <AppFeaturesCard user={effectiveUser} onPress={() => setKotModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
+            
+            <StaffCard user={effectiveUser} onPress={() => setStaffModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
+            
+            <AdvancedDiscountCard user={effectiveUser} onPress={() => setAdvancedDiscountModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
+            
+            <LanguageCard user={effectiveUser} onLanguagePress={() => setLanguageModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
 
             <View style={styles.footer}>
                 <Text style={styles.versionText}>Kravy - Smart Billing App</Text>

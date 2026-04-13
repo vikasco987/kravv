@@ -1,5 +1,6 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -16,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 
@@ -49,7 +51,7 @@ const isYesterday = (d) => {
 export default function DeepSaleView({ onBack }) {
 
   const { getToken } = useAuth();
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
 
   const handleBack = () => {
@@ -104,27 +106,36 @@ export default function DeepSaleView({ onBack }) {
   });
 
   const fetchBills = async (silent = false) => {
-    if (!isLoaded || !isSignedIn) {
-      setBills([]);
-      setFilteredBills([]);
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
+    if (!isLoaded) return;
 
     if (!silent) setLoading(true);
     else setRefreshing(true);
 
     try {
-      const token = await getToken();
-      const res = await fetch(
-        "https://billing.kravy.in/api/bill-manager",
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const authToken = await getToken();
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const finalToken = authToken || staffSession?.token;
+
+      if (!finalToken && !bId) {
+        setBills([]);
+        setFilteredBills([]);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      const url = bId ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}` : "https://billing.kravy.in/api/bill-manager";
+      const res = await fetch(url, { 
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` } 
+      });
 
       if (res.ok) {
         const data = await res.json();
-        const onlySales = (data.bills || []).filter((b) => b.isHeld !== true);
+        const billsArray = Array.isArray(data) ? data : (data.bills || []);
+        const onlySales = billsArray.filter((b) => b.isHeld !== true);
 
         setBills(onlySales);
         setFilteredBills(onlySales);
@@ -138,7 +149,7 @@ export default function DeepSaleView({ onBack }) {
 
   useEffect(() => {
     fetchBills();
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, user]);
 
   useEffect(() => {
     if (refreshSignal > 0) {

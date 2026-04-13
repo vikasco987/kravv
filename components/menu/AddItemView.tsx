@@ -1,11 +1,13 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from "expo-router";
 // @ts-ignore
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
+    Image,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -15,14 +17,14 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
-    Image
+    View
 } from "react-native";
 
 import { useLanguage } from "../../context/LanguageContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { PermissionGuard } from "../common/PermissionGuard";
 import { LoginRequiredModal } from "../settings/LoginRequiredModal";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { AddItemCategory } from "./AddItemCategory";
 
 const THEME_PRIMARY = "#4F46E5"; // Indigo
@@ -55,6 +57,15 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
     const [errorModalTitle, setErrorModalTitle] = useState("");
     const [errorModalDetail, setErrorModalDetail] = useState("");
     const [loginModalVisible, setLoginModalVisible] = useState(false);
+    const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
+
+    useEffect(() => {
+        const checkStaff = async () => {
+            const session = await AsyncStorage.getItem('staff_session');
+            setIsStaffSignedIn(!!session);
+        };
+        checkStaff();
+    }, []);
 
     const [newItem, setNewItem] = useState({
         name: "",
@@ -81,12 +92,21 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
     const fetchCategories = useCallback(async () => {
         try {
             setIsLoadingCategories(true);
-            const token = await getToken();
-            if (!token) return;
+            const authToken = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || staffSession?.token;
 
-            const res = await fetch("https://billing.kravy.in/api/menu/view", {
+            if (!finalToken && !bId) {
+                setIsLoadingCategories(false);
+                return;
+            }
+
+            const url = bId ? `https://billing.kravy.in/api/menu/view?businessId=${bId}` : "https://billing.kravy.in/api/menu/view";
+            const res = await fetch(url, {
                 headers: {
-                    Authorization: `Bearer ${token}`,
+                    Authorization: `Bearer ${finalToken}`,
                     "Cache-Control": "no-cache"
                 },
             });
@@ -158,10 +178,18 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
 
     const fetchAllCategoriesRaw = useCallback(async () => {
         try {
-            const token = await getToken();
-            const response = await fetch("https://billing.kravy.in/api/categories", {
+            const authToken = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || staffSession?.token;
+
+            if (!finalToken && !bId) return;
+
+            const url = bId ? `https://billing.kravy.in/api/categories?businessId=${bId}` : "https://billing.kravy.in/api/categories";
+            const response = await fetch(url, {
                 headers: {
-                    Authorization: `Bearer ${token}`,
+                    Authorization: `Bearer ${finalToken}`,
                     "Cache-Control": "no-cache"
                 },
             });
@@ -177,11 +205,11 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
 
     useFocusEffect(
         useCallback(() => {
-            if (isLoaded && isSignedIn) {
+            if (isLoaded && (isSignedIn || isStaffSignedIn)) {
                 fetchCategories();
                 fetchAllCategoriesRaw();
             }
-        }, [isLoaded, isSignedIn])
+        }, [isLoaded, isSignedIn, isStaffSignedIn])
     );
 
     const combinedCategories = React.useMemo(() => {
@@ -198,7 +226,7 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
     }, [allCategoriesList, categories]);
 
     const pickImage = async () => {
-        if (!isSignedIn) {
+        if (!isSignedIn && !isStaffSignedIn) {
             setLoginModalVisible(true);
             return;
         }
@@ -260,22 +288,22 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
     };
 
     const handleClear = () => {
-        setNewItem({ 
-            name: "", 
-            price: "", 
-            category: "", 
-            categoryId: "", 
-            imageUrl: "", 
-            taxType: "Without Tax", 
-            gst: null, 
-            hsnCode: "" 
+        setNewItem({
+            name: "",
+            price: "",
+            category: "",
+            categoryId: "",
+            imageUrl: "",
+            taxType: "Without Tax",
+            gst: null,
+            hsnCode: ""
         });
         setUploadedImageUrl("");
         // Optional: show a small toast or visual feedback
     };
 
     const handleSaveItem = async () => {
-        if (!isSignedIn) { setLoginModalVisible(true); return; }
+        if (!isSignedIn && !isStaffSignedIn) { setLoginModalVisible(true); return; }
         if (!newItem.name || !newItem.price || !newItem.categoryId) {
             setErrorModalTitle("Incomplete Form");
             setErrorModalDetail("Please fill name, price, and category.");
@@ -284,7 +312,11 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
         }
         try {
             setIsSaving(true);
-            const token = await getToken();
+            const authToken = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || staffSession?.token;
             let finalCategoryId = newItem.categoryId;
             let finalImageUrl = uploadedImageUrl;
 
@@ -307,11 +339,15 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
                 taxType: newItem.taxType || "Without Tax",
                 gst: Number(newItem.gst) || 0,
                 hsnCode: newItem.hsnCode || "",
+                businessId: bId // Important for staff
             };
 
             const response = await fetch("https://billing.kravy.in/api/items", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${finalToken}`
+                },
                 body: JSON.stringify(payload),
             });
 
@@ -471,12 +507,12 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
                         <Text style={styles.label}>Item Preview Image</Text>
                         {newItem.imageUrl ? (
                             <View style={styles.previewImageWrapper}>
-                                <Image 
-                                    source={{ uri: newItem.imageUrl }} 
-                                    style={styles.imagePreview} 
-                                    resizeMode="cover" 
+                                <Image
+                                    source={{ uri: newItem.imageUrl }}
+                                    style={styles.imagePreview}
+                                    resizeMode="cover"
                                 />
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.removeImageIcon}
                                     onPress={() => {
                                         setNewItem({ ...newItem, imageUrl: "" });

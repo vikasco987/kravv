@@ -20,6 +20,7 @@ import {
   View,
 } from "react-native";
 import { useRefresh } from "../../context/RefreshContext";
+import { StaffLogin } from "../../components/staff creat/StaffLogin";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -30,6 +31,7 @@ export default function SignInScreen() {
   const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
   const { triggerRefresh } = useRefresh();
   const [isNoNetworkModalVisible, setIsNoNetworkModalVisible] = React.useState(false);
+  const [isStaffModalVisible, setIsStaffModalVisible] = React.useState(false);
 
 
   const handleGoogleSignIn = React.useCallback(async () => {
@@ -131,6 +133,14 @@ export default function SignInScreen() {
           <Text style={styles.googleText}>Continue with Google</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity 
+          style={[styles.googleBtn, { backgroundColor: '#4F46E5', elevation: 10, shadowColor: '#4F46E5', shadowOpacity: 0.4, shadowRadius: 10 }]} 
+          onPress={() => setIsStaffModalVisible(true)}
+        >
+          <Ionicons name="shield-checkmark" size={24} color="#fff" style={{ marginRight: 15 }} />
+          <Text style={[styles.googleText, { color: '#fff', letterSpacing: 1 }]}>STAFF PORTAL ACCESS</Text>
+        </TouchableOpacity>
+
         {/* Footer */}
         <Text style={styles.footer}>
           By signing in, you agree to our{" "}
@@ -141,7 +151,6 @@ export default function SignInScreen() {
           .
         </Text>
       </View>
-
 
       {/* Custom No Network Modal */}
       <Modal
@@ -168,6 +177,11 @@ export default function SignInScreen() {
           </View>
         </View>
       </Modal>
+
+      <StaffLogin 
+        visible={isStaffModalVisible}
+        onClose={() => setIsStaffModalVisible(false)}
+      />
     </LinearGradient>
 
   );

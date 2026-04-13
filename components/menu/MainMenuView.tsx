@@ -45,6 +45,7 @@ import { TableSelectionModal } from "./TableSelectionModal";
 import AddItemView from "./AddItemView";
 import CheckoutView from "./CheckoutView";
 import HeldOrdersView from "./HeldOrdersView";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 
 // --- TYPE DEFINITIONS ---
@@ -104,9 +105,11 @@ const MainMenuView = () => {
     const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
     const [activeCustomer, setActiveCustomer] = useState<any>(null);
     const [showNetworkError, setShowNetworkError] = useState(false);
-    const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
-    const [authBuffering, setAuthBuffering] = useState(false);
-    const [showLockedScreen, setShowLockedScreen] = useState(false);
+    const [isLoginModalVisible, setIsLoginModalVisible] = React.useState(false);
+    const [authBuffering, setAuthBuffering] = React.useState(false);
+    const [showLockedScreen, setShowLockedScreen] = React.useState(false);
+    const [isStaffSignedIn, setIsStaffSignedIn] = React.useState(false);
+    const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
 
 
     const [currentView, setCurrentView] = useState<"main" | "addItem" | "heldOrders" | "checkout">("main");
@@ -134,12 +137,22 @@ const MainMenuView = () => {
     }, [login]);
 
     useEffect(() => {
+        const checkStaff = async () => {
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const isStaff = !!sessionStr;
+            setIsStaffSignedIn(isStaff);
+            
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            setActiveBusinessId(bId);
+        };
+        checkStaff();
+
         if (!isFocused) {
             setShowLockedScreen(false);
             return;
         }
 
-        if (!isSignedIn && isLoaded) {
+        if (!isSignedIn && !isStaffSignedIn && isLoaded) {
             // If we are just arriving from login, we might still have !isSignedIn for a frame
             // so we rely on authBuffering to hide the locked screen.
             if (!authBuffering) {
@@ -150,7 +163,7 @@ const MainMenuView = () => {
         } else {
             setShowLockedScreen(false);
         }
-    }, [isSignedIn, isLoaded, isFocused, authBuffering]);
+    }, [isSignedIn, isLoaded, isFocused, authBuffering, isStaffSignedIn]);
 
 
 
@@ -165,7 +178,7 @@ const MainMenuView = () => {
         try {
             if (!isLoaded) return;
 
-            if (!isSignedIn) {
+            if (!isSignedIn && !isStaffSignedIn) {
                 setMenus([]);
                 setLoading(false);
                 setRefreshing(false);
@@ -187,15 +200,23 @@ const MainMenuView = () => {
             }
 
             const authToken = await getToken();
-            if (!authToken) {
+            const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
+
+            if (!authToken && !bId) {
                 setMenus([]);
                 setLoading(false);
                 setRefreshing(false);
                 return;
             }
 
-            const response = await fetch("https://billing.kravy.in/api/menu/view", {
-                headers: { Authorization: `Bearer ${authToken}` },
+            // Fetching logic depends on having either a token or a business ID for staff
+            const url = bId ? `https://billing.kravy.in/api/menu/view?businessId=${bId}` : "https://billing.kravy.in/api/menu/view";
+            
+            const response = await fetch(url, {
+                headers: authToken ? { 
+                    Authorization: `Bearer ${authToken}`,
+                    "Cache-Control": "no-cache"
+                } : { "Cache-Control": "no-cache" },
             });
 
             if (!response.ok) {
@@ -391,7 +412,7 @@ const MainMenuView = () => {
                 } catch (error) { console.error("Error loading resumed cart:", error); }
             };
             checkResumeCart();
-        }, [isLoaded, isSignedIn])
+        }, [isLoaded, isSignedIn, isStaffSignedIn])
     );
 
     useEffect(() => {
@@ -500,14 +521,19 @@ const MainMenuView = () => {
 
         try {
             const token = await getToken();
-            if (token && user?.id) {
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const finalToken = token || staffSession?.token;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+
+            if (finalToken && bId) {
                 const method = activeOrderId ? "PUT" : "POST";
                 const url = activeOrderId ? `https://billing.kravy.in/api/bill-manager/${activeOrderId}` : "https://billing.kravy.in/api/bill-manager";
 
                 // Background fetch (don't await for UI)
                 fetch(url, {
                     method: method,
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
                     body: JSON.stringify({
                         items: itemsSnapshot.map(i => ({
                             itemId: i.id || Math.random().toString(16).padEnd(24, '0'),
@@ -519,7 +545,8 @@ const MainMenuView = () => {
                             price: i.editedPrice ?? i.price ?? 0,
                             gst: Number(i.gst || 0),
                             taxStatus: (i as any).taxStatus || i.taxType || "Without Tax",
-                            hsnCode: i.hsnCode || ""
+                            hsnCode: i.hsnCode || "",
+                            businessId: bId
                         })),
                         subtotal: Number((totalValue / 1.05).toFixed(2)),
                         tax: Number((totalValue - (totalValue / 1.05)).toFixed(2)),
@@ -531,7 +558,9 @@ const MainMenuView = () => {
                         tableName: "POS",
                         discountAmount: 0,
                         discountCode: null,
-                        auditNote: "Held Order"
+                        auditNote: "Held Order",
+                        businessId: bId,
+                        userClerkId: bId // Context ID
                     }),
                 }).then(async (res) => {
                     if (!res.ok) await saveToLocalFallback(itemsSnapshot, totalValue);
@@ -570,9 +599,10 @@ const MainMenuView = () => {
         isPrinting.current = true;
         try {
             const token = await getToken();
+            const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
             const itemsToPrint = Array.isArray(itemsOverride) ? itemsOverride : Object.values(cart);
             if (itemsToPrint.length === 0) return;
-            await SimpleKOT(itemsToPrint, token!, user?.id!, selectedTable);
+            await SimpleKOT(itemsToPrint, token!, bId!, selectedTable);
         } finally {
             isPrinting.current = false;
         }
@@ -591,8 +621,12 @@ const MainMenuView = () => {
         try {
             ToastAndroid.show("Generating Bill...", ToastAndroid.SHORT);
             const token = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const finalToken = token || staffSession?.token;
+            const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
 
-            const result = await SimpleBill(itemsToPrint, token!, user?.id!, {
+            const result = await SimpleBill(itemsToPrint, finalToken!, bId!, {
                 paymentMode: paymentMethod,
                 billId: activeOrderId || undefined,
                 partyId: activeCustomer?.id || activeCustomer?._id
@@ -613,7 +647,12 @@ const MainMenuView = () => {
 
     const handleSaveBill = async () => {
         const token = await getToken();
-        const result = await SaveBill(Object.values(cart), token!, user?.id!, {
+        const sessionStr = await AsyncStorage.getItem('staff_session');
+        const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+        const finalToken = token || staffSession?.token;
+        const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
+
+        const result = await SaveBill(Object.values(cart), finalToken!, bId!, {
             paymentMode: paymentMethod,
             billId: activeOrderId || undefined,
             partyId: activeCustomer?.id || activeCustomer?._id,
@@ -633,7 +672,7 @@ const MainMenuView = () => {
         <View style={styles.center}><ActivityIndicator size="large" color={THEME_PRIMARY} /><Text style={{ marginTop: 10 }}>{t('loading')}</Text></View>
     );
 
-    if (!isSignedIn && showLockedScreen) return (
+    if (!isSignedIn && !isStaffSignedIn && showLockedScreen) return (
         <View style={styles.container}>
             <MenuHeader
                 onAddItem={() => setIsLoginModalVisible(true)}
@@ -676,14 +715,14 @@ const MainMenuView = () => {
         <View style={styles.container}>
             <MenuHeader
                 onAddItem={() => {
-                    if (!isSignedIn) {
+                    if (!isSignedIn && !isStaffSignedIn) {
                         setIsLoginModalVisible(true);
                     } else {
                         setCurrentView("addItem");
                     }
                 }}
                 onPauseOrder={() => {
-                    if (!isSignedIn) {
+                    if (!isSignedIn && !isStaffSignedIn) {
                         setIsLoginModalVisible(true);
                     } else if (Object.keys(cart).length === 0) {
                         ToastAndroid.show(t('no_items'), ToastAndroid.SHORT);
@@ -692,14 +731,14 @@ const MainMenuView = () => {
                     }
                 }}
                 onViewHeldOrders={() => {
-                    if (!isSignedIn) {
+                    if (!isSignedIn && !isStaffSignedIn) {
                         setIsLoginModalVisible(true);
                     } else {
                         setCurrentView("heldOrders");
                     }
                 }}
                 onVoicePress={() => {
-                    if (!isSignedIn) {
+                    if (!isSignedIn && !isStaffSignedIn) {
                         setIsLoginModalVisible(true);
                     } else {
                         setIsVoiceModalVisible(true);

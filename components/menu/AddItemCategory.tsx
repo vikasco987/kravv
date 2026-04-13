@@ -1,5 +1,6 @@
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ArrowLeft } from "lucide-react-native";
 import React, { useState } from "react";
 import {
@@ -13,6 +14,7 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { rf, s, vs } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
 
@@ -37,6 +39,7 @@ interface AddItemCategoryProps {
 
 export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd, onSuccess }: AddItemCategoryProps) => {
     const { getToken } = useAuth();
+    const { user } = useUser();
     const { t } = useLanguage();
     const [categoryName, setCategoryName] = useState("");
     const [isSavingNew, setIsSavingNew] = useState(false);
@@ -86,14 +89,21 @@ export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd
         // Background Task: Run network call separately without blocking UI
         (async () => {
             try {
-                const token = await getToken();
+                const authToken = await getToken();
+                const sessionStr = await AsyncStorage.getItem('staff_session');
+                const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+                const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+                const finalToken = authToken || staffSession?.token;
+
+                if (!finalToken && !bId) return;
+
                 const response = await fetch("https://billing.kravy.in/api/categories", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
+                        Authorization: `Bearer ${finalToken}`,
                     },
-                    body: JSON.stringify({ name: trimmedName }),
+                    body: JSON.stringify({ name: trimmedName, businessId: bId }),
                 });
 
                 if (response.ok) {

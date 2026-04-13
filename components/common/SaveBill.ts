@@ -27,7 +27,22 @@ export async function SaveBill(
 ) {
   console.log("🔥 SaveBill called");
   
-  if (!token) {
+  let finalToken = (token && token !== "null") ? token : null;
+  let finalUserId = (userClerkId && userClerkId !== "null") ? userClerkId : null;
+
+  if (!finalToken || !finalUserId) {
+    try {
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        if (!finalToken) finalToken = session.token || session.token_id || "";
+        if (!finalUserId) finalUserId = session.id || session._id || "";
+      }
+    } catch (e) {}
+  }
+
+  if (!finalToken || finalToken === "") {
+    console.error("SaveBill: Missing Token", { finalToken, finalUserId });
     ToastAndroid.show("Token missing", ToastAndroid.SHORT);
     return;
   }
@@ -130,7 +145,7 @@ export async function SaveBill(
       discountAmount: Number(discountAmount.toFixed(2)),
       discountCode: null,
       auditNote: options?.notes || "App Order",
-      userClerkId: userClerkId,
+      userClerkId: finalUserId,
       customerId: options?.partyId || null,
       partyId: options?.partyId || null
     };
@@ -140,7 +155,7 @@ export async function SaveBill(
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${finalToken}`,
       },
       body: JSON.stringify(body),
     });

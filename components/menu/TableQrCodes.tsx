@@ -1,6 +1,7 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
 import * as Sharing from 'expo-sharing';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ArrowLeft,
   Download,
@@ -27,6 +28,7 @@ import {
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import ViewShot from "react-native-view-shot";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { rf, s, vs } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
 
@@ -84,6 +86,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   const [tableToDelete, setTableToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isComingSoonVisible, setIsComingSoonVisible] = useState(false);
+  const [businessId, setBusinessId] = useState<string | null>(null);
 
   const viewShotRef = useRef<ViewShot>(null);
 
@@ -98,9 +101,21 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   const fetchTables = useCallback(async () => {
     try {
       setLoading(true);
-      const token = await getToken();
-      const response = await fetch("https://billing.kravy.in/api/tables", {
-        headers: { Authorization: `Bearer ${token}` },
+      const authToken = await getToken();
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const finalToken = authToken || staffSession?.token;
+      setBusinessId(bId);
+
+      if (!finalToken && !bId) {
+        setLoading(false);
+        return;
+      }
+
+      const url = bId ? `https://billing.kravy.in/api/tables?businessId=${bId}` : "https://billing.kravy.in/api/tables";
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${finalToken}` },
       });
       if (response.ok) {
         const contentType = response.headers.get("content-type");
@@ -125,20 +140,25 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
     } finally {
       setLoading(false);
     }
-  }, [getToken]);
+  }, [getToken, user]);
 
   const createTable = async () => {
     if (!newTableName.trim()) return;
     try {
       setIsSaving(true);
-      const token = await getToken();
+      const authToken = await getToken();
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const finalToken = authToken || staffSession?.token;
+
       const response = await fetch("https://billing.kravy.in/api/tables", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${finalToken}`,
         },
-        body: JSON.stringify({ name: newTableName }),
+        body: JSON.stringify({ name: newTableName, businessId: bId }),
       });
       if (response.ok) {
         setNewTableName("");
@@ -162,10 +182,16 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
     if (!tableToDelete) return;
     try {
       setIsDeleting(true);
-      const token = await getToken();
-      const response = await fetch(`https://billing.kravy.in/api/tables?id=${tableToDelete.id}`, {
+      const authToken = await getToken();
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const finalToken = authToken || staffSession?.token;
+
+      const url = bId ? `https://billing.kravy.in/api/tables?id=${tableToDelete.id}&businessId=${bId}` : `https://billing.kravy.in/api/tables?id=${tableToDelete.id}`;
+      const response = await fetch(url, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${finalToken}` },
       });
       if (response.ok) {
         setIsDeleteModalVisible(false);
@@ -305,7 +331,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
                     <Text style={styles.qrBrandName}>{(user?.fullName || user?.username || "KRAVY").toUpperCase()}</Text>
                     <View style={styles.qrWrapper}>
                       <QRCode
-                        value={`https://billing.kravy.in/menu/${user?.id}?tableId=${selectedTable.id}&tableName=${encodeURIComponent(selectedTable.name)}`}
+                        value={`https://billing.kravy.in/menu/${businessId || user?.id}?tableId=${selectedTable.id}&tableName=${encodeURIComponent(selectedTable.name)}`}
                         size={s(180)}
                         color="#000"
                         backgroundColor="#fff"
