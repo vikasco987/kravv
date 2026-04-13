@@ -14,6 +14,7 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import { rf, s, vs } from "../../utils/responsive";
 import TableRotation from "../table-insights/TableRotation";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // --- Orders Components ---
 import CreateTableModal from "./CreateTableModal";
@@ -54,6 +55,15 @@ const MainOrdersView = () => {
         try {
             fetchInProgress.current = true;
             const token = await getToken();
+
+            // Load from cache first if we have nothing yet
+            if (tables.length === 0) {
+                const cachedTables = await AsyncStorage.getItem('@cached_tables');
+                if (cachedTables) {
+                    setTables(JSON.parse(cachedTables));
+                    setLoading(false);
+                }
+            }
 
             const response = await fetch(`https://billing.kravy.in/api/tables?t=${Date.now()}`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -96,16 +106,19 @@ const MainOrdersView = () => {
                     });
 
                     setTables(normalizedTables);
+                    await AsyncStorage.setItem('@cached_tables', JSON.stringify(normalizedTables));
                 }
             }
         } catch (error) {
-            console.error("Fetch tables error:", error);
+            console.log("Offline mode: Fetching from cache");
+            const cachedTables = await AsyncStorage.getItem('@cached_tables');
+            if (cachedTables) setTables(JSON.parse(cachedTables));
         } finally {
             fetchInProgress.current = false;
             setLoading(false);
             setRefreshing(false);
         }
-    }, [getToken]);
+    }, [getToken, tables.length]);
 
     const createTable = async () => {
         if (!newTableName.trim()) return;
@@ -161,7 +174,11 @@ const MainOrdersView = () => {
 
 
     if (currentView === "tableOrders" && selectedTable) {
-        return <TableOrdersView tableId={selectedTable.id} tableName={selectedTable.name} onBack={() => setCurrentView("main")} />;
+        const tableOrders = allOrders.filter((o: any) => {
+            const oTableId = String(o.tableId || (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || "");
+            return oTableId === String(selectedTable.id);
+        });
+        return <TableOrdersView tableId={selectedTable.id} tableName={selectedTable.name} initialOrders={tableOrders} onBack={() => setCurrentView("main")} />;
     }
 
 

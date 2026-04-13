@@ -12,6 +12,7 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
 
 // --- Dashboard Logic Components ---
@@ -62,34 +63,45 @@ const MainDashboardView = () => {
                 return;
             }
 
-            if (stats.daily === 0) setLoading(true);
-            else setRefreshing(true);
+            if (stats.daily === 0) {
+                setLoading(true);
+                const cached = await AsyncStorage.getItem('@cached_dash_stats');
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    setStats(parsed.stats);
+                    setAllBills(parsed.bills || []);
+                    setLoading(false);
+                }
+            } else {
+                setRefreshing(true);
+            }
 
             const authToken = await getToken();
-
             if (!authToken) {
                 setLoading(false);
                 setRefreshing(false);
                 return;
             }
 
-            const res = await fetch("https://billing.kravy.in/api/bill-manager", {
+            // ADDED CACHE BUSTER ?t=...
+            const res = await fetch(`https://billing.kravy.in/api/bill-manager?t=${Date.now()}`, {
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
             });
 
             if (res.ok) {
-                const contentType = res.headers.get("content-type");
-                if (contentType && contentType.includes("application/json")) {
-                    const data = await res.json();
-                    if (data.bills) {
-                        setAllBills(data.bills);
-                        calculateStats(data.bills);
-                    }
-                } else {
-                    await res.text();
+                const data = await res.json();
+                if (data.bills) {
+                    setAllBills(data.bills);
+                    calculateStats(data.bills);
                 }
             }
         } catch {
+            const cached = await AsyncStorage.getItem('@cached_dash_stats');
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                setStats(parsed.stats);
+                setAllBills(parsed.bills || []);
+            }
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -97,16 +109,25 @@ const MainDashboardView = () => {
     };
 
     const calculateStats = (bills) => {
-
         const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        // Today boundary
+        const today = new Date(now);
+        today.setHours(0, 0, 0, 0);
+        const todayTs = today.getTime();
 
-        const day = now.getDay();
-        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-        const startOfWeek = new Date(now.setDate(diff));
+        // Weekly boundary (Starts from Monday 00:00)
+        const startOfWeek = new Date(today);
+        const day = today.getDay();
+        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+        startOfWeek.setDate(diff);
         startOfWeek.setHours(0, 0, 0, 0);
+        const weekTs = startOfWeek.getTime();
 
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        // Monthly boundary (Starts from 1st 00:00)
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const monthTs = startOfMonth.getTime();
 
         let daily = 0;
         let weekly = 0;
@@ -116,14 +137,21 @@ const MainDashboardView = () => {
 
         onlySales.forEach(bill => {
             const billDate = new Date(bill.createdAt);
-            const total = bill.total || 0;
+            const billTs = billDate.getTime();
+            const total = Number(bill.total) || 0;
 
-            if (billDate >= startOfToday) daily += total;
-            if (billDate >= startOfWeek) weekly += total;
-            if (billDate >= startOfMonth) monthly += total;
+            if (billTs >= todayTs) daily += total;
+            if (billTs >= weekTs) weekly += total;
+            if (billTs >= monthTs) monthly += total;
         });
 
-        setStats({ daily, weekly, monthly });
+        const newStats = { 
+            daily: Math.round(daily), 
+            weekly: Math.round(weekly), 
+            monthly: Math.round(monthly) 
+        };
+        setStats(newStats);
+        AsyncStorage.setItem('@cached_dash_stats', JSON.stringify({ stats: newStats, bills: onlySales }));
     };
 
     useEffect(() => {

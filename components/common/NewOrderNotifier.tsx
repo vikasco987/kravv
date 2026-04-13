@@ -22,25 +22,46 @@ const NewOrderNotifier = () => {
   const { user } = useUser();
   const router = useRouter();
   const [showNotification, setShowNotification] = useState(false);
+  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [newOrderInfo, setNewOrderInfo] = useState<any>(null);
-  const slideAnim = useRef(new Animated.Value(-250)).current;
-  const prevOrderCount = useRef(0);
+  const processedOrderIds = useRef(new Set<string>());
+  
+  const slideAnim = useRef(new Animated.Value(-500)).current;
+  const flashAnim = useRef(new Animated.Value(1)).current;
   const fetchInProgress = useRef(false);
   const soundRef = useRef<Audio.Sound | null>(null);
 
+  // Setup Audio Mode
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: false,
+    });
+  }, []);
   const startRingtone = async () => {
     try {
+      if (soundRef.current) return; // Already playing
       const { sound } = await Audio.Sound.createAsync(
-        { uri: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' },
+        { uri: 'https://assets.mixkit.co/active_storage/sfx/2190/2190-preview.mp3' },
         { shouldPlay: true, isLooping: true, volume: 1.0 }
       );
       soundRef.current = sound;
-    } catch (error) {
-      console.log('Ringtone error:', error);
-    }
+      
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(flashAnim, { toValue: 0.3, duration: 200, useNativeDriver: true }),
+          Animated.timing(flashAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+        ])
+      ).start();
+    } catch (error) { }
   };
 
   const stopRingtone = async () => {
+    if (pendingOrders.length > 1) return; // Keep playing if more orders exist
+    flashAnim.stopAnimation();
+    flashAnim.setValue(1);
     if (soundRef.current) {
       try {
         await soundRef.current.stopAsync();
@@ -53,71 +74,103 @@ const NewOrderNotifier = () => {
   const triggerNotification = (order: any) => {
     setNewOrderInfo(order);
     setShowNotification(true);
-
-    Animated.spring(slideAnim, {
-      toValue: vs(40),
-      useNativeDriver: true,
-      friction: 7,
-    }).start();
-
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, friction: 4, tension: 40 }).start();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     startRingtone();
   };
 
   const hideNotification = () => {
-    stopRingtone();
-    Animated.timing(slideAnim, {
-      toValue: -250,
-      duration: 500,
-      useNativeDriver: true,
-    }).start(() => {
-      setShowNotification(false);
-    });
+    const nextOrders = pendingOrders.slice(1);
+    setPendingOrders(nextOrders);
+
+    if (nextOrders.length === 0) {
+      stopRingtone();
+      Animated.timing(slideAnim, { toValue: -1000, duration: 300, useNativeDriver: true }).start(() => {
+        setShowNotification(false);
+        setNewOrderInfo(null);
+      });
+    } else {
+      // Immediately show next order
+      setNewOrderInfo(nextOrders[0]);
+    }
   };
 
   const handleAccept = async () => {
+    const currentOrder = newOrderInfo; // Capture current
+    // Hide/Next happens immediately in UI but logic continues
     hideNotification();
+
     try {
       const token = await getToken();
-      if (token && newOrderInfo) {
-        const cartItems = (newOrderInfo.items || []).map((it: any) => ({
-          name: it.name,
-          quantity: it.quantity
+      if (token && currentOrder) {
+        // --- DEEP SEARCH FOR ITEMS ---
+        let rawItems = currentOrder.items || currentOrder.cart || currentOrder.products || 
+                       currentOrder.orderItems || currentOrder.order_items || 
+                       currentOrder.data?.items || currentOrder.cart_items || [];
+        
+        // If items are in an object (keyed by ID), convert to array
+        if (rawItems && !Array.isArray(rawItems) && typeof rawItems === 'object') {
+          rawItems = Object.values(rawItems);
+        }
+
+        const items = (Array.isArray(rawItems) ? rawItems : []).map((it: any) => ({
+          name: String(it.name || it.itemName || it.item_name || it.productName || it.product_name || it.title || it.label || it.item || "Item"),
+          quantity: Number(it.quantity || it.qty || it.qnt || it.count || it.amount || it.unit || it.Quantity || 1)
         }));
-        if (cartItems.length > 0) {
-           await SimpleKOT(cartItems, token, user?.id || "unknown", newOrderInfo.tableName || newOrderInfo.table?.name || "Table");
+
+        console.log(`[NewOrder] Raw Items Count: ${rawItems?.length || 0}, Mapped: ${items.length}`);
+        
+        if (items.length > 0) {
+           const tableName = currentOrder.tableName || currentOrder.table?.name || currentOrder.table_name || "Online Order";
+           await SimpleKOT(items, token, user?.id || "unknown", tableName);
         }
       }
     } catch (e) {
-      console.log("Accept Print Error:", e);
+      console.log("Auto KOT Print Error:", e);
     }
 
-    if (newOrderInfo?.tableId || (newOrderInfo?.table && (typeof newOrderInfo.table !== 'string'))) {
-      const tId = newOrderInfo.tableId || newOrderInfo.table.id || newOrderInfo.table._id;
+    if (currentOrder?.tableId || (currentOrder?.table && (typeof currentOrder.table !== 'string'))) {
+      const tId = currentOrder.tableId || currentOrder.table.id || currentOrder.table._id;
       router.push({
+        // @ts-ignore
         pathname: '/orders/[tableId]',
-        params: { tableId: tId, tableName: newOrderInfo.tableName || newOrderInfo.table?.name || 'Table' }
+        params: { tableId: tId, tableName: currentOrder.tableName || currentOrder.table?.name || 'Table' }
       });
     }
   };
 
   const fetchOrders = async () => {
-    if (!isSignedIn || fetchInProgress.current || showNotification) return;
+    if (!isSignedIn || fetchInProgress.current) return;
     try {
       fetchInProgress.current = true;
       const token = await getToken();
       if (!token) return;
+      
       const response = await fetch(`https://billing.kravy.in/api/orders?t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (response.ok) {
         const oData = await response.json();
-        const orders = Array.isArray(oData) ? oData : (oData.orders || []);
-        if (prevOrderCount.current > 0 && orders.length > prevOrderCount.current) {
-          const latest = orders[orders.length - 1];
-          triggerNotification(latest);
+        const orders: any[] = Array.isArray(oData) ? oData : (oData.orders || []);
+        
+        if (processedOrderIds.current.size === 0) {
+          orders.forEach(o => processedOrderIds.current.add(o._id || o.id));
+          return;
         }
-        prevOrderCount.current = orders.length;
+
+        const newlyArrivedOrders = orders.filter(o => !processedOrderIds.current.has(o._id || o.id));
+
+        if (newlyArrivedOrders.length > 0) {
+          newlyArrivedOrders.forEach(o => processedOrderIds.current.add(o._id || o.id));
+          setPendingOrders(prev => {
+            const updated = [...prev, ...newlyArrivedOrders];
+            if (prev.length === 0 && !showNotification) {
+              triggerNotification(updated[0]);
+            }
+            return updated;
+          });
+        }
       }
     } catch (error) {
     } finally {
@@ -127,93 +180,102 @@ const NewOrderNotifier = () => {
 
   useEffect(() => {
     if (!isSignedIn) {
-      prevOrderCount.current = 0;
+      processedOrderIds.current.clear();
+      setPendingOrders([]);
       stopRingtone();
       return;
     }
     fetchOrders();
-    const interval = setInterval(fetchOrders, 5000);
+    const interval = setInterval(fetchOrders, 3000);
     return () => clearInterval(interval);
   }, [isSignedIn]);
 
-  if (!showNotification) return null;
+  if (!showNotification || !newOrderInfo) return null;
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        { transform: [{ translateY: slideAnim }], opacity: showNotification ? 1 : 0 }
-      ]}
-    >
-      <View style={styles.vibrantCard}>
-        <View style={styles.topSection}>
-          <View style={styles.alertBadge}>
-            <Text style={styles.badgeText}>🔔 New Booking 🔔</Text>
+    <View style={styles.fullscreenOverlay}>
+      <Animated.View
+        style={[
+          styles.container,
+          { transform: [{ translateY: slideAnim }], opacity: flashAnim }
+        ]}
+      >
+        <View style={styles.emergencyCard}>
+          <View style={styles.topSection}>
+            <View style={styles.dangerBadge}>
+              <Text style={styles.badgeText}>🧨 URGENT ORDER 🧨</Text>
+            </View>
+            <TouchableOpacity onPress={hideNotification}>
+              <Ionicons name="close-circle" size={rf(30)} color="#7F1D1D" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={hideNotification}>
-            <Ionicons name="close-circle" size={rf(24)} color="#92400E" />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.mainInfo}>
-          <View style={styles.iconBox}>
-            <Text style={{ fontSize: rf(30) }}>🍱</Text>
+          
+          <View style={styles.mainInfo}>
+            <View style={styles.pulseBox}>
+              <Ionicons name="notifications" size={rf(40)} color="#EF4444" />
+            </View>
+            <View style={styles.textStack}>
+              <Text style={styles.mainTitle}>NEW ORDER! 🛎️</Text>
+              <Text style={styles.mainSubtitle}>
+                {newOrderInfo?.tableName || 'Table'} has sent a new order.{"\n"}
+                <Text style={{fontWeight: '900', color: '#B91C1C'}}>ACCEPT IMMEDIATELY!</Text>
+              </Text>
+            </View>
           </View>
-          <View style={styles.textStack}>
-            <Text style={styles.mainTitle}>Order Received! 🍽️</Text>
-            <Text style={styles.mainSubtitle}>
-              {newOrderInfo?.tableName || 'Table'} has sent a new order. Check it now! 🏃‍♂️
-            </Text>
+
+          <View style={styles.btnStack}>
+            <TouchableOpacity style={[styles.btnBase, styles.ignoreBtn]} onPress={hideNotification}>
+              <Text style={styles.ignoreTxt}>DISMISS</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.btnBase, styles.viewBtn]} onPress={handleAccept}>
+              <Text style={styles.viewTxt}>ACCEPT ORDER</Text>
+              <Ionicons name="checkmark-done-circle" size={rf(22)} color="#fff" />
+            </TouchableOpacity>
           </View>
         </View>
-        <View style={styles.btnStack}>
-          <TouchableOpacity style={[styles.btnBase, styles.ignoreBtn]} onPress={hideNotification}>
-            <Text style={styles.ignoreTxt}>Remove</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.btnBase, styles.viewBtn]} onPress={handleAccept}>
-            <Text style={styles.viewTxt}>Accept</Text>
-            <Ionicons name="restaurant" size={rf(18)} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    top: Dimensions.get('window').height / 2 - vs(120),
-    left: s(20),
-    right: s(20),
+  fullscreenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     zIndex: 9999999,
-    elevation: 35,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  vibrantCard: {
-    backgroundColor: '#FCD34D',
-    borderRadius: s(35),
-    padding: s(25),
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 25,
-    borderWidth: 2,
-    borderColor: '#F59E0B',
+  container: {
+    width: width - s(30),
+    zIndex: 10000000,
   },
-  topSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(15) },
-  alertBadge: { backgroundColor: '#92400E', paddingVertical: vs(4), paddingHorizontal: s(15), borderRadius: s(20) },
-  badgeText: { color: '#fff', fontSize: rf(12), fontWeight: '900' },
-  mainInfo: { flexDirection: 'row', alignItems: 'center', marginBottom: vs(25) },
-  iconBox: { width: s(60), height: s(60), backgroundColor: '#FFF', borderRadius: s(20), justifyContent: 'center', alignItems: 'center', elevation: 5 },
+  emergencyCard: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: s(30),
+    padding: s(20),
+    borderWidth: 4,
+    borderColor: '#EF4444',
+    elevation: 40,
+    shadowColor: "#EF4444",
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.6,
+    shadowRadius: 25,
+  },
+  topSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(20) },
+  dangerBadge: { backgroundColor: '#EF4444', paddingVertical: vs(5), paddingHorizontal: s(15), borderRadius: s(20) },
+  badgeText: { color: '#fff', fontSize: rf(14), fontWeight: '900' },
+  mainInfo: { flexDirection: 'row', alignItems: 'center', marginBottom: vs(30) },
+  pulseBox: { width: s(80), height: s(80), backgroundColor: '#FFF', borderRadius: s(40), justifyContent: 'center', alignItems: 'center', elevation: 10, borderWidth: 2, borderColor: '#EF4444' },
   textStack: { flex: 1, marginLeft: s(15) },
-  mainTitle: { color: '#78350F', fontWeight: '900', fontSize: rf(22) },
-  mainSubtitle: { color: '#92400E', fontSize: rf(14), marginTop: vs(4), fontWeight: '600', lineHeight: vs(18) },
-  btnStack: { flexDirection: 'row', gap: s(12) },
-  btnBase: { flex: 1, flexDirection: 'row', height: vs(55), alignItems: 'center', justifyContent: 'center', borderRadius: s(20), gap: s(8) },
-  ignoreBtn: { backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#F59E0B' },
-  ignoreTxt: { color: '#92400E', fontWeight: '800', fontSize: rf(15) },
-  viewBtn: { backgroundColor: '#92400E' },
-  viewTxt: { color: '#fff', fontWeight: '800', fontSize: rf(15) },
+  mainTitle: { color: '#991B1B', fontWeight: '900', fontSize: rf(26) },
+  mainSubtitle: { color: '#B91C1C', fontSize: rf(16), marginTop: vs(6), fontWeight: '600', lineHeight: vs(22) },
+  btnStack: { flexDirection: 'column', gap: vs(12) },
+  btnBase: { width: '100%', flexDirection: 'row', height: vs(65), alignItems: 'center', justifyContent: 'center', borderRadius: s(20), gap: s(8) },
+  ignoreBtn: { backgroundColor: '#FCA5A5', borderWidth: 1, borderColor: '#EF4444' },
+  ignoreTxt: { color: '#7F1D1D', fontWeight: '900', fontSize: rf(18) },
+  viewBtn: { backgroundColor: '#EF4444' },
+  viewTxt: { color: '#fff', fontWeight: '900', fontSize: rf(20) },
 });
 
 export default NewOrderNotifier;

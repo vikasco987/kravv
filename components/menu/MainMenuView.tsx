@@ -111,6 +111,7 @@ const MainMenuView = () => {
 
     const [currentView, setCurrentView] = useState<"main" | "addItem" | "heldOrders" | "checkout">("main");
     const [checkoutParams, setCheckoutParams] = useState<any>(null);
+    const isPrinting = useRef(false);
     const flatListRef = useRef<any>(null);
     const isFocused = useIsFocused();
     const { login } = useLocalSearchParams();
@@ -143,6 +144,8 @@ const MainMenuView = () => {
             // so we rely on authBuffering to hide the locked screen.
             if (!authBuffering) {
                 setShowLockedScreen(true);
+            } else {
+                setShowLockedScreen(false);
             }
         } else {
             setShowLockedScreen(false);
@@ -342,7 +345,6 @@ const MainMenuView = () => {
     useFocusEffect(
         useCallback(() => {
             const resetFocus = async () => {
-                setShowLockedScreen(false); // Reset on focus
                 fetchMenus();
                 fetchHeldCount();
                 fetchSettings();
@@ -488,11 +490,11 @@ const MainMenuView = () => {
         // 🚀 INSTANT UI FEEDBACK
         setShowHoldSuccess(true);
         setIsHoldModalVisible(false);
-        setCart({}); 
+        setCart({});
         setActiveOrderId(null);
         setSelectedTable(null);
         setHeldCount(prev => prev + 1);
-        
+
         // Auto-hide success message shortly after
         setTimeout(() => setShowHoldSuccess(false), 800);
 
@@ -501,7 +503,7 @@ const MainMenuView = () => {
             if (token && user?.id) {
                 const method = activeOrderId ? "PUT" : "POST";
                 const url = activeOrderId ? `https://billing.kravy.in/api/bill-manager/${activeOrderId}` : "https://billing.kravy.in/api/bill-manager";
-                
+
                 // Background fetch (don't await for UI)
                 fetch(url, {
                     method: method,
@@ -537,15 +539,15 @@ const MainMenuView = () => {
                 }).catch(async () => {
                     await saveToLocalFallback(itemsSnapshot, totalValue);
                 });
-            } else { 
-                await saveToLocalFallback(itemsSnapshot, totalValue); 
+            } else {
+                await saveToLocalFallback(itemsSnapshot, totalValue);
             }
 
             async function saveToLocalFallback(snapshot: any[], totalVal: number) {
                 try {
                     const localData = await AsyncStorage.getItem('@held_orders');
                     let orders = localData ? JSON.parse(localData) : [];
-                    
+
                     if (activeOrderId && activeOrderId.startsWith("BILL-")) {
                         orders = orders.map((o: any) => o.id === activeOrderId ? { ...o, items: snapshot, total: totalVal, timestamp: new Date().toISOString() } : o);
                     } else {
@@ -558,31 +560,54 @@ const MainMenuView = () => {
                     console.error("Local fallback failed:", e);
                 }
             }
-        } catch (e) { 
+        } catch (e) {
             console.error("Hold process error:", e);
         }
     };
 
     const handlePrintKot = async (itemsOverride?: any[]) => {
-        const token = await getToken();
-        const itemsToPrint = itemsOverride || Object.values(cart);
-        if (itemsToPrint.length === 0) return;
-        await SimpleKOT(itemsToPrint, token!, user?.id!, selectedTable);
+        if (isPrinting.current) return;
+        isPrinting.current = true;
+        try {
+            const token = await getToken();
+            const itemsToPrint = Array.isArray(itemsOverride) ? itemsOverride : Object.values(cart);
+            if (itemsToPrint.length === 0) return;
+            await SimpleKOT(itemsToPrint, token!, user?.id!, selectedTable);
+        } finally {
+            isPrinting.current = false;
+        }
     };
 
     const handlePrintBill = async (itemsOverride?: any[], totalOverride?: number) => {
-        const token = await getToken();
-        const itemsToPrint = itemsOverride || Object.values(cart);
-        if (itemsToPrint.length === 0) return;
-        const result = await SimpleBill(itemsToPrint, token!, user?.id!, {
-            paymentMode: paymentMethod,
-            billId: activeOrderId || undefined,
-            partyId: activeCustomer?.id || activeCustomer?._id
-        });
-        if (result?.status === "success") {
-            setCart({}); setActiveOrderId(null); setSelectedTable(null); fetchHeldCount();
-            setActiveCustomer(null);
-            await AsyncStorage.removeItem('@active_customer');
+        if (isPrinting.current) return;
+
+        const itemsToPrint = Array.isArray(itemsOverride) ? itemsOverride : Object.values(cart);
+        if (itemsToPrint.length === 0) {
+            ToastAndroid.show(t('no_items'), ToastAndroid.SHORT);
+            return;
+        }
+
+        isPrinting.current = true;
+        try {
+            ToastAndroid.show("Generating Bill...", ToastAndroid.SHORT);
+            const token = await getToken();
+
+            const result = await SimpleBill(itemsToPrint, token!, user?.id!, {
+                paymentMode: paymentMethod,
+                billId: activeOrderId || undefined,
+                partyId: activeCustomer?.id || activeCustomer?._id
+            });
+
+            if (result?.status === "success") {
+                setCart({});
+                setActiveOrderId(null);
+                setSelectedTable(null);
+                fetchHeldCount();
+                setActiveCustomer(null);
+                await AsyncStorage.removeItem('@active_customer');
+            }
+        } finally {
+            isPrinting.current = false;
         }
     };
 
@@ -634,7 +659,7 @@ const MainMenuView = () => {
     if (currentView === "addItem") return <AddItemView onBack={() => setCurrentView("main")} />;
     if (currentView === "heldOrders") return <HeldOrdersView onBack={() => { setCurrentView("main"); fetchHeldCount(); }} />;
     if (currentView === "checkout") return (
-        <CheckoutView 
+        <CheckoutView
             onBack={(clearCart) => {
                 if (clearCart) {
                     setCart({});
@@ -642,8 +667,8 @@ const MainMenuView = () => {
                     setSelectedTable(null);
                 }
                 setCurrentView("main");
-            }} 
-            cartParams={checkoutParams} 
+            }}
+            cartParams={checkoutParams}
         />
     );
 

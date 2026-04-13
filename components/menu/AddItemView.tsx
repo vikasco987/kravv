@@ -580,7 +580,7 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLOR_BG },
-    horizontalHeader: { flexDirection: 'row', alignItems: 'center', marginTop: vs(45), marginBottom: vs(10), paddingHorizontal: s(20) },
+    horizontalHeader: { flexDirection: 'row', alignItems: 'center', marginTop: vs(10), marginBottom: vs(10), paddingHorizontal: s(20) },
     inlineBackButton: { width: s(40), height: s(40), borderRadius: s(20), backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', elevation: 2 },
     titleContainer: { marginLeft: s(20), flex: 1 },
     mainTitleInline: { fontSize: rf(22), fontWeight: "800", color: "#0F172A" },

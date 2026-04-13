@@ -15,6 +15,7 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleKOT } from "../common/SimpleKOT";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { SimpleBill } from "../../utils/SimpleBill";
 
@@ -39,14 +40,15 @@ interface TableOrdersViewProps {
   tableId: string;
   tableName: string;
   onBack?: () => void;
+  initialOrders?: Order[];
 }
 
-export default function TableOrdersView({ tableId, tableName, onBack }: TableOrdersViewProps) {
+export default function TableOrdersView({ tableId, tableName, onBack, initialOrders }: TableOrdersViewProps) {
   const { getToken } = useAuth();
   const { user } = useUser();
   const { t } = useLanguage();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>(initialOrders || []);
+  const [loading, setLoading] = useState(initialOrders ? false : true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchInProgress = React.useRef(false);
@@ -57,6 +59,16 @@ export default function TableOrdersView({ tableId, tableName, onBack }: TableOrd
     try {
       fetchInProgress.current = true;
       const token = await getToken();
+
+      // Early cache check
+      if (orders.length === 0) {
+        const cached = await AsyncStorage.getItem(`@cached_orders_${tableId}`);
+        if (cached) {
+            setOrders(JSON.parse(cached));
+            setLoading(false);
+        }
+      }
+
       const response = await fetch(`https://billing.kravy.in/api/orders?tableId=${tableId}&t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -76,15 +88,17 @@ export default function TableOrdersView({ tableId, tableName, onBack }: TableOrd
           id: o.id || o._id || Math.random().toString()
         }));
         setOrders(normalizedOrders);
+        await AsyncStorage.setItem(`@cached_orders_${tableId}`, JSON.stringify(normalizedOrders));
       }
     } catch (error) {
-      console.error("Fetch orders error:", error);
+       const cached = await AsyncStorage.getItem(`@cached_orders_${tableId}`);
+       if (cached) setOrders(JSON.parse(cached));
     } finally {
       fetchInProgress.current = false;
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tableId, getToken]);
+  }, [tableId, getToken, orders.length]);
 
   useEffect(() => {
     fetchOrders();

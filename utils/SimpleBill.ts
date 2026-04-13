@@ -413,114 +413,94 @@ ${upi ? centerText("Scan & Pay", 32) + "\n" : ""}
 ${centerText("Thank You! Visit Again 🙏", 32)}
 `;
 
-    // --- Faster Execution: Print & Save in Parallel ---
+    // --- Start Printing Process Early ---
     const printPromise = (async () => {
       try {
-        if (!connectedPrinter) {
+        if (!connectedPrinter || !(await connectedPrinter.isConnected())) {
           const printer = await ensurePrinterConnected(options?.silent);
           if (!printer) return;
         }
 
         // 1. Initialize Printer
         await connectedPrinter?.write(new Uint8Array([0x1B, 0x40])); // ESC @
-        
         const encoder = new TextEncoder();
         
         // --- ESC/POS COMMANDS ---
         const ALIGN_CENTER = new Uint8Array([0x1B, 0x61, 0x01]);
         const ALIGN_LEFT = new Uint8Array([0x1B, 0x61, 0x00]);
-        const SIZE_LARGE = new Uint8Array([0x1B, 0x21, 0x30]); // Double height & width
+        const SIZE_LARGE = new Uint8Array([0x1B, 0x21, 0x10]); // Adjusted size
         const SIZE_NORMAL = new Uint8Array([0x1B, 0x21, 0x00]);
         const BOLD_ON = new Uint8Array([0x1B, 0x45, 0x01]);
         const BOLD_OFF = new Uint8Array([0x1B, 0x45, 0x00]);
 
-        // Start With Banners (LOGO & BIDS)
+        // Start Printing
         await connectedPrinter?.write(ALIGN_CENTER);
 
-        // 2. Print Logo from URL
+        // 2. Print Logo
         if (logoUrl) {
             await processAndPrintLogo(connectedPrinter, logoUrl, options?.silent);
         }
 
-        // Business Name Header (This is the large DELHI 38 in the screenshot)
+        // Business Name Header
         await connectedPrinter?.write(SIZE_LARGE);
         await connectedPrinter?.write(BOLD_ON);
         await connectedPrinter?.write(encoder.encode(companyName.toUpperCase() + "\n"));
         await connectedPrinter?.write(BOLD_OFF);
         await connectedPrinter?.write(SIZE_NORMAL);
 
-        // Sub-header details
-        if (companyTagline) {
-            await connectedPrinter?.write(encoder.encode(companyTagline + "\n"));
-        }
-        
-        // Decorative divider
+        if (companyTagline) await connectedPrinter?.write(encoder.encode(companyTagline + "\n"));
         await connectedPrinter?.write(encoder.encode(line('=') + "\n"));
-
-        // Address & Contact
         await connectedPrinter?.write(encoder.encode(companyAddress + "\n"));
-        if (companyPhone) {
-            await connectedPrinter?.write(encoder.encode(`PH: ${companyPhone}\n`));
-        }
+        if (companyPhone) await connectedPrinter?.write(encoder.encode(`PH: ${companyPhone}\n`));
         if (gstNumber) {
             await connectedPrinter?.write(BOLD_ON);
             await connectedPrinter?.write(encoder.encode(`GSTIN: ${gstNumber}\n`));
             await connectedPrinter?.write(BOLD_OFF);
         }
-
         await connectedPrinter?.write(encoder.encode(line('-') + "\n"));
-        
-        // Reset to Left for Body
         await connectedPrinter?.write(ALIGN_LEFT);
         
-        // Print Body items
         const cleanBody = bodyText.replace(/[^\x00-\x7F]/g, "");
         await connectedPrinter?.write(encoder.encode(cleanBody));
 
-    const upi = companyInfo?.upiId || companyInfo?.upi || "";
-    const upiUrl = upi ? `upi://pay?pa=${upi}&pn=${encodeURIComponent(companyName.slice(0, 20))}&am=${finalTotalFixed.toFixed(2)}&cu=INR&tn=BILL_${tempBillNo.slice(-4)}` : "";
-          
-    if (upiUrl) {
-          // ESC/POS QR Code commands
-          const size = upiUrl.length + 3;
-          const pL = size % 256;
-          const pH = Math.floor(size / 256);
+        const upiId = companyInfo?.upiId || companyInfo?.upi || "";
+        const upiUrl = upiId ? `upi://pay?pa=${upiId}&pn=${encodeURIComponent(companyName.slice(0, 20))}&am=${finalTotalFixed.toFixed(2)}&cu=INR&tn=BILL_${tempBillNo.slice(-4)}` : "";
+              
+        if (upiUrl) {
+              const size = upiUrl.length + 3;
+              const pL = size % 256;
+              const pH = Math.floor(size / 256);
+              const qrCommands = new Uint8Array([
+                0x1B, 0x61, 0x01,
+                0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00,
+                0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x08,
+                0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30,
+                0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30, ...Array.from(upiUrl).map(c => c.charCodeAt(0)),
+                0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30,
+                0x0A,
+                ...Array.from(centerText(`SCAN TO PAY ₹${finalTotalFixed.toFixed(2)}`, 32)).map(c => c.charCodeAt(0)),
+                0x0A, 0x0A
+              ]);
+              await connectedPrinter?.write(qrCommands);
+        }
 
-          const qrCommands = new Uint8Array([
-            0x1B, 0x61, 0x01,                         // Align center
-            0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00,    // Function 167: Set model
-            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x08,          // Function 169: Set size (8 for better scanning)
-            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30,          // Function 171: Set error correction
-            0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30, ...Array.from(upiUrl).map(c => c.charCodeAt(0)), // Function 180: Store data
-            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30,          // Function 181: Print QR
-            0x0A,                                     // New line
-            ...Array.from(centerText(`SCAN TO PAY ₹${finalTotalFixed.toFixed(2)}`, 32)).map(c => c.charCodeAt(0)),
-            0x0A, 0x0A                                // Padding
-          ]);
-          await connectedPrinter?.write(qrCommands);
-    }
-
-        // Feed 3 lines & cut paper
-        await connectedPrinter?.write(new Uint8Array([0x1b, 0x64, 0x03])); // ESC d 3
-        await connectedPrinter?.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00])); // GS V B 0
+        await connectedPrinter?.write(new Uint8Array([0x1b, 0x64, 0x03])); // Feed
+        await connectedPrinter?.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00])); // Cut
       } catch (err) {
-        console.log("Print error in SimpleBill:", err);
+        console.log("Print process failed:", err);
       }
     })();
-    
-    // 0. Build Method and URL safely
+
+    // 🔥 WAITING for print to finish sending to buffer before backend fetch
+    await printPromise;
+
+    // --- Backend Save ---
     const billId = options?.billId;
-    // CRITICAL: Only use PUT if it's a valid MongoDB ID (24 hex chars)
     const isValidBillId = billId && typeof billId === 'string' && /^[a-f\d]{24}$/i.test(billId);
     const method = isValidBillId ? "PUT" : "POST";
-    const url = isValidBillId 
-      ? `https://billing.kravy.in/api/bill-manager/${billId}`
-      : "https://billing.kravy.in/api/bill-manager";
-
-    // Standardize Payment Mode
+    const url = isValidBillId ? `https://billing.kravy.in/api/bill-manager/${billId}` : "https://billing.kravy.in/api/bill-manager";
     const normalizedPaymentMode = options?.paymentMode === "UPI" || options?.paymentMode === "Card" ? options.paymentMode : "Cash";
 
-    // 1. Build Body exactly like working SaveBill.ts
     const body = {
       items: productsForBackend.map(p => ({
         itemId: p.productId || Math.random().toString(16).padEnd(24, '0'),
@@ -551,63 +531,40 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
       partyId: options?.partyId || null
     };
 
-    let res;
-    let data: any = {};
-    
     try {
-      res = await fetch(url, {
+      const res = await fetch(url, {
         method: method,
         headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json",
-          Authorization: `Bearer ${token}`,
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(body),
       });
 
-      const contentType = res.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        data = (await res.json()) || {};
-      }
-    } catch (e: any) {
-      console.log("❌ Network Error during save:", e.message);
-      // We don't return error here because print might have worked
-    }
-
-    if (res && !res.ok) {
-      console.log("❌ Backend Error:", data);
-      // Even if backend fails, if print worked, we want success popup for the user
-      // but we return "saved" status to handle the popup logic
-      return { 
-        status: "success", 
-        data: data?.bill || data || {} 
-      };
-    } else {
-      // ✅ SUCCESS: Fast Return for Popup
-      try {
-        const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
-        const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
-        if (options?.billId && !hiddenIds.includes(options.billId)) {
-          hiddenIds.push(options.billId);
-        }
-        if (options?.orderId && !hiddenIds.includes(options.orderId)) {
-          hiddenIds.push(options.orderId);
-        }
-        if (hiddenIds.length > 0) {
+      if (res.ok) {
+        try {
+          const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
+          const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
+          if (options?.billId && !hiddenIds.includes(options.billId)) hiddenIds.push(options.billId);
           await AsyncStorage.setItem('@hidden_bill_ids', JSON.stringify(hiddenIds));
-        }
-        await AsyncStorage.removeItem('@resume_cart');
-        await AsyncStorage.removeItem('@resume_cart_id');
-      } catch (e) {}
-
-      // Await print to ensure it starts before returning
-      await printPromise;
-
-      return { 
-        status: "success", 
-        data: data?.bill || data || {} 
-      };
+          await AsyncStorage.removeItem('@resume_cart');
+          await AsyncStorage.removeItem('@resume_cart_id');
+        } catch (e) {}
+      } else {
+        throw new Error("Server rejected bill");
+      }
+    } catch (e) {
+      console.log("Network save failed, saving to local queue...");
+      try {
+          const queueStr = await AsyncStorage.getItem('@pending_bills');
+          const queue = queueStr ? JSON.parse(queueStr) : [];
+          queue.push({ url, method, body, timestamp: Date.now() });
+          await AsyncStorage.setItem('@pending_bills', JSON.stringify(queue));
+          if (!options?.silent) ToastAndroid.show("Offline: Saved locally", ToastAndroid.SHORT);
+      } catch (err) {}
     }
+
+    return { status: "success" };
   } catch (err: any) {
     console.log("❌ [SimpleBill Error]:", err.message);
     if (!options?.silent) ToastAndroid.show("❌ Error creating bill", ToastAndroid.SHORT);
