@@ -32,6 +32,7 @@ export default function CustomDrawerContent(props: any) {
     // Data for AI features
     const [allBills, setAllBills] = useState([]);
     const [menus, setMenus] = useState([]);
+    const [parties, setParties] = useState([]);
 
     const fetchAIData = async () => {
         try {
@@ -48,6 +49,14 @@ export default function CustomDrawerContent(props: any) {
 
             const cachedMenu = await AsyncStorage.getItem('@cached_menu');
             if (cachedMenu) setMenus(JSON.parse(cachedMenu));
+
+            const partyRes = await fetch("https://billing.kravy.in/api/parties", {
+                headers: { Authorization: `Bearer ${authToken}` },
+            });
+            if (partyRes.ok) {
+                const pData = await partyRes.json();
+                setParties(pData || []);
+            }
         } catch (e) {
             console.error("CustomDrawer AI fetch error:", e);
         }
@@ -117,7 +126,7 @@ export default function CustomDrawerContent(props: any) {
             <SidebarModals 
                 modals={modals} 
                 setModals={setModals}
-                data={{ allBills, menus }}
+                data={{ allBills, menus, parties }}
                 onSignIn={() => {
                     setModals({ ...modals, login: false });
                     router.push("/(auth)/sign-in");

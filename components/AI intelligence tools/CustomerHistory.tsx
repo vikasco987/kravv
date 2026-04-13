@@ -24,13 +24,14 @@ interface CustomerHistoryProps {
     onClose: () => void;
     party: any;
     bills: any[];
+    allParties?: any[];
 }
 
 // Global voice controllers to prevent double-speaking in Customer Search
 let customerSearchHasSpoken = false;
 let customerSearchLastSpokenTime = 0;
 
-const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProps) => {
+const CustomerHistory = ({ visible, onClose, party, bills, allParties }: CustomerHistoryProps) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedItemNames, setSelectedItemNames] = useState<string[]>([]);
     const [isListening, setIsListening] = useState(false);
@@ -160,7 +161,7 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
           const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
           if (!nativeBridge) return;
     
-          // --- ROBUST START: Safety Cancel \u0026 Delay ---
+          // --- ROBUST START: Safety Cancel & Delay ---
           if (typeof nativeBridge.cancelSpeech === 'function') {
               try {
                   await new Promise((resolve) => {
@@ -218,12 +219,26 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
         const query = searchQuery.trim().toLowerCase();
         if (!query && !party) return null;
 
-        // Clean customer identity (from party list)
-        const targetPhone = (party?.phone || "").replace(/\D/g, '');
-        const cleanTargetPhone = targetPhone.length > 10 ? targetPhone.slice(-10) : targetPhone;
-        const targetName = (party?.name || "").toLowerCase().trim();
+        // Clean customer identity (from party list or search)
+        let foundPartyFromList = party;
+        
+        if (query && !foundPartyFromList && allParties) {
+            foundPartyFromList = allParties.find((p: any) => {
+                const pName = (p.name || "").toLowerCase();
+                const pPhone = (p.phone || "").replace(/\D/g, "");
+                const cleanQuery = query.replace(/\D/g, "");
+                
+                if (pName.includes(query)) return true;
+                if (cleanQuery && pPhone.includes(cleanQuery)) return true;
+                return false;
+            });
+        }
 
-        const pId = (party as any)?.id || (party as any)?._id;
+        const targetPhone = (foundPartyFromList?.phone || "").replace(/\D/g, '');
+        const cleanTargetPhone = targetPhone.length > 10 ? targetPhone.slice(-10) : targetPhone;
+        const targetName = (foundPartyFromList?.name || "").toLowerCase().trim();
+
+        const pId = foundPartyFromList?.id || foundPartyFromList?._id;
 
         const customerBills = (bills || []).filter(bill => {
             // Clean bill record data
@@ -231,38 +246,28 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
             const cleanBillPhone = bPhoneRaw.length > 10 ? bPhoneRaw.slice(-10) : bPhoneRaw;
             const bName = (bill.customerName || bill.name || "").toLowerCase().trim();
 
-            // Case 1: Searching for a specific party prop (from Clients tab)
-            if (party) {
-                // 1. Matched by ID (Highest Accuracy)
-                if (pId && (bill.partyId === pId || bill.customerId === pId || bill.party === pId)) return true;
+            // Match by ID
+            if (pId && (bill.partyId === pId || bill.customerId === pId || bill.party === pId)) return true;
+            
+            // Match by Phone suffix
+            if (cleanTargetPhone && cleanBillPhone && cleanTargetPhone === cleanBillPhone) return true;
+            
+            // Match by name
+            if (targetName && bName && (bName.includes(targetName) || targetName.includes(bName))) return true;
 
-                // 2. Suffix match for phone (handles +91 vs no +91)
-                if (cleanTargetPhone && cleanBillPhone && cleanTargetPhone === cleanBillPhone) return true;
-                
-                // 3. Inclusion match for name
-                if (targetName && bName && (bName.includes(targetName) || targetName.includes(bName))) return true;
-                return false;
-            }
-
-            // Case 2: Manual search by Query (from Sidebar)
-            if (query) {
+            // Manual search by Query (fallback if no party linked yet)
+            if (query && !foundPartyFromList) {
                 const cleanQuery = query.replace(/\D/g, '');
                 const cleanSuffixQuery = cleanQuery.length > 10 ? cleanQuery.slice(-10) : cleanQuery;
-                
-                // If it's a numeric search (Phone)
-                if (cleanQuery) {
-                    // Normalize both sides to find the best match (handles +91 vs no +91)
-                    if (cleanBillPhone && cleanBillPhone.includes(cleanSuffixQuery)) return true;
-                }
-                
-                // Name match (Inclusion)
+                if (cleanQuery && cleanBillPhone && cleanBillPhone.includes(cleanSuffixQuery)) return true;
                 if (bName.includes(query)) return true;
             }
 
             return false;
         });
 
-        if (customerBills.length === 0) return null;
+        // If we found a party but they have no bills, still show them
+        if (customerBills.length === 0 && !foundPartyFromList) return null;
 
         // --- STATS CALCULATION ---
         const itemMap: Record<string, { count: number; name: string }> = {};
@@ -333,16 +338,17 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
         const sortedByDate = [...customerBills].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         const latestBill = sortedByDate[0];
         
-        const displayName = party?.name || latestBill?.customerName || latestBill?.name || "Customer";
+        const displayName = foundPartyFromList?.name || latestBill?.customerName || latestBill?.name || "Customer";
 
         return {
             name: displayName,
             visitCount: customerBills.length,
             totalSpend,
             favoriteItems: sortedItems,
-            lastVisit: latestBill?.createdAt
+            lastVisit: latestBill?.createdAt,
+            partyData: foundPartyFromList
         };
-    }, [party, bills, searchQuery, taxEnabled, perProductTax, taxRate, discountEnabled, discountRate, serviceChargeEnabled, serviceChargeRate]);
+    }, [party, bills, allParties, searchQuery, taxEnabled, perProductTax, taxRate, discountEnabled, discountRate, serviceChargeEnabled, serviceChargeRate]);
 
     const findItemData = (name: string) => {
         let bestMatch: any = null;
@@ -372,8 +378,9 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
 
         if (itemsToBatch.length > 0) {
             // ✅ LINK CUSTOMER TO SESSION: Save party data so menu/bill can recognize them
-            if (party) {
-                AsyncStorage.setItem('@active_customer', JSON.stringify(party)).catch(() => {});
+            const partyToLink = party || (insights as any)?.partyData;
+            if (partyToLink) {
+                AsyncStorage.setItem('@active_customer', JSON.stringify(partyToLink)).catch(() => {});
             }
 
             DeviceEventEmitter.emit('add_to_cart_remote', itemsToBatch);

@@ -23,7 +23,7 @@ import { useRefresh } from "../../context/RefreshContext";
 import ClientHeader from "./ClientHeader";
 import PartyListItem from "./PartyListItem";
 import CustomerDetailsModal from "./CustomerDetailsModal";
-import CustomerHistory from "../customer-insights/CustomerHistory";
+import CustomerHistory from "../AI intelligence tools/CustomerHistory";
 import NetworkErrorModal from "../common/NetworkErrorModal";
 import { PermissionGuard } from "../common/PermissionGuard";
 import AddPartyView from "../menu/AddPartyView";

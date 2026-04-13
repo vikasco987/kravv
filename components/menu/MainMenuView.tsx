@@ -29,7 +29,7 @@ import { SimpleKOT } from "../common/SimpleKOT";
 // Menu Components
 import NetworkErrorModal from "../common/NetworkErrorModal";
 import { PermissionGuard } from "../common/PermissionGuard";
-import VoiceOrder from "../voice-command/VoiceOrder";
+import VoiceOrder from "../AI intelligence tools/VoiceOrder";
 import { CartBar } from "./CartBar";
 import { CartItemsModal } from "./CartItemsModal";
 import { CategorySidebar } from "./CategorySidebar";

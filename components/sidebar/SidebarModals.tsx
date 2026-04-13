@@ -3,9 +3,9 @@ import { Modal } from 'react-native';
 import { TableQrCodes } from "../menu/TableQrCodes";
 import { EditMenuItem } from "../menu/EditMenuItem";
 import ItemSalesReport from "../item-sales-report/item-sales-report";
-import ProfitEngine from "../profit-engine/ProfitEngine";
-import VoiceOrder from "../voice-command/VoiceOrder";
-import CustomerHistory from "../customer-insights/CustomerHistory";
+import ProfitEngine from "../AI intelligence tools/ProfitEngine";
+import VoiceOrder from "../AI intelligence tools/VoiceOrder";
+import CustomerHistory from "../AI intelligence tools/CustomerHistory";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
 
 interface SidebarModalsProps {
@@ -22,6 +22,7 @@ interface SidebarModalsProps {
     data: {
         allBills: any[];
         menus: any[];
+        parties: any[];
     };
     onSignIn: () => void;
 }
@@ -67,6 +68,7 @@ const SidebarModals = ({ modals, setModals, data, onSignIn }: SidebarModalsProps
                 onClose={() => setModals({ ...modals, history: false })}
                 party={null}
                 bills={data.allBills}
+                allParties={data.parties}
             />
         </>
     );

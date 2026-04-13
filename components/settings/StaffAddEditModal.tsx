@@ -225,10 +225,10 @@ const StaffAddEditModal = ({
   const getGroupDisplayInfo = (title: string) => {
     const mappings: Record<string, { displayTitle: string, displaySubtitle: string }> = {
       "Dashboard Permissions": { displayTitle: "Dashboard", displaySubtitle: "Dashboard Permissions" },
-      "Order & Billing Permissions": { displayTitle: "Ordering & Billing", displaySubtitle: "Order & Billing Permissions" },
+      "Order & Billing Permissions": { displayTitle: "Order & Tables", displaySubtitle: "Order & Billing Permissions" },
       "Invoices & Receipts": { displayTitle: "Invoices & Records", displaySubtitle: "Invoices & Receipts" },
-      "Customer Permissions": { displayTitle: "Customers Management", displaySubtitle: "Customer Permissions" },
-      "Menu & Items Permissions": { displayTitle: "Menu & Items", displaySubtitle: "Menu & Items Permissions" },
+      "Customer Permissions": { displayTitle: "Clients", displaySubtitle: "Customer Permissions" },
+      "Menu & Items Permissions": { displayTitle: "Menu", displaySubtitle: "Menu & Items Permissions" },
       "AI Intelligence Tools": { displayTitle: "AI Intelligence Tools", displaySubtitle: "AI Intelligence Tools" },
       "Report Permissions": { displayTitle: "Sales Reports", displaySubtitle: "Report Permissions" },
       "Settings Permissions": { displayTitle: "General App Settings", displaySubtitle: "Settings Permissions" },

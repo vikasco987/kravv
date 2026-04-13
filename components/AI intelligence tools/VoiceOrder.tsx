@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     tipsContainer: { backgroundColor: '#f8fafc', padding: s(15), borderRadius: s(12), width: '100%', marginTop: vs(5) },
     tipTitle: { fontSize: rf(12), fontWeight: 'bold', color: '#475569', marginBottom: vs(2) },
     tipText: { fontSize: rf(11), color: '#64748b' },
-    doneBtn: { marginHorizontal: s(20), backgroundColor: '#111827', paddingVertical: vs(12), borderRadius: s(s(15)), alignItems: 'center', marginBottom: vs(20) },
+    doneBtn: { marginHorizontal: s(20), backgroundColor: '#111827', paddingVertical: vs(12), borderRadius: s(s(s(15))), alignItems: 'center', marginBottom: vs(20) },
     doneBtnText: { color: '#fff', fontSize: rf(15), fontWeight: 'bold' }
 });
 

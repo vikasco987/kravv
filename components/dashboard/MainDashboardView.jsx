@@ -20,7 +20,7 @@ import DailySalesScreen from "./DailySalesScreen";
 import DashboardMenuItem from "./DashboardMenuItem";
 import DeepSaleView from "./DeepSaleView";
 import MonthlySalesScreen from "./MonthlySalesScreen";
-import ProfitEngine from "./ProfitEngine";
+import ProfitEngine from "../AI intelligence tools/ProfitEngine";
 import SalesSummaryCard from "./SalesSummaryCard";
 import WeeklySalesScreen from "./WeeklySalesScreen";
 
