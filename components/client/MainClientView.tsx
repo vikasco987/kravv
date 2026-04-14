@@ -1,3 +1,8 @@
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -10,24 +15,19 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { useAuth, useUser } from "@clerk/clerk-expo";
-import { Feather, Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from "expo-router";
-import { rf, s, vs } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
+import { rf, s, vs } from "../../utils/responsive";
 
 // Components
-import ClientHeader from "./ClientHeader";
-import PartyListItem from "./PartyListItem";
-import CustomerDetailsModal from "./CustomerDetailsModal";
 import CustomerHistory from "../AI intelligence tools/CustomerHistory";
 import NetworkErrorModal from "../common/NetworkErrorModal";
 import { PermissionGuard } from "../common/PermissionGuard";
 import AddPartyView from "../menu/AddPartyView";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+import ClientHeader from "./ClientHeader";
+import CustomerDetailsModal from "./CustomerDetailsModal";
+import PartyListItem from "./PartyListItem";
 
 
 
@@ -46,11 +46,12 @@ type Party = {
 
 const MainClientView = () => {
     const { getToken } = useAuth();
-    const { isLoaded, isSignedIn } = useUser();
+    const { isLoaded, isSignedIn, user } = useUser();
     const router = useRouter();
     const { t } = useLanguage();
     const { refreshSignal } = useRefresh();
 
+    
     const [parties, setParties] = useState<Party[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState<"parties" | "categories">("parties");
@@ -68,11 +69,11 @@ const MainClientView = () => {
     useEffect(() => {
         const checkAccess = async () => {
             if (isSignedIn) return; // Owner always has access
-            
+
             const sessionStr = await AsyncStorage.getItem('staff_session');
             const isStaff = !!sessionStr;
             setIsStaffSignedIn(isStaff);
-            
+
             if (isStaff) {
                 const access = await StaffPermissionEngine.hasCategoryAccess("Client", false);
                 setHasClientAccess(access);
@@ -126,10 +127,10 @@ const MainClientView = () => {
             if (silent) setRefreshing(true);
             else setLoading(true);
             const token = await getToken();
-            const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? (useUser() as any).user?.id : undefined);
-            
+            const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? user?.id : undefined);
+
             const url = bId ? `https://billing.kravy.in/api/parties?businessId=${bId}` : "https://billing.kravy.in/api/parties";
-            
+
             const res = await fetch(url, {
                 headers: {
                     "Content-Type": "application/json",
@@ -152,12 +153,12 @@ const MainClientView = () => {
     const fetchBills = async () => {
         try {
             const token = await getToken();
-            const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? (useUser() as any).user?.id : undefined);
-            
+            const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? user?.id : undefined);
+
             if (!token && !bId) return;
 
             const url = bId ? `https://billing.kravy.in/api/bill-manager?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/bill-manager?t=${Date.now()}`;
-            
+
             const res = await fetch(url, {
                 headers: {
                     "Content-Type": "application/json",
@@ -179,7 +180,7 @@ const MainClientView = () => {
             loadSettings();
             fetchParties(true);
             fetchBills();
-        }, [isLoaded, isSignedIn, isStaffSignedIn])
+        }, [isLoaded, isSignedIn, isStaffSignedIn, user])
     );
 
     useEffect(() => {
@@ -316,7 +317,7 @@ const MainClientView = () => {
     if (!hasClientAccess && !isSignedIn) {
         return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLOR_BG_LIGHT, padding: s(30) }}>
-                 <View style={{ backgroundColor: '#FEF3C7', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
+                <View style={{ backgroundColor: '#FEF3C7', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
                     <Ionicons name="lock-closed" size={s(40)} color="#D97706" />
                 </View>
                 <Text style={{ fontSize: rf(20), fontWeight: '800', color: "#111827", textAlign: 'center' }}>
@@ -332,7 +333,7 @@ const MainClientView = () => {
     return (
         <View style={styles.container}>
             <ClientHeader title={t('customers')} onRefresh={() => fetchParties(true)} />
-            
+
             <View style={styles.tabContainer}>
                 <TouchableOpacity style={[styles.tab, activeTab === "parties" && styles.activeTab]} onPress={() => setActiveTab("parties")}>
                     <Text style={[styles.tabText, activeTab === "parties" && styles.activeTabText]}>{t('parties')} ({parties.length})</Text>
@@ -388,7 +389,7 @@ const MainClientView = () => {
                 onViewHistory={() => { setShowDetailsModal(false); setShowHistoryModal(true); }}
             />
 
-            <CustomerHistory 
+            <CustomerHistory
                 visible={showHistoryModal}
                 onClose={() => setShowHistoryModal(false)}
                 party={selectedParty}
