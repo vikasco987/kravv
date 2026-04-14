@@ -1,7 +1,7 @@
 import { useUser } from '@clerk/clerk-expo';
-import { useState, useEffect } from 'react';
-import { StaffPermissionEngine } from './StaffPermissionEngine';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
+import { StaffPermissionEngine } from './StaffPermissionEngine';
 
 /**
  * useStaffPermissions
@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const useStaffPermissions = () => {
   const { isSignedIn: isOwnerSignedIn, isLoaded } = useUser();
   const [isStaffSignedIn, setIsStaffSignedIn] = useState<boolean | null>(null);
-  
+
   useEffect(() => {
     const checkStaff = async () => {
       const session = await AsyncStorage.getItem('staff_session');

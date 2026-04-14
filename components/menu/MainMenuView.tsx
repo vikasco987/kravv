@@ -27,9 +27,9 @@ import { SaveBill } from "../common/SaveBill";
 import { SimpleKOT } from "../common/SimpleKOT";
 
 // Menu Components
+import VoiceOrder from "../AI intelligence tools/VoiceOrder";
 import NetworkErrorModal from "../common/NetworkErrorModal";
 import { PermissionGuard } from "../common/PermissionGuard";
-import VoiceOrder from "../AI intelligence tools/VoiceOrder";
 import { CartBar } from "./CartBar";
 import { CartItemsModal } from "./CartItemsModal";
 import { CategorySidebar } from "./CategorySidebar";
@@ -42,10 +42,10 @@ import { QuickAddItemModal } from "./QuickAddItemModal";
 import { TableSelectionModal } from "./TableSelectionModal";
 
 // Batched Components
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import AddItemView from "./AddItemView";
 import CheckoutView from "./CheckoutView";
 import HeldOrdersView from "./HeldOrdersView";
-import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 
 // --- TYPE DEFINITIONS ---
@@ -110,6 +110,7 @@ const MainMenuView = () => {
     const [showLockedScreen, setShowLockedScreen] = React.useState(false);
     const [isStaffSignedIn, setIsStaffSignedIn] = React.useState(false);
     const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
+    const [hasMenuAccess, setHasMenuAccess] = useState(true);
 
 
     const [currentView, setCurrentView] = useState<"main" | "addItem" | "heldOrders" | "checkout">("main");
@@ -137,15 +138,30 @@ const MainMenuView = () => {
     }, [login]);
 
     useEffect(() => {
-        const checkStaff = async () => {
+        const checkAccess = async () => {
+            if (isSignedIn) {
+                setHasMenuAccess(true);
+                setIsStaffSignedIn(false);
+                const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+                setActiveBusinessId(bId);
+                return;
+            }
+
             const sessionStr = await AsyncStorage.getItem('staff_session');
             const isStaff = !!sessionStr;
             setIsStaffSignedIn(isStaff);
-            
-            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-            setActiveBusinessId(bId);
+
+            if (isStaff) {
+                const access = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
+                setHasMenuAccess(access);
+                const bId = await StaffPermissionEngine.getActiveBusinessId(undefined);
+                setActiveBusinessId(bId);
+            } else {
+                setHasMenuAccess(true);
+                setActiveBusinessId(null);
+            }
         };
-        checkStaff();
+        checkAccess();
 
         if (!isFocused) {
             setShowLockedScreen(false);
@@ -211,9 +227,9 @@ const MainMenuView = () => {
 
             // Fetching logic depends on having either a token or a business ID for staff
             const url = bId ? `https://billing.kravy.in/api/menu/view?businessId=${bId}` : "https://billing.kravy.in/api/menu/view";
-            
+
             const response = await fetch(url, {
-                headers: authToken ? { 
+                headers: authToken ? {
                     Authorization: `Bearer ${authToken}`,
                     "Cache-Control": "no-cache"
                 } : { "Cache-Control": "no-cache" },
@@ -694,6 +710,22 @@ const MainMenuView = () => {
 
 
 
+
+    if (!hasMenuAccess && !isSignedIn) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLOR_BG_LIGHT, padding: s(30) }}>
+                <View style={{ backgroundColor: '#FFF7ED', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
+                    <Ionicons name="lock-closed" size={s(40)} color="#F59E0B" />
+                </View>
+                <Text style={{ fontSize: rf(20), fontWeight: '800', color: "#111827", textAlign: 'center' }}>
+                    Menu Restricted
+                </Text>
+                <Text style={{ fontSize: rf(14), color: "#6B7280", textAlign: 'center', marginTop: vs(10), lineHeight: vs(20) }}>
+                    You don't have permission to use the Ordering Menu. Please contact your manager.
+                </Text>
+            </View>
+        );
+    }
 
     if (currentView === "addItem") return <AddItemView onBack={() => setCurrentView("main")} />;
     if (currentView === "heldOrders") return <HeldOrdersView onBack={() => { setCurrentView("main"); fetchHeldCount(); }} />;

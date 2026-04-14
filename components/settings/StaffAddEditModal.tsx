@@ -2,23 +2,23 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Modal,
+  NativeModules,
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  TextInput,
-  Alert,
-  NativeModules,
-  Vibration,
   Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Vibration,
+  View,
 } from "react-native";
 // @ts-ignore
 import Voice from '@react-native-voice/voice';
 import { rf, s, vs } from "../../utils/responsive";
-import { PERMISSION_GROUPS, TOTAL_PERMISSIONS_COUNT, StaffMember } from "./StaffPermissionsData";
+import { PERMISSION_GROUPS, StaffMember } from "./StaffPermissionsData";
 
 const COLORS = {
   primary: "#0066FF", // More vibrant blue to match screenshot
@@ -57,7 +57,7 @@ const StaffAddEditModal = ({
   const [showPassword, setShowPassword] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
-  
+
   const [successVisible, setSuccessVisible] = useState(false);
   const [missingVisible, setMissingVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -68,24 +68,24 @@ const StaffAddEditModal = ({
         // Explicit Diagnostic
         const emailToSet = staff.email || "";
         const passwordToSet = staff.password || "";
-        
+
         // This will prove to the user if data is reaching the modal
         if (visible && !emailToSet) {
         }
 
         setTimeout(() => {
-            setName(staff.name || "");
-            setEmail(emailToSet);
-            setPassword(passwordToSet);
-            setAccessType(staff.accessType || "Sales Access");
-            setPermissions(staff.permissions || []);
+          setName(staff.name || "");
+          setEmail(emailToSet);
+          setPassword(passwordToSet);
+          setAccessType(staff.accessType || "Sales Access");
+          setPermissions(staff.permissions || []);
         }, 100);
       } else {
         setName("");
         setEmail("");
         setPassword("");
         setAccessType("Sales Access");
-        setPermissions([]); 
+        setPermissions([]);
         setShowDropdown(false);
         setShowPassword(false);
       }
@@ -97,7 +97,7 @@ const StaffAddEditModal = ({
 
     // Use DeviceEventEmitter for direct bridge communication
     const { DeviceEventEmitter } = require('react-native');
-    
+
     const subscriptions = [
       DeviceEventEmitter.addListener('onSpeechStart', () => setIsListening(true)),
       DeviceEventEmitter.addListener('onSpeechEnd', () => setIsListening(false)),
@@ -117,7 +117,7 @@ const StaffAddEditModal = ({
         // Silence terminal logs for non-fatal codes like 5, 7, 11
         const code = e.error?.code || "";
         if (!code.includes('5') && !code.includes('7') && !code.includes('11')) {
-           console.log("Staff Voice Note:", e.error?.message);
+          console.log("Staff Voice Note:", e.error?.message);
         }
         setIsListening(false);
       })
@@ -126,7 +126,7 @@ const StaffAddEditModal = ({
     return () => {
       subscriptions.forEach(sub => sub.remove());
       if (Voice && typeof Voice.destroy === 'function') {
-        Voice.destroy().catch(() => {});
+        Voice.destroy().catch(() => { });
       }
     };
   }, [visible]);
@@ -138,9 +138,9 @@ const StaffAddEditModal = ({
 
       // Safety: Try to cancel any existing session before starting
       if (typeof nativeBridge.cancelSpeech === 'function') {
-          try {
-              await nativeBridge.cancelSpeech(() => {});
-          } catch (e) {}
+        try {
+          await nativeBridge.cancelSpeech(() => { });
+        } catch (e) { }
       }
 
       if (typeof nativeBridge.startSpeech === 'function') {
@@ -150,7 +150,7 @@ const StaffAddEditModal = ({
           EXTRA_PARTIAL_RESULTS: true,
           REQUEST_PERMISSIONS_AUTO: true
         };
-        await nativeBridge.startSpeech('en-IN', options, () => {});
+        await nativeBridge.startSpeech('en-IN', options, () => { });
       } else {
         await Voice.start('en-IN');
       }
@@ -166,7 +166,7 @@ const StaffAddEditModal = ({
     try {
       const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
       if (nativeBridge && typeof nativeBridge.stopSpeech === 'function') {
-        await nativeBridge.stopSpeech(() => {});
+        await nativeBridge.stopSpeech(() => { });
       } else {
         await Voice.stop();
       }
@@ -195,9 +195,9 @@ const StaffAddEditModal = ({
   const setAllPermissions = () => {
     const all: string[] = [];
     PERMISSION_GROUPS.forEach(g => {
-        g.permissions.forEach(p => {
-            all.push(`${g.title} - ${p}`);
-        });
+      g.permissions.forEach(p => {
+        all.push(`${g.title} - ${p}`);
+      });
     });
     setPermissions(all);
   };
@@ -210,7 +210,7 @@ const StaffAddEditModal = ({
   const toggleGroupPermissions = (group: any) => {
     const groupPerms = group.permissions.map((p: string) => `${group.title} - ${p}`);
     const alreadyEnabled = isGroupEnabled(group);
-    
+
     if (alreadyEnabled) {
       setPermissions(permissions.filter(p => !groupPerms.includes(p)));
     } else {
@@ -249,9 +249,10 @@ const StaffAddEditModal = ({
         });
         if (res.ok) {
           const data = await res.json();
-          if (data && data.businessName) {
+          if (data && (data.businessName || data.companyName)) {
+            const bizName = data.businessName || data.companyName;
             // Slugify: "My Bakery" -> "mybakery"
-            const slug = data.businessName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const slug = bizName.toLowerCase().replace(/[^a-z0-9]/g, '');
             if (slug) setBusinessSlug(slug);
           }
         }
@@ -266,9 +267,9 @@ const StaffAddEditModal = ({
     setAccessType(type);
     setShowDropdown(false);
     if (type === "Full Access") {
-        setAllPermissions();
+      setAllPermissions();
     } else if (type === "Sales Access") {
-        setPermissions(["Order & Billing Permissions - Create New Bill", "Invoices & Receipts - View Bill Records", "Invoices & Receipts - Reprint Bill"]);
+      setPermissions(["Order & Billing Permissions - Create New Bill", "Invoices & Receipts - View Bill Records", "Invoices & Receipts - Reprint Bill"]);
     }
   };
 
@@ -312,7 +313,7 @@ const StaffAddEditModal = ({
       accessType,
       permissions
     };
-    
+
     onSave(payload);
     setSuccessVisible(true);
     setTimeout(() => { setSuccessVisible(false); }, 2000);
@@ -333,7 +334,7 @@ const StaffAddEditModal = ({
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: s(10), flexDirection: "row", alignItems: "center", gap: s(12) }}>
             <View style={styles.headerIconCircle}>
-               <Ionicons name="person" size={rf(20)} color={COLORS.primary} />
+              <Ionicons name="person" size={rf(20)} color={COLORS.primary} />
             </View>
             <View>
               <Text style={styles.title} numberOfLines={1}>{staff ? staff.name : "Add New Staff Member"}</Text>
@@ -341,101 +342,112 @@ const StaffAddEditModal = ({
             </View>
           </View>
           {staff && (
-             <TouchableOpacity onPress={confirmDelete} style={styles.deleteButton}>
-               <Ionicons name="trash-outline" size={rf(24)} color={COLORS.white} />
-             </TouchableOpacity>
+            <TouchableOpacity onPress={confirmDelete} style={styles.deleteButton}>
+              <Ionicons name="trash-outline" size={rf(24)} color={COLORS.white} />
+            </TouchableOpacity>
           )}
         </View>
 
-        <ScrollView 
-          key={staff?.id || 'new'} 
-          style={styles.content} 
+        <ScrollView
+          key={staff?.id || 'new'}
+          style={styles.content}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.formSection}>
-             <View style={{ marginBottom: vs(15) }}>
-               <Text style={styles.inputLabel}>FULL NAME</Text>
-               <View style={styles.inputContainer}>
-                  <TextInput
-                    placeholder="e.g. Rahul Singh"
-                    placeholderTextColor="#9CA3AF"
-                    style={styles.input}
-                    value={name}
-                    onChangeText={setName}
+            <View style={{ marginBottom: vs(15) }}>
+              <Text style={styles.inputLabel}>FULL NAME</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  placeholder="e.g. Rahul Singh"
+                  placeholderTextColor="#9CA3AF"
+                  style={styles.input}
+                  value={name}
+                  onChangeText={(text) => {
+                    setName(text);
+                    // Auto-format email for NEW staff members only
+                    if (!staff) {
+                      const namePart = text.toLowerCase().trim().replace(/\s+/g, '.');
+                      if (namePart) {
+                        setEmail(`${namePart}@${businessSlug}.com`);
+                      } else {
+                        setEmail("");
+                      }
+                    }
+                  }}
+                />
+                <TouchableOpacity onPress={() => setVoiceModalVisible(true)}>
+                  <Ionicons
+                    name="mic-outline"
+                    size={rf(22)}
+                    color={COLORS.textLight}
                   />
-                  <TouchableOpacity onPress={() => setVoiceModalVisible(true)}>
-                    <Ionicons 
-                      name="mic-outline" 
-                      size={rf(22)} 
-                      color={COLORS.textLight} 
-                    />
-                  </TouchableOpacity>
-               </View>
-             </View>
+                </TouchableOpacity>
+              </View>
+            </View>
 
-             <View style={{ marginBottom: vs(15) }}>
-               <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
-               <View style={[styles.inputContainer, { paddingRight: s(5) }]}>
-                  <TextInput
-                    placeholder="rahul@kravypos.com"
-                    placeholderTextColor="#9CA3AF"
-                    style={styles.input}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity style={styles.autoGenBtn} onPress={() => handleAutoGenerate('email')}>
-                    <Text style={styles.autoGenText}>Auto-Generate</Text>
-                  </TouchableOpacity>
-               </View>
-             </View>
+            <View style={{ marginBottom: vs(15) }}>
+              <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
+              <View style={[styles.inputContainer, { paddingRight: s(5) }]}>
+                <TextInput
+                  placeholder="rahul@kravypos.com"
+                  placeholderTextColor="#9CA3AF"
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity style={styles.autoGenBtn} onPress={() => handleAutoGenerate('email')}>
+                  <Text style={styles.autoGenText}>Auto-Generate</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
-             <View style={{ marginBottom: vs(15) }}>
-               <Text style={styles.inputLabel}>GENERATE PASSWORD</Text>
-               <View style={[styles.inputContainer, { paddingRight: s(5) }]}>
-                  <TextInput
-                    placeholder="Set a secure password"
-                    placeholderTextColor="#9CA3AF"
-                    style={styles.input}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                  />
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ marginRight: s(10) }}>
-                    <Ionicons name={showPassword ? "eye-off" : "eye"} size={rf(20)} color={COLORS.textLight} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.autoGenBtn} onPress={() => handleAutoGenerate('password')}>
-                    <Text style={styles.autoGenText}>Auto-Generate</Text>
-                  </TouchableOpacity>
-               </View>
-             </View>
+            <View style={{ marginBottom: vs(15) }}>
+              <Text style={styles.inputLabel}>GENERATE PASSWORD</Text>
+              <View style={[styles.inputContainer, { paddingRight: s(5) }]}>
+                <TextInput
+                  placeholder="Set a secure password"
+                  placeholderTextColor="#9CA3AF"
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ marginRight: s(10) }}>
+                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={rf(20)} color={COLORS.textLight} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.autoGenBtn} onPress={() => handleAutoGenerate('password')}>
+                  <Text style={styles.autoGenText}>Auto-Generate</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
-             {/* Custom Dropdown */}
-             <View style={styles.dropdownContainer}>
-               <Text style={styles.label}>Select Access Type</Text>
-               <TouchableOpacity 
-                 style={styles.dropdownHeader}
-                 onPress={() => setShowDropdown(!showDropdown)}
-               >
-                 <Text style={styles.dropdownText}>{accessType}</Text>
-                 <Ionicons name={showDropdown ? "caret-up" : "caret-down"} size={rf(14)} color={COLORS.textLight} />
-               </TouchableOpacity>
-               
-               {showDropdown && (
-                 <View style={styles.dropdownMenu}>
-                   {["Sales Access", "Full Access", "Custom Access"].map((type) => (
-                     <TouchableOpacity 
-                       key={type} 
-                       style={styles.dropdownItem}
-                       onPress={() => handleAccessTypeSelect(type)}
-                     >
-                       <Text style={styles.dropdownItemText}>{type}</Text>
-                     </TouchableOpacity>
-                   ))}
-                 </View>
-               )}
-             </View>
+            {/* Custom Dropdown */}
+            <View style={styles.dropdownContainer}>
+              <Text style={styles.label}>Select Access Type</Text>
+              <TouchableOpacity
+                style={styles.dropdownHeader}
+                onPress={() => setShowDropdown(!showDropdown)}
+              >
+                <Text style={styles.dropdownText}>{accessType}</Text>
+                <Ionicons name={showDropdown ? "caret-up" : "caret-down"} size={rf(14)} color={COLORS.textLight} />
+              </TouchableOpacity>
+
+              {showDropdown && (
+                <View style={styles.dropdownMenu}>
+                  {["Sales Access", "Full Access", "Custom Access"].map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={styles.dropdownItem}
+                      onPress={() => handleAccessTypeSelect(type)}
+                    >
+                      <Text style={styles.dropdownItemText}>{type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
           </View>
 
           <View style={styles.managePermissionsHeader}>
@@ -449,7 +461,7 @@ const StaffAddEditModal = ({
             {PERMISSION_GROUPS.map((group, gIdx) => {
               const { displayTitle, displaySubtitle } = getGroupDisplayInfo(group.title);
               const isEnabled = isGroupEnabled(group);
-              
+
               return (
                 <View key={gIdx} style={styles.permissionItem}>
                   <View style={styles.permissionInfo}>
@@ -476,73 +488,73 @@ const StaffAddEditModal = ({
         </View>
 
         <Modal visible={successVisible} transparent animationType="fade">
-            <View style={styles.modalOverlay}>
-                <View style={styles.popupContent}>
-                    <View style={styles.successCircle}>
-                        <Ionicons name="checkmark" size={rf(40)} color={COLORS.white} />
-                    </View>
-                    <Text style={styles.popupTitle}>Saved Successfully!</Text>
-                    <Text style={styles.popupText}>Staff details and permissions updated.</Text>
-                </View>
+          <View style={styles.modalOverlay}>
+            <View style={styles.popupContent}>
+              <View style={styles.successCircle}>
+                <Ionicons name="checkmark" size={rf(40)} color={COLORS.white} />
+              </View>
+              <Text style={styles.popupTitle}>Saved Successfully!</Text>
+              <Text style={styles.popupText}>Staff details and permissions updated.</Text>
             </View>
+          </View>
         </Modal>
 
         <Modal visible={missingVisible} transparent animationType="fade">
-            <View style={styles.modalOverlay}>
-                <View style={styles.popupContent}>
-                    <View style={styles.errorCircle}>
-                        <Ionicons name="alert" size={rf(40)} color={COLORS.white} />
-                    </View>
-                    <Text style={styles.popupTitle}>Missing Info</Text>
-                    <Text style={styles.popupText}>{errorMessage}</Text>
-                    <TouchableOpacity 
-                        style={styles.closePopupBtn}
-                        onPress={() => setMissingVisible(false)}
-                    >
-                        <Text style={styles.closePopupText}>DISMISS</Text>
-                    </TouchableOpacity>
-                </View>
+          <View style={styles.modalOverlay}>
+            <View style={styles.popupContent}>
+              <View style={styles.errorCircle}>
+                <Ionicons name="alert" size={rf(40)} color={COLORS.white} />
+              </View>
+              <Text style={styles.popupTitle}>Missing Info</Text>
+              <Text style={styles.popupText}>{errorMessage}</Text>
+              <TouchableOpacity
+                style={styles.closePopupBtn}
+                onPress={() => setMissingVisible(false)}
+              >
+                <Text style={styles.closePopupText}>DISMISS</Text>
+              </TouchableOpacity>
             </View>
+          </View>
         </Modal>
 
         {/* Voice Input Modal */}
         <Modal visible={voiceModalVisible} transparent animationType="slide">
-            <View style={styles.voiceOverlay}>
-                <View style={styles.voiceContainer}>
-                    <View style={styles.voiceHeader}>
-                        <Text style={styles.voiceTitle}>Voice Full Name Input</Text>
-                        <TouchableOpacity onPress={() => setVoiceModalVisible(false)} style={{ padding: s(5) }}>
-                            <Ionicons name="close" size={rf(24)} color={COLORS.textLight} />
-                        </TouchableOpacity>
-                    </View>
-                    
-                    <View style={styles.voiceContent}>
-                        <View style={styles.micCircleWrapper}>
-                            <View style={[styles.micCircle, isListening && styles.micCircleActive]}>
-                                <Ionicons name="mic" size={rf(40)} color={COLORS.white} />
-                            </View>
-                            {isListening && <View style={styles.pulse} />}
-                        </View>
-                        
-                        <Text style={styles.voiceInstruction}>
-                            {isListening ? "Listening... Speak your name clearly" : "Tap the Mic to Start"}
-                        </Text>
-                        
-                        <View style={styles.resultBox}>
-                            <Text style={styles.resultText} numberOfLines={2}>
-                              {name || "Search Result here..."}
-                            </Text>
-                        </View>
+          <View style={styles.voiceOverlay}>
+            <View style={styles.voiceContainer}>
+              <View style={styles.voiceHeader}>
+                <Text style={styles.voiceTitle}>Voice Full Name Input</Text>
+                <TouchableOpacity onPress={() => setVoiceModalVisible(false)} style={{ padding: s(5) }}>
+                  <Ionicons name="close" size={rf(24)} color={COLORS.textLight} />
+                </TouchableOpacity>
+              </View>
 
-                        <TouchableOpacity 
-                            style={styles.voiceDoneBtn} 
-                            onPress={() => setVoiceModalVisible(false)}
-                        >
-                            <Text style={{ color: '#fff', fontWeight: 'bold' }}>DONE</Text>
-                        </TouchableOpacity>
-                    </View>
+              <View style={styles.voiceContent}>
+                <View style={styles.micCircleWrapper}>
+                  <View style={[styles.micCircle, isListening && styles.micCircleActive]}>
+                    <Ionicons name="mic" size={rf(40)} color={COLORS.white} />
+                  </View>
+                  {isListening && <View style={styles.pulse} />}
                 </View>
+
+                <Text style={styles.voiceInstruction}>
+                  {isListening ? "Listening... Speak your name clearly" : "Tap the Mic to Start"}
+                </Text>
+
+                <View style={styles.resultBox}>
+                  <Text style={styles.resultText} numberOfLines={2}>
+                    {name || "Search Result here..."}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.voiceDoneBtn}
+                  onPress={() => setVoiceModalVisible(false)}
+                >
+                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>DONE</Text>
+                </TouchableOpacity>
+              </View>
             </View>
+          </View>
         </Modal>
       </SafeAreaView>
     </Modal>
@@ -579,11 +591,11 @@ const styles = StyleSheet.create({
   dropdownContainer: {
     marginTop: vs(5),
   },
-  label: { 
-    position: "absolute", 
-    top: -vs(10), 
-    left: s(10), 
-    backgroundColor: "#fff", 
+  label: {
+    position: "absolute",
+    top: -vs(10),
+    left: s(10),
+    backgroundColor: "#fff",
     paddingHorizontal: s(5),
     zIndex: 1,
     fontSize: rf(12),
@@ -596,14 +608,14 @@ const styles = StyleSheet.create({
     marginBottom: vs(5),
     marginLeft: s(5),
   },
-  autoGenBtn: { 
-    backgroundColor: "#fff", 
-    paddingHorizontal: s(10), 
-    paddingVertical: vs(6), 
-    borderRadius: s(8), 
-    borderWidth: 1, 
-    borderColor: "#E5E7EB", 
-    elevation: 1 
+  autoGenBtn: {
+    backgroundColor: "#fff",
+    paddingHorizontal: s(10),
+    paddingVertical: vs(6),
+    borderRadius: s(8),
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    elevation: 1
   },
   autoGenText: { color: "#000", fontSize: rf(12), fontWeight: "600" },
   dropdownHeader: {
@@ -631,7 +643,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#f0f0f0",
   },
   dropdownItemText: { fontSize: rf(16), color: COLORS.text },
-  
+
   permissionGroup: { marginTop: vs(20), paddingHorizontal: s(20) },
   groupTitle: { fontSize: rf(15), fontWeight: "bold", color: COLORS.primary, marginBottom: vs(10) },
   chipsContainer: { flexDirection: "row", flexWrap: "wrap", gap: s(8) },
@@ -646,15 +658,15 @@ const styles = StyleSheet.create({
   chipSelected: { backgroundColor: "rgba(79, 70, 229, 0.4)", borderColor: COLORS.primary },
   chipText: { fontSize: rf(13), color: COLORS.text },
   chipTextSelected: { fontWeight: "bold" },
-  
-  footer: { 
-    position: "absolute", 
-    bottom: 0, 
-    width: "100%", 
-    paddingHorizontal: s(20), 
+
+  footer: {
+    position: "absolute",
+    bottom: 0,
+    width: "100%",
+    paddingHorizontal: s(20),
     paddingTop: vs(20),
-    paddingBottom: vs(50), 
-    backgroundColor: "rgba(255,255,255,0.9)" 
+    paddingBottom: vs(50),
+    backgroundColor: "rgba(255,255,255,0.9)"
   },
   saveBtn: {
     backgroundColor: COLORS.primary,
@@ -733,19 +745,19 @@ const styles = StyleSheet.create({
     marginBottom: vs(20),
   },
   errorCircle: {
-      width: s(80),
-      height: s(80),
-      borderRadius: s(40),
-      backgroundColor: COLORS.danger,
-      justifyContent: "center",
-      alignItems: "center",
-      marginBottom: vs(20),
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
+    backgroundColor: COLORS.danger,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: vs(20),
   },
   popupTitle: { fontSize: rf(22), fontWeight: "bold", color: COLORS.text },
   popupText: { fontSize: rf(14), color: COLORS.textLight, textAlign: "center", marginTop: vs(10) },
   closePopupBtn: { marginTop: vs(30) },
   closePopupText: { color: COLORS.primary, fontWeight: "bold", fontSize: rf(16) },
-  
+
   // Voice Modal Styles
   voiceOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   voiceContainer: { backgroundColor: '#fff', borderTopLeftRadius: s(30), borderTopRightRadius: s(30), paddingBottom: vs(40) },

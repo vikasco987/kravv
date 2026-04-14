@@ -1,16 +1,16 @@
-import React from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    SafeAreaView,
-    StatusBar
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { rf, s, vs } from '../../utils/responsive';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import React from 'react';
+import {
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { rf, s, vs } from '../../utils/responsive';
 
 export const NoAccessView = () => {
     const router = useRouter();
@@ -37,7 +37,7 @@ export const NoAccessView = () => {
                     <Text style={styles.description}>
                         Your staff account currently has no active permissions. You won't be able to access any restaurant modules until they are granted.
                     </Text>
-                    
+
                     <View style={styles.infoBox}>
                         <Ionicons name="information-circle-outline" size={rf(18)} color="#64748b" />
                         <Text style={styles.infoText}>
@@ -58,6 +58,8 @@ export const NoAccessView = () => {
 };
 
 const styles = StyleSheet.create({
+    divider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: vs(10), marginHorizontal: s(15) },
+    sectionTitle: { fontSize: rf(12), fontWeight: 'bold', color: '#64748B', marginLeft: s(18), marginBottom: vs(5), textTransform: 'uppercase' },
     container: {
         flex: 1,
         backgroundColor: '#F9FAFB',

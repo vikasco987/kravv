@@ -1,8 +1,11 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -12,15 +15,15 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 // --- Dashboard Logic Components ---
+import ProfitEngine from "../AI intelligence tools/ProfitEngine";
 import DailySalesScreen from "./DailySalesScreen";
 import DashboardMenuItem from "./DashboardMenuItem";
 import DeepSaleView from "./DeepSaleView";
 import MonthlySalesScreen from "./MonthlySalesScreen";
-import ProfitEngine from "../AI intelligence tools/ProfitEngine";
 import SalesSummaryCard from "./SalesSummaryCard";
 import WeeklySalesScreen from "./WeeklySalesScreen";
 
@@ -50,13 +53,36 @@ const MainDashboardView = () => {
     const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
     const { refreshSignal } = useRefresh();
 
+    const [hasDashAccess, setHasDashAccess] = useState(true);
+    const [hasIntelAccess, setHasIntelAccess] = useState(true);
+    const [hasReportsAccess, setHasReportsAccess] = useState(true);
+
     useEffect(() => {
-        const checkStaff = async () => {
-            const session = await AsyncStorage.getItem('staff_session');
-            setIsStaffSignedIn(!!session);
+        const checkAccess = async () => {
+            if (isSignedIn) {
+                setHasDashAccess(true);
+                setIsStaffSignedIn(false);
+                return;
+            }
+
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            if (sessionStr) {
+                setIsStaffSignedIn(true);
+                const dash = await StaffPermissionEngine.hasCategoryAccess("Dashboard", false);
+                const intel = await StaffPermissionEngine.hasCategoryAccess("Intelligence", false);
+                const reports = await StaffPermissionEngine.hasCategoryAccess("Reports", false);
+                setHasDashAccess(dash);
+                setHasIntelAccess(intel);
+                setHasReportsAccess(reports);
+            } else {
+                setIsStaffSignedIn(false);
+                setHasDashAccess(true);
+                setHasIntelAccess(true);
+                setHasReportsAccess(true);
+            }
         };
-        checkStaff();
-    }, []);
+        checkAccess();
+    }, [isSignedIn, refreshSignal]);
 
     // State for switching views inside the same tab
     const [currentView, setCurrentView] = useState("main"); // 'main', 'daily', 'weekly', 'monthly', 'deepsale'
@@ -88,20 +114,21 @@ const MainDashboardView = () => {
             const authToken = await getToken();
             const sessionStr = await AsyncStorage.getItem('staff_session');
             const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-            
+
             // Use helper to get correct business ID
             const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-            
+
             // Use staff token if clerk token is not available
             const finalToken = authToken || staffSession?.token;
 
             if (!finalToken && !bId) {
+                setStats({ daily: 0, weekly: 0, monthly: 0 });
                 setLoading(false);
                 setRefreshing(false);
                 return;
             }
 
-            const url = bId ? `https://billing.kravy.in/api/bill-manager?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/bill-manager?t=${Date.now()}`;
+            const url = bId ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}` : "https://billing.kravy.in/api/bill-manager";
             const res = await fetch(url, {
                 headers: finalToken ? { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` } : { "Content-Type": "application/json" },
             });
@@ -127,7 +154,7 @@ const MainDashboardView = () => {
 
     const calculateStats = (bills) => {
         const now = new Date();
-        
+
         // Today boundary
         const today = new Date(now);
         today.setHours(0, 0, 0, 0);
@@ -162,10 +189,10 @@ const MainDashboardView = () => {
             if (billTs >= monthTs) monthly += total;
         });
 
-        const newStats = { 
-            daily: Math.round(daily), 
-            weekly: Math.round(weekly), 
-            monthly: Math.round(monthly) 
+        const newStats = {
+            daily: Math.round(daily),
+            weekly: Math.round(weekly),
+            monthly: Math.round(monthly)
         };
         setStats(newStats);
         AsyncStorage.setItem('@cached_dash_stats', JSON.stringify({ stats: newStats, bills: onlySales }));
@@ -186,9 +213,38 @@ const MainDashboardView = () => {
         if (!isSignedIn && !isStaffSignedIn) {
             setIsLoginModalVisible(true);
         } else {
+            // Permission checks
+            if (!isSignedIn) {
+                if (viewName === "insight" && !hasIntelAccess) {
+                    Alert.alert("Restricted", "You don't have permission to access Intelligence tools.");
+                    return;
+                }
+                const reportViews = ["daily", "weekly", "monthly", "inventory"];
+                if (reportViews.includes(viewName) && !hasReportsAccess) {
+                    Alert.alert("Restricted", "You don't have permission to view Sales Reports.");
+                    return;
+                }
+            }
             setCurrentView(viewName);
         }
     };
+
+    // Render Protected Access View
+    if (!hasDashAccess && !isSignedIn) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background, padding: s(30) }}>
+                <View style={{ backgroundColor: '#FEE2E2', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
+                    <Ionicons name="lock-closed" size={s(40)} color="#EF4444" />
+                </View>
+                <Text style={{ fontSize: rf(20), fontWeight: '800', color: COLORS.text, textAlign: 'center' }}>
+                    Access Restricted
+                </Text>
+                <Text style={{ fontSize: rf(14), color: COLORS.textLight, textAlign: 'center', marginTop: vs(10), lineHeight: vs(20) }}>
+                    You don't have permission to view Dashboard Analytics. Please contact your administrator.
+                </Text>
+            </View>
+        );
+    }
 
     // Render Conditional View
     if (currentView === "daily") return <DailySalesScreen onBack={() => setCurrentView("main")} />;

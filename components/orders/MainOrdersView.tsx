@@ -1,7 +1,7 @@
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
@@ -15,6 +15,8 @@ import { useLanguage } from "../../context/LanguageContext";
 import { rf, s, vs } from "../../utils/responsive";
 import TableRotation from "../table-insights/TableRotation";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+
 
 // --- Orders Components ---
 import CreateTableModal from "./CreateTableModal";
@@ -33,6 +35,7 @@ interface Table {
 
 const MainOrdersView = () => {
     const { getToken } = useAuth();
+    const { isSignedIn } = useUser();
     const router = useRouter();
     const { t } = useLanguage();
     const [tables, setTables] = useState<Table[]>([]);
@@ -45,6 +48,8 @@ const MainOrdersView = () => {
     const [selectedTableData, setSelectedTableData] = useState<any>(null);
     const [currentView, setCurrentView] = useState<"main" | "tableOrders">("main");
     const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+    const [hasOrdersAccess, setHasOrdersAccess] = useState(true);
+
 
 
     const fetchInProgress = React.useRef(false);
@@ -142,13 +147,27 @@ const MainOrdersView = () => {
         }
     };
 
-    useFocusEffect(
-        useCallback(() => {
-            fetchTables();
-            const interval = setInterval(fetchTables, 5000);
-            return () => clearInterval(interval);
-        }, [fetchTables])
-    );
+    useEffect(() => {
+        const checkAccess = async () => {
+            if (isSignedIn) {
+                setHasOrdersAccess(true);
+                return;
+            }
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            if (sessionStr) {
+                const access = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
+                setHasOrdersAccess(access);
+            } else {
+                setHasOrdersAccess(true); // Guest mode
+            }
+        };
+        checkAccess();
+
+        fetchTables();
+        const interval = setInterval(fetchTables, 5000);
+        return () => clearInterval(interval);
+    }, [fetchTables, isSignedIn]);
+
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -173,7 +192,24 @@ const MainOrdersView = () => {
     };
 
 
+    if (!hasOrdersAccess && !isSignedIn) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: "#F9FAFB", padding: s(30) }}>
+                 <View style={{ backgroundColor: '#E0E7FF', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
+                    <Ionicons name="lock-closed" size={s(40)} color="#4F46E5" />
+                </View>
+                <Text style={{ fontSize: rf(20), fontWeight: '800', color: "#111827", textAlign: 'center' }}>
+                    Orders Restricted
+                </Text>
+                <Text style={{ fontSize: rf(14), color: "#6B7280", textAlign: 'center', marginTop: vs(10), lineHeight: vs(20) }}>
+                    You don't have permission to view or manage Table Orders. Please contact your administrator.
+                </Text>
+            </View>
+        );
+    }
+
     if (currentView === "tableOrders" && selectedTable) {
+
         const tableOrders = allOrders.filter((o: any) => {
             const oTableId = String(o.tableId || (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || "");
             return oTableId === String(selectedTable.id);

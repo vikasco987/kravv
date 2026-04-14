@@ -30,8 +30,8 @@ export const StaffPermissionEngine = {
     if (isOwnerSignedIn) return true;
 
     // Rule 2: Strict Block for Owner-Only features
-    const isRestricted = this.ONLY_OWNER_FEATURES.some(feat => 
-        requiredPermission.includes(feat) || feat.includes(requiredPermission)
+    const isRestricted = this.ONLY_OWNER_FEATURES.some(feat =>
+      requiredPermission.includes(feat) || feat.includes(requiredPermission)
     );
     if (isRestricted) return false;
 
@@ -41,7 +41,7 @@ export const StaffPermissionEngine = {
       if (!sessionStr) return false;
 
       const session: StaffSession = JSON.parse(sessionStr);
-      
+
       // Rule 3: Admin accessType usually has full control
       if (session.accessType === "Admin") return true;
 
@@ -49,14 +49,14 @@ export const StaffPermissionEngine = {
       // Often, the app might call with "Category - Permission" (e.g., "Menu - Add Menu Items")
       // We check for exact match OR if the staff's permission is a part of the required string.
       const staffPerms = session.permissions || [];
-      
+
       const hasDirectAccess = staffPerms.includes(requiredPermission);
       if (hasDirectAccess) return true;
 
       // Fallback: Check if any of the staff's permissions match the end of the required string
       // Example: "Add Menu Items" should match "Menu & Items Permissions - Add Menu Items"
       const hasSmartAccess = staffPerms.some(p => requiredPermission.includes(p));
-      
+
       return hasSmartAccess;
     } catch (e) {
       console.error("Permission check failed:", e);
@@ -76,14 +76,18 @@ export const StaffPermissionEngine = {
       if (!sessionStr) return false;
 
       const session: StaffSession = JSON.parse(sessionStr);
+
+      // Rule: Admin accessType has full control
+      if (session.accessType === "Admin") return true;
+
       const staffPerms = session.permissions || [];
 
       // Mapping of Tab Names to Permission Keywords
       const mapping: Record<string, string[]> = {
         "Dashboard": ["Today Sales", "Weekly Sales", "Monthly Sales", "Analytics"],
-        "Menu": ["Menu", "Add Menu Items", "Edit Menu Items", "QR Codes"],
-        "Orders": ["Bill Records", "Reprint", "Delete Bill", "Invoices"],
-        "Client": ["Customer", "Parties", "Ledger"],
+        "Menu": ["Menu", "Add Menu Items", "Edit Menu Items", "QR Codes", "Items"],
+        "Orders": ["Bill Records", "Reprint", "Delete Bill", "Invoices", "Live Orders", "Tables", "Order"],
+        "Client": ["Customer", "Parties", "Ledger", "Client", "History"],
         "Intelligence": ["Profit Engine", "Voice Command", "AI Tools"],
         "Reports": ["Daily Sales Report", "Weekly Sales Report", "Monthly Sales Report", "Records"],
         "Settings": ["App General Settings", "Printer", "PIN"]
@@ -93,7 +97,7 @@ export const StaffPermissionEngine = {
       if (!keywords) return false;
 
       // If staff has ANY of the permissions in this category, show the tab.
-      return staffPerms.some(sp => 
+      return staffPerms.some(sp =>
         keywords.some(kw => sp.includes(kw) || kw.includes(sp))
       );
     } catch (e) {
@@ -115,8 +119,8 @@ export const StaffPermissionEngine = {
         const session: StaffSession = JSON.parse(sessionStr);
         return session.businessId;
       }
-    } catch (e) {}
-    
+    } catch (e) { }
+
     return null;
   }
 };

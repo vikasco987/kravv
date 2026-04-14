@@ -1,6 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useUser } from "@clerk/clerk-expo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { rf, s, vs } from "../../utils/responsive";
 import DailyItemSalesReport from './DailyItemSalesReport';
 import WeeklyItemSalesReport from './WeeklyItemSalesReport';
@@ -8,10 +11,43 @@ import MonthlyItemSalesReport from './MonthlyItemSalesReport';
 
 const ItemSalesReport = ({ onBack }: { onBack: () => void }) => {
   const [activeReport, setActiveReport] = React.useState<string | null>(null);
+  const { isSignedIn } = useUser();
+  const [hasReportsAccess, setHasReportsAccess] = useState(true);
+
+  useEffect(() => {
+    const checkAccess = async () => {
+        if (isSignedIn) return;
+        const sessionStr = await AsyncStorage.getItem('staff_session');
+        if (sessionStr) {
+            const access = await StaffPermissionEngine.hasCategoryAccess("Reports", false);
+            setHasReportsAccess(access);
+        }
+    };
+    checkAccess();
+  }, [isSignedIn]);
 
   if (activeReport === 'daily') return <DailyItemSalesReport onBack={() => setActiveReport(null)} />;
   if (activeReport === 'weekly') return <WeeklyItemSalesReport onBack={() => setActiveReport(null)} />;
   if (activeReport === 'monthly') return <MonthlyItemSalesReport onBack={() => setActiveReport(null)} />;
+
+  if (!hasReportsAccess && !isSignedIn) {
+    return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb', padding: s(30) }}>
+             <View style={{ backgroundColor: '#DBEAFE', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
+                <Ionicons name="lock-closed" size={s(40)} color="#1D4ED8" />
+            </View>
+            <Text style={{ fontSize: rf(20), fontWeight: '800', color: "#111827", textAlign: 'center' }}>
+                Reports Restricted
+            </Text>
+            <Text style={{ fontSize: rf(14), color: "#6B7280", textAlign: 'center', marginTop: vs(10), lineHeight: vs(20) }}>
+                You don't have permission to view Sales Reports. Please contact your manager.
+            </Text>
+            <TouchableOpacity onPress={onBack} style={{ marginTop: vs(20), padding: s(10) }}>
+                <Text style={{ color: '#4F46E5', fontWeight: 'bold' }}>Go Back</Text>
+            </TouchableOpacity>
+        </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>

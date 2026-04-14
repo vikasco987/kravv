@@ -63,14 +63,25 @@ const MainClientView = () => {
     const [allBills, setAllBills] = useState([]);
     const [showNetworkError, setShowNetworkError] = useState(false);
     const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
+    const [hasClientAccess, setHasClientAccess] = useState(true);
 
     useEffect(() => {
-        const checkStaff = async () => {
-            const session = await AsyncStorage.getItem('staff_session');
-            setIsStaffSignedIn(!!session);
+        const checkAccess = async () => {
+            if (isSignedIn) return; // Owner always has access
+            
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const isStaff = !!sessionStr;
+            setIsStaffSignedIn(isStaff);
+            
+            if (isStaff) {
+                const access = await StaffPermissionEngine.hasCategoryAccess("Client", false);
+                setHasClientAccess(access);
+            } else {
+                setHasClientAccess(true); // Guest
+            }
         };
-        checkStaff();
-    }, []);
+        checkAccess();
+    }, [isSignedIn]);
 
     // Settings states
     const [taxEnabled, setTaxEnabled] = useState(false);
@@ -301,6 +312,22 @@ const MainClientView = () => {
     const filteredParties = parties.filter((p) =>
         p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || p.phone.includes(searchTerm)
     );
+
+    if (!hasClientAccess && !isSignedIn) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLOR_BG_LIGHT, padding: s(30) }}>
+                 <View style={{ backgroundColor: '#FEF3C7', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
+                    <Ionicons name="lock-closed" size={s(40)} color="#D97706" />
+                </View>
+                <Text style={{ fontSize: rf(20), fontWeight: '800', color: "#111827", textAlign: 'center' }}>
+                    Customer Data Restricted
+                </Text>
+                <Text style={{ fontSize: rf(14), color: "#6B7280", textAlign: 'center', marginTop: vs(10), lineHeight: vs(20) }}>
+                    You don't have permission to view Customer and Party details. Please contact your administrator.
+                </Text>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>

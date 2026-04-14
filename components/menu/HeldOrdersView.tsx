@@ -71,7 +71,7 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
 
     const fetchHeldOrders = async () => {
         if (!isLoaded) return;
-        
+
         try {
             setLoading(true);
             const sessionStr = await AsyncStorage.getItem('staff_session');

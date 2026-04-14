@@ -17,9 +17,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 const formatBillDate = (dateString) => {
 
@@ -115,7 +115,7 @@ export default function DeepSaleView({ onBack }) {
       const authToken = await getToken();
       const sessionStr = await AsyncStorage.getItem('staff_session');
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-      
+
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
       const finalToken = authToken || staffSession?.token;
 
@@ -128,8 +128,8 @@ export default function DeepSaleView({ onBack }) {
       }
 
       const url = bId ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}` : "https://billing.kravy.in/api/bill-manager";
-      const res = await fetch(url, { 
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` } 
+      const res = await fetch(url, {
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` }
       });
 
       if (res.ok) {

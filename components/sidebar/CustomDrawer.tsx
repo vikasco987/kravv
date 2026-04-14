@@ -1,8 +1,8 @@
-import React, { useState } from "react";
-import { DrawerContentScrollView } from "@react-navigation/drawer";
-import { useClerk, useUser, useAuth } from "@clerk/clerk-expo";
-import { useRouter } from "expo-router";
+import { useAuth, useClerk, useUser } from "@clerk/clerk-expo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DrawerContentScrollView } from "@react-navigation/drawer";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
 
@@ -18,7 +18,7 @@ export default function CustomDrawerContent(props: any) {
     const router = useRouter();
     const { t } = useLanguage();
     const { refreshSignal } = useRefresh();
-    
+
     const [staffMember, setStaffMember] = useState<any>(null);
 
     React.useEffect(() => {
@@ -32,7 +32,7 @@ export default function CustomDrawerContent(props: any) {
         };
         checkStaff();
     }, [refreshSignal]);
-    
+
     // Modal Visibility State
     const [modals, setModals] = useState({
         login: false,
@@ -54,14 +54,14 @@ export default function CustomDrawerContent(props: any) {
             // Safety Check: Fetch if we have ANY active session (Clerk or Staff)
             const staffSession = await AsyncStorage.getItem("staff_session");
             const isStaff = !!staffSession;
-            
+
             if (!isSignedIn && !isStaff) return;
 
             let authToken: string | null = null;
             if (isSignedIn) {
                 authToken = await getToken();
             }
-            
+
             // If it's a staff member without a Clerk token, we might need a different way 
             // to call the API or the API might need to be unprotected/differently protected.
             // For now, assuming staff uses the same API but we might need to handle token null.
@@ -99,7 +99,7 @@ export default function CustomDrawerContent(props: any) {
         switch (type) {
             case 'orders': props.navigation.navigate("(tabs)", { screen: "orders" }); break;
             case 'settings': props.navigation.navigate("(tabs)", { screen: "setting" }); break;
-            case 'qr': 
+            case 'qr':
                 props.navigation.closeDrawer();
                 setModals({ ...modals, qr: true });
                 break;
@@ -145,18 +145,18 @@ export default function CustomDrawerContent(props: any) {
         <>
             <DrawerContentScrollView {...props}>
                 <SidebarHeader user={user || staffMember} t={t} />
-                
-                <SidebarItems 
-                    t={t} 
-                    navigation={props.navigation} 
+
+                <SidebarItems
+                    t={t}
+                    navigation={props.navigation}
                     isSignedIn={isSignedIn || !!staffMember}
                     onAction={handleAction}
                     onLogout={handleLogout}
                 />
             </DrawerContentScrollView>
 
-            <SidebarModals 
-                modals={modals} 
+            <SidebarModals
+                modals={modals}
                 setModals={setModals}
                 data={{ allBills, menus, parties }}
                 onSignIn={() => {

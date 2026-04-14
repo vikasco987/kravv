@@ -1,3 +1,7 @@
+import { useUser } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import React from "react";
 import {
     ActivityIndicator,
@@ -6,31 +10,27 @@ import {
     Text,
     View,
 } from "react-native";
-import { useClerk, useUser } from "@clerk/clerk-expo";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import { rf, s, vs } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
-import { useRefresh } from "../../context/RefreshContext";
+import { rf, s, vs } from "../../utils/responsive";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 // Import Settings Components
-import { WhySignInBox } from "./WhySignInBox";
-import { BusinessManagementCard } from "./BusinessManagementCard";
-import { TaxDiscountsCard } from "./TaxDiscountsCard";
-import { AppFeaturesCard } from "./AppFeaturesCard";
-import { LanguageCard } from "./LanguageCard";
-import { TaxDiscountsModal } from "./TaxDiscountsModal";
-import { AdvancedDiscountModal } from "./AdvancedDiscountModal";
-import { AdvancedDiscountCard } from "./AdvancedDiscountCard";
-import { KOTTablesModal } from "./KOTTablesModal";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
-import { SuccessFeedback } from "./SuccessFeedback";
+import { AdvancedDiscountCard } from "./AdvancedDiscountCard";
+import { AdvancedDiscountModal } from "./AdvancedDiscountModal";
+import { AppFeaturesCard } from "./AppFeaturesCard";
+import { BusinessManagementCard } from "./BusinessManagementCard";
+import CompanyInfoView from "./CompanyInfoView";
+import { KOTTablesModal } from "./KOTTablesModal";
+import { LanguageCard } from "./LanguageCard";
 import { LanguageSelectionModal } from "./LanguageSelectionModal";
+import SettingsHeader from "./SettingsHeader";
 import { StaffCard } from "./StaffCard";
 import { StaffModal } from "./StaffModal";
-import SettingsHeader from "./SettingsHeader";
-import CompanyInfoView from "./CompanyInfoView";
-import { PermissionGuard } from "../common/PermissionGuard";
+import { SuccessFeedback } from "./SuccessFeedback";
+import { TaxDiscountsCard } from "./TaxDiscountsCard";
+import { TaxDiscountsModal } from "./TaxDiscountsModal";
+import { WhySignInBox } from "./WhySignInBox";
 
 
 const LOCAL_COLORS = {
@@ -64,13 +64,26 @@ const MainSettingsView = () => {
     const [staffModalVisible, setStaffModalVisible] = React.useState(false);
     const [currentView, setCurrentView] = React.useState<"main" | "profile">("main");
     const [isStaffSignedIn, setIsStaffSignedIn] = React.useState(false);
+    const [hasSettingsAccess, setHasSettingsAccess] = React.useState(true);
 
 
     React.useEffect(() => { 
         loadSettings(); 
         const checkStaff = async () => {
-            const session = await AsyncStorage.getItem('staff_session');
-            setIsStaffSignedIn(!!session);
+            if (user) {
+                setHasSettingsAccess(true);
+                setIsStaffSignedIn(false);
+                return;
+            }
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const isStaff = !!sessionStr;
+            setIsStaffSignedIn(isStaff);
+            if (isStaff) {
+                const access = await StaffPermissionEngine.hasCategoryAccess("Settings", false);
+                setHasSettingsAccess(access);
+            } else {
+                setHasSettingsAccess(true); // Guest
+            }
         };
         checkStaff();
     }, []);
@@ -117,6 +130,22 @@ const MainSettingsView = () => {
     if (currentView === "profile") return <CompanyInfoView onBack={() => setCurrentView("main")} />;
 
     const effectiveUser = user || (isStaffSignedIn ? { id: 'staff_user', firstName: 'Staff' } : null);
+
+    if (!hasSettingsAccess && !user) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: LOCAL_COLORS.background, padding: s(30) }}>
+                 <View style={{ backgroundColor: '#EEF2FF', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
+                    <Ionicons name="lock-closed" size={s(40)} color={LOCAL_COLORS.primary} />
+                </View>
+                <Text style={{ fontSize: rf(20), fontWeight: '800', color: LOCAL_COLORS.text, textAlign: 'center' }}>
+                    Settings Restricted
+                </Text>
+                <Text style={{ fontSize: rf(14), color: LOCAL_COLORS.textLight, textAlign: 'center', marginTop: vs(10), lineHeight: vs(20) }}>
+                    You don't have permission to modify app settings. Please contact your manager.
+                </Text>
+            </View>
+        );
+    }
 
     return (
 

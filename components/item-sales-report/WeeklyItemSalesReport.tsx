@@ -26,7 +26,7 @@ const WeeklyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
       const authToken = await getToken();
       const sessionStr = await AsyncStorage.getItem('staff_session');
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-      
+
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
       const finalToken = authToken || staffSession?.token;
 
@@ -107,7 +107,7 @@ const WeeklyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
             const name = item.name || "Unknown Item";
             const qty = Number(item.qty || item.quantity || 0);
             const rate = Number(item.rate || item.price || 0);
-            
+
             if (!itemMap[name]) {
               itemMap[name] = { name, qty: 0, total: 0 };
             }
@@ -156,7 +156,7 @@ const WeeklyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
           <Text style={{ marginTop: vs(10), color: '#666' }}>Fetching last 7 days sales...</Text>
         </View>
       ) : (
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.container}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
@@ -174,14 +174,14 @@ const WeeklyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
           {/* Categories Filter */}
           <Text style={styles.sectionTitle}>Categories</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.categoryChip, selectedCategory === "All" && styles.activeCategoryChip]}
               onPress={() => setSelectedCategory("All")}
             >
               <Text style={[styles.categoryChipText, selectedCategory === "All" && styles.activeCategoryChipText]}>All</Text>
             </TouchableOpacity>
             {categories.map((cat, idx) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 key={cat.id || idx}
                 style={[styles.categoryChip, selectedCategory === cat.name && styles.activeCategoryChip]}
                 onPress={() => setSelectedCategory(cat.name)}
@@ -192,7 +192,7 @@ const WeeklyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
           </ScrollView>
 
           <Text style={styles.sectionTitle}>Performance Breakdown ({selectedCategory})</Text>
-          
+
           {(() => {
             const filtered = reportData.items.filter(item => {
               if (selectedCategory === "All") return true;
@@ -202,8 +202,8 @@ const WeeklyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
 
             return filtered.length > 0 ? (
               filtered.map((item, index) => (
-                <TouchableOpacity 
-                  key={index} 
+                <TouchableOpacity
+                  key={index}
                   style={styles.itemRow}
                   onPress={() => setSelectedItem(item.name)}
                 >

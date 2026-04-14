@@ -129,7 +129,7 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
       const sessionStr = await AsyncStorage.getItem('staff_session');
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
       const finalToken = token || staffSession?.token;
-      
+
       const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
       const url = bId ? `https://billing.kravy.in/api/parties?businessId=${bId}` : "https://billing.kravy.in/api/parties";
 

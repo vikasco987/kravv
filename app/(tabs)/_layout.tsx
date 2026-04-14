@@ -2,17 +2,17 @@ import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs, usePathname, useRouter } from "expo-router";
 import React, { useState } from "react";
+import { View } from "react-native";
 import "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import TopNavBar from "../../components/common/TopNavBar";
 import { LoginRequiredModal } from "../../components/common/LoginRequiredModal";
+import TopNavBar from "../../components/common/TopNavBar";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
-import { View } from "react-native";
 // @ts-ignore
-import RNBluetoothClassic from "react-native-bluetooth-classic";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect } from "react";
+import RNBluetoothClassic from "react-native-bluetooth-classic";
 import { StaffPermissionEngine } from "../../components/staff creat/StaffPermissionEngine";
 
 import { NoAccessView } from "../../components/staff creat/NoAccessView";
@@ -34,18 +34,18 @@ export default function TabsLayout() {
 
   useEffect(() => {
     const checkAuth = async () => {
-       const staffSession = await AsyncStorage.getItem("staff_session");
-       const isStaff = !!staffSession;
-       setIsStaffSignedIn(isStaff);
-       
-       // Pre-calculate permissions for all tabs
-       const tabs = ["Dashboard", "Menu", "Orders", "Client", "Intelligence", "Reports", "Settings"];
-       const results: Record<string, boolean> = {};
-       
-       for (const tab of tabs) {
-         results[tab] = await StaffPermissionEngine.hasCategoryAccess(tab, !!isSignedIn);
-       }
-       setAllowedTabs(results);
+      const staffSession = await AsyncStorage.getItem("staff_session");
+      const isStaff = !!staffSession;
+      setIsStaffSignedIn(isStaff);
+
+      // Pre-calculate permissions for all tabs
+      const tabs = ["Dashboard", "Menu", "Orders", "Client", "Intelligence", "Reports", "Settings"];
+      const results: Record<string, boolean> = {};
+
+      for (const tab of tabs) {
+        results[tab] = await StaffPermissionEngine.hasCategoryAccess(tab, !!isSignedIn);
+      }
+      setAllowedTabs(results);
     };
     checkAuth();
   }, [pathname, refreshSignal, isSignedIn]);
@@ -53,7 +53,7 @@ export default function TabsLayout() {
   const hasTabPermission = (tabName: string) => {
     // If not signed in at all (guest), show all (they'll be blocked by modals later)
     if (!isSignedIn && !isStaffSignedIn) return true;
-    
+
     // In other cases, use pre-calculated state
     return !!allowedTabs[tabName];
   };
@@ -66,10 +66,10 @@ export default function TabsLayout() {
           setIsPrinterConnected(false);
           return;
         }
-        
+
         const devices = await RNBluetoothClassic.getBondedDevices();
         const printer = devices.find((d: any) => d.address === savedAddress);
-        
+
         if (printer) {
           const connected = await printer.isConnected();
           setIsPrinterConnected(connected);
@@ -126,7 +126,7 @@ export default function TabsLayout() {
 
   // If a staff is signed in but has ZERO permissions, show the NoAccessView
   if (isStaffSignedIn && !isSignedIn && !hasAnyAccess && Object.keys(allowedTabs).length > 0) {
-      return <NoAccessView />;
+    return <NoAccessView />;
   }
 
   return (
@@ -263,7 +263,7 @@ export default function TabsLayout() {
         />
       </Tabs>
 
-      <LoginRequiredModal 
+      <LoginRequiredModal
         visible={loginModalVisible}
         onClose={() => setLoginModalVisible(false)}
         onSignIn={() => {

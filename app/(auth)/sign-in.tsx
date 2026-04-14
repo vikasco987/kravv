@@ -1,26 +1,23 @@
 "use client";
-import { useClerk, useSignIn, useOAuth } from "@clerk/clerk-expo";
+import { useClerk, useOAuth, useSignIn } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as AuthSession from "expo-auth-session";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React from "react";
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Modal,
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
-import { useRefresh } from "../../context/RefreshContext";
 import { StaffLogin } from "../../components/staff creat/StaffLogin";
+import { useRefresh } from "../../context/RefreshContext";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -54,7 +51,7 @@ export default function SignInScreen() {
       });
 
       console.log("🚀 Starting Google OAuth with useOAuth...");
-      
+
       const { createdSessionId, setActive: setSessionActive } = await startOAuthFlow({
         redirectUrl,
       });
@@ -71,7 +68,7 @@ export default function SignInScreen() {
     } catch (err) {
       const errorMsg = err && typeof err === 'object' && 'message' in err ? String(err.message) : String(err);
       console.error("❌ Google Sign-in error:", errorMsg);
-      
+
       if (errorMsg.toLowerCase().includes("network") || errorMsg.toLowerCase().includes("failed to fetch")) {
         setIsNoNetworkModalVisible(true);
       } else {
@@ -133,8 +130,8 @@ export default function SignInScreen() {
           <Text style={styles.googleText}>Continue with Google</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.googleBtn, { backgroundColor: '#4F46E5', elevation: 10, shadowColor: '#4F46E5', shadowOpacity: 0.4, shadowRadius: 10 }]} 
+        <TouchableOpacity
+          style={[styles.googleBtn, { backgroundColor: '#4F46E5', elevation: 10, shadowColor: '#4F46E5', shadowOpacity: 0.4, shadowRadius: 10 }]}
           onPress={() => setIsStaffModalVisible(true)}
         >
           <Ionicons name="shield-checkmark" size={24} color="#fff" style={{ marginRight: 15 }} />
@@ -178,7 +175,7 @@ export default function SignInScreen() {
         </View>
       </Modal>
 
-      <StaffLogin 
+      <StaffLogin
         visible={isStaffModalVisible}
         onClose={() => setIsStaffModalVisible(false)}
       />

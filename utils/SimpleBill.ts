@@ -107,8 +107,8 @@ async function processAndPrintLogo(printer: any, url: string, silent?: boolean) 
     if (url.includes("cloudinary.com")) {
       const uploadIdx = url.indexOf("/upload/");
       if (uploadIdx !== -1) {
-        transformedUrl = url.slice(0, uploadIdx + 8) + 
-          "c_scale,w_240,f_bmp/" + 
+        transformedUrl = url.slice(0, uploadIdx + 8) +
+          "c_scale,w_240,f_bmp/" +
           url.slice(uploadIdx + 8);
       }
     }
@@ -121,7 +121,7 @@ async function processAndPrintLogo(printer: any, url: string, silent?: boolean) 
     } else {
       const response = await fetch(transformedUrl);
       if (!response.ok) return;
-      
+
       const buffer = await response.arrayBuffer();
       const bytes = new Uint8Array(buffer);
 
@@ -155,14 +155,14 @@ async function processAndPrintLogo(printer: any, url: string, silent?: boolean) 
             const x = xByte * 8 + bit;
             if (x < width) {
               const p = lineStart + x * bppBytes;
-              const luminance = bytes[p+2] * 0.299 + bytes[p+1] * 0.587 + bytes[p] * 0.114;
+              const luminance = bytes[p + 2] * 0.299 + bytes[p + 1] * 0.587 + bytes[p] * 0.114;
               if (luminance < 128) byteValue |= (1 << (7 - bit));
             }
           }
           printerData[pos++] = byteValue;
         }
       }
-      
+
       // Update Cache
       cachedLogoData = printerData;
       lastLogoUrl = transformedUrl;
@@ -214,29 +214,29 @@ export async function SimpleBill(
     let finalUserId = (userClerkId && userClerkId !== "null") ? userClerkId : null;
 
     if (!finalToken || !finalUserId) {
-        const sessionStr = await AsyncStorage.getItem('staff_session');
-        if (sessionStr) {
-            try {
-                const session = JSON.parse(sessionStr);
-                if (!finalToken) finalToken = session.token || session.token_id || "";
-                if (!finalUserId) finalUserId = session.id || session._id || "";
-            } catch (e) {
-                console.error("SimpleBill: Failed to parse staff_session", e);
-            }
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      if (sessionStr) {
+        try {
+          const session = JSON.parse(sessionStr);
+          if (!finalToken) finalToken = session.token || session.token_id || "";
+          if (!finalUserId) finalUserId = session.id || session._id || "";
+        } catch (e) {
+          console.error("SimpleBill: Failed to parse staff_session", e);
         }
+      }
     }
 
     if (!finalToken || finalToken === "" || finalToken === "null") {
-        const errorMsg = "❌ Billing Token Missing (Staff Session Error)";
-        ToastAndroid.show(errorMsg, ToastAndroid.LONG);
-        console.error("SimpleBill: Missing Token", { finalToken, finalUserId });
-        throw new Error("❌ Clerk token missing!");
+      const errorMsg = "❌ Billing Token Missing (Staff Session Error)";
+      ToastAndroid.show(errorMsg, ToastAndroid.LONG);
+      console.error("SimpleBill: Missing Token", { finalToken, finalUserId });
+      throw new Error("❌ Clerk token missing!");
     } else {
-        // Log token availability (safe check)
-        console.log("SimpleBill: Token verified, proceeding with bill...");
+      // Log token availability (safe check)
+      console.log("SimpleBill: Token verified, proceeding with bill...");
     }
     // if (!finalUserId) throw new Error("❌ userClerkId missing!");
-    
+
     // Use pre-computed info if available to speed up processing
     const companyInfo = options?.businessProfile || await getRecentCompanyProfile(finalToken);
     const date = new Date();
@@ -257,23 +257,23 @@ export async function SimpleBill(
     // --- Load Settings from AsyncStorage (Optimized if passed) ---
     let sMap: Record<string, string | null> = {};
     if (options?.taxSettings) {
-        const ts = options.taxSettings;
-        sMap = {
-            'tax_enabled': String(ts.enabled),
-            'tax_rate': String(ts.rate),
-            'per_product_tax': String(ts.perProduct),
-            'discount_enabled': String(ts.discountEnabled),
-            'discount_rate': String(ts.discountRate),
-            'service_charge_enabled': String(ts.serviceChargeEnabled),
-            'service_charge_rate': String(ts.serviceChargeRate)
-        };
+      const ts = options.taxSettings;
+      sMap = {
+        'tax_enabled': String(ts.enabled),
+        'tax_rate': String(ts.rate),
+        'per_product_tax': String(ts.perProduct),
+        'discount_enabled': String(ts.discountEnabled),
+        'discount_rate': String(ts.discountRate),
+        'service_charge_enabled': String(ts.serviceChargeEnabled),
+        'service_charge_rate': String(ts.serviceChargeRate)
+      };
     } else {
-        const settings = await AsyncStorage.multiGet([
-            'tax_enabled', 'tax_rate', 'per_product_tax',
-            'discount_enabled', 'discount_rate',
-            'service_charge_enabled', 'service_charge_rate'
-        ]);
-        settings.forEach(([key, val]) => sMap[key] = val);
+      const settings = await AsyncStorage.multiGet([
+        'tax_enabled', 'tax_rate', 'per_product_tax',
+        'discount_enabled', 'discount_rate',
+        'service_charge_enabled', 'service_charge_rate'
+      ]);
+      settings.forEach(([key, val]) => sMap[key] = val);
     }
 
     const isTaxEnabled = sMap['tax_enabled'] === 'true';
@@ -297,24 +297,24 @@ export async function SimpleBill(
 
       let itemGstRate = 0;
       if (isTaxEnabled) {
-          // Global Override Always Wins
-          itemGstRate = globalTaxRate;
+        // Global Override Always Wins
+        itemGstRate = globalTaxRate;
       } else if (perProductTaxEnabled) {
-          // Per-Product Rate Only if Global is OFF
-          itemGstRate = (item.gst !== null && item.gst !== undefined) ? Number(item.gst) : 0;
+        // Per-Product Rate Only if Global is OFF
+        itemGstRate = (item.gst !== null && item.gst !== undefined) ? Number(item.gst) : 0;
       } else {
-          itemGstRate = 0;
+        itemGstRate = 0;
       }
 
       let taxable = 0;
       let gst = 0;
 
       if (item.taxType === "With Tax") {
-          taxable = lineTotal / (1 + itemGstRate / 100);
-          gst = lineTotal - taxable;
+        taxable = lineTotal / (1 + itemGstRate / 100);
+        gst = lineTotal - taxable;
       } else {
-          taxable = lineTotal;
-          gst = (lineTotal * itemGstRate) / 100;
+        taxable = lineTotal;
+        gst = (lineTotal * itemGstRate) / 100;
       }
 
       totalTaxable += taxable;
@@ -344,7 +344,7 @@ export async function SimpleBill(
 
     // 2. Service Charge on Discounted Value
     const serviceChargeAmount = isServiceChargeEnabled ? (taxableAfterDiscount * (serviceChargeRatePercent / 100)) : 0;
-    
+
     // 3. Taxable Amount Display Row (Base + SC)
     const netTaxableValue = taxableAfterDiscount + serviceChargeAmount;
 
@@ -361,17 +361,17 @@ export async function SimpleBill(
     // --- Final Bill Text ---
     const taxGroups: Record<number, { taxable: number, gst: number }> = {};
     productsForBackend.forEach(p => {
-        const rate = p.gstRate || 0;
-        if (!taxGroups[rate]) taxGroups[rate] = { taxable: 0, gst: 0 };
-        taxGroups[rate].taxable += p.taxableAmount;
-        taxGroups[rate].gst += p.gstPaid;
+      const rate = p.gstRate || 0;
+      if (!taxGroups[rate]) taxGroups[rate] = { taxable: 0, gst: 0 };
+      taxGroups[rate].taxable += p.taxableAmount;
+      taxGroups[rate].gst += p.gstPaid;
     });
 
     const taxBreakupText = Object.keys(taxGroups).map(rateStr => {
-        const rate = parseFloat(rateStr);
-        if (rate === 0) return "";
-        const group = taxGroups[rate];
-        return `${rate}% GST: ${group.taxable.toFixed(2).padStart(10)} | ${group.gst.toFixed(2).padStart(8)}`;
+      const rate = parseFloat(rateStr);
+      if (rate === 0) return "";
+      const group = taxGroups[rate];
+      return `${rate}% GST: ${group.taxable.toFixed(2).padStart(10)} | ${group.gst.toFixed(2).padStart(8)}`;
     }).filter(t => t.length > 0).join("\n");
 
     const customerDetails =
@@ -389,30 +389,30 @@ export async function SimpleBill(
     // --- Build Summary Rows ---
     let summaryRows = `${line('-')}\n`;
     summaryRows += `Subtotal:${`₹${totalTaxable.toFixed(2)}`.padStart(23)}\n`;
-    
+
     if (isDiscountEnabled) {
-        summaryRows += `Discount (${discountRatePercent}%):${`-₹${discountAmount.toFixed(2)}`.padStart(16)}\n`;
+      summaryRows += `Discount (${discountRatePercent}%):${`-₹${discountAmount.toFixed(2)}`.padStart(16)}\n`;
     }
-    
+
     if (isServiceChargeEnabled) {
-        summaryRows += `S.Charge (${serviceChargeRatePercent}%):${`₹${serviceChargeAmount.toFixed(2)}`.padStart(16)}\n`;
+      summaryRows += `S.Charge (${serviceChargeRatePercent}%):${`₹${serviceChargeAmount.toFixed(2)}`.padStart(16)}\n`;
     }
 
     // 🔥 Added "Taxable Amount" row (Subtotal - Discount + Service Charge)
     summaryRows += `Taxable Amount:${`₹${netTaxableValue.toFixed(2)}`.padStart(17)}\n`;
 
     if (isTaxEnabled || perProductTaxEnabled) {
-        let gstLabelStr = "GST:";
-        if (isTaxEnabled) {
-            gstLabelStr = `GST (${globalTaxRate}%):`;
-        } else if (perProductTaxEnabled) {
-            if (usedGstRates.size === 1) {
-                gstLabelStr = `GST (${Array.from(usedGstRates)[0]}%):`;
-            } else if (usedGstRates.size > 1) {
-                gstLabelStr = "GST (Multi):";
-            }
+      let gstLabelStr = "GST:";
+      if (isTaxEnabled) {
+        gstLabelStr = `GST (${globalTaxRate}%):`;
+      } else if (perProductTaxEnabled) {
+        if (usedGstRates.size === 1) {
+          gstLabelStr = `GST (${Array.from(usedGstRates)[0]}%):`;
+        } else if (usedGstRates.size > 1) {
+          gstLabelStr = "GST (Multi):";
         }
-        summaryRows += `${gstLabelStr}${`₹${gstAmount.toFixed(2)}`.padStart(32 - gstLabelStr.length)}\n`;
+      }
+      summaryRows += `${gstLabelStr}${`₹${gstAmount.toFixed(2)}`.padStart(32 - gstLabelStr.length)}\n`;
     }
     summaryRows += line('-');
 
@@ -429,8 +429,8 @@ ${summaryRows}
 GRAND TOTAL:${`₹${finalTotalFixed.toFixed(2)}`.padStart(20)}
 ${line('-')}
 ${line('-')}
-${(isTaxEnabled || perProductTaxEnabled) && taxBreakupText.length > 0 ? 
-  `${centerText("TAX BREAKUP", 32)}\nRate   | Taxable Value | GST\n${line('-')}\n${taxBreakupText}\n${line('-')}\n` : ''}
+${(isTaxEnabled || perProductTaxEnabled) && taxBreakupText.length > 0 ?
+        `${centerText("TAX BREAKUP", 32)}\nRate   | Taxable Value | GST\n${line('-')}\n${taxBreakupText}\n${line('-')}\n` : ''}
 ${centerText("Payment: " + paymentMode, 32)}
 ${line('-')}
 ${upi ? centerText("Scan & Pay", 32) + "\n" : ""}
@@ -448,7 +448,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
         // 1. Initialize Printer
         await connectedPrinter?.write(new Uint8Array([0x1B, 0x40])); // ESC @
         const encoder = new TextEncoder();
-        
+
         // --- ESC/POS COMMANDS ---
         const ALIGN_CENTER = new Uint8Array([0x1B, 0x61, 0x01]);
         const ALIGN_LEFT = new Uint8Array([0x1B, 0x61, 0x00]);
@@ -462,7 +462,7 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
 
         // 2. Print Logo
         if (logoUrl) {
-            await processAndPrintLogo(connectedPrinter, logoUrl, options?.silent);
+          await processAndPrintLogo(connectedPrinter, logoUrl, options?.silent);
         }
 
         // Business Name Header
@@ -477,35 +477,35 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
         await connectedPrinter?.write(encoder.encode(companyAddress + "\n"));
         if (companyPhone) await connectedPrinter?.write(encoder.encode(`PH: ${companyPhone}\n`));
         if (gstNumber) {
-            await connectedPrinter?.write(BOLD_ON);
-            await connectedPrinter?.write(encoder.encode(`GSTIN: ${gstNumber}\n`));
-            await connectedPrinter?.write(BOLD_OFF);
+          await connectedPrinter?.write(BOLD_ON);
+          await connectedPrinter?.write(encoder.encode(`GSTIN: ${gstNumber}\n`));
+          await connectedPrinter?.write(BOLD_OFF);
         }
         await connectedPrinter?.write(encoder.encode(line('-') + "\n"));
         await connectedPrinter?.write(ALIGN_LEFT);
-        
+
         const cleanBody = bodyText.replace(/[^\x00-\x7F]/g, "");
         await connectedPrinter?.write(encoder.encode(cleanBody));
 
         const upiId = companyInfo?.upiId || companyInfo?.upi || "";
         const upiUrl = upiId ? `upi://pay?pa=${upiId}&pn=${encodeURIComponent(companyName.slice(0, 20))}&am=${finalTotalFixed.toFixed(2)}&cu=INR&tn=BILL_${tempBillNo.slice(-4)}` : "";
-              
+
         if (upiUrl) {
-              const size = upiUrl.length + 3;
-              const pL = size % 256;
-              const pH = Math.floor(size / 256);
-              const qrCommands = new Uint8Array([
-                0x1B, 0x61, 0x01,
-                0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00,
-                0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x08,
-                0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30,
-                0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30, ...Array.from(upiUrl).map(c => c.charCodeAt(0)),
-                0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30,
-                0x0A,
-                ...Array.from(centerText(`SCAN TO PAY ₹${finalTotalFixed.toFixed(2)}`, 32)).map(c => c.charCodeAt(0)),
-                0x0A, 0x0A
-              ]);
-              await connectedPrinter?.write(qrCommands);
+          const size = upiUrl.length + 3;
+          const pL = size % 256;
+          const pH = Math.floor(size / 256);
+          const qrCommands = new Uint8Array([
+            0x1B, 0x61, 0x01,
+            0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00,
+            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x08,
+            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x30,
+            0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30, ...Array.from(upiUrl).map(c => c.charCodeAt(0)),
+            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30,
+            0x0A,
+            ...Array.from(centerText(`SCAN TO PAY ₹${finalTotalFixed.toFixed(2)}`, 32)).map(c => c.charCodeAt(0)),
+            0x0A, 0x0A
+          ]);
+          await connectedPrinter?.write(qrCommands);
         }
 
         await connectedPrinter?.write(new Uint8Array([0x1b, 0x64, 0x03])); // Feed
@@ -573,19 +573,19 @@ ${centerText("Thank You! Visit Again 🙏", 32)}
           await AsyncStorage.setItem('@hidden_bill_ids', JSON.stringify(hiddenIds));
           await AsyncStorage.removeItem('@resume_cart');
           await AsyncStorage.removeItem('@resume_cart_id');
-        } catch (e) {}
+        } catch (e) { }
       } else {
         throw new Error("Server rejected bill");
       }
     } catch (e) {
       console.log("Network save failed, saving to local queue...");
       try {
-          const queueStr = await AsyncStorage.getItem('@pending_bills');
-          const queue = queueStr ? JSON.parse(queueStr) : [];
-          queue.push({ url, method, body, timestamp: Date.now() });
-          await AsyncStorage.setItem('@pending_bills', JSON.stringify(queue));
-          if (!options?.silent) ToastAndroid.show("Offline: Saved locally", ToastAndroid.SHORT);
-      } catch (err) {}
+        const queueStr = await AsyncStorage.getItem('@pending_bills');
+        const queue = queueStr ? JSON.parse(queueStr) : [];
+        queue.push({ url, method, body, timestamp: Date.now() });
+        await AsyncStorage.setItem('@pending_bills', JSON.stringify(queue));
+        if (!options?.silent) ToastAndroid.show("Offline: Saved locally", ToastAndroid.SHORT);
+      } catch (err) { }
     }
 
     return { status: "success" };

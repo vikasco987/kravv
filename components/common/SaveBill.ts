@@ -26,7 +26,7 @@ export async function SaveBill(
   }
 ) {
   console.log("🔥 SaveBill called");
-  
+
   let finalToken = (token && token !== "null") ? token : null;
   let finalUserId = (userClerkId && userClerkId !== "null") ? userClerkId : null;
 
@@ -38,7 +38,7 @@ export async function SaveBill(
         if (!finalToken) finalToken = session.token || session.token_id || "";
         if (!finalUserId) finalUserId = session.id || session._id || "";
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   if (!finalToken || finalToken === "") {
@@ -58,7 +58,7 @@ export async function SaveBill(
       'discount_enabled', 'discount_rate',
       'service_charge_enabled', 'service_charge_rate'
     ]);
-    
+
     const sMap: Record<string, string | null> = {};
     settings.forEach(([key, val]) => sMap[key] = val);
 
@@ -80,20 +80,20 @@ export async function SaveBill(
 
       let itemGstRate = 0;
       if (isTaxEnabled) {
-          itemGstRate = globalTaxRate;
+        itemGstRate = globalTaxRate;
       } else if (perProductTaxEnabled) {
-          itemGstRate = (item.gst !== null && item.gst !== undefined) ? Number(item.gst) : 0;
+        itemGstRate = (item.gst !== null && item.gst !== undefined) ? Number(item.gst) : 0;
       }
 
       let taxable = 0;
       let gst = 0;
 
       if (item.taxType === "With Tax") {
-          taxable = lineTotal / (1 + itemGstRate / 100);
-          gst = lineTotal - taxable;
+        taxable = lineTotal / (1 + itemGstRate / 100);
+        gst = lineTotal - taxable;
       } else {
-          taxable = lineTotal;
-          gst = (lineTotal * itemGstRate) / 100;
+        taxable = lineTotal;
+        gst = (lineTotal * itemGstRate) / 100;
       }
 
       totalTaxable += taxable;
@@ -193,7 +193,7 @@ export async function SaveBill(
       }
       await AsyncStorage.removeItem("@resume_cart");
       await AsyncStorage.removeItem("@resume_cart_id");
-    } catch (err) {}
+    } catch (err) { }
 
     return { status: "saved", billNo: data.bill?.billNumber || "SAVED", total: finalTotal, data };
   } catch (err) {

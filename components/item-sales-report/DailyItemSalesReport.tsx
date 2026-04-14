@@ -26,7 +26,7 @@ const DailyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
       const authToken = await getToken();
       const sessionStr = await AsyncStorage.getItem('staff_session');
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-      
+
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
       const finalToken = authToken || staffSession?.token;
 

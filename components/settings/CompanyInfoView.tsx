@@ -1,5 +1,6 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -17,9 +18,7 @@ import {
   View,
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
-import { getRecentCompanyProfile } from "../../services/companyService";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface CompanyInfoViewProps {
   onBack?: () => void;
@@ -86,7 +85,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
     try {
       const token = await getToken();
       const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? undefined : undefined);
-      
+
       if (!token && !bId) {
         setIsInitialLoading(false);
         return;
@@ -94,7 +93,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
 
       // Fetch by businessId if staff, otherwise normal
       const url = bId ? `https://billing.kravy.in/api/profile?businessId=${bId}` : "https://billing.kravy.in/api/profile";
-      
+
       const response = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -105,7 +104,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       }
 
       const data = await response.json();
-      
+
       // The backend returns fields like businessName, businessAddress, etc.
       if (data && (data.businessName || data.companyName)) {
         setForm({
@@ -139,8 +138,8 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
 
   const handleBack = () => {
     if (step === -1) {
-       if (onBack) onBack();
-       else router.back();
+      if (onBack) onBack();
+      else router.back();
     } else if (step === 1 && hasProfile) {
       setStep(-1);
     } else if (step > 0) {
@@ -216,7 +215,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       const formData = new FormData();
       const fileName = uri.split("/").pop() || "upload.jpg";
       const fileType = fileName.split(".").pop() || "jpg";
-      
+
       // @ts-ignore
       formData.append("file", { uri, type: `image/${fileType}`, name: fileName });
       formData.append("upload_preset", uploadPreset);
@@ -229,7 +228,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.message || "Upload failed");
-      
+
       setForm({ ...form, profileImage: data.secure_url });
     } catch (e) {
       showAlert("error", "Upload Failed", "Could not upload image to Cloudinary.");
@@ -249,7 +248,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
     try {
       setLoading(true);
       const token = await getToken();
-      
+
       const payload = {
         businessName: form.businessName,
         businessType: form.businessType,
@@ -327,11 +326,11 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
         <View style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
             {form.profileImage ? (
-               <Image source={{ uri: form.profileImage }} style={styles.summaryLogo} />
+              <Image source={{ uri: form.profileImage }} style={styles.summaryLogo} />
             ) : (
-               <View style={styles.summaryLogoPlaceholder}>
-                 <MaterialCommunityIcons name="office-building" size={rf(30)} color={THEME_COLOR} />
-               </View>
+              <View style={styles.summaryLogoPlaceholder}>
+                <MaterialCommunityIcons name="office-building" size={rf(30)} color={THEME_COLOR} />
+              </View>
             )}
             <View style={{ flex: 1, marginLeft: s(15) }}>
               <Text style={styles.summaryBizName}>{form.businessName}</Text>
@@ -342,25 +341,25 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
           <View style={styles.divider} />
 
           {renderSummarySection("Identity", [
-             { label: "Type", value: form.businessType },
-             { label: "GSTIN", value: form.gstNumber || "N/A" }
+            { label: "Type", value: form.businessType },
+            { label: "GSTIN", value: form.gstNumber || "N/A" }
           ], "office-building")}
 
           {renderSummarySection("Contact", [
-             { label: "Person", value: form.contactPerson },
-             { label: "Phone", value: form.phone },
-             { label: "Email", value: form.email }
+            { label: "Person", value: form.contactPerson },
+            { label: "Phone", value: form.phone },
+            { label: "Email", value: form.email }
           ], "person")}
 
           {renderSummarySection("Address", [
-             { label: "Address", value: form.businessAddress },
-             { label: "State", value: form.state },
-             { label: "PIN", value: form.pinCode }
+            { label: "Address", value: form.businessAddress },
+            { label: "State", value: form.state },
+            { label: "PIN", value: form.pinCode }
           ], "location")}
 
           {renderSummarySection("Payments", [
-             { label: "UPI", value: form.upiId || "N/A" },
-             { label: "Review Link", value: form.googleReviewLink || "N/A" }
+            { label: "UPI", value: form.upiId || "N/A" },
+            { label: "Review Link", value: form.googleReviewLink || "N/A" }
           ], "credit-card-outline")}
         </View>
 
@@ -379,7 +378,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
         <TouchableOpacity onPress={handleBack} style={styles.backButtonAbsolute}>
           <Ionicons name="arrow-back" size={rf(20)} color="#1E293B" />
         </TouchableOpacity>
-        
+
         <View style={styles.landingCard}>
           <View style={styles.iconCircle}>
             <MaterialCommunityIcons name="office-building" size={rf(48)} color="#6366F1" />
@@ -398,8 +397,8 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
   }
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === "ios" ? "padding" : "height"} 
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1, backgroundColor: "#F8FAFC" }}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
@@ -466,7 +465,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
               </View>
               {renderInput("UPI ID", form.upiId, (t) => setForm({ ...form, upiId: t }), "UPI ID")}
               {renderInput("Google Review Link", form.googleReviewLink, (t) => setForm({ ...form, googleReviewLink: t }), "Google Review Link")}
-              
+
               <Text style={styles.label}>Profile Image / Logo</Text>
               <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
                 {uploadingImage ? (
@@ -492,15 +491,15 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
               <Text style={styles.secondaryButtonText}>Back</Text>
             </TouchableOpacity>
           )}
-          
-          <TouchableOpacity 
-             style={[
-               styles.primaryButton, 
-               { flex: step === 4 ? 1.5 : 1 },
-               step === 4 && { backgroundColor: SUCCESS_COLOR }
-             ]} 
-             onPress={step === 4 ? handleSave : handleContinue}
-             disabled={loading}
+
+          <TouchableOpacity
+            style={[
+              styles.primaryButton,
+              { flex: step === 4 ? 1.5 : 1 },
+              step === 4 && { backgroundColor: SUCCESS_COLOR }
+            ]}
+            onPress={step === 4 ? handleSave : handleContinue}
+            disabled={loading}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
@@ -519,20 +518,20 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={[
-              styles.modalIconCircle, 
+              styles.modalIconCircle,
               { backgroundColor: modalType === 'success' ? "#E6F6F1" : modalType === 'error' ? ERROR_COLOR + '20' : WARNING_COLOR + '20' }
             ]}>
-              <Ionicons 
-                name={modalType === 'success' ? 'checkmark-circle' : modalType === 'error' ? 'close-circle' : 'alert-circle'} 
-                size={rf(52)} 
-                color={modalType === 'success' ? SUCCESS_COLOR : modalType === 'error' ? ERROR_COLOR : WARNING_COLOR} 
+              <Ionicons
+                name={modalType === 'success' ? 'checkmark-circle' : modalType === 'error' ? 'close-circle' : 'alert-circle'}
+                size={rf(52)}
+                color={modalType === 'success' ? SUCCESS_COLOR : modalType === 'error' ? ERROR_COLOR : WARNING_COLOR}
               />
             </View>
             <Text style={styles.modalTitle}>{modalTitle}</Text>
             <Text style={styles.modalMessage}>{modalMessage}</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
-                styles.modalBtn, 
+                styles.modalBtn,
                 { backgroundColor: modalType === 'success' ? SUCCESS_COLOR : modalType === 'error' ? ERROR_COLOR : WARNING_COLOR }
               ]}
               onPress={() => {
@@ -568,18 +567,18 @@ function renderInput(label: string, value: string, onChange: (t: string) => void
 function renderSummarySection(title: string, items: { label: string, value: string }[], icon: any) {
   return (
     <View style={styles.summarySection}>
-       <View style={styles.summarySectionHeader}>
-         <MaterialCommunityIcons name={icon} size={rf(18)} color={THEME_COLOR} />
-         <Text style={styles.summarySectionTitle}>{title}</Text>
-       </View>
-       <View style={styles.summaryItemsGrid}>
-         {items.map((item, idx) => (
-           <View key={idx} style={styles.summaryItem}>
-             <Text style={styles.summaryItemLabel}>{item.label}</Text>
-             <Text style={styles.summaryItemValue} numberOfLines={2}>{item.value || "Not Set"}</Text>
-           </View>
-         ))}
-       </View>
+      <View style={styles.summarySectionHeader}>
+        <MaterialCommunityIcons name={icon} size={rf(18)} color={THEME_COLOR} />
+        <Text style={styles.summarySectionTitle}>{title}</Text>
+      </View>
+      <View style={styles.summaryItemsGrid}>
+        {items.map((item, idx) => (
+          <View key={idx} style={styles.summaryItem}>
+            <Text style={styles.summaryItemLabel}>{item.label}</Text>
+            <Text style={styles.summaryItemValue} numberOfLines={2}>{item.value || "Not Set"}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -591,13 +590,13 @@ const styles = StyleSheet.create({
   landingSubtitle: { fontSize: rf(14), color: "#64748B", textAlign: "center", marginVertical: vs(20), lineHeight: rf(22) },
   iconCircle: { width: s(80), height: s(80), borderRadius: s(40), backgroundColor: "#EEF2FF", justifyContent: "center", alignItems: "center" },
   backButtonAbsolute: { position: "absolute", top: vs(60), left: s(20), width: s(40), height: s(40), borderRadius: s(20), backgroundColor: "#fff", justifyContent: "center", alignItems: "center", elevation: 2 },
-  
+
   scrollContainer: { padding: s(20), paddingBottom: vs(50) },
   backButton: { width: s(40), height: s(40), borderRadius: s(20), backgroundColor: "#fff", justifyContent: "center", alignItems: "center", marginTop: vs(35), elevation: 2 },
   header: { marginTop: vs(25), marginBottom: vs(25) },
   title: { fontSize: rf(28), fontWeight: "800", color: "#0F172A" },
   subtitle: { fontSize: rf(14), color: "#64748B", marginTop: vs(5) },
-  
+
   stepIndicatorContainer: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: vs(30) },
   stepCircle: { width: s(32), height: s(32), borderRadius: s(16), backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E8F0", justifyContent: "center", alignItems: "center" },
   stepCircleActive: { backgroundColor: THEME_COLOR, borderColor: THEME_COLOR },
@@ -605,27 +604,27 @@ const styles = StyleSheet.create({
   stepCircleTextActive: { color: "#fff" },
   stepLine: { height: 2, width: s(40), backgroundColor: "#E2E8F0", marginHorizontal: s(5) },
   stepLineActive: { backgroundColor: THEME_COLOR },
-  
+
   card: { backgroundColor: "#fff", borderRadius: s(24), padding: s(24), elevation: 4, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, marginBottom: vs(25) },
   sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: vs(20), gap: s(10) },
   sectionTitle: { fontSize: rf(18), fontWeight: "700", color: "#1E293B" },
-  
+
   inputContainer: { marginBottom: vs(18) },
   label: { fontSize: rf(14), fontWeight: "700", color: "#1E293B", marginBottom: vs(8) },
   input: { height: vs(52), borderWidth: 1, borderColor: "#E2E8F0", borderRadius: s(12), paddingHorizontal: s(15), fontSize: rf(15), color: "#1E293B", backgroundColor: "#fff" },
   row: { flexDirection: "row" },
-  
+
   uploadBox: { height: vs(120), borderWidth: 1, borderColor: "#E2E8F0", borderStyle: "dashed", borderRadius: s(16), justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC", marginBottom: vs(18) },
   uploadText: { fontSize: rf(14), color: "#64748B", marginTop: vs(5), fontWeight: "600" },
   logoPreview: { width: "100%", height: "100%", borderRadius: s(16) },
-  
+
   footerButtons: { flexDirection: "row", gap: s(15) },
   primaryButton: { height: vs(56), borderRadius: s(16), backgroundColor: THEME_COLOR, justifyContent: "center", alignItems: "center", flexDirection: "row", gap: s(10) },
   landingButton: { height: vs(56), borderRadius: s(28), backgroundColor: "#4F46E5", justifyContent: "center", alignItems: "center", flexDirection: "row", gap: s(10), width: "100%" },
   primaryButtonText: { color: "#fff", fontSize: rf(16), fontWeight: "700" },
   secondaryButton: { height: vs(56), borderRadius: s(16), backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E8F0", justifyContent: "center", alignItems: "center", flex: 0.6 },
   secondaryButtonText: { color: "#64748B", fontSize: rf(16), fontWeight: "600" },
-  
+
   modalOverlay: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.6)", justifyContent: "center", alignItems: "center", padding: s(20) },
   modalContent: { width: "100%", backgroundColor: "#fff", borderRadius: s(32), padding: s(30), alignItems: "center" },
   modalIconCircle: { width: s(90), height: s(90), borderRadius: s(45), justifyContent: "center", alignItems: "center", marginBottom: vs(20) },

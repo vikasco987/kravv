@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { DrawerItem } from "@react-navigation/drawer";
 import { Ionicons } from "@expo/vector-icons";
+import { StaffPermissionEngine } from '../staff creat/StaffPermissionEngine';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { rf, s, vs } from "../../utils/responsive";
 
 interface SidebarItemsProps {
@@ -18,70 +20,144 @@ const SidebarItems = ({ t, navigation, isSignedIn, onAction, onLogout }: Sidebar
         danger: '#EF4444',
     };
 
+    const [hasDashboardAccess, setHasDashboardAccess] = useState(true);
+    const [hasMenuAccess, setHasMenuAccess] = useState(true);
+    const [hasOrdersAccess, setHasOrdersAccess] = useState(true);
+    const [hasClientAccess, setHasClientAccess] = useState(true);
+    const [hasIntelAccess, setHasIntelAccess] = useState(true);
+    const [hasReportsAccess, setHasReportsAccess] = useState(true);
+    const [hasSettingsAccess, setHasSettingsAccess] = useState(true);
+
+    useEffect(() => {
+        const checkAccess = async () => {
+            if (isSignedIn) {
+                setHasDashboardAccess(true);
+                setHasMenuAccess(true);
+                setHasOrdersAccess(true);
+                setHasClientAccess(true);
+                setHasIntelAccess(true);
+                setHasReportsAccess(true);
+                setHasSettingsAccess(true);
+                return;
+            }
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            if (sessionStr) {
+                const dash = await StaffPermissionEngine.hasCategoryAccess("Dashboard", false);
+                const menu = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
+                const orders = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
+                const client = await StaffPermissionEngine.hasCategoryAccess("Client", false);
+                const intel = await StaffPermissionEngine.hasCategoryAccess("Intelligence", false);
+                const reports = await StaffPermissionEngine.hasCategoryAccess("Reports", false);
+                const settings = await StaffPermissionEngine.hasCategoryAccess("Settings", false);
+                
+                setHasDashboardAccess(dash);
+                setHasMenuAccess(menu);
+                setHasOrdersAccess(orders);
+                setHasClientAccess(client);
+                setHasIntelAccess(intel);
+                setHasReportsAccess(reports);
+                setHasSettingsAccess(settings);
+            } else {
+                setHasDashboardAccess(true);
+                setHasMenuAccess(true);
+                setHasOrdersAccess(true);
+                setHasClientAccess(true);
+                setHasIntelAccess(true);
+                setHasReportsAccess(true);
+                setHasSettingsAccess(true);
+            }
+        };
+        checkAccess();
+    }, [isSignedIn]);
+
     return (
         <View>
-            <DrawerItem
-                label={t('dashboard')}
-                icon={({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />}
-                onPress={() => navigation.navigate("(tabs)", { screen: "Dashboard" })}
-            />
+            {hasDashboardAccess && (
+                <DrawerItem
+                    label={t('dashboard')}
+                    icon={({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />}
+                    onPress={() => navigation.navigate("(tabs)", { screen: "Dashboard" })}
+                />
+            )}
 
-            <DrawerItem
-                label={t('home_menu')}
-                icon={({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />}
-                onPress={() => navigation.navigate("(tabs)", { screen: "menu" })}
-            />
+            {hasMenuAccess && (
+                <DrawerItem
+                    label={t('home_menu')}
+                    icon={({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />}
+                    onPress={() => navigation.navigate("(tabs)", { screen: "menu" })}
+                />
+            )}
 
-            <DrawerItem
-                label={t('orders')}
-                icon={({ color, size }) => <Ionicons name="list-outline" size={size} color={color} />}
-                onPress={() => onAction('orders')}
-            />
+            {hasOrdersAccess && (
+                <DrawerItem
+                    label={t('orders')}
+                    icon={({ color, size }) => <Ionicons name="list-outline" size={size} color={color} />}
+                    onPress={() => onAction('orders')}
+                />
+            )}
 
-            <DrawerItem
-                label={t('table_qr_codes')}
-                icon={({ color, size }) => <Ionicons name="qr-code-outline" size={size} color={color} />}
-                onPress={() => onAction('qr')}
-            />
+            {hasMenuAccess && (
+                <DrawerItem
+                    label={t('table_qr_codes')}
+                    icon={({ color, size }) => <Ionicons name="qr-code-outline" size={size} color={color} />}
+                    onPress={() => onAction('qr')}
+                />
+            )}
 
-            <DrawerItem
-                label={t('edit_menu_item')}
-                icon={({ color, size }) => <Ionicons name="create-outline" size={size} color={color} />}
-                onPress={() => onAction('editMenu')}
-            />
+            {hasMenuAccess && (
+                <DrawerItem
+                    label={t('edit_menu_item')}
+                    icon={({ color, size }) => <Ionicons name="create-outline" size={size} color={color} />}
+                    onPress={() => onAction('editMenu')}
+                />
+            )}
 
-            <DrawerItem
-                label="Items Sales Report"
-                icon={({ color, size }) => <Ionicons name="cube-outline" size={size} color={color} />}
-                onPress={() => onAction('inventory')}
-            />
+            {hasReportsAccess && (
+                <DrawerItem
+                    label="Items Sales Report"
+                    icon={({ color, size }) => <Ionicons name="cube-outline" size={size} color={color} />}
+                    onPress={() => onAction('inventory')}
+                />
+            )}
 
-            <DrawerItem
-                label={t('settings')}
-                icon={({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />}
-                onPress={() => onAction('settings')}
-            />
+            {hasSettingsAccess && (
+                <DrawerItem
+                    label={t('settings')}
+                    icon={({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />}
+                    onPress={() => onAction('settings')}
+                />
+            )}
 
-            <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>Smart Intelligence</Text>
+            {(hasIntelAccess || hasClientAccess) && (
+                <>
+                    <View style={styles.divider} />
+                    <Text style={styles.sectionTitle}>Smart Intelligence</Text>
+                </>
+            )}
 
-            <DrawerItem
-                label="Profit Engine"
-                icon={({ size }) => <Ionicons name="trending-up-outline" size={size} color="#10B981" />}
-                onPress={() => onAction('profit')}
-            />
+            {hasIntelAccess && (
+                <DrawerItem
+                    label="Profit Engine"
+                    icon={({ size }) => <Ionicons name="trending-up-outline" size={size} color="#10B981" />}
+                    onPress={() => onAction('profit')}
+                />
+            )}
 
-            <DrawerItem
-                label="Voice Command"
-                icon={({ size }) => <Ionicons name="mic-outline" size={size} color="#6366F1" />}
-                onPress={() => onAction('voice')}
-            />
+            {hasIntelAccess && (
+                <DrawerItem
+                    label="Voice Command"
+                    icon={({ size }) => <Ionicons name="mic-outline" size={size} color="#6366F1" />}
+                    onPress={() => onAction('voice')}
+                />
+            )}
 
-            <DrawerItem
-                label="Customer Search"
-                icon={({ size }) => <Ionicons name="search-outline" size={size} color="#f59e0b" />}
-                onPress={() => onAction('history')}
-            />
+            {hasClientAccess && (
+                <DrawerItem
+                    label="Customer Search"
+                    icon={({ size }) => <Ionicons name="search-outline" size={size} color="#f59e0b" />}
+                    onPress={() => onAction('history')}
+                />
+            )}
 
             {!isSignedIn ? (
                 <DrawerItem
