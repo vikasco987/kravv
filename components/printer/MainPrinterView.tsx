@@ -129,6 +129,34 @@ const MainPrinterView = () => {
         }
     };
 
+    // ================= AUTO CONNECT =================
+    const autoConnect = async (showLoader = false) => {
+        try {
+            const savedAddress = await AsyncStorage.getItem("saved_printer");
+            if (!savedAddress) return;
+
+            const isEnabled = await RNBluetoothClassic.isBluetoothEnabled();
+            if (!isEnabled) return;
+
+            if (showLoader) setIsLoading(true);
+            const connection = await RNBluetoothClassic.connectToDevice(
+                savedAddress, { connectorType: "rfcomm", secure: false }
+            );
+
+            if (connection) {
+                setConnectedDevice(connection);
+                ToastAndroid.show("Printer Connected ✅", ToastAndroid.SHORT);
+                
+                const bonded = await RNBluetoothClassic.getBondedDevices();
+                setDevices(bonded);
+            }
+        } catch (e) {
+            // Silently fail for background auto-connect
+        } finally {
+            if (showLoader) setIsLoading(false);
+        }
+    };
+
     // ================= DISCONNECT =================
     const disconnectDevice = async () => {
         if (!connectedDevice) return;
@@ -174,7 +202,34 @@ Thank You\n\n\n`;
         }
     };
 
-    useEffect(() => { requestPermissions(); }, []);
+    useEffect(() => { 
+        const init = async () => {
+            const ok = await requestPermissions();
+            if (ok) {
+                await autoConnect(true);
+            }
+        };
+        init();
+    }, []);
+
+    // Periodic Reconnection Logic
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            if (!connectedDevice && !isLoading) {
+                await autoConnect(false);
+            }
+        }, 3000); // Check every 3 seconds
+        
+        return () => clearInterval(interval);
+    }, [connectedDevice, isLoading]);
+
+    // Connection Lost Listener
+    useEffect(() => {
+        const sub = RNBluetoothClassic.onDeviceDisconnected(() => {
+            setConnectedDevice(null);
+        });
+        return () => sub.remove();
+    }, []);
 
     return (
         <View style={styles.content}>

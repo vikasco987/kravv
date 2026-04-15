@@ -59,7 +59,7 @@ export default function TabsLayout() {
   };
 
   useEffect(() => {
-    const checkPrinter = async () => {
+    const checkAndConnectPrinter = async () => {
       try {
         const savedAddress = await AsyncStorage.getItem("saved_printer");
         if (!savedAddress) {
@@ -67,22 +67,34 @@ export default function TabsLayout() {
           return;
         }
 
-        const devices = await RNBluetoothClassic.getBondedDevices();
-        const printer = devices.find((d: any) => d.address === savedAddress);
-
-        if (printer) {
-          const connected = await printer.isConnected();
-          setIsPrinterConnected(connected);
-        } else {
+        const isEnabled = await RNBluetoothClassic.isBluetoothEnabled();
+        if (!isEnabled) {
           setIsPrinterConnected(false);
+          return;
+        }
+
+        const isConnected = await RNBluetoothClassic.isDeviceConnected(savedAddress);
+        if (isConnected) {
+          setIsPrinterConnected(true);
+        } else {
+          // Attempt silent auto-connect in background
+          try {
+            const connection = await RNBluetoothClassic.connectToDevice(savedAddress, {
+              connectorType: "rfcomm",
+              secure: false,
+            });
+            setIsPrinterConnected(!!connection);
+          } catch (e) {
+            setIsPrinterConnected(false);
+          }
         }
       } catch (err) {
         setIsPrinterConnected(false);
       }
     };
 
-    checkPrinter();
-    const interval = setInterval(checkPrinter, 5000); // Check every 5 seconds
+    checkAndConnectPrinter();
+    const interval = setInterval(checkAndConnectPrinter, 5000); // Check and reconnect every 5 seconds
     return () => clearInterval(interval);
   }, []);
 
