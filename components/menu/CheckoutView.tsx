@@ -293,7 +293,8 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
         customerName: customerName,
         phone: customerPhone,
         businessProfile, // Pass current business profile
-        taxSettings      // Pass current tax settings
+        taxSettings,      // Pass current tax settings
+        tableName: params.selectedTable || undefined
       });
 
       if (result?.status === "success") {

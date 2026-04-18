@@ -32,7 +32,7 @@ const WARNING_COLOR = "#F59E0B";
 export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
   const router = useRouter();
   const { getToken } = useAuth();
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
 
   const [step, setStep] = useState(0); // 0 is Landing, 1-4 are steps
   const [loading, setLoading] = useState(false);
@@ -84,7 +84,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
   const loadProfile = async () => {
     try {
       const token = await getToken();
-      const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? undefined : undefined);
+      const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? user?.id : undefined);
 
       if (!token && !bId) {
         setIsInitialLoading(false);

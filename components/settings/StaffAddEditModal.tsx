@@ -1,5 +1,6 @@
 
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -19,6 +20,7 @@ import {
 import Voice from '@react-native-voice/voice';
 import { rf, s, vs } from "../../utils/responsive";
 import { PERMISSION_GROUPS, StaffMember } from "./StaffPermissionsData";
+import { useRefresh } from "../../context/RefreshContext";
 
 const COLORS = {
   primary: "#0066FF", // More vibrant blue to match screenshot
@@ -57,6 +59,7 @@ const StaffAddEditModal = ({
   const [showPassword, setShowPassword] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+  const { triggerRefresh } = useRefresh();
 
   const [successVisible, setSuccessVisible] = useState(false);
   const [missingVisible, setMissingVisible] = useState(false);
@@ -314,13 +317,53 @@ const StaffAddEditModal = ({
       permissions
     };
 
+    // 🛡️ REAL-TIME PERMISSION SYNC
+    const syncPermissionsLocally = async () => {
+      try {
+        const sessionStr = await AsyncStorage.getItem("staff_session");
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr);
+          // If the email matches, update the local session permissions immediately
+          if (session.email === trimmedEmail) {
+            const updatedSession = { 
+              ...session, 
+              permissions: payload.permissions, 
+              accessType: payload.accessType,
+              name: payload.name 
+            };
+            await AsyncStorage.setItem("staff_session", JSON.stringify(updatedSession));
+            // Signal a global refresh
+            triggerRefresh();
+            const { DeviceEventEmitter } = require('react-native');
+            DeviceEventEmitter.emit('PERMISSIONS_UPDATED');
+          }
+        }
+      } catch (e) {
+        console.error("Local sync error:", e);
+      }
+    };
+    syncPermissionsLocally();
+
     onSave(payload);
     setSuccessVisible(true);
     setTimeout(() => { setSuccessVisible(false); }, 2000);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (staff) {
+      try {
+        const sessionStr = await AsyncStorage.getItem("staff_session");
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr);
+          if (session.email === staff.email) {
+            await AsyncStorage.removeItem("staff_session");
+            triggerRefresh();
+            const { DeviceEventEmitter } = require('react-native');
+            DeviceEventEmitter.emit('PERMISSIONS_UPDATED');
+          }
+        }
+      } catch (e) { }
+
       onDelete(staff.id);
     }
   };

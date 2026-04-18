@@ -14,6 +14,8 @@ import {
   View,
 } from 'react-native';
 import { rf, s, vs } from '../../utils/responsive';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRefresh } from '../../context/RefreshContext';
 
 const { width } = Dimensions.get('window');
 
@@ -25,6 +27,8 @@ const NewOrderNotifier = () => {
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [newOrderInfo, setNewOrderInfo] = useState<any>(null);
   const processedOrderIds = useRef(new Set<string>());
+  const { refreshSignal } = useRefresh();
+  const [staffData, setStaffData] = useState<{token: string, id: string} | null>(null);
   
   const slideAnim = useRef(new Animated.Value(-500)).current;
   const flashAnim = useRef(new Animated.Value(1)).current;
@@ -40,6 +44,25 @@ const NewOrderNotifier = () => {
       shouldDuckAndroid: false,
     });
   }, []);
+
+  // Check for Staff Session
+  useEffect(() => {
+    const checkStaff = async () => {
+      try {
+        const session = await AsyncStorage.getItem("staff_session");
+        if (session) {
+          const parsed = JSON.parse(session);
+          setStaffData({ token: parsed.token, id: parsed.id || parsed._id || "staff" });
+        } else {
+          setStaffData(null);
+        }
+      } catch (e) {
+        setStaffData(null);
+      }
+    };
+    checkStaff();
+  }, [refreshSignal, isSignedIn]);
+
   const startRingtone = async () => {
     try {
       if (soundRef.current) return; // Already playing
@@ -85,10 +108,9 @@ const NewOrderNotifier = () => {
 
     if (nextOrders.length === 0) {
       stopRingtone();
-      Animated.timing(slideAnim, { toValue: -1000, duration: 300, useNativeDriver: true }).start(() => {
-        setShowNotification(false);
-        setNewOrderInfo(null);
-      });
+      setShowNotification(false);
+      setNewOrderInfo(null);
+      slideAnim.setValue(-1000);
     } else {
       // Immediately show next order
       setNewOrderInfo(nextOrders[0]);
@@ -99,9 +121,19 @@ const NewOrderNotifier = () => {
     const currentOrder = newOrderInfo; // Capture current
     // Hide/Next happens immediately in UI but logic continues
     hideNotification();
-
+    
     try {
-      const token = await getToken();
+      let token = null;
+      let userId = "unknown";
+
+      if (isSignedIn) {
+        token = await getToken();
+        userId = user?.id || "unknown";
+      } else if (staffData) {
+        token = staffData.token;
+        userId = staffData.id;
+      }
+
       if (token && currentOrder) {
         // --- DEEP SEARCH FOR ITEMS ---
         let rawItems = currentOrder.items || currentOrder.cart || currentOrder.products || 
@@ -122,28 +154,26 @@ const NewOrderNotifier = () => {
         
         if (items.length > 0) {
            const tableName = currentOrder.tableName || currentOrder.table?.name || currentOrder.table_name || "Online Order";
-           await SimpleKOT(items, token, user?.id || "unknown", tableName);
+           await SimpleKOT(items, token, userId, tableName);
         }
       }
     } catch (e) {
       console.log("Auto KOT Print Error:", e);
     }
-
-    if (currentOrder?.tableId || (currentOrder?.table && (typeof currentOrder.table !== 'string'))) {
-      const tId = currentOrder.tableId || currentOrder.table.id || currentOrder.table._id;
-      router.push({
-        // @ts-ignore
-        pathname: '/orders/[tableId]',
-        params: { tableId: tId, tableName: currentOrder.tableName || currentOrder.table?.name || 'Table' }
-      });
-    }
   };
 
   const fetchOrders = async () => {
-    if (!isSignedIn || fetchInProgress.current) return;
+    if ((!isSignedIn && !staffData) || fetchInProgress.current) return;
     try {
       fetchInProgress.current = true;
-      const token = await getToken();
+      let token = null;
+
+      if (isSignedIn) {
+        token = await getToken();
+      } else if (staffData) {
+        token = staffData.token;
+      }
+
       if (!token) return;
       
       const response = await fetch(`https://billing.kravy.in/api/orders?t=${Date.now()}`, {
@@ -179,7 +209,7 @@ const NewOrderNotifier = () => {
   };
 
   useEffect(() => {
-    if (!isSignedIn) {
+    if (!isSignedIn && !staffData) {
       processedOrderIds.current.clear();
       setPendingOrders([]);
       stopRingtone();
@@ -188,7 +218,7 @@ const NewOrderNotifier = () => {
     fetchOrders();
     const interval = setInterval(fetchOrders, 3000);
     return () => clearInterval(interval);
-  }, [isSignedIn]);
+  }, [isSignedIn, staffData]);
 
   if (!showNotification || !newOrderInfo) return null;
 
@@ -241,7 +271,7 @@ const NewOrderNotifier = () => {
 const styles = StyleSheet.create({
   fullscreenOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     zIndex: 9999999,
     justifyContent: 'center',
     alignItems: 'center',

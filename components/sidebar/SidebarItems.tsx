@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { DrawerItem } from "@react-navigation/drawer";
 import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams } from "expo-router";
 import { StaffPermissionEngine } from '../staff creat/StaffPermissionEngine';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { rf, s, vs } from "../../utils/responsive";
@@ -15,6 +16,7 @@ interface SidebarItemsProps {
 }
 
 const SidebarItems = ({ t, navigation, isSignedIn, onAction, onLogout }: SidebarItemsProps) => {
+    const params = useLocalSearchParams();
     const COLORS = {
         primary: '#4F46E5',
         danger: '#EF4444',
@@ -28,20 +30,14 @@ const SidebarItems = ({ t, navigation, isSignedIn, onAction, onLogout }: Sidebar
     const [hasReportsAccess, setHasReportsAccess] = useState(true);
     const [hasSettingsAccess, setHasSettingsAccess] = useState(true);
 
-    useEffect(() => {
-        const checkAccess = async () => {
-            if (isSignedIn) {
-                setHasDashboardAccess(true);
-                setHasMenuAccess(true);
-                setHasOrdersAccess(true);
-                setHasClientAccess(true);
-                setHasIntelAccess(true);
-                setHasReportsAccess(true);
-                setHasSettingsAccess(true);
-                return;
-            }
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            if (sessionStr) {
+    const checkAccess = async () => {
+        const sessionStr = await AsyncStorage.getItem('staff_session');
+        const isStaff = !!sessionStr;
+
+        if (isSignedIn) {
+            const isStaffPreview = params.staff === 'true';
+
+            if (isStaffPreview) {
                 const dash = await StaffPermissionEngine.hasCategoryAccess("Dashboard", false);
                 const menu = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
                 const orders = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
@@ -49,7 +45,7 @@ const SidebarItems = ({ t, navigation, isSignedIn, onAction, onLogout }: Sidebar
                 const intel = await StaffPermissionEngine.hasCategoryAccess("Intelligence", false);
                 const reports = await StaffPermissionEngine.hasCategoryAccess("Reports", false);
                 const settings = await StaffPermissionEngine.hasCategoryAccess("Settings", false);
-                
+
                 setHasDashboardAccess(dash);
                 setHasMenuAccess(menu);
                 setHasOrdersAccess(orders);
@@ -66,67 +62,197 @@ const SidebarItems = ({ t, navigation, isSignedIn, onAction, onLogout }: Sidebar
                 setHasReportsAccess(true);
                 setHasSettingsAccess(true);
             }
-        };
+            return;
+        }
+
+        if (isStaff) {
+            const dash = await StaffPermissionEngine.hasCategoryAccess("Dashboard", false);
+            const menu = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
+            const orders = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
+            const client = await StaffPermissionEngine.hasCategoryAccess("Client", false);
+            const intel = await StaffPermissionEngine.hasCategoryAccess("Intelligence", false);
+            const reports = await StaffPermissionEngine.hasCategoryAccess("Reports", false);
+            const settings = await StaffPermissionEngine.hasCategoryAccess("Settings", false);
+
+            setHasDashboardAccess(dash);
+            setHasMenuAccess(menu);
+            setHasOrdersAccess(orders);
+            setHasClientAccess(client);
+            setHasIntelAccess(intel);
+            setHasReportsAccess(reports);
+            setHasSettingsAccess(settings);
+        } else {
+            setHasDashboardAccess(true);
+            setHasMenuAccess(true);
+            setHasOrdersAccess(true);
+            setHasClientAccess(true);
+            setHasIntelAccess(true);
+            setHasReportsAccess(true);
+            setHasSettingsAccess(true);
+        }
+    };
+
+    useEffect(() => {
         checkAccess();
+
+        const { DeviceEventEmitter } = require('react-native');
+        const sub = DeviceEventEmitter.addListener('PERMISSIONS_UPDATED', checkAccess);
+        return () => sub.remove();
     }, [isSignedIn]);
 
     return (
         <View>
-            {hasDashboardAccess && (
-                <DrawerItem
-                    label={t('dashboard')}
-                    icon={({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />}
-                    onPress={() => navigation.navigate("(tabs)", { screen: "Dashboard" })}
-                />
-            )}
+            <DrawerItem
+                label={t('dashboard')}
+                icon={({ color, size }) => (
+                    <Ionicons 
+                        name={(hasDashboardAccess ? "home-outline" : "lock-closed") as any} 
+                        size={size} 
+                        color={hasDashboardAccess ? color : "#9CA3AF"} 
+                    />
+                )}
+                onPress={() => {
+                    if (hasDashboardAccess) {
+                        navigation.navigate("(tabs)", { screen: "Dashboard" });
+                    } else {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Access Denied", "Dashboard access is restricted.");
+                    }
+                }}
+            />
 
-            {hasMenuAccess && (
-                <DrawerItem
-                    label={t('home_menu')}
-                    icon={({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />}
-                    onPress={() => navigation.navigate("(tabs)", { screen: "menu" })}
-                />
-            )}
+            <DrawerItem
+                label={t('home_menu')}
+                icon={({ color, size }) => (
+                    <Ionicons 
+                        name={(hasMenuAccess ? "cart-outline" : "lock-closed") as any} 
+                        size={size} 
+                        color={hasMenuAccess ? color : "#9CA3AF"} 
+                    />
+                )}
+                onPress={() => {
+                    if (hasMenuAccess) {
+                        navigation.navigate("(tabs)", { screen: "menu" });
+                    } else {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Access Denied", "Menu access is restricted.");
+                    }
+                }}
+            />
 
-            {hasOrdersAccess && (
-                <DrawerItem
-                    label={t('orders')}
-                    icon={({ color, size }) => <Ionicons name="list-outline" size={size} color={color} />}
-                    onPress={() => onAction('orders')}
-                />
-            )}
+            <DrawerItem
+                label={t('orders')}
+                icon={({ color, size }) => (
+                    <Ionicons 
+                        name={(hasOrdersAccess ? "list-outline" : "lock-closed") as any} 
+                        size={size} 
+                        color={hasOrdersAccess ? color : "#9CA3AF"} 
+                    />
+                )}
+                onPress={() => {
+                    if (hasOrdersAccess) {
+                        onAction('orders');
+                    } else {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Access Denied", "Orders access is restricted.");
+                    }
+                }}
+            />
 
-            {hasMenuAccess && (
-                <DrawerItem
-                    label={t('table_qr_codes')}
-                    icon={({ color, size }) => <Ionicons name="qr-code-outline" size={size} color={color} />}
-                    onPress={() => onAction('qr')}
-                />
-            )}
+            <DrawerItem
+                label="KOT"
+                icon={({ color, size }) => (
+                    <Ionicons 
+                        name={(hasOrdersAccess ? "receipt-outline" : "lock-closed") as any} 
+                        size={size} 
+                        color={hasOrdersAccess ? "#6366F1" : "#9CA3AF"} 
+                    />
+                )}
+                onPress={() => {
+                    if (hasOrdersAccess) {
+                        navigation.navigate("(tabs)", { screen: "kot" });
+                    } else {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Access Denied", "KOT access is restricted.");
+                    }
+                }}
+            />
 
-            {hasMenuAccess && (
-                <DrawerItem
-                    label={t('edit_menu_item')}
-                    icon={({ color, size }) => <Ionicons name="create-outline" size={size} color={color} />}
-                    onPress={() => onAction('editMenu')}
-                />
-            )}
+            <DrawerItem
+                label={t('table_qr_codes')}
+                icon={({ color, size }) => (
+                    <Ionicons 
+                        name={(hasMenuAccess ? "qr-code-outline" : "lock-closed") as any} 
+                        size={size} 
+                        color={hasMenuAccess ? color : "#9CA3AF"} 
+                    />
+                )}
+                onPress={() => {
+                    if (hasMenuAccess) {
+                        onAction('qr');
+                    } else {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Access Denied", "Table QR Codes access is restricted.");
+                    }
+                }}
+            />
 
-            {hasReportsAccess && (
-                <DrawerItem
-                    label="Items Sales Report"
-                    icon={({ color, size }) => <Ionicons name="cube-outline" size={size} color={color} />}
-                    onPress={() => onAction('inventory')}
-                />
-            )}
+            <DrawerItem
+                label={t('edit_menu_item')}
+                icon={({ color, size }) => (
+                    <Ionicons 
+                        name={(hasMenuAccess ? "create-outline" : "lock-closed") as any} 
+                        size={size} 
+                        color={hasMenuAccess ? color : "#9CA3AF"} 
+                    />
+                )}
+                onPress={() => {
+                    if (hasMenuAccess) {
+                        onAction('editMenu');
+                    } else {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Access Denied", "Menu editing access is restricted.");
+                    }
+                }}
+            />
 
-            {hasSettingsAccess && (
-                <DrawerItem
-                    label={t('settings')}
-                    icon={({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />}
-                    onPress={() => onAction('settings')}
-                />
-            )}
+            <DrawerItem
+                label="Items Sales Report"
+                icon={({ color, size }) => (
+                    <Ionicons 
+                        name={(hasReportsAccess ? "cube-outline" : "lock-closed") as any} 
+                        size={size} 
+                        color={hasReportsAccess ? color : "#9CA3AF"} 
+                    />
+                )}
+                onPress={() => {
+                    if (hasReportsAccess) {
+                        onAction('inventory');
+                    } else {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Access Denied", "Item Sales Reports are restricted. Please contact your administrator.");
+                    }
+                }}
+            />
+
+            <DrawerItem
+                label={t('settings')}
+                icon={({ color, size }) => (
+                    <Ionicons 
+                        name={(hasSettingsAccess ? "settings-outline" : "lock-closed") as any} 
+                        size={size} 
+                        color={hasSettingsAccess ? color : "#9CA3AF"} 
+                    />
+                )}
+                onPress={() => {
+                    if (hasSettingsAccess) {
+                        onAction('settings');
+                    } else {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Access Denied", "Settings access is restricted.");
+                    }
+                }}
+            />
 
             {(hasIntelAccess || hasClientAccess) && (
                 <>
@@ -135,29 +261,62 @@ const SidebarItems = ({ t, navigation, isSignedIn, onAction, onLogout }: Sidebar
                 </>
             )}
 
-            {hasIntelAccess && (
-                <DrawerItem
-                    label="Profit Engine"
-                    icon={({ size }) => <Ionicons name="trending-up-outline" size={size} color="#10B981" />}
-                    onPress={() => onAction('profit')}
-                />
-            )}
+            <DrawerItem
+                label="Profit Engine"
+                icon={({ size }) => (
+                    <Ionicons 
+                        name={(hasIntelAccess ? "trending-up-outline" : "lock-closed") as any} 
+                        size={size} 
+                        color={hasIntelAccess ? "#10B981" : "#9CA3AF"} 
+                    />
+                )}
+                onPress={() => {
+                    if (hasIntelAccess) {
+                        onAction('profit');
+                    } else {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Access Denied", "Profit Engine is restricted.");
+                    }
+                }}
+            />
 
-            {hasIntelAccess && (
-                <DrawerItem
-                    label="Voice Command"
-                    icon={({ size }) => <Ionicons name="mic-outline" size={size} color="#6366F1" />}
-                    onPress={() => onAction('voice')}
-                />
-            )}
+            <DrawerItem
+                label="Voice Command"
+                icon={({ size }) => (
+                    <Ionicons 
+                        name={(hasIntelAccess ? "mic-outline" : "lock-closed") as any} 
+                        size={size} 
+                        color={hasIntelAccess ? "#6366F1" : "#9CA3AF"} 
+                    />
+                )}
+                onPress={() => {
+                    if (hasIntelAccess) {
+                        onAction('voice');
+                    } else {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Access Denied", "Voice Commands are restricted.");
+                    }
+                }}
+            />
 
-            {hasClientAccess && (
-                <DrawerItem
-                    label="Customer Search"
-                    icon={({ size }) => <Ionicons name="search-outline" size={size} color="#f59e0b" />}
-                    onPress={() => onAction('history')}
-                />
-            )}
+            <DrawerItem
+                label="Customer Search"
+                icon={({ size }) => (
+                    <Ionicons 
+                        name={(hasClientAccess ? "search-outline" : "lock-closed") as any} 
+                        size={size} 
+                        color={hasClientAccess ? "#f59e0b" : "#9CA3AF"} 
+                    />
+                )}
+                onPress={() => {
+                    if (hasClientAccess) {
+                        onAction('history');
+                    } else {
+                        const { Alert } = require('react-native');
+                        Alert.alert("Access Denied", "Customer Search is restricted.");
+                    }
+                }}
+            />
 
             {!isSignedIn ? (
                 <DrawerItem

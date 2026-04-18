@@ -1,6 +1,6 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -12,6 +12,7 @@ import {
     View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
+import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 import TableRotation from "../table-insights/TableRotation";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -35,9 +36,11 @@ interface Table {
 
 const MainOrdersView = () => {
     const { getToken } = useAuth();
-    const { isSignedIn } = useUser();
+    const { isSignedIn, user } = useUser();
     const router = useRouter();
+    const params = useLocalSearchParams();
     const { t } = useLanguage();
+    const { refreshSignal } = useRefresh();
     const [tables, setTables] = useState<Table[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -148,25 +151,57 @@ const MainOrdersView = () => {
     };
 
     useEffect(() => {
+        const { DeviceEventEmitter } = require('react-native');
         const checkAccess = async () => {
-            if (isSignedIn) {
-                setHasOrdersAccess(true);
-                return;
-            }
             const sessionStr = await AsyncStorage.getItem('staff_session');
-            if (sessionStr) {
+            const isStaff = !!sessionStr;
+
+            if (isStaff && !isSignedIn) {
                 const access = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
                 setHasOrdersAccess(access);
-            } else {
-                setHasOrdersAccess(true); // Guest mode
+            } else if (isSignedIn) {
+                const isStaffPreview = params.staff === 'true';
+                if (isStaffPreview) {
+                    const access = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
+                    setHasOrdersAccess(access);
+                } else {
+                    setHasOrdersAccess(true);
+                }
             }
         };
         checkAccess();
 
-        fetchTables();
+        const sub = DeviceEventEmitter.addListener('PERMISSIONS_UPDATED', checkAccess);
+        return () => sub.remove();
+    }, [isSignedIn, params.staff]);
+
+    useFocusEffect(
+        useCallback(() => {
+            const recheck = async () => {
+                const sessionStr = await AsyncStorage.getItem('staff_session');
+                const isStaff = !!sessionStr;
+                if (isStaff && !isSignedIn) {
+                    const access = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
+                    setHasOrdersAccess(access);
+                } else if (isSignedIn) {
+                    const isStaffPreview = params.staff === 'true';
+                    if (isStaffPreview) {
+                        const access = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
+                        setHasOrdersAccess(access);
+                    } else {
+                        setHasOrdersAccess(true);
+                    }
+                }
+            };
+            recheck();
+            fetchTables();
+        }, [fetchTables, isSignedIn, params.staff])
+    );
+
+    useEffect(() => {
         const interval = setInterval(fetchTables, 5000);
         return () => clearInterval(interval);
-    }, [fetchTables, isSignedIn]);
+    }, [fetchTables]);
 
 
     const onRefresh = () => {

@@ -1,7 +1,7 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import * as Sharing from 'expo-sharing';
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ArrowLeft,
   Download,
@@ -28,9 +28,9 @@ import {
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import ViewShot from "react-native-view-shot";
-import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
-import { rf, s, vs } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
+import { rf, s, vs } from "../../utils/responsive";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -87,6 +87,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isComingSoonVisible, setIsComingSoonVisible] = useState(false);
   const [businessId, setBusinessId] = useState<string | null>(null);
+  const [businessName, setBusinessName] = useState<string>("KRAVY");
 
   const viewShotRef = useRef<ViewShot>(null);
 
@@ -117,6 +118,17 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${finalToken}` },
       });
+
+      // Fetch Profile to get Business Name
+      const profileUrl = bId ? `https://billing.kravy.in/api/profile?businessId=${bId}` : "https://billing.kravy.in/api/profile";
+      const pRes = await fetch(profileUrl, {
+        headers: { Authorization: `Bearer ${finalToken}` },
+      });
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        setBusinessName(pData.businessName || pData.companyName || "KRAVY");
+      }
+
       if (response.ok) {
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
@@ -317,7 +329,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>{selectedTable?.name}</Text>
-                <Text style={styles.modalSubtitle}>{user?.fullName || user?.username || "KRAVY"} Digital Menu</Text>
+                <Text style={styles.modalSubtitle}>{businessName} Digital Menu</Text>
               </View>
               <TouchableOpacity onPress={() => setIsQrModalVisible(false)} style={styles.closeBtn}>
                 <X size={rf(24)} color={COLORS.SECONDARY} />
@@ -328,10 +340,10 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
               <View style={styles.qrContainer}>
                 <ViewShot ref={viewShotRef} options={{ format: "png", quality: 1.0 }}>
                   <View style={styles.qrCaptureArea}>
-                    <Text style={styles.qrBrandName}>{(user?.fullName || user?.username || "KRAVY").toUpperCase()}</Text>
+                    <Text style={styles.qrBrandName}>{businessName.toUpperCase()}</Text>
                     <View style={styles.qrWrapper}>
                       <QRCode
-                        value={`https://billing.kravy.in/menu/${businessId || user?.id}?tableId=${selectedTable.id}&tableName=${encodeURIComponent(selectedTable.name)}`}
+                        value={`https://billing.kravy.in/menu/${businessId || user?.id}?tableId=${selectedTable.id}`}
                         size={s(180)}
                         color="#000"
                         backgroundColor="#fff"

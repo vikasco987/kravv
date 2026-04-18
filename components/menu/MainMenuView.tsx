@@ -78,6 +78,7 @@ const MainMenuView = () => {
     const { getToken } = useAuth();
     const { isLoaded, isSignedIn, user } = useUser();
     const router = useRouter();
+    const params = useLocalSearchParams();
     const { t } = useLanguage();
 
     const [menus, setMenus] = useState<MenuCategory[]>([]);
@@ -138,39 +139,12 @@ const MainMenuView = () => {
     }, [login]);
 
     useEffect(() => {
-        const checkAccess = async () => {
-            if (isSignedIn) {
-                setHasMenuAccess(true);
-                setIsStaffSignedIn(false);
-                const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-                setActiveBusinessId(bId);
-                return;
-            }
-
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const isStaff = !!sessionStr;
-            setIsStaffSignedIn(isStaff);
-
-            if (isStaff) {
-                const access = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
-                setHasMenuAccess(access);
-                const bId = await StaffPermissionEngine.getActiveBusinessId(undefined);
-                setActiveBusinessId(bId);
-            } else {
-                setHasMenuAccess(true);
-                setActiveBusinessId(null);
-            }
-        };
-        checkAccess();
-
         if (!isFocused) {
             setShowLockedScreen(false);
             return;
         }
 
         if (!isSignedIn && !isStaffSignedIn && isLoaded) {
-            // If we are just arriving from login, we might still have !isSignedIn for a frame
-            // so we rely on authBuffering to hide the locked screen.
             if (!authBuffering) {
                 setShowLockedScreen(true);
             } else {
@@ -181,14 +155,52 @@ const MainMenuView = () => {
         }
     }, [isSignedIn, isLoaded, isFocused, authBuffering, isStaffSignedIn]);
 
+    useFocusEffect(useCallback(() => {
+        const checkKOTCheckout = async () => {
+            try {
+                const data = await AsyncStorage.getItem('@temp_cart_for_checkout');
+                if (data && menus.length > 0) {
+                    const { items, tableName } = JSON.parse(data);
 
+                    const newCart: Record<string, CartItem> = {};
+                    items.forEach((kotItem: any) => {
+                        let fullItem: MenuItem | undefined;
+                        for (const cat of menus) {
+                            fullItem = cat.items.find(i => i.name === kotItem.name);
+                            if (fullItem) break;
+                        }
 
+                        if (fullItem) {
+                            newCart[fullItem.id] = {
+                                ...fullItem,
+                                quantity: kotItem.quantity
+                            };
+                        }
+                    });
 
+                    if (Object.keys(newCart).length > 0) {
+                        setCart(newCart);
+                        if (tableName && tableName !== "Counter") {
+                            setSelectedTable(tableName);
+                        }
 
+                        setCheckoutParams({
+                            cart: JSON.stringify(newCart),
+                            paymentMethod,
+                            selectedTable: tableName === "Counter" ? null : tableName
+                        });
+                        setCurrentView("checkout");
+                    }
 
+                    await AsyncStorage.removeItem('@temp_cart_for_checkout');
+                }
+            } catch (e) {
+                console.error("KOT to Checkout Error:", e);
+            }
+        };
 
-
-
+        checkKOTCheckout();
+    }, [menus, paymentMethod]));
 
     const fetchMenus = async (isManualRefresh = false) => {
         try {
@@ -379,9 +391,53 @@ const MainMenuView = () => {
         }
     };
 
+    useEffect(() => {
+        const { DeviceEventEmitter } = require('react-native');
+        const sub = DeviceEventEmitter.addListener('PERMISSIONS_UPDATED', async () => {
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const isStaff = !!sessionStr;
+            setIsStaffSignedIn(isStaff);
+
+            if (isStaff && !isSignedIn) {
+                const access = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
+                setHasMenuAccess(access);
+                const bId = await StaffPermissionEngine.getActiveBusinessId(undefined);
+                setActiveBusinessId(bId);
+            } else if (isSignedIn) {
+                setHasMenuAccess(true);
+            }
+        });
+        return () => sub.remove();
+    }, [isSignedIn]);
+
     useFocusEffect(
         useCallback(() => {
             const resetFocus = async () => {
+                // 🔐 RE-CHECK PERMISSIONS ON FOCUS
+                const sessionStr = await AsyncStorage.getItem('staff_session');
+                const isStaff = !!sessionStr;
+                setIsStaffSignedIn(isStaff);
+
+                if (isStaff && !isSignedIn) {
+                    const access = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
+                    setHasMenuAccess(access);
+                    const bId = await StaffPermissionEngine.getActiveBusinessId(undefined);
+                    setActiveBusinessId(bId);
+                } else if (isSignedIn) {
+                    // 💡 PREVIEW MODE: If URL has ?staff=true, show what staff sees
+                    const isStaffPreview = params.staff === 'true';
+
+                    if (isStaffPreview) {
+                        const access = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
+                        setHasMenuAccess(access);
+                    } else {
+                        setHasMenuAccess(true);
+                    }
+
+                    const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+                    setActiveBusinessId(bId);
+                }
+
                 fetchMenus();
                 fetchHeldCount();
                 fetchSettings();
@@ -428,7 +484,7 @@ const MainMenuView = () => {
                 } catch (error) { console.error("Error loading resumed cart:", error); }
             };
             checkResumeCart();
-        }, [isLoaded, isSignedIn, isStaffSignedIn])
+        }, [isLoaded, isSignedIn, isStaffSignedIn, refreshSignal])
     );
 
     useEffect(() => {
@@ -615,10 +671,38 @@ const MainMenuView = () => {
         isPrinting.current = true;
         try {
             const token = await getToken();
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const finalToken = token || staffSession?.token;
             const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
+
             const itemsToPrint = Array.isArray(itemsOverride) ? itemsOverride : Object.values(cart);
             if (itemsToPrint.length === 0) return;
+
+            // 1. Print
             await SimpleKOT(itemsToPrint, token!, bId!, selectedTable);
+
+            // 2. Save to KOT Page Locally (AsyncStorage)
+            const localOrder = {
+                id: Date.now().toString(),
+                billNumber: Math.floor(1000 + Math.random() * 9000).toString(),
+                tableName: selectedTable ? `Table ${selectedTable}` : "Counter",
+                items: itemsToPrint.map(i => ({
+                    name: i.name,
+                    quantity: i.quantity
+                })),
+                createdAt: new Date().toISOString(),
+                status: "PENDING"
+            };
+
+            const existingData = await AsyncStorage.getItem('@local_kot_list');
+            const kotList = existingData ? JSON.parse(existingData) : [];
+            kotList.unshift(localOrder); // Add to top
+            await AsyncStorage.setItem('@local_kot_list', JSON.stringify(kotList));
+
+            ToastAndroid.show("Sent to KOT Page & Printed!", ToastAndroid.SHORT);
+        } catch (e) {
+            console.error("KOT Process Error:", e);
         } finally {
             isPrinting.current = false;
         }
@@ -852,7 +936,7 @@ const MainMenuView = () => {
                     onPrintBill={handlePrintBill}
                     onSaveBill={handleSaveBill}
                     onProceed={() => {
-                        setCheckoutParams({ cart: JSON.stringify(cart), paymentMethod });
+                        setCheckoutParams({ cart: JSON.stringify(cart), paymentMethod, selectedTable });
                         setCurrentView("checkout");
                     }}
                     kotEnabled={kotEnabled}

@@ -4,7 +4,7 @@ import { ClerkProvider, useAuth, useSession } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore
 import Constants from "expo-constants";
-import { useRouter } from "expo-router";
+import { useRouter, usePathname, Slot } from "expo-router";
 // @ts-ignore
 import { Drawer } from "expo-router/drawer";
 // @ts-ignore
@@ -97,11 +97,23 @@ function AuthRedirect() {
     }
   }, [ready, isLoaded, isSignedIn, session?.id, isStaffSignedIn]);
 
+  const pathname = usePathname();
+  const isPublicMenu = pathname?.startsWith('/menu/');
+
   if (!isLoaded || !ready || isStaffSignedIn === null) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#007AFF" />
       </View>
+    );
+  }
+
+  // Handle Public Menu Route separately (bypass Drawer and Auth logic)
+  if (isPublicMenu) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <Slot />
+      </GestureHandlerRootView>
     );
   }
 

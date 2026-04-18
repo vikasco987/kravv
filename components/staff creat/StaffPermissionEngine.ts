@@ -42,8 +42,8 @@ export const StaffPermissionEngine = {
 
       const session: StaffSession = JSON.parse(sessionStr);
 
-      // Rule 3: Admin accessType usually has full control
-      if (session.accessType === "Admin") return true;
+      // Rule 3: Admin/Full Access has full control
+      if (session.accessType === "Admin" || session.accessType === "Full Access") return true;
 
       // Rule 4: Smart Matching
       // Often, the app might call with "Category - Permission" (e.g., "Menu - Add Menu Items")
@@ -77,20 +77,20 @@ export const StaffPermissionEngine = {
 
       const session: StaffSession = JSON.parse(sessionStr);
 
-      // Rule: Admin accessType has full control
-      if (session.accessType === "Admin") return true;
+      // Rule: Admin/Full Access has full control
+      if (session.accessType === "Admin" || session.accessType === "Full Access") return true;
 
       const staffPerms = session.permissions || [];
 
       // Mapping of Tab Names to Permission Keywords
       const mapping: Record<string, string[]> = {
-        "Dashboard": ["Today Sales", "Weekly Sales", "Monthly Sales", "Analytics"],
-        "Menu": ["Menu", "Add Menu Items", "Edit Menu Items", "QR Codes", "Items"],
-        "Orders": ["Bill Records", "Reprint", "Delete Bill", "Invoices", "Live Orders", "Tables", "Order"],
+        "Dashboard": ["Today Sales", "Weekly Sales", "Monthly Sales", "Analytics", "Dashboard"],
+        "Menu": ["Menu", "Add Menu Items", "Edit Menu Items", "QR Codes", "Items", "Menu & Items"],
+        "Orders": ["Bill Records", "Reprint", "Delete Bill", "Invoices", "Live Orders", "Tables", "Order", "Billing", "Receipts"],
         "Client": ["Customer", "Parties", "Ledger", "Client", "History"],
-        "Intelligence": ["Profit Engine", "Voice Command", "AI Tools"],
-        "Reports": ["Daily Sales Report", "Weekly Sales Report", "Monthly Sales Report", "Records"],
-        "Settings": ["App General Settings", "Printer", "PIN"]
+        "Intelligence": ["Profit Engine", "Voice Command", "AI Tools", "Intelligence"],
+        "Reports": ["Daily Sales Report", "Weekly Sales Report", "Monthly Sales Report", "Records", "Report"],
+        "Settings": ["App General Settings", "Printer", "PIN", "Staff", "Settings"]
       };
 
       const keywords = mapping[categoryTitle];
@@ -107,12 +107,15 @@ export const StaffPermissionEngine = {
 
   /**
    * Returns the ID that should be used for data fetching (Bills, Tables, etc.)
+   * For the Owner, we return null to ensure they use their standard API endpoints.
+   * For Staff, we return the businessId from their session.
    */
   async getActiveBusinessId(clerkUserId: string | undefined): Promise<string | null> {
-    // If owner is signed in, return their ID
-    if (clerkUserId) return clerkUserId;
+    // Rule: If an owner is signed in (via Clerk), we return null.
+    // This prevents adding unnecessary/problematic 'businessId' query params for the owner.
+    if (clerkUserId) return null;
 
-    // Otherwise, check for staff session and return their businessId
+    // Rule: For Staff members, we return their associated businessId.
     try {
       const sessionStr = await AsyncStorage.getItem('staff_session');
       if (sessionStr) {

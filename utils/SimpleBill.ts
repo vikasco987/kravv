@@ -419,7 +419,7 @@ export async function SimpleBill(
     const bodyText =
       `Bill No: ${tempBillNo}
 Date: ${date.toLocaleString()}
-${customerDetails}
+${options?.tableName ? `Table: ${options.tableName}\n` : ""}${customerDetails}
 Payment Mode: ${paymentMode}
 ${line('-')}
 Item         Qty  Price   Total

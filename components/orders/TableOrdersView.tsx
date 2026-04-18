@@ -179,6 +179,26 @@ export default function TableOrdersView({ tableId, tableName, onBack, initialOrd
             <View style={styles.footer}>
               <Text style={styles.totalText}>Total: ₹{item.total.toFixed(2)}</Text>
               <View style={styles.actionRow}>
+                {item.status === 'PENDING' && (
+                  <TouchableOpacity style={[styles.actionBtn, styles.startBtn]} onPress={() => updateOrderStatus(item.id, 'PREPARING')}>
+                    <Text style={styles.actionBtnText}>Start</Text>
+                  </TouchableOpacity>
+                )}
+                {item.status === 'PREPARING' && (
+                  <TouchableOpacity style={[styles.actionBtn, styles.readyBtn]} onPress={() => updateOrderStatus(item.id, 'READY')}>
+                    <Text style={styles.actionBtnText}>Ready</Text>
+                  </TouchableOpacity>
+                )}
+                {item.status === 'READY' && (
+                  <TouchableOpacity style={[styles.actionBtn, styles.handOverBtn]} onPress={() => updateOrderStatus(item.id, 'SERVED')}>
+                    <Text style={styles.actionBtnText}>Hand Over</Text>
+                  </TouchableOpacity>
+                )}
+                {item.status === 'SERVED' && (
+                  <TouchableOpacity style={[styles.actionBtn, styles.completeBtn]} onPress={() => updateOrderStatus(item.id, 'COMPLETED')}>
+                    <Text style={styles.actionBtnText}>Complete</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity style={[styles.actionBtn, styles.kotBtn]} onPress={() => handlePrintKOT(item)}><Text style={styles.actionBtnText}>KOT</Text></TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, styles.printBtn]} onPress={() => handlePrintBill(item)}><Text style={styles.actionBtnText}>Print</Text></TouchableOpacity>
               </View>
@@ -211,9 +231,13 @@ const styles = StyleSheet.create({
   itemPrice: { fontSize: rf(14), fontWeight: '600', color: '#111827' },
   footer: { marginTop: vs(5), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalText: { fontSize: rf(16), fontWeight: 'bold', color: THEME_PRIMARY },
-  actionRow: { flexDirection: 'row', gap: s(5), justifyContent: 'flex-end', flex: 1 },
-  actionBtn: { paddingHorizontal: s(8), paddingVertical: vs(8), borderRadius: s(8) },
+  actionRow: { flexDirection: 'row', gap: s(8), justifyContent: 'flex-end', flex: 1, flexWrap: 'wrap' },
+  actionBtn: { paddingHorizontal: s(12), paddingVertical: vs(8), borderRadius: s(8), minWidth: s(60), alignItems: 'center' },
+  startBtn: { backgroundColor: '#3B82F6' },
+  readyBtn: { backgroundColor: '#10B981' },
+  handOverBtn: { backgroundColor: '#6B7280' },
+  completeBtn: { backgroundColor: '#000000' },
   kotBtn: { backgroundColor: '#F59E0B' },
-  printBtn: { backgroundColor: '#10B981' },
+  printBtn: { backgroundColor: '#F59E0B' },
   actionBtnText: { color: '#fff', fontSize: rf(11), fontWeight: 'bold' },
 });
