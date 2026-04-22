@@ -42,7 +42,8 @@ export default function CustomDrawerContent(props: any) {
         inventory: false,
         profit: false,
         voice: false,
-        history: false
+        history: false,
+        billHistory: false
     });
 
     // Data for AI features
@@ -126,6 +127,10 @@ export default function CustomDrawerContent(props: any) {
                 fetchAIData();
                 props.navigation.closeDrawer();
                 setTimeout(() => setModals({ ...modals, history: true }), 400);
+                break;
+            case 'billHistory':
+                props.navigation.closeDrawer();
+                setTimeout(() => setModals({ ...modals, billHistory: true }), 400);
                 break;
             case 'signIn':
                 router.push("/(auth)/sign-in");

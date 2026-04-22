@@ -352,10 +352,16 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
             {cart.map((item, idx) => (
               <View key={idx} style={styles.itemContainer}>
                 <View style={styles.imageWrapper}>
-                  <Image
-                    source={item.imageUrl ? { uri: item.imageUrl } : require("../../assets/images/icon.png")}
-                    style={styles.itemImage}
-                  />
+                  { (item.image || item.imageUrl || item.image_url) ? (
+                    <Image
+                      source={{ uri: item.image || item.imageUrl || item.image_url }}
+                      style={styles.itemImage}
+                    />
+                  ) : (
+                    <View style={[styles.itemImage, { backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' }]}>
+                        <Ionicons name="image-outline" size={rf(30)} color="#D1D5DB" />
+                    </View>
+                  )}
                   <View style={styles.priceBadge}>
                     <Text style={styles.priceBadgeText}>₹{item.price}</Text>
                   </View>

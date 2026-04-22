@@ -8,6 +8,7 @@ import { rf, s, vs } from "../../utils/responsive";
 
 import { useAuth } from "@clerk/clerk-expo";
 import { getRecentCompanyProfile } from "../../services/companyService";
+import { SimpleBill } from "../../utils/SimpleBill";
 
 interface ItemWiseSalesDetailProps {
   itemName: string;
@@ -28,6 +29,8 @@ const ItemWiseSalesDetail = ({ itemName, bills, onBack }: ItemWiseSalesDetailPro
     service_charge_enabled: false,
     service_charge_rate: 0,
   });
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editedItems, setEditedItems] = React.useState<any[]>([]);
   const viewShotRef = React.useRef<any>(null);
 
   React.useEffect(() => {
@@ -70,6 +73,94 @@ const ItemWiseSalesDetail = ({ itemName, bills, onBack }: ItemWiseSalesDetailPro
     } catch (error) {
       console.error("Download failed:", error);
       Alert.alert("Error", "Could not capture bill image.");
+    }
+  };
+
+  const handlePrint = async () => {
+    if (!previewBill) return;
+    try {
+      Alert.alert("Re-print Bill", "Do you want to print this bill again?", [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Print", 
+          onPress: async () => {
+            const token = await getToken();
+            if (!token) return;
+            
+            // Map items to CartItem format for SimpleBill
+            const cartItems = (previewBill.items || []).map((it: any) => ({
+              id: it.productId || it.itemId || it._id || Math.random().toString(),
+              name: it.name,
+              price: it.price || it.rate || 0,
+              quantity: it.qty || it.quantity || 1,
+              gst: it.gst,
+              taxType: it.taxType || it.taxStatus || "Without Tax"
+            }));
+
+            await SimpleBill(cartItems, token, "unknown", {
+              billId: previewBill._id || previewBill.id,
+              customerName: previewBill.customerName,
+              phone: previewBill.customerPhone,
+              tableName: previewBill.tableName,
+              paymentMode: previewBill.paymentMode
+            });
+          }
+        }
+      ]);
+    } catch (e) {
+      console.error("Print error:", e);
+    }
+  };
+
+  const handleEditOpen = () => {
+    setEditedItems(JSON.parse(JSON.stringify(previewBill.items || [])));
+    setIsEditing(true);
+  };
+
+  const updateItemQty = (index: number, newQty: number) => {
+    const updated = [...editedItems];
+    updated[index].qty = Math.max(1, newQty);
+    setEditedItems(updated);
+  };
+
+  const updateItemPrice = (index: number, newPrice: string) => {
+    const updated = [...editedItems];
+    updated[index].rate = parseFloat(newPrice) || 0;
+    setEditedItems(updated);
+  };
+
+  const saveEditedBill = async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const cartItems = editedItems.map((it: any) => ({
+        id: it.productId || it.itemId || it._id || Math.random().toString(),
+        name: it.name,
+        price: it.rate || it.price || 0,
+        quantity: it.qty || it.quantity || 1,
+        gst: it.gst,
+        taxType: it.taxType || it.taxStatus || "Without Tax"
+      }));
+
+      const res = await SimpleBill(cartItems, token, "unknown", {
+        billId: previewBill._id || previewBill.id,
+        customerName: previewBill.customerName,
+        phone: previewBill.customerPhone,
+        tableName: previewBill.tableName,
+        paymentMode: previewBill.paymentMode,
+        silent: true // Don't print by default on save
+      });
+
+      if (res.status === "success") {
+        // Update local preview state
+        setPreviewBill({ ...previewBill, items: editedItems });
+        setIsEditing(false);
+        Alert.alert("Success", "Bill updated successfully.");
+      }
+    } catch (e) {
+      console.error("Save error:", e);
+      Alert.alert("Error", "Could not save changes.");
     }
   };
 
@@ -158,14 +249,56 @@ const ItemWiseSalesDetail = ({ itemName, bills, onBack }: ItemWiseSalesDetailPro
 
           <Text style={[styles.headerTitle, { marginLeft: 0 }]} numberOfLines={1}>Bill Photo</Text>
 
-          <TouchableOpacity
-            style={styles.pdfBtn}
-            onPress={downloadBill}
-          >
-            <Ionicons name="download-outline" size={rf(22)} color="#fff" />
-            <Text style={styles.pdfBtnText}>PDF</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(12) }}>
+            <TouchableOpacity onPress={handlePrint} style={styles.iconActionBtn}>
+              <Ionicons name="print-outline" size={rf(22)} color="#fff" />
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleEditOpen} style={styles.iconActionBtn}>
+              <Ionicons name="create-outline" size={rf(22)} color="#fff" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.pdfBtn}
+              onPress={downloadBill}
+            >
+              <Ionicons name="download-outline" size={rf(22)} color="#fff" />
+              <Text style={styles.pdfBtnText}>PDF</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {isEditing && (
+            <View style={styles.editOverlay}>
+                <View style={styles.editContainer}>
+                    <Text style={styles.editTitle}>Edit Bill Items</Text>
+                    <ScrollView style={{ maxHeight: vs(400) }}>
+                        {editedItems.map((it: any, idx: number) => (
+                            <View key={idx} style={styles.editRow}>
+                                <Text style={styles.editItemName} numberOfLines={1}>{it.name}</Text>
+                                <View style={styles.editControls}>
+                                    <TouchableOpacity onPress={() => updateItemQty(idx, it.qty - 1)} style={styles.qtyBtn}>
+                                        <Ionicons name="remove" size={rf(18)} color="#4F46E5" />
+                                    </TouchableOpacity>
+                                    <Text style={styles.qtyText}>{it.qty}</Text>
+                                    <TouchableOpacity onPress={() => updateItemQty(idx, it.qty + 1)} style={styles.qtyBtn}>
+                                        <Ionicons name="add" size={rf(18)} color="#4F46E5" />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ))}
+                    </ScrollView>
+                    <View style={styles.editActions}>
+                        <TouchableOpacity onPress={() => setIsEditing(false)} style={[styles.editActionBtn, { backgroundColor: '#F3F4F6' }]}>
+                            <Text style={{ color: '#666', fontWeight: 'bold' }}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={saveEditedBill} style={[styles.editActionBtn, { backgroundColor: '#4F46E5' }]}>
+                            <Text style={{ color: '#fff', fontWeight: 'bold' }}>Save Changes</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        )}
 
         <ScrollView contentContainerStyle={styles.billPreviewContainer}>
           <View ref={viewShotRef} style={styles.receiptPaper}>
@@ -623,6 +756,79 @@ const styles = StyleSheet.create({
     color: '#888',
     marginTop: vs(10),
     fontStyle: 'italic'
+  },
+  iconActionBtn: {
+    padding: s(8),
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: s(8),
+  },
+  editOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: s(20)
+  },
+  editContainer: {
+    backgroundColor: '#fff',
+    width: '100%',
+    borderRadius: s(20),
+    padding: s(20),
+    maxHeight: '80%'
+  },
+  editTitle: {
+    fontSize: rf(20),
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: vs(20),
+    textAlign: 'center'
+  },
+  editRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: vs(12),
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6'
+  },
+  editItemName: {
+    fontSize: rf(15),
+    color: '#374151',
+    fontWeight: '600',
+    flex: 1
+  },
+  editControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s(15)
+  },
+  qtyBtn: {
+    width: s(32),
+    height: s(32),
+    borderRadius: s(8),
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  qtyText: {
+    fontSize: rf(16),
+    fontWeight: 'bold',
+    color: '#1F2937',
+    minWidth: s(20),
+    textAlign: 'center'
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: s(12),
+    marginTop: vs(25)
+  },
+  editActionBtn: {
+    flex: 1,
+    height: vs(50),
+    borderRadius: s(12),
+    justifyContent: 'center',
+    alignItems: 'center'
   }
 });
 

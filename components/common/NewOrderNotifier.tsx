@@ -162,6 +162,34 @@ const NewOrderNotifier = () => {
     }
   };
 
+  // ✅ AUTO ACCEPT LOGIC
+  useEffect(() => {
+    let autoAcceptTimer: any;
+    
+    const checkAndAutoAccept = async () => {
+      if (showNotification && newOrderInfo) {
+        try {
+          const autoAcceptSaved = await AsyncStorage.getItem('order_auto_accept');
+          if (autoAcceptSaved === 'true') {
+            console.log("[NewOrder] Auto Accept is ENABLED. Timing out for 4 seconds...");
+            autoAcceptTimer = setTimeout(() => {
+              console.log("[NewOrder] Timer finished. Executing AUTO-ACCEPT!");
+              handleAccept();
+            }, 4000); // Wait 4 seconds for reach/ring
+          }
+        } catch (e) {
+          console.error("Auto Accept Check failed:", e);
+        }
+      }
+    };
+
+    checkAndAutoAccept();
+
+    return () => {
+      if (autoAcceptTimer) clearTimeout(autoAcceptTimer);
+    };
+  }, [showNotification, newOrderInfo]);
+
   const fetchOrders = async () => {
     if ((!isSignedIn && !staffData) || fetchInProgress.current) return;
     try {

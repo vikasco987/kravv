@@ -7,6 +7,7 @@ import ProfitEngine from "../AI intelligence tools/ProfitEngine";
 import VoiceOrder from "../AI intelligence tools/VoiceOrder";
 import CustomerHistory from "../AI intelligence tools/CustomerHistory";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
+import DeepSaleView from "../dashboard/DeepSaleView";
 
 interface SidebarModalsProps {
     modals: {
@@ -17,6 +18,7 @@ interface SidebarModalsProps {
         profit: boolean;
         voice: boolean;
         history: boolean;
+        billHistory: boolean;
     };
     setModals: (modals: any) => void;
     data: {
@@ -70,6 +72,10 @@ const SidebarModals = ({ modals, setModals, data, onSignIn }: SidebarModalsProps
                 bills={data.allBills}
                 allParties={data.parties}
             />
+
+            <Modal visible={modals.billHistory} animationType="slide" onRequestClose={() => setModals({ ...modals, billHistory: false })}>
+                <DeepSaleView onBack={() => setModals({ ...modals, billHistory: false })} isSidebar={true} />
+            </Modal>
         </>
     );
 };

@@ -137,6 +137,17 @@ const SidebarItems = ({ t, navigation, isSignedIn, onAction, onLogout }: Sidebar
             <DrawerItem
                 label={() => (
                     <View style={styles.labelContainer}>
+                        <Text style={[styles.labelText, !canAccessSync("Dashboard") && styles.lockedText]}>Bill History</Text>
+                        {!canAccessSync("Dashboard") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
+                    </View>
+                )}
+                icon={({ color, size }) => renderIcon("receipt-outline", color, size, "Dashboard")}
+                onPress={() => checkAndNavigate("Dashboard", "billHistory")}
+            />
+
+            <DrawerItem
+                label={() => (
+                    <View style={styles.labelContainer}>
                         <Text style={[styles.labelText, !canAccessSync("Settings") && styles.lockedText]}>{t('settings')}</Text>
                         {!canAccessSync("Settings") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
                     </View>

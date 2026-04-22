@@ -25,13 +25,16 @@ type HeldOrder = {
     items: any[];
     total: number;
     timestamp: string;
+    customerName?: string;
+    customerPhone?: string;
 };
 
 interface HeldOrdersViewProps {
     onBack?: () => void;
+    onRefreshCount?: () => void;
 }
 
-export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
+export default function HeldOrdersView({ onBack, onRefreshCount }: HeldOrdersViewProps) {
     const router = useRouter();
     const [heldOrders, setHeldOrders] = useState<HeldOrder[]>([]);
     const [loading, setLoading] = useState(true);
@@ -73,66 +76,89 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
         if (!isLoaded) return;
 
         try {
-            setLoading(true);
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const isStaff = !!sessionStr;
-
-            if (!isSignedIn && !isStaff) {
-                setHeldOrders([]);
-                setLoading(false);
-                return;
-            }
-            const authToken = await getToken();
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-            const finalToken = authToken || staffSession?.token;
-
-            const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? user?.id : undefined);
+            // 1. FAST PATH: Load hidden IDs and Local Orders immediately
             const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
             const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
-
-            let combinedOrders: HeldOrder[] = [];
-
-            if (finalToken || bId) {
-                try {
-                    const url = bId ? `https://billing.kravy.in/api/bill-manager?isHeld=true&businessId=${bId}` : "https://billing.kravy.in/api/bill-manager?isHeld=true";
-                    const response = await fetch(url, {
-                        headers: finalToken ? { Authorization: `Bearer ${finalToken}` } : {}
-                    });
-                    if (response.ok) {
-                        const data = await response.json();
-                        const bills = data.bills || [];
-                        const backendHeld = bills
-                            .filter((b: any) => !hiddenIds.includes(b.billNumber) && !hiddenIds.includes(b._id) && !hiddenIds.includes(b.id))
-                            .map((b: any) => ({
-                                id: b._id || b.id || b.billNumber,
-                                items: (b.items || []).map((i: any) => ({
-                                    ...i,
-                                    id: i.productId || i.id || i._id || Math.random().toString(),
-                                    quantity: i.quantity || i.qty || 0,
-                                    price: i.price || i.rate || 0
-                                })),
-                                total: b.total || 0,
-                                timestamp: b.createdAt || new Date().toISOString()
-                            }));
-                        combinedOrders = [...backendHeld];
-                    }
-                } catch (err) { console.error("Backend fetch error:", err); }
-            }
-
+            
             const localData = await AsyncStorage.getItem('@held_orders');
-            if (localData) {
-                const localOrders = JSON.parse(localData);
-                localOrders.forEach((lo: HeldOrder) => {
-                    const exists = combinedOrders.find(co => co.id === lo.id);
-                    if (!exists && !hiddenIds.includes(lo.id)) {
-                        combinedOrders.push(lo);
+            let initialOrders: HeldOrder[] = localData ? JSON.parse(localData) : [];
+            initialOrders = initialOrders.filter(o => !hiddenIds.includes(o.id));
+
+            // Load cached backend orders if they exist
+            const cachedBackend = await AsyncStorage.getItem('@cached_held_orders');
+            if (cachedBackend) {
+                const parsedCached = JSON.parse(cachedBackend);
+                parsedCached.forEach((bo: HeldOrder) => {
+                    if (!initialOrders.find(o => o.id === bo.id) && !hiddenIds.includes(bo.id)) {
+                        initialOrders.push(bo);
                     }
                 });
             }
 
-            setHeldOrders(combinedOrders.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-        } catch (error) { console.error("Fetch Error:", error); }
-        finally { setLoading(false); }
+            // Immediately show what we have
+            setHeldOrders(initialOrders.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+            setLoading(false); // Stop loading regardless of count to show empty state fast if needed
+
+            // 2. BACKGROUND PATH: Fetch fresh data from API
+            const sessionStr = await AsyncStorage.getItem('staff_session');
+            const isStaff = !!sessionStr;
+            if (!isSignedIn && !isStaff) {
+                setLoading(false);
+                return;
+            }
+
+            const authToken = await getToken();
+            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const finalToken = authToken || staffSession?.token;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? user?.id : undefined);
+
+            if (finalToken || bId) {
+                const url = bId ? `https://billing.kravy.in/api/bill-manager?isHeld=true&businessId=${bId}` : "https://billing.kravy.in/api/bill-manager?isHeld=true";
+                const response = await fetch(url, {
+                    headers: finalToken ? { Authorization: `Bearer ${finalToken}` } : {}
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const bills = data.bills || [];
+                    const backendHeld = bills
+                        .filter((b: any) => !hiddenIds.includes(b.billNumber) && !hiddenIds.includes(b._id) && !hiddenIds.includes(b.id))
+                        .map((b: any) => ({
+                            id: b._id || b.id || b.billNumber,
+                            items: (b.items || []).map((i: any) => ({
+                                ...i,
+                                id: i.productId || i.id || i._id || Math.random().toString(),
+                                quantity: i.quantity || i.qty || 0,
+                                price: i.price || i.rate || 0
+                            })),
+                            total: b.total || 0,
+                            timestamp: b.createdAt || new Date().toISOString(),
+                            customerName: b.customerName,
+                            customerPhone: b.customerPhone
+                        }));
+
+                    // Cachefresh backend fresh result
+                    await AsyncStorage.setItem('@cached_held_orders', JSON.stringify(backendHeld));
+
+                    // Combine with local orders again for final state
+                    const finalOrders = [...initialOrders.filter(o => !o.id.toString().includes("backend"))]; 
+                    // Actually cleaner to just rebuild:
+                    const freshCombined: HeldOrder[] = [...backendHeld];
+                    const freshLocal = localData ? JSON.parse(localData) : [];
+                    freshLocal.forEach((lo: HeldOrder) => {
+                        if (!freshCombined.find(co => co.id === lo.id) && !hiddenIds.includes(lo.id)) {
+                            freshCombined.push(lo);
+                        }
+                    });
+
+                    setHeldOrders(freshCombined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+                }
+            }
+        } catch (error) { 
+            console.error("Fetch Error:", error); 
+        } finally { 
+            setLoading(false); 
+        }
     };
 
     const handleBulkDelete = async () => {
@@ -145,6 +171,8 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
         setSelectedOrders([]);
         setIsBulkDeleteModalVisible(false);
 
+        triggerRefresh();
+        if (onRefreshCount) onRefreshCount();
         const authToken = await getToken();
         const sessionStr = await AsyncStorage.getItem('staff_session');
         const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
@@ -178,8 +206,10 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
         const id = orderToDelete.id;
         setHeldOrders(prev => prev.filter(o => o.id !== id));
         setSuccessType('delete');
-        setShowSuccess(true);
         await hideOrderLocally(id);
+        setShowSuccess(true);
+        triggerRefresh();
+        if (onRefreshCount) onRefreshCount();
         try {
             const authToken = await getToken();
             const sessionStr = await AsyncStorage.getItem('staff_session');
@@ -202,6 +232,8 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
             await AsyncStorage.setItem('@resume_cart_id', orderToResume.id);
             setHeldOrders(prev => prev.filter(o => o.id !== orderToResume.id));
             await hideOrderLocally(orderToResume.id);
+            triggerRefresh();
+            if (onRefreshCount) onRefreshCount();
             setSuccessType('resume');
             setShowSuccess(true);
             setTimeout(() => { setIsResumeModalVisible(false); setShowSuccess(false); setOrderToResume(null); handleBack(); }, 2000);
@@ -269,9 +301,31 @@ export default function HeldOrdersView({ onBack }: HeldOrdersViewProps) {
                                     <View style={styles.orderHeader}>
                                         <View>
                                             <Text style={styles.orderId}>Order #{item.id.toString().slice(-4)}</Text>
+                                            {item.customerName && (
+                                                <View style={styles.customerRow}>
+                                                    <Ionicons name="person-outline" size={rf(13)} color="#6B7280" />
+                                                    <Text style={styles.customerNameText}>{item.customerName}</Text>
+                                                </View>
+                                            )}
+                                            {item.customerPhone && (
+                                                <View style={styles.customerRow}>
+                                                    <Ionicons name="call-outline" size={rf(13)} color="#6B7280" />
+                                                    <Text style={styles.customerPhoneText}>{item.customerPhone}</Text>
+                                                </View>
+                                            )}
                                             <Text style={styles.orderTime}>{new Date(item.timestamp).toLocaleString()}</Text>
                                         </View>
                                         <View style={styles.totalBadge}><Text style={styles.totalText}>₹{item.total}</Text></View>
+                                    </View>
+                                    
+                                    <View style={styles.itemsSummary}>
+                                        <Text style={styles.itemsList} numberOfLines={2}>
+                                            {item.items?.map((it, idx) => (
+                                                <Text key={idx} style={styles.itemNameText}>
+                                                    {it.quantity}x {it.name}{idx < item.items.length - 1 ? ", " : ""}
+                                                </Text>
+                                            )) || "No items"}
+                                        </Text>
                                     </View>
                                     <View style={styles.cardActions}>
                                         <TouchableOpacity
@@ -379,10 +433,30 @@ const styles = StyleSheet.create({
     listContent: { padding: s(16) },
     orderCard: { backgroundColor: '#FFF', borderRadius: s(12), padding: s(16), marginBottom: vs(16), elevation: 2 },
     orderHeader: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: vs(10), marginBottom: vs(10) },
-    orderId: { fontWeight: 'bold' },
-    orderTime: { fontSize: rf(11), color: '#9CA3AF' },
-    totalBadge: { backgroundColor: '#EEF2FF', padding: s(4), borderRadius: s(6) },
-    totalText: { color: '#4F46E5', fontWeight: 'bold' },
+    orderId: { fontWeight: 'bold', fontSize: rf(15), color: '#1F2937', marginBottom: vs(4) },
+    customerRow: { flexDirection: 'row', alignItems: 'center', gap: s(5), marginBottom: vs(2) },
+    customerNameText: { fontSize: rf(13), color: '#4B5563', fontWeight: '600' },
+    customerPhoneText: { fontSize: rf(12), color: '#6B7280' },
+    orderTime: { fontSize: rf(11), color: '#9CA3AF', marginTop: vs(4) },
+    totalBadge: { backgroundColor: '#EEF2FF', paddingVertical: vs(5), paddingHorizontal: s(10), borderRadius: s(8) },
+    totalText: { color: '#4F46E5', fontWeight: 'bold', fontSize: rf(16) },
+    itemsSummary: { 
+        backgroundColor: '#F9FAFB', 
+        padding: s(10), 
+        borderRadius: s(8), 
+        marginBottom: vs(12),
+        borderWidth: 1,
+        borderColor: '#F3F4F6'
+    },
+    itemsList: { 
+        fontSize: rf(13), 
+        color: '#4B5563', 
+        lineHeight: rf(18) 
+    },
+    itemNameText: {
+        fontWeight: '500',
+        color: '#374151'
+    },
     cardActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: s(10) },
     actionBtn: { flexDirection: 'row', alignItems: 'center', padding: s(8), borderRadius: s(6) },
     deleteBtn: { backgroundColor: '#FEF2F2' },

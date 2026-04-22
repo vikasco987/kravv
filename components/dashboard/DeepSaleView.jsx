@@ -20,6 +20,8 @@ import {
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+import { SimpleBill } from "../../utils/SimpleBill";
+import { ToastAndroid } from "react-native";
 
 const formatBillDate = (dateString) => {
 
@@ -48,7 +50,7 @@ const isYesterday = (d) => {
   return isSameDay(d, y);
 };
 
-export default function DeepSaleView({ onBack }) {
+export default function DeepSaleView({ onBack, isSidebar = false }) {
 
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
@@ -218,6 +220,74 @@ export default function DeepSaleView({ onBack }) {
     page * pageSize
   );
 
+  const handleRePrint = async (item) => {
+    try {
+      const token = await getToken();
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const finalToken = token || staffSession?.token;
+
+      if (!finalToken) {
+        ToastAndroid.show("Session expired. Please login again.", ToastAndroid.SHORT);
+        return;
+      }
+
+      ToastAndroid.show("🖨️ Printing Bill...", ToastAndroid.SHORT);
+
+      // Map bill items to CartItem format
+      const cartItems = (item.items || []).map(it => ({
+        id: it.productId || it.itemId || it._id || Math.random().toString(),
+        name: it.name,
+        price: it.price || it.rate || 0,
+        quantity: it.quantity || it.qty || 1,
+        gst: it.gst,
+        taxType: it.taxStatus || it.taxType || "Without Tax"
+      }));
+
+      await SimpleBill(cartItems, finalToken, bId, {
+        billId: item._id || item.id,
+        customerName: item.customerName,
+        phone: item.customerPhone,
+        tableName: item.tableName,
+        paymentMode: item.paymentMode,
+        silent: false
+      });
+    } catch (e) {
+      console.error("Print error:", e);
+      ToastAndroid.show("❌ Print Failed", ToastAndroid.SHORT);
+    }
+  };
+
+  const handleEditBill = async (item) => {
+    try {
+      // Map bill items to CartItem format for Menu cart
+      const cartToResume = (item.items || []).map(it => ({
+        id: it.productId || it.itemId || it._id || Math.random().toString(),
+        name: it.name,
+        imageUrl: it.imageUrl || it.image || it.image_url,
+        price: it.price || it.rate || 0,
+        quantity: it.quantity || it.qty || 1,
+        gst: it.gst,
+        taxType: it.taxStatus || it.taxType || "Without Tax"
+      }));
+
+      await AsyncStorage.setItem('@resume_cart', JSON.stringify(cartToResume));
+      if (item._id || item.id) {
+        await AsyncStorage.setItem('@resume_cart_id', item._id || item.id);
+      }
+      
+      ToastAndroid.show("🔄 Loading bill to Menu...", ToastAndroid.SHORT);
+      
+      // Navigate to Menu tab
+      router.push("/(tabs)/menu");
+      if (onBack) onBack();
+    } catch (e) {
+      console.error("Edit bill error:", e);
+      ToastAndroid.show("❌ Error loading bill", ToastAndroid.SHORT);
+    }
+  };
+
   if (loading)
     return (
       <View style={styles.center}>
@@ -228,7 +298,7 @@ export default function DeepSaleView({ onBack }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F7FA" }}>
-      <LinearGradient colors={["#6C63FF", "#4E43E3"]} style={styles.header}>
+      <LinearGradient colors={["#6C63FF", "#4E43E3"]} style={[styles.header, { paddingTop: isSidebar ? vs(45) : vs(15) }]}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Ionicons name="arrow-back" size={rf(26)} color="white" />
@@ -381,7 +451,7 @@ export default function DeepSaleView({ onBack }) {
         data={paginatedData}
         keyExtractor={(i) => i.id}
 
-        contentContainerStyle={{ paddingBottom: vs(80) }}
+        contentContainerStyle={{ paddingBottom: vs(120) }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => fetchBills(true)} colors={["#6C63FF"]} />
         }
@@ -403,11 +473,23 @@ export default function DeepSaleView({ onBack }) {
                 </View>
               ))}
             </View>
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity onPress={() => handleRePrint(item)} style={[styles.actionBtn, { backgroundColor: '#10B98115' }]}>
+                <Ionicons name="print" size={rf(18)} color="#10B981" />
+                <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Print</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => handleEditBill(item)} style={[styles.actionBtn, { backgroundColor: '#6C63FF15' }]}>
+                <Ionicons name="create" size={rf(18)} color="#6C63FF" />
+                <Text style={[styles.actionBtnText, { color: '#6C63FF' }]}>Edit</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       />
 
-      <View style={styles.paginationRow}>
+      <View style={[styles.paginationRow, { paddingBottom: isSidebar ? vs(50) : vs(10) }]}>
         <TouchableOpacity
           disabled={page === 1}
           onPress={() => setPage(page - 1)}
@@ -437,7 +519,7 @@ export default function DeepSaleView({ onBack }) {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { paddingTop: vs(10), paddingBottom: vs(10), paddingHorizontal: s(18), borderBottomLeftRadius: s(25), borderBottomRightRadius: s(25), elevation: 10 },
+  header: { paddingTop: vs(45), paddingBottom: vs(15), paddingHorizontal: s(18), borderBottomLeftRadius: s(25), borderBottomRightRadius: s(25), elevation: 10 },
   headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: vs(15) },
   backButton: { padding: s(5) },
   headerTitle: { fontSize: rf(20), fontWeight: "700", color: "white", flex: 1, textAlign: "center" },
@@ -463,8 +545,29 @@ const styles = StyleSheet.create({
   itemQty: { flex: 1, textAlign: "center", fontSize: rf(14) },
   itemRate: { flex: 1, textAlign: "right", fontSize: rf(14) },
   itemTotal: { flex: 1, textAlign: "right", fontWeight: "700", fontSize: rf(14) },
-  paginationRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: s(15), paddingTop: vs(25), paddingBottom: vs(10), backgroundColor: "#fff", elevation: 4 },
+  paginationRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: s(15), paddingTop: vs(20), paddingBottom: vs(50), backgroundColor: "#fff", elevation: 20 },
   pageBtn: { backgroundColor: "#6C63FF", paddingHorizontal: s(18), paddingVertical: vs(8), borderRadius: s(25) },
   pageText: { color: "white", fontWeight: "700", fontSize: rf(14) },
   pageNumber: { fontSize: rf(16), fontWeight: "700" },
+  actionRow: {
+    flexDirection: 'row',
+    gap: s(10),
+    marginTop: vs(12),
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: vs(10)
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: vs(8),
+    borderRadius: s(10),
+    gap: s(6)
+  },
+  actionBtnText: {
+    fontSize: rf(13),
+    fontWeight: '700'
+  }
 });

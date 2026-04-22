@@ -93,7 +93,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     const [isHoldModalVisible, setIsHoldModalVisible] = useState(false);
     const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
     const [showHoldSuccess, setShowHoldSuccess] = useState(false);
-    const { refreshSignal, searchQuery } = useRefresh();
+    const { refreshSignal, triggerRefresh, searchQuery } = useRefresh();
 
     // Settings states
     const [kotEnabled, setKotEnabled] = useState(false);
@@ -116,6 +116,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     const flatListRef = useRef<any>(null);
     const isFocused = useIsFocused();
     const login = params.login;
+    const isFetchingHeldCount = useRef(false);
 
 
 
@@ -341,10 +342,13 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         }
     }, []);
 
-    const fetchHeldCount = useCallback(async () => {
-        try {
-            if (!isLoaded) return;
 
+
+    const fetchHeldCount = useCallback(async () => {
+        if (!isLoaded || isFetchingHeldCount.current) return;
+        isFetchingHeldCount.current = true;
+
+        try {
             const token = await getToken();
             const session = await StaffPermissionEngine.getSession();
             const finalToken = token || session?.token;
@@ -354,37 +358,51 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                 return;
             }
 
+            // Standardize ID comparison
             const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
             const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
 
+            const localData = await AsyncStorage.getItem('@held_orders');
+            const localOrders = localData ? JSON.parse(localData) : [];
+
+            const cachedBackendStr = await AsyncStorage.getItem('@cached_held_orders');
+            const cachedBackend = cachedBackendStr ? JSON.parse(cachedBackendStr) : [];
+            
+            const getConsolidatedCount = (backend: any[], local: any[]) => {
+                const uniqueIds = new Set();
+                let count = 0;
+
+                const process = (id: any) => {
+                    if (!id) return;
+                    const cleanId = id.toString();
+                    if (!hiddenIds.includes(cleanId) && !uniqueIds.has(cleanId)) {
+                        uniqueIds.add(cleanId);
+                        count++;
+                    }
+                };
+
+                backend.forEach(b => process(b.id || b._id || b.billNumber));
+                local.forEach(l => process(l.id));
+                return count;
+            };
+
+            // 1. Instant show from cache
+            setHeldCount(getConsolidatedCount(cachedBackend, localOrders));
+
+            // 2. Refresh from API
             const res = await fetch("https://billing.kravy.in/api/bill-manager?isHeld=true", {
                 headers: { Authorization: `Bearer ${finalToken}` },
             });
 
-            let backendValidCount = 0;
             if (res.ok) {
-                const contentType = res.headers.get("content-type");
-                if (contentType && contentType.includes("application/json")) {
-                    const data = await res.json();
-                    const bills = data.bills || [];
-                    backendValidCount = bills.filter((b: any) =>
-                        !hiddenIds.includes(b.billNumber) && !hiddenIds.includes(b._id) && !hiddenIds.includes(b.id)
-                    ).length;
-                }
+                const data = await res.json();
+                const bills = data.bills || [];
+                setHeldCount(getConsolidatedCount(bills, localOrders));
             }
-
-            const localData = await AsyncStorage.getItem('@held_orders');
-            let localValidCount = 0;
-            if (localData) {
-                const localHeld = JSON.parse(localData);
-                localValidCount = localHeld.filter((lh: any) => !hiddenIds.includes(lh.id)).length;
-            }
-
-            setHeldCount(backendValidCount + localValidCount);
         } catch (e: any) {
-            if (e.message === "Network request failed") {
-                setShowNetworkError(true);
-            }
+            console.error("Fetch held count error:", e);
+        } finally {
+            isFetchingHeldCount.current = false;
         }
     }, [isLoaded, isSignedIn, getToken]);
 
@@ -438,7 +456,22 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                     if (data) {
                         const resumedItems = JSON.parse(data);
                         const newCart: Record<string, CartItem> = {};
-                        resumedItems.forEach((item: any) => { newCart[item.id] = item; });
+                        
+                        resumedItems.forEach((item: any) => {
+                            let enrichedItem = { ...item };
+                            // Try to find image in menus if missing
+                            if (!enrichedItem.imageUrl) {
+                                for (const cat of menus) {
+                                    const found = cat.items.find(mi => mi.id === item.id || mi.name === item.name);
+                                    if (found && found.imageUrl) {
+                                        enrichedItem.imageUrl = found.imageUrl;
+                                        break;
+                                    }
+                                }
+                            }
+                            newCart[item.id] = enrichedItem;
+                        });
+
                         setCart(newCart);
                         await AsyncStorage.removeItem('@resume_cart');
                         const id = await AsyncStorage.getItem('@resume_cart_id');
@@ -483,6 +516,12 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         });
         return () => sub.remove();
     }, [menus]);
+
+    useEffect(() => {
+        if (refreshSignal > 0) {
+            fetchHeldCount();
+        }
+    }, [refreshSignal]);
 
     const filteredMenus = useMemo(() => {
         if (!searchQuery) return menus;
@@ -542,7 +581,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     const totalItems = Object.values(cart).reduce((sum, i) => sum + i.quantity, 0);
     const totalAmount = Object.values(cart).reduce((sum, i) => sum + ((i.editedPrice ?? i.price ?? 0) * i.quantity), 0);
 
-    const confirmPauseOrder = async (itemsToHold?: any[], totalOverride?: number) => {
+    const confirmPauseOrder = async (itemsToHold?: any[], totalOverride?: number, cName?: string, cPhone?: string) => {
         const itemsSnapshot = itemsToHold || Object.values(cart);
         const totalValue = totalOverride || totalAmount;
         if (itemsSnapshot.length === 0) return;
@@ -553,6 +592,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         setCart({});
         setActiveOrderId(null);
         setSelectedTable(null);
+        // Instant Feedback:
         setHeldCount(prev => prev + 1);
 
         // Auto-hide success message shortly after
@@ -593,8 +633,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                         paymentMode: "Cash",
                         paymentStatus: "HELD",
                         isHeld: true,
-                        customerName: "Walk-in Customer",
-                        tableName: "POS",
+                        customerName: cName || "Walk-in Customer",
+                        customerPhone: cPhone || "",
+                        tableName: selectedTable || "POS",
                         discountAmount: 0,
                         discountCode: null,
                         auditNote: "Held Order",
@@ -617,10 +658,24 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                     let orders = localData ? JSON.parse(localData) : [];
 
                     if (activeOrderId && activeOrderId.startsWith("BILL-")) {
-                        orders = orders.map((o: any) => o.id === activeOrderId ? { ...o, items: snapshot, total: totalVal, timestamp: new Date().toISOString() } : o);
+                        orders = orders.map((o: any) => o.id === activeOrderId ? { 
+                            ...o, 
+                            items: snapshot, 
+                            total: totalVal, 
+                            customerName: cName || o.customerName || "Walk-in", 
+                            customerPhone: cPhone || o.customerPhone || "",
+                            timestamp: new Date().toISOString() 
+                        } : o);
                     } else {
                         const id = "BILL-" + Date.now();
-                        orders.push({ id, items: snapshot, total: totalVal, timestamp: new Date().toISOString() });
+                        orders.push({ 
+                            id, 
+                            items: snapshot, 
+                            total: totalVal, 
+                            customerName: cName || "Walk-in", 
+                            customerPhone: cPhone || "",
+                            timestamp: new Date().toISOString() 
+                        });
                     }
                     await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
                     fetchHeldCount();
@@ -741,7 +796,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
 
 
     if (currentView === "addItem") return <AddItemView onBack={() => setCurrentView("main")} />;
-    if (currentView === "heldOrders") return <HeldOrdersView onBack={() => { setCurrentView("main"); fetchHeldCount(); }} />;
+    if (currentView === "heldOrders") return <HeldOrdersView onBack={() => { setCurrentView("main"); fetchHeldCount(); }} onRefreshCount={fetchHeldCount} />;
     if (currentView === "checkout") return (
         <CheckoutView
             onBack={(clearCart) => {
@@ -920,7 +975,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             <ConfirmHoldModal
                 visible={isHoldModalVisible}
                 onClose={() => setIsHoldModalVisible(false)}
-                onConfirm={() => confirmPauseOrder()}
+                onConfirm={(name, phone) => confirmPauseOrder(undefined, undefined, name, phone)}
                 totalAmount={totalAmount}
                 totalItems={totalItems}
                 showSuccess={showHoldSuccess}

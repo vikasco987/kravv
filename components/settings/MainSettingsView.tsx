@@ -24,6 +24,7 @@ import CompanyInfoView from "./CompanyInfoView";
 import { KOTTablesModal } from "./KOTTablesModal";
 import { LanguageCard } from "./LanguageCard";
 import { LanguageSelectionModal } from "./LanguageSelectionModal";
+import { OrderAcceptModal } from "./OrderAcceptModal";
 import SettingsHeader from "./SettingsHeader";
 import { StaffCard } from "./StaffCard";
 import { StaffModal } from "./StaffModal";
@@ -62,6 +63,8 @@ const MainSettingsView = ({ isLockedUser = false }: { isLockedUser?: boolean }) 
     const [tableBookingEnabled, setTableBookingEnabled] = React.useState(false);
     const [languageModalVisible, setLanguageModalVisible] = React.useState(false);
     const [staffModalVisible, setStaffModalVisible] = React.useState(false);
+    const [orderAcceptModalVisible, setOrderAcceptModalVisible] = React.useState(false);
+    const [orderAutoAccept, setOrderAutoAccept] = React.useState(false);
     const [currentView, setCurrentView] = React.useState<"main" | "profile">("main");
     const [isStaffSignedIn, setIsStaffSignedIn] = React.useState(false);
     const [hasSettingsAccess, setHasSettingsAccess] = React.useState(true);
@@ -108,6 +111,7 @@ const MainSettingsView = ({ isLockedUser = false }: { isLockedUser?: boolean }) 
             setServiceChargeRate("0.00");
             setKotEnabled(false);
             setTableBookingEnabled(false);
+            setOrderAutoAccept(false);
             return;
         }
         try {
@@ -116,7 +120,7 @@ const MainSettingsView = ({ isLockedUser = false }: { isLockedUser?: boolean }) 
                 'discount_enabled', 'discount_rate',
                 'service_charge_enabled', 'service_charge_rate',
                 'kot_enabled', 'table_booking_enabled',
-                'app_language'
+                'app_language', 'order_auto_accept'
             ]);
             settings.forEach(([key, value]) => {
                 if (value !== null) {
@@ -130,6 +134,7 @@ const MainSettingsView = ({ isLockedUser = false }: { isLockedUser?: boolean }) 
                         case 'service_charge_rate': setServiceChargeRate(value); break;
                         case 'kot_enabled': setKotEnabled(value === 'true'); break;
                         case 'table_booking_enabled': setTableBookingEnabled(value === 'true'); break;
+                        case 'order_auto_accept': setOrderAutoAccept(value === 'true'); break;
                     }
                 }
             });
@@ -179,7 +184,12 @@ const MainSettingsView = ({ isLockedUser = false }: { isLockedUser?: boolean }) 
             
             <TaxDiscountsCard user={effectiveUser} onPress={() => setTaxModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
 
-            <AppFeaturesCard user={effectiveUser} onPress={() => setKotModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
+            <AppFeaturesCard 
+                user={effectiveUser} 
+                onPress={() => setKotModalVisible(true)} 
+                onOrderAcceptPress={() => setOrderAcceptModalVisible(true)}
+                onLoginRequired={() => setLoginModalVisible(true)} 
+            />
             
             <StaffCard user={effectiveUser} onPress={() => setStaffModalVisible(true)} onLoginRequired={() => setLoginModalVisible(true)} />
             
@@ -200,6 +210,7 @@ const MainSettingsView = ({ isLockedUser = false }: { isLockedUser?: boolean }) 
             <SuccessFeedback visible={successModalVisible} message={successMessage} />
             <LanguageSelectionModal visible={languageModalVisible} currentLanguage={currentLanguage} onClose={() => setLanguageModalVisible(false)} onSelectLanguage={(langId) => { setCurrentLanguage(langId as any); saveSetting('app_language', langId, 'Language'); }} />
             <StaffModal visible={staffModalVisible} onClose={() => setStaffModalVisible(false)} />
+            <OrderAcceptModal visible={orderAcceptModalVisible} onClose={() => setOrderAcceptModalVisible(false)} orderAutoAccept={orderAutoAccept} setOrderAutoAccept={setOrderAutoAccept} onSave={saveSetting} />
         </ScrollView>
     );
 };

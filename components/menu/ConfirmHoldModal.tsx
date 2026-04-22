@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
 import { rf, s, vs } from "../../utils/responsive";
 
@@ -8,7 +8,7 @@ const THEME_PRIMARY = "#4F46E5";
 interface ConfirmHoldModalProps {
     visible: boolean;
     onClose: () => void;
-    onConfirm: () => void;
+    onConfirm: (name: string, phone: string) => void;
     totalAmount: number;
     totalItems: number;
     showSuccess: boolean;
@@ -22,6 +22,16 @@ export const ConfirmHoldModal: React.FC<ConfirmHoldModalProps> = ({
     totalItems,
     showSuccess,
 }) => {
+    const [cName, setCName] = React.useState("");
+    const [cPhone, setCPhone] = React.useState("");
+
+    React.useEffect(() => {
+        if (visible) {
+            setCName("");
+            setCPhone("");
+        }
+    }, [visible]);
+
     return (
         <Modal
             animationType="slide"
@@ -38,9 +48,31 @@ export const ConfirmHoldModal: React.FC<ConfirmHoldModalProps> = ({
                                 <Ionicons name="pause" size={40} color={THEME_PRIMARY} />
                             </View>
                             <Text style={styles.bottomModalTitle}>Hold Order?</Text>
-                            <Text style={styles.bottomModalSubtext}>
-                                This will save the current items and let you create a new bill. You can resume this order later from the Hold list.
-                            </Text>
+                            
+                            <View style={styles.inputContainer}>
+                                <View style={styles.inputWrapper}>
+                                    <Ionicons name="person-outline" size={rf(18)} color="#6B7280" style={{marginRight: s(10)}} />
+                                    <TextInput 
+                                        placeholder="Customer Name"
+                                        placeholderTextColor="#9CA3AF"
+                                        style={styles.textInput}
+                                        value={cName}
+                                        onChangeText={setCName}
+                                    />
+                                </View>
+
+                                <View style={styles.inputWrapper}>
+                                    <Ionicons name="call-outline" size={rf(18)} color="#6B7280" style={{marginRight: s(10)}} />
+                                    <TextInput 
+                                        placeholder="Phone Number"
+                                        placeholderTextColor="#9CA3AF"
+                                        style={styles.textInput}
+                                        keyboardType="phone-pad"
+                                        value={cPhone}
+                                        onChangeText={setCPhone}
+                                    />
+                                </View>
+                            </View>
 
                             <View style={styles.holdInfoBox}>
                                 <View style={{ flex: 1 }}>
@@ -52,7 +84,7 @@ export const ConfirmHoldModal: React.FC<ConfirmHoldModalProps> = ({
 
                             <TouchableOpacity
                                 style={styles.confirmHoldBtn}
-                                onPress={onConfirm}
+                                onPress={() => onConfirm(cName, cPhone)}
                                 activeOpacity={0.8}
                             >
                                 <Text style={styles.confirmHoldText}>Confirm Hold</Text>
@@ -135,9 +167,30 @@ const styles = StyleSheet.create({
         fontSize: rf(16),
         color: '#6B7280',
         textAlign: 'center',
-        marginBottom: vs(24),
+        marginBottom: vs(15),
         lineHeight: rf(22),
         paddingHorizontal: s(10),
+    },
+    inputContainer: {
+        width: '100%',
+        marginBottom: vs(20)
+    },
+    inputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F3F4F6',
+        borderRadius: s(12),
+        paddingHorizontal: s(15),
+        marginBottom: vs(10),
+        height: vs(50),
+        borderWidth: 1,
+        borderColor: '#E5E7EB'
+    },
+    textInput: {
+        flex: 1,
+        color: '#111827',
+        fontSize: rf(15),
+        fontWeight: '500'
     },
     holdInfoBox: {
         flexDirection: 'row',

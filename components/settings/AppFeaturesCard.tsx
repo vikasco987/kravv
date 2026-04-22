@@ -15,19 +15,21 @@ const COLORS = {
 interface AppFeaturesCardProps {
     user: any;
     onPress: () => void;
+    onOrderAcceptPress: () => void;
     onLoginRequired: () => void;
 }
 
 export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
     user,
     onPress,
+    onOrderAcceptPress,
     onLoginRequired,
 }) => {
     const { t } = useLanguage();
 
-    const handlePress = () => {
+    const handlePress = (callback: () => void) => {
         if (user) {
-            onPress();
+            callback();
         } else {
             onLoginRequired();
         }
@@ -36,11 +38,11 @@ export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
     return (
         <View style={{ marginTop: vs(15) }}>
             <Text style={styles.sectionTitle}>{t('app_features')}</Text>
-            <View style={{ marginTop: vs(10) }}>
+            <View style={{ marginTop: vs(10), gap: vs(12) }}>
                 <View style={styles.card}>
                     <TouchableOpacity
                         style={styles.sectionHeader}
-                        onPress={handlePress}
+                        onPress={() => handlePress(onPress)}
                         activeOpacity={0.7}
                     >
                         <View style={[styles.buttonIconBackground, { backgroundColor: COLORS.secondary + "15" }]}>
@@ -49,6 +51,24 @@ export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
                         <View style={{ flex: 1 }}>
                             <Text style={[styles.infoTitle, { marginBottom: 0 }]}>{t('kot_tables')}</Text>
                             <Text style={styles.infoText} numberOfLines={1}>{t('kitchen_orders')}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={rf(18)} color={COLORS.textLight} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* New Order Accept Button */}
+                <View style={styles.card}>
+                    <TouchableOpacity
+                        style={styles.sectionHeader}
+                        onPress={() => handlePress(onOrderAcceptPress)}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.buttonIconBackground, { backgroundColor: "#4F46E5" + "15" }]}>
+                            <Ionicons name={"checkmark-circle-outline" as any} size={rf(20)} color={"#4F46E5"} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.infoTitle, { marginBottom: 0 }]}>Order Accept</Text>
+                            <Text style={styles.infoText} numberOfLines={1}>Manage incoming order settings</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={rf(18)} color={COLORS.textLight} />
                     </TouchableOpacity>
