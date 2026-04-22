@@ -1,14 +1,15 @@
 import React from "react";
 import { SafeAreaView, StyleSheet } from "react-native";
-import MainPrinterView from "../../components/printer/MainPrinterView";
+import PrinterAccessWrapper from "../../components/printer/PrinterAccessWrapper";
 
 export default function PrinterScreen() {
     return (
         <SafeAreaView style={styles.container}>
-            <MainPrinterView />
+            <PrinterAccessWrapper />
         </SafeAreaView>
     );
 }
+
 
 const styles = StyleSheet.create({
     container: {

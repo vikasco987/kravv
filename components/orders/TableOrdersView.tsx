@@ -53,21 +53,15 @@ export default function TableOrdersView({ tableId, tableName, onBack, initialOrd
 
   const fetchInProgress = React.useRef(false);
 
+  const getTokenRef = React.useRef(getToken);
+  useEffect(() => { getTokenRef.current = getToken; });
+
   const fetchOrders = useCallback(async () => {
     if (!tableId || fetchInProgress.current) return;
 
     try {
       fetchInProgress.current = true;
-      const token = await getToken();
-
-      // Early cache check
-      if (orders.length === 0) {
-        const cached = await AsyncStorage.getItem(`@cached_orders_${tableId}`);
-        if (cached) {
-            setOrders(JSON.parse(cached));
-            setLoading(false);
-        }
-      }
+      const token = await getTokenRef.current();
 
       const response = await fetch(`https://billing.kravy.in/api/orders?tableId=${tableId}&t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -87,7 +81,8 @@ export default function TableOrdersView({ tableId, tableName, onBack, initialOrd
           ...o,
           id: o.id || o._id || Math.random().toString()
         }));
-        setOrders(normalizedOrders);
+        
+        setOrders(prev => JSON.stringify(prev) === JSON.stringify(normalizedOrders) ? prev : normalizedOrders);
         await AsyncStorage.setItem(`@cached_orders_${tableId}`, JSON.stringify(normalizedOrders));
       }
     } catch (error) {
@@ -98,7 +93,20 @@ export default function TableOrdersView({ tableId, tableName, onBack, initialOrd
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tableId, getToken, orders.length]);
+  }, [tableId]);
+
+  useEffect(() => {
+    const loadCache = async () => {
+      if (tableId && orders.length === 0) {
+        const cached = await AsyncStorage.getItem(`@cached_orders_${tableId}`);
+        if (cached) {
+          setOrders(JSON.parse(cached));
+          setLoading(false);
+        }
+      }
+    };
+    loadCache();
+  }, [tableId]);
 
   useEffect(() => {
     fetchOrders();

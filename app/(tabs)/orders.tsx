@@ -1,14 +1,15 @@
 import React from "react";
 import { SafeAreaView, StyleSheet } from "react-native";
-import MainOrdersView from "../../components/orders/MainOrdersView";
+import OrderAccessWrapper from "../../components/orders/OrderAccessWrapper";
 
 export default function OrderScreen() {
     return (
         <SafeAreaView style={styles.container}>
-            <MainOrdersView />
+            <OrderAccessWrapper />
         </SafeAreaView>
     );
 }
+
 
 const styles = StyleSheet.create({
     container: {

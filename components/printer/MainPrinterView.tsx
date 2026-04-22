@@ -20,9 +20,14 @@ import { rf, s, vs } from "../../utils/responsive";
 import PrinterHeader from "./PrinterHeader";
 import DeviceCard from "./DeviceCard";
 
+import { LoginRequiredModal } from "../common/LoginRequiredModal";
+import { useRouter } from "expo-router";
+
 const THEME_PRIMARY = "#4F46E5";
 
-const MainPrinterView = () => {
+const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
+    const router = useRouter();
+    const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
     const [devices, setDevices] = useState<any[]>([]);
     const [connectedDevice, setConnectedDevice] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -70,6 +75,10 @@ const MainPrinterView = () => {
 
     // ================= SCAN =================
     const scanDevices = async () => {
+        if (isLockedUser) {
+            setIsLoginModalVisible(true);
+            return;
+        }
         const ok = await requestPermissions();
         if (!ok) return;
 
@@ -102,6 +111,10 @@ const MainPrinterView = () => {
 
     // ================= CONNECT =================
     const connectDevice = async (device: any) => {
+        if (isLockedUser) {
+            setIsLoginModalVisible(true);
+            return;
+        }
         try {
             setIsLoading(true);
             if (!device.bonded) {
@@ -179,6 +192,10 @@ const MainPrinterView = () => {
 
     // ================= PRINT =================
     const printSample = async () => {
+        if (isLockedUser) {
+            setIsLoginModalVisible(true);
+            return;
+        }
         if (!connectedDevice) {
             ToastAndroid.show("Connect printer first", ToastAndroid.SHORT);
             return;
@@ -204,16 +221,18 @@ Thank You\n\n\n`;
 
     useEffect(() => { 
         const init = async () => {
+            if (isLockedUser) return;
             const ok = await requestPermissions();
             if (ok) {
                 await autoConnect(true);
             }
         };
         init();
-    }, []);
+    }, [isLockedUser]);
 
     // Periodic Reconnection Logic
     useEffect(() => {
+        if (isLockedUser) return;
         const interval = setInterval(async () => {
             if (!connectedDevice && !isLoading) {
                 await autoConnect(false);
@@ -221,7 +240,7 @@ Thank You\n\n\n`;
         }, 3000); // Check every 3 seconds
         
         return () => clearInterval(interval);
-    }, [connectedDevice, isLoading]);
+    }, [connectedDevice, isLoading, isLockedUser]);
 
     // Connection Lost Listener
     useEffect(() => {
@@ -332,6 +351,15 @@ Thank You\n\n\n`;
                     </View>
                 </View>
             </Modal>
+
+            <LoginRequiredModal
+                visible={isLoginModalVisible}
+                onClose={() => setIsLoginModalVisible(false)}
+                onSignIn={() => {
+                    setIsLoginModalVisible(false);
+                    router.push("/(auth)/sign-in");
+                }}
+            />
         </View>
     );
 };

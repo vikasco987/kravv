@@ -1,24 +1,24 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  Dimensions,
-  TextInput,
-  Modal,
-  SafeAreaView,
-  FlatList,
-  Alert,
-  Platform,
-  KeyboardAvoidingView,
-} from 'react-native';
-import { ShoppingCart, Plus, Minus, X, Check, ChevronRight, Info, Phone, User, Star, Search, ArrowLeft } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
-import { rf, s, vs } from '../../utils/responsive';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ArrowLeft, Check, Minus, Plus, Search, X } from 'lucide-react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { rf } from '../../utils/responsive';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 

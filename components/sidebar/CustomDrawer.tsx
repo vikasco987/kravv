@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
+import { DeviceEventEmitter } from "react-native";
 
 // Modular Sidebar Components (Now in same folder)
 import SidebarHeader from "./SidebarHeader";
@@ -133,11 +134,30 @@ export default function CustomDrawerContent(props: any) {
     };
 
     const handleLogout = async () => {
+        const session = await AsyncStorage.getItem("staff_session");
+        if (session) {
+            try {
+                const staff = JSON.parse(session);
+                // ✅ TERMINAL LOGOUT TOKEN GENERATION
+                console.log("---------------- STAFF LOGOUT TOKEN ---------------");
+                console.log(`[TOKEN-STAFF-LOGOUT] SUCCESS`);
+                console.log(`STAFF NAME : ${staff.name}`);
+                console.log(`TIME      : ${new Date().toLocaleString()}`);
+                console.log("--------------------------------------------------");
+            } catch (e) {
+                console.log("[TOKEN-STAFF-LOGOUT] ERROR: Session corrupt");
+            }
+        }
+
         if (isSignedIn) {
             await signOut();
         }
         await AsyncStorage.removeItem("staff_session");
         setStaffMember(null);
+        
+        // 👋 Emit signal so all AccessWrappers and useStaffPermissions reactive hooks trigger immediately
+        DeviceEventEmitter.emit('PERMISSIONS_UPDATED');
+
         router.replace("/(auth)/sign-in");
     };
 

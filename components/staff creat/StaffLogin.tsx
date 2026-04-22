@@ -12,7 +12,8 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
+    DeviceEventEmitter
 } from 'react-native';
 import { useRefresh } from '../../context/RefreshContext';
 import { staffService } from '../../services/staffService';
@@ -55,6 +56,19 @@ export const StaffLogin = ({ visible, onClose }: StaffLoginProps) => {
                     token: res.token || res.data.token
                 };
                 await AsyncStorage.setItem("staff_session", JSON.stringify(sessionData));
+
+                DeviceEventEmitter.emit('PERMISSIONS_UPDATED');
+
+                // ✅ ENHANCED TERMINAL LOGIN TOKEN
+                // Added a small delay to ensure it shows up in Metro terminal
+                setTimeout(() => {
+                    console.log("\n" + "=".repeat(50));
+                    console.log("🚀 [TOKEN-STAFF-LOGIN] GENERATED SUCCESS");
+                    console.log(`👤 STAFF NAME : ${res.data.name}`);
+                    console.log(`📧 EMAIL      : ${email}`);
+                    console.log(`⏰ TIMESTAMP  : ${new Date().toLocaleString()}`);
+                    console.log("=".repeat(50) + "\n");
+                }, 500);
 
                 // Trigger refresh so sidebar sees the change
                 triggerRefresh();

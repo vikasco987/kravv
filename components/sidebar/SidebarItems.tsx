@@ -1,11 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { DrawerItem } from "@react-navigation/drawer";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
-import { StaffPermissionEngine } from '../staff creat/StaffPermissionEngine';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { rf, s, vs } from "../../utils/responsive";
+import { useStaffPermissions } from "../staff creat/useStaffPermissions";
 
 interface SidebarItemsProps {
     t: (key: string) => string;
@@ -16,306 +14,171 @@ interface SidebarItemsProps {
 }
 
 const SidebarItems = ({ t, navigation, isSignedIn, onAction, onLogout }: SidebarItemsProps) => {
-    const params = useLocalSearchParams();
+    const { canAccessSync, isOwner } = useStaffPermissions();
+
     const COLORS = {
         primary: '#4F46E5',
         danger: '#EF4444',
+        lock: '#94A3B8',
     };
 
-    const [hasDashboardAccess, setHasDashboardAccess] = useState(true);
-    const [hasMenuAccess, setHasMenuAccess] = useState(true);
-    const [hasOrdersAccess, setHasOrdersAccess] = useState(true);
-    const [hasClientAccess, setHasClientAccess] = useState(true);
-    const [hasIntelAccess, setHasIntelAccess] = useState(true);
-    const [hasReportsAccess, setHasReportsAccess] = useState(true);
-    const [hasSettingsAccess, setHasSettingsAccess] = useState(true);
-
-    const checkAccess = async () => {
-        const sessionStr = await AsyncStorage.getItem('staff_session');
-        const isStaff = !!sessionStr;
-
-        if (isSignedIn) {
-            const isStaffPreview = params.staff === 'true';
-
-            if (isStaffPreview) {
-                const dash = await StaffPermissionEngine.hasCategoryAccess("Dashboard", false);
-                const menu = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
-                const orders = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
-                const client = await StaffPermissionEngine.hasCategoryAccess("Client", false);
-                const intel = await StaffPermissionEngine.hasCategoryAccess("Intelligence", false);
-                const reports = await StaffPermissionEngine.hasCategoryAccess("Reports", false);
-                const settings = await StaffPermissionEngine.hasCategoryAccess("Settings", false);
-
-                setHasDashboardAccess(dash);
-                setHasMenuAccess(menu);
-                setHasOrdersAccess(orders);
-                setHasClientAccess(client);
-                setHasIntelAccess(intel);
-                setHasReportsAccess(reports);
-                setHasSettingsAccess(settings);
+    const checkAndNavigate = (permission: string, screen: string, params?: any) => {
+        if (canAccessSync(permission)) {
+            if (screen.startsWith('(')) {
+                navigation.navigate(screen, params);
             } else {
-                setHasDashboardAccess(true);
-                setHasMenuAccess(true);
-                setHasOrdersAccess(true);
-                setHasClientAccess(true);
-                setHasIntelAccess(true);
-                setHasReportsAccess(true);
-                setHasSettingsAccess(true);
+                onAction(screen);
             }
-            return;
-        }
-
-        if (isStaff) {
-            const dash = await StaffPermissionEngine.hasCategoryAccess("Dashboard", false);
-            const menu = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
-            const orders = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
-            const client = await StaffPermissionEngine.hasCategoryAccess("Client", false);
-            const intel = await StaffPermissionEngine.hasCategoryAccess("Intelligence", false);
-            const reports = await StaffPermissionEngine.hasCategoryAccess("Reports", false);
-            const settings = await StaffPermissionEngine.hasCategoryAccess("Settings", false);
-
-            setHasDashboardAccess(dash);
-            setHasMenuAccess(menu);
-            setHasOrdersAccess(orders);
-            setHasClientAccess(client);
-            setHasIntelAccess(intel);
-            setHasReportsAccess(reports);
-            setHasSettingsAccess(settings);
         } else {
-            setHasDashboardAccess(true);
-            setHasMenuAccess(true);
-            setHasOrdersAccess(true);
-            setHasClientAccess(true);
-            setHasIntelAccess(true);
-            setHasReportsAccess(true);
-            setHasSettingsAccess(true);
+            Alert.alert(
+                "Access Denied",
+                `You don't have permission to access ${permission}. Please contact your administrator.`,
+                [{ text: "OK" }]
+            );
         }
     };
 
-    useEffect(() => {
-        checkAccess();
-
-        const { DeviceEventEmitter } = require('react-native');
-        const sub = DeviceEventEmitter.addListener('PERMISSIONS_UPDATED', checkAccess);
-        return () => sub.remove();
-    }, [isSignedIn]);
+    const renderIcon = (name: any, color: string, size: number, permission: string) => {
+        const hasAccess = canAccessSync(permission);
+        return (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name={name} size={size} color={hasAccess ? color : COLORS.lock} />
+                {!hasAccess && (
+                    <View style={styles.lockBadge}>
+                        <Ionicons name="lock-closed" size={rf(10)} color="#fff" />
+                    </View>
+                )}
+            </View>
+        );
+    };
 
     return (
         <View>
             <DrawerItem
-                label={t('dashboard')}
-                icon={({ color, size }) => (
-                    <Ionicons 
-                        name={(hasDashboardAccess ? "home-outline" : "lock-closed") as any} 
-                        size={size} 
-                        color={hasDashboardAccess ? color : "#9CA3AF"} 
-                    />
+                label={() => (
+                    <View style={styles.labelContainer}>
+                        <Text style={[styles.labelText, !canAccessSync("Dashboard") && styles.lockedText]}>{t('dashboard')}</Text>
+                        {!canAccessSync("Dashboard") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
+                    </View>
                 )}
-                onPress={() => {
-                    if (hasDashboardAccess) {
-                        navigation.navigate("(tabs)", { screen: "Dashboard" });
-                    } else {
-                        const { Alert } = require('react-native');
-                        Alert.alert("Access Denied", "Dashboard access is restricted.");
-                    }
-                }}
+                icon={({ color, size }) => renderIcon("home-outline", color, size, "Dashboard")}
+                onPress={() => checkAndNavigate("Dashboard", "(tabs)", { screen: "Dashboard" })}
             />
 
             <DrawerItem
-                label={t('home_menu')}
-                icon={({ color, size }) => (
-                    <Ionicons 
-                        name={(hasMenuAccess ? "cart-outline" : "lock-closed") as any} 
-                        size={size} 
-                        color={hasMenuAccess ? color : "#9CA3AF"} 
-                    />
+                label={() => (
+                    <View style={styles.labelContainer}>
+                        <Text style={[styles.labelText, !canAccessSync("Menu") && styles.lockedText]}>{t('home_menu')}</Text>
+                        {!canAccessSync("Menu") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
+                    </View>
                 )}
-                onPress={() => {
-                    if (hasMenuAccess) {
-                        navigation.navigate("(tabs)", { screen: "menu" });
-                    } else {
-                        const { Alert } = require('react-native');
-                        Alert.alert("Access Denied", "Menu access is restricted.");
-                    }
-                }}
+                icon={({ color, size }) => renderIcon("cart-outline", color, size, "Menu")}
+                onPress={() => checkAndNavigate("Menu", "(tabs)", { screen: "menu" })}
             />
 
             <DrawerItem
-                label={t('orders')}
-                icon={({ color, size }) => (
-                    <Ionicons 
-                        name={(hasOrdersAccess ? "list-outline" : "lock-closed") as any} 
-                        size={size} 
-                        color={hasOrdersAccess ? color : "#9CA3AF"} 
-                    />
+                label={() => (
+                    <View style={styles.labelContainer}>
+                        <Text style={[styles.labelText, !canAccessSync("Order") && styles.lockedText]}>{t('orders')}</Text>
+                        {!canAccessSync("Order") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
+                    </View>
                 )}
-                onPress={() => {
-                    if (hasOrdersAccess) {
-                        onAction('orders');
-                    } else {
-                        const { Alert } = require('react-native');
-                        Alert.alert("Access Denied", "Orders access is restricted.");
-                    }
-                }}
+                icon={({ color, size }) => renderIcon("list-outline", color, size, "Order")}
+                onPress={() => checkAndNavigate("Order", "orders")}
             />
 
             <DrawerItem
                 label="KOT"
                 icon={({ color, size }) => (
                     <Ionicons 
-                        name={(hasOrdersAccess ? "receipt-outline" : "lock-closed") as any} 
+                        name="receipt-outline" 
                         size={size} 
-                        color={hasOrdersAccess ? "#6366F1" : "#9CA3AF"} 
+                        color="#6366F1" 
                     />
                 )}
                 onPress={() => {
-                    if (hasOrdersAccess) {
-                        navigation.navigate("(tabs)", { screen: "kot" });
-                    } else {
-                        const { Alert } = require('react-native');
-                        Alert.alert("Access Denied", "KOT access is restricted.");
-                    }
+                    navigation.navigate("(tabs)", { screen: "kot" });
                 }}
             />
 
             <DrawerItem
-                label={t('table_qr_codes')}
-                icon={({ color, size }) => (
-                    <Ionicons 
-                        name={(hasMenuAccess ? "qr-code-outline" : "lock-closed") as any} 
-                        size={size} 
-                        color={hasMenuAccess ? color : "#9CA3AF"} 
-                    />
+                label={() => (
+                    <View style={styles.labelContainer}>
+                        <Text style={[styles.labelText, !canAccessSync("Menu") && styles.lockedText]}>{t('table_qr_codes')}</Text>
+                        {!canAccessSync("Menu") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
+                    </View>
                 )}
-                onPress={() => {
-                    if (hasMenuAccess) {
-                        onAction('qr');
-                    } else {
-                        const { Alert } = require('react-native');
-                        Alert.alert("Access Denied", "Table QR Codes access is restricted.");
-                    }
-                }}
+                icon={({ color, size }) => renderIcon("qr-code-outline", color, size, "Menu")}
+                onPress={() => checkAndNavigate("Menu", "qr")}
             />
 
             <DrawerItem
-                label={t('edit_menu_item')}
-                icon={({ color, size }) => (
-                    <Ionicons 
-                        name={(hasMenuAccess ? "create-outline" : "lock-closed") as any} 
-                        size={size} 
-                        color={hasMenuAccess ? color : "#9CA3AF"} 
-                    />
+                label={() => (
+                    <View style={styles.labelContainer}>
+                        <Text style={[styles.labelText, !canAccessSync("Menu") && styles.lockedText]}>{t('edit_menu_item')}</Text>
+                        {!canAccessSync("Menu") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
+                    </View>
                 )}
-                onPress={() => {
-                    if (hasMenuAccess) {
-                        onAction('editMenu');
-                    } else {
-                        const { Alert } = require('react-native');
-                        Alert.alert("Access Denied", "Menu editing access is restricted.");
-                    }
-                }}
+                icon={({ color, size }) => renderIcon("create-outline", color, size, "Menu")}
+                onPress={() => checkAndNavigate("Menu", "editMenu")}
             />
 
             <DrawerItem
-                label="Items Sales Report"
-                icon={({ color, size }) => (
-                    <Ionicons 
-                        name={(hasReportsAccess ? "cube-outline" : "lock-closed") as any} 
-                        size={size} 
-                        color={hasReportsAccess ? color : "#9CA3AF"} 
-                    />
+                label={() => (
+                    <View style={styles.labelContainer}>
+                        <Text style={[styles.labelText, !canAccessSync("Reports") && styles.lockedText]}>Item Sales Report</Text>
+                        {!canAccessSync("Reports") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
+                    </View>
                 )}
-                onPress={() => {
-                    if (hasReportsAccess) {
-                        onAction('inventory');
-                    } else {
-                        const { Alert } = require('react-native');
-                        Alert.alert("Access Denied", "Item Sales Reports are restricted. Please contact your administrator.");
-                    }
-                }}
+                icon={({ color, size }) => renderIcon("cube-outline", color, size, "Reports")}
+                onPress={() => checkAndNavigate("Reports", "inventory")}
             />
 
             <DrawerItem
-                label={t('settings')}
-                icon={({ color, size }) => (
-                    <Ionicons 
-                        name={(hasSettingsAccess ? "settings-outline" : "lock-closed") as any} 
-                        size={size} 
-                        color={hasSettingsAccess ? color : "#9CA3AF"} 
-                    />
+                label={() => (
+                    <View style={styles.labelContainer}>
+                        <Text style={[styles.labelText, !canAccessSync("Settings") && styles.lockedText]}>{t('settings')}</Text>
+                        {!canAccessSync("Settings") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
+                    </View>
                 )}
-                onPress={() => {
-                    if (hasSettingsAccess) {
-                        onAction('settings');
-                    } else {
-                        const { Alert } = require('react-native');
-                        Alert.alert("Access Denied", "Settings access is restricted.");
-                    }
-                }}
+                icon={({ color, size }) => renderIcon("settings-outline", color, size, "Settings")}
+                onPress={() => checkAndNavigate("Settings", "settings")}
             />
 
-            {(hasIntelAccess || hasClientAccess) && (
-                <>
-                    <View style={styles.divider} />
-                    <Text style={styles.sectionTitle}>Smart Intelligence</Text>
-                </>
-            )}
+            <View style={styles.divider} />
+            <Text style={styles.sectionTitle}>Smart Intelligence</Text>
 
             <DrawerItem
-                label="Profit Engine"
-                icon={({ size }) => (
-                    <Ionicons 
-                        name={(hasIntelAccess ? "trending-up-outline" : "lock-closed") as any} 
-                        size={size} 
-                        color={hasIntelAccess ? "#10B981" : "#9CA3AF"} 
-                    />
+                label={() => (
+                    <View style={styles.labelContainer}>
+                        <Text style={[styles.labelText, !canAccessSync("AI Intelligence Tools") && styles.lockedText]}>Profit Engine</Text>
+                        {!canAccessSync("AI Intelligence Tools") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
+                    </View>
                 )}
-                onPress={() => {
-                    if (hasIntelAccess) {
-                        onAction('profit');
-                    } else {
-                        const { Alert } = require('react-native');
-                        Alert.alert("Access Denied", "Profit Engine is restricted.");
-                    }
-                }}
+                icon={({ color, size }) => renderIcon("trending-up-outline", "#10B981", size, "AI Intelligence Tools")}
+                onPress={() => checkAndNavigate("AI Intelligence Tools", "profit")}
             />
 
             <DrawerItem
-                label="Voice Command"
-                icon={({ size }) => (
-                    <Ionicons 
-                        name={(hasIntelAccess ? "mic-outline" : "lock-closed") as any} 
-                        size={size} 
-                        color={hasIntelAccess ? "#6366F1" : "#9CA3AF"} 
-                    />
+                label={() => (
+                    <View style={styles.labelContainer}>
+                        <Text style={[styles.labelText, !canAccessSync("AI Intelligence Tools") && styles.lockedText]}>Voice Command</Text>
+                        {!canAccessSync("AI Intelligence Tools") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
+                    </View>
                 )}
-                onPress={() => {
-                    if (hasIntelAccess) {
-                        onAction('voice');
-                    } else {
-                        const { Alert } = require('react-native');
-                        Alert.alert("Access Denied", "Voice Commands are restricted.");
-                    }
-                }}
+                icon={({ color, size }) => renderIcon("mic-outline", "#6366F1", size, "AI Intelligence Tools")}
+                onPress={() => checkAndNavigate("AI Intelligence Tools", "voice")}
             />
 
             <DrawerItem
-                label="Customer Search"
-                icon={({ size }) => (
-                    <Ionicons 
-                        name={(hasClientAccess ? "search-outline" : "lock-closed") as any} 
-                        size={size} 
-                        color={hasClientAccess ? "#f59e0b" : "#9CA3AF"} 
-                    />
+                label={() => (
+                    <View style={styles.labelContainer}>
+                        <Text style={[styles.labelText, !canAccessSync("AI Intelligence Tools") && styles.lockedText]}>Customer Search</Text>
+                        {!canAccessSync("AI Intelligence Tools") && <Ionicons name="lock-closed-outline" size={rf(14)} color={COLORS.lock} />}
+                    </View>
                 )}
-                onPress={() => {
-                    if (hasClientAccess) {
-                        onAction('history');
-                    } else {
-                        const { Alert } = require('react-native');
-                        Alert.alert("Access Denied", "Customer Search is restricted.");
-                    }
-                }}
+                icon={({ color, size }) => renderIcon("search-outline", "#f59e0b", size, "AI Intelligence Tools")}
+                onPress={() => checkAndNavigate("AI Intelligence Tools", "history")}
             />
 
             {!isSignedIn ? (
@@ -340,6 +203,19 @@ const SidebarItems = ({ t, navigation, isSignedIn, onAction, onLogout }: Sidebar
 const styles = StyleSheet.create({
     divider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: vs(10), marginHorizontal: s(15) },
     sectionTitle: { fontSize: rf(12), fontWeight: 'bold', color: '#64748B', marginLeft: s(18), marginBottom: vs(5), textTransform: 'uppercase' },
+    labelContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flex: 1, paddingRight: s(10) },
+    labelText: { fontSize: rf(15), color: '#334155', fontWeight: '500' },
+    lockedText: { color: "#94A3B8" },
+    lockBadge: {
+        position: 'absolute',
+        right: -s(4),
+        bottom: -vs(2),
+        backgroundColor: '#EF4444',
+        borderRadius: s(10),
+        padding: s(1),
+        borderWidth: 1,
+        borderColor: '#fff'
+    }
 });
 
 export default SidebarItems;

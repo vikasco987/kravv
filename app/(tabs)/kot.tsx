@@ -1,14 +1,15 @@
 import React from "react";
 import { SafeAreaView, StyleSheet } from "react-native";
-import KotView from "../../components/menu/KotView";
+import KotAccessWrapper from "../../components/menu/KotAccessWrapper";
 
 export default function KotScreen() {
     return (
         <SafeAreaView style={styles.container}>
-            <KotView />
+            <KotAccessWrapper />
         </SafeAreaView>
     );
 }
+
 
 const styles = StyleSheet.create({
     container: {

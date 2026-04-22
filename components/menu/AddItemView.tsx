@@ -226,7 +226,8 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
     }, [allCategoriesList, categories]);
 
     const pickImage = async () => {
-        if (!isSignedIn && !isStaffSignedIn) {
+        const staffSession = await StaffPermissionEngine.getSession();
+        if (!isSignedIn && !staffSession) {
             setLoginModalVisible(true);
             return;
         }
@@ -303,7 +304,8 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
     };
 
     const handleSaveItem = async () => {
-        if (!isSignedIn && !isStaffSignedIn) { setLoginModalVisible(true); return; }
+        const staffSession = await StaffPermissionEngine.getSession();
+        if (!isSignedIn && !staffSession) { setLoginModalVisible(true); return; }
         if (!newItem.name || !newItem.price || !newItem.categoryId) {
             setErrorModalTitle("Incomplete Form");
             setErrorModalDetail("Please fill name, price, and category.");

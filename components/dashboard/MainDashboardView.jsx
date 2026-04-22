@@ -1,11 +1,9 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -17,6 +15,7 @@ import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+import { useStaffPermissions } from "../staff creat/useStaffPermissions";
 
 // --- Dashboard Logic Components ---
 import ProfitEngine from "../AI intelligence tools/ProfitEngine";
@@ -38,11 +37,12 @@ const COLORS = {
     white: '#FFFFFF',
 };
 
-const MainDashboardView = () => {
+const MainDashboardView = ({ isLockedUser }) => {
     const router = useRouter();
     const { getToken } = useAuth();
     const { isLoaded, isSignedIn, user } = useUser();
     const { t } = useLanguage();
+    const { canAccessSync } = useStaffPermissions();
 
     const [stats, setStats] = useState({ daily: 0, weekly: 0, monthly: 0 });
     const [loading, setLoading] = useState(true);
@@ -50,39 +50,7 @@ const MainDashboardView = () => {
     const [allBills, setAllBills] = useState([]);
     const [insightVisible, setInsightVisible] = useState(false);
     const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
-    const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
     const { refreshSignal } = useRefresh();
-
-    const [hasDashAccess, setHasDashAccess] = useState(true);
-    const [hasIntelAccess, setHasIntelAccess] = useState(true);
-    const [hasReportsAccess, setHasReportsAccess] = useState(true);
-
-    useEffect(() => {
-        const checkAccess = async () => {
-            if (isSignedIn) {
-                setHasDashAccess(true);
-                setIsStaffSignedIn(false);
-                return;
-            }
-
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            if (sessionStr) {
-                setIsStaffSignedIn(true);
-                const dash = await StaffPermissionEngine.hasCategoryAccess("Dashboard", false);
-                const intel = await StaffPermissionEngine.hasCategoryAccess("Intelligence", false);
-                const reports = await StaffPermissionEngine.hasCategoryAccess("Reports", false);
-                setHasDashAccess(dash);
-                setHasIntelAccess(intel);
-                setHasReportsAccess(reports);
-            } else {
-                setIsStaffSignedIn(false);
-                setHasDashAccess(true);
-                setHasIntelAccess(true);
-                setHasReportsAccess(true);
-            }
-        };
-        checkAccess();
-    }, [isSignedIn, refreshSignal]);
 
     // State for switching views inside the same tab
     const [currentView, setCurrentView] = useState("main"); // 'main', 'daily', 'weekly', 'monthly', 'deepsale'
@@ -90,8 +58,23 @@ const MainDashboardView = () => {
     const fetchStats = async () => {
         if (!isLoaded) return;
 
+        // NEW: If user is strictly locked (public), don't fetch anything
+        if (isLockedUser) {
+            setStats({ daily: 0, weekly: 0, monthly: 0 });
+            setAllBills([]);
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
+
         try {
-            if (!isSignedIn && !isStaffSignedIn) {
+            const token = await getToken();
+            const session = await StaffPermissionEngine.getSession();
+            const finalToken = token || session?.token;
+            const bId = session?.businessId;
+
+            // Allow access if we have an authentication token (Owner or Staff)
+            if (!finalToken) {
                 setStats({ daily: 0, weekly: 0, monthly: 0 });
                 setLoading(false);
                 setRefreshing(false);
@@ -111,26 +94,12 @@ const MainDashboardView = () => {
                 setRefreshing(true);
             }
 
-            const authToken = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-
-            // Use helper to get correct business ID
-            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-
-            // Use staff token if clerk token is not available
-            const finalToken = authToken || staffSession?.token;
-
-            if (!finalToken && !bId) {
-                setStats({ daily: 0, weekly: 0, monthly: 0 });
-                setLoading(false);
-                setRefreshing(false);
-                return;
-            }
-
             const url = bId ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}` : "https://billing.kravy.in/api/bill-manager";
             const res = await fetch(url, {
-                headers: finalToken ? { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` } : { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json", 
+                    Authorization: `Bearer ${finalToken}` 
+                },
             });
 
             if (res.ok) {
@@ -154,13 +123,10 @@ const MainDashboardView = () => {
 
     const calculateStats = (bills) => {
         const now = new Date();
-
-        // Today boundary
         const today = new Date(now);
         today.setHours(0, 0, 0, 0);
         const todayTs = today.getTime();
 
-        // Weekly boundary (Starts from Monday 00:00)
         const startOfWeek = new Date(today);
         const day = today.getDay();
         const diff = today.getDate() - day + (day === 0 ? -6 : 1);
@@ -168,7 +134,6 @@ const MainDashboardView = () => {
         startOfWeek.setHours(0, 0, 0, 0);
         const weekTs = startOfWeek.getTime();
 
-        // Monthly boundary (Starts from 1st 00:00)
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         startOfMonth.setHours(0, 0, 0, 0);
         const monthTs = startOfMonth.getTime();
@@ -189,64 +154,41 @@ const MainDashboardView = () => {
             if (billTs >= monthTs) monthly += total;
         });
 
-        const newStats = {
-            daily: Math.round(daily),
-            weekly: Math.round(weekly),
-            monthly: Math.round(monthly)
-        };
+        const newStats = { daily: Math.round(daily), weekly: Math.round(weekly), monthly: Math.round(monthly) };
         setStats(newStats);
-        AsyncStorage.setItem('@cached_dash_stats', JSON.stringify({ stats: newStats, bills: onlySales }));
+        if (!isLockedUser) {
+            AsyncStorage.setItem('@cached_dash_stats', JSON.stringify({ stats: newStats, bills: onlySales }));
+        }
     };
 
     useEffect(() => {
         fetchStats();
-    }, [isLoaded, isSignedIn, isStaffSignedIn]);
+    }, [isLoaded, isSignedIn, isLockedUser]);
 
     useEffect(() => {
-        if (refreshSignal > 0) {
-            fetchStats();
-        }
+        if (refreshSignal > 0) fetchStats();
     }, [refreshSignal]);
 
-    const handleProtectedAction = (viewName) => {
-
-        if (!isSignedIn && !isStaffSignedIn) {
+    const handleProtectedAction = async (viewName) => {
+        // If locked user, strictly show login modal
+        if (isLockedUser) {
             setIsLoginModalVisible(true);
-        } else {
-            // Permission checks
-            if (!isSignedIn) {
-                if (viewName === "insight" && !hasIntelAccess) {
-                    Alert.alert("Restricted", "You don't have permission to access Intelligence tools.");
-                    return;
-                }
-                const reportViews = ["daily", "weekly", "monthly", "inventory"];
-                if (reportViews.includes(viewName) && !hasReportsAccess) {
-                    Alert.alert("Restricted", "You don't have permission to view Sales Reports.");
-                    return;
-                }
-            }
-            setCurrentView(viewName);
+            return;
         }
+
+        // Permission gate for AI tools
+        if (viewName === "insight" && !canAccessSync("AI Intelligence Tools")) {
+            return; // MenuItem will already show lock and handle disabled state visually
+        }
+
+        const sessionStr = await AsyncStorage.getItem('staff_session');
+        if (!isSignedIn && !sessionStr) {
+            setIsLoginModalVisible(true);
+            return;
+        }
+        setCurrentView(viewName);
     };
 
-    // Render Protected Access View
-    if (!hasDashAccess && !isSignedIn) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background, padding: s(30) }}>
-                <View style={{ backgroundColor: '#FEE2E2', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
-                    <Ionicons name="lock-closed" size={s(40)} color="#EF4444" />
-                </View>
-                <Text style={{ fontSize: rf(20), fontWeight: '800', color: COLORS.text, textAlign: 'center' }}>
-                    Access Restricted
-                </Text>
-                <Text style={{ fontSize: rf(14), color: COLORS.textLight, textAlign: 'center', marginTop: vs(10), lineHeight: vs(20) }}>
-                    You don't have permission to view Dashboard Analytics. Please contact your administrator.
-                </Text>
-            </View>
-        );
-    }
-
-    // Render Conditional View
     if (currentView === "daily") return <DailySalesScreen onBack={() => setCurrentView("main")} />;
     if (currentView === "weekly") return <WeeklySalesScreen onBack={() => setCurrentView("main")} />;
     if (currentView === "monthly") return <MonthlySalesScreen onBack={() => setCurrentView("main")} />;
@@ -268,7 +210,6 @@ const MainDashboardView = () => {
                 }}
             />
 
-            {/* Sales Summary Cards */}
             <View style={styles.summaryContainer}>
                 <Text style={styles.sectionTitle}>{t('sales_summary')}</Text>
                 {loading ? (
@@ -277,51 +218,27 @@ const MainDashboardView = () => {
                     </View>
                 ) : (
                     <View style={styles.statsRow}>
-                        <SalesSummaryCard label={t('today')} amount={stats.daily} icon="today-outline" color={COLORS.primary} />
-                        <SalesSummaryCard label={t('weekly')} amount={stats.weekly} icon="trending-up-outline" color={COLORS.secondary} />
-                        <SalesSummaryCard label={t('monthly')} amount={stats.monthly} icon="pie-chart-outline" color={COLORS.accent} />
+                        <SalesSummaryCard label={t('today')} amount={stats.daily} icon="today-outline" color={COLORS.primary} isLocked={isLockedUser} />
+                        <SalesSummaryCard label={t('weekly')} amount={stats.weekly} icon="trending-up-outline" color={COLORS.secondary} isLocked={isLockedUser} />
+                        <SalesSummaryCard label={t('monthly')} amount={stats.monthly} icon="pie-chart-outline" color={COLORS.accent} isLocked={isLockedUser} />
                     </View>
                 )}
             </View>
 
-            {/* Analytics Section */}
             <View style={styles.analyticsSection}>
                 <Text style={styles.sectionTitle}>{t('analytics_reports')}</Text>
                 <View style={styles.menuGrid}>
-                    <DashboardMenuItem
-                        title={t('daily_sales')}
-                        iconName="sunny"
-                        color={COLORS.primary}
-                        subtitle={t('performance')}
-                        onPress={() => handleProtectedAction("daily")}
-                    />
-                    <DashboardMenuItem
-                        title={t('weekly_sales')}
-                        iconName="calendar"
-                        color={COLORS.secondary}
-                        subtitle={t('trends')}
-                        onPress={() => handleProtectedAction("weekly")}
-                    />
-                    <DashboardMenuItem
-                        title={t('monthly_sales')}
-                        iconName="stats-chart"
-                        color={COLORS.accent}
-                        subtitle={t('growth')}
-                        onPress={() => handleProtectedAction("monthly")}
-                    />
-                    <DashboardMenuItem
-                        title={t('bill_records')}
-                        iconName="receipt"
-                        color="#6366F1"
-                        subtitle={t('invoices')}
-                        onPress={() => handleProtectedAction("deepsale")}
-                    />
-                    <DashboardMenuItem
-                        title="Profit Intelligence"
-                        iconName="bulb"
-                        color="#F59E0B"
-                        subtitle="Optimize your menu items"
-                        onPress={() => handleProtectedAction("insight")}
+                    <DashboardMenuItem title={t('daily_sales')} iconName="sunny" color={COLORS.primary} subtitle={t('performance')} onPress={() => handleProtectedAction("daily")} isLocked={isLockedUser || !canAccessSync("Dashboard")} />
+                    <DashboardMenuItem title={t('weekly_sales')} iconName="calendar" color={COLORS.secondary} subtitle={t('trends')} onPress={() => handleProtectedAction("weekly")} isLocked={isLockedUser || !canAccessSync("Dashboard")} />
+                    <DashboardMenuItem title={t('monthly_sales')} iconName="stats-chart" color={COLORS.accent} subtitle={t('growth')} onPress={() => handleProtectedAction("monthly")} isLocked={isLockedUser || !canAccessSync("Dashboard")} />
+                    <DashboardMenuItem title={t('bill_records')} iconName="receipt" color="#6366F1" subtitle={t('invoices')} onPress={() => handleProtectedAction("deepsale")} isLocked={isLockedUser || !canAccessSync("Reports")} />
+                    <DashboardMenuItem 
+                        title="Profit Intelligence" 
+                        iconName="bulb" 
+                        color="#F59E0B" 
+                        subtitle="Optimize your menu items" 
+                        onPress={() => handleProtectedAction("insight")} 
+                        isLocked={isLockedUser || !canAccessSync("AI Intelligence Tools")} 
                     />
                 </View>
             </View>
@@ -338,35 +255,15 @@ const MainDashboardView = () => {
     );
 };
 
+
 const styles = StyleSheet.create({
-    scrollContent: {
-        padding: s(20),
-        paddingTop: vs(10),
-    },
-    sectionTitle: {
-        fontSize: rf(18),
-        fontWeight: '800',
-        color: COLORS.text,
-        marginBottom: vs(15),
-    },
-    summaryContainer: {
-        marginBottom: vs(25),
-    },
-    statsRow: {
-        flexDirection: 'column',
-        gap: vs(12),
-    },
-    analyticsSection: {
-        marginBottom: vs(25),
-    },
-    menuGrid: {
-        gap: vs(12),
-    },
-    loaderContainer: {
-        height: vs(100),
-        justifyContent: 'center',
-        alignItems: 'center',
-    }
+    scrollContent: { padding: s(20), paddingTop: vs(10) },
+    sectionTitle: { fontSize: rf(18), fontWeight: '800', color: COLORS.text, marginBottom: vs(15) },
+    summaryContainer: { marginBottom: vs(25) },
+    statsRow: { flexDirection: 'column', gap: vs(12) },
+    analyticsSection: { marginBottom: vs(25) },
+    menuGrid: { gap: vs(12) },
+    loaderContainer: { height: vs(100), justifyContent: 'center', alignItems: 'center' }
 });
 
 export default MainDashboardView;

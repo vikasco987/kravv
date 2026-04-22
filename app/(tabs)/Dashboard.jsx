@@ -1,14 +1,15 @@
 import React from "react";
 import { SafeAreaView, StyleSheet } from "react-native";
-import MainDashboardView from "../../components/dashboard/MainDashboardView";
+import DashboardAccessWrapper from "../../components/dashboard/DashboardAccessWrapper";
 
 export default function SalesDashboard() {
     return (
         <SafeAreaView style={styles.container}>
-            <MainDashboardView />
+            <DashboardAccessWrapper />
         </SafeAreaView>
     );
 }
+
 
 const styles = StyleSheet.create({
     container: {

@@ -14,14 +14,17 @@ const COLORS = {
     white: '#FFFFFF',
 };
 
-const SalesSummaryCard = ({ label, amount, icon, color }) => (
-    <View style={[styles.summaryCard, { borderLeftColor: color }]}>
+const SalesSummaryCard = ({ label, amount, icon, color, isLocked }) => (
+    <View style={[styles.summaryCard, { borderLeftColor: color, opacity: isLocked ? 0.7 : 1 }]}>
         <View style={[styles.summaryIconContainer, { backgroundColor: color + '15' }]}>
-            <Ionicons name={icon} size={rf(22)} color={color} />
+            <Ionicons name={isLocked ? "lock-closed" : icon} size={rf(22)} color={color} />
         </View>
-        <View>
+        <View style={{ flex: 1 }}>
             <Text style={styles.summaryLabel}>{label}</Text>
-            <Text style={styles.summaryAmount}>₹{amount.toLocaleString('en-IN')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.summaryAmount}>₹{isLocked ? "0" : amount.toLocaleString('en-IN')}</Text>
+                {isLocked && <Ionicons name="lock-closed" size={rf(14)} color={COLORS.textLight} style={{ marginLeft: s(5) }} />}
+            </View>
         </View>
     </View>
 );

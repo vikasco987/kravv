@@ -1,18 +1,19 @@
 import React from "react";
 import { SafeAreaView, StyleSheet } from "react-native";
-import MainMenuView from "../../components/menu/MainMenuView";
+import MenuAccessWrapper from "../../components/menu/MenuAccessWrapper";
 
 export default function MenuScreen() {
     return (
         <SafeAreaView style={styles.container}>
-            <MainMenuView />
+            <MenuAccessWrapper />
         </SafeAreaView>
     );
 }
+
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F9FAFB',
-    },
+    }
 });

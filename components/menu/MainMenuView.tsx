@@ -1,5 +1,4 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
@@ -13,8 +12,7 @@ import {
     StyleSheet,
     Text,
     ToastAndroid,
-    TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
@@ -29,7 +27,6 @@ import { SimpleKOT } from "../common/SimpleKOT";
 // Menu Components
 import VoiceOrder from "../AI intelligence tools/VoiceOrder";
 import NetworkErrorModal from "../common/NetworkErrorModal";
-import { PermissionGuard } from "../common/PermissionGuard";
 import { CartBar } from "./CartBar";
 import { CartItemsModal } from "./CartItemsModal";
 import { CategorySidebar } from "./CategorySidebar";
@@ -43,6 +40,7 @@ import { TableSelectionModal } from "./TableSelectionModal";
 
 // Batched Components
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+import { useStaffPermissions } from "../staff creat/useStaffPermissions";
 import AddItemView from "./AddItemView";
 import CheckoutView from "./CheckoutView";
 import HeldOrdersView from "./HeldOrdersView";
@@ -74,12 +72,13 @@ const COLOR_BG_LIGHT = "#F9FAFB";
 const CATEGORY_COLUMN_WIDTH = s(80);
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const MainMenuView = () => {
+const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     const { getToken } = useAuth();
     const { isLoaded, isSignedIn, user } = useUser();
     const router = useRouter();
-    const params = useLocalSearchParams();
+    const params = useLocalSearchParams<{ staff?: string; login?: string }>();
     const { t } = useLanguage();
+    const { session, canAccessSync } = useStaffPermissions();
 
     const [menus, setMenus] = useState<MenuCategory[]>([]);
     const [loading, setLoading] = useState(true);
@@ -106,12 +105,9 @@ const MainMenuView = () => {
     const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
     const [activeCustomer, setActiveCustomer] = useState<any>(null);
     const [showNetworkError, setShowNetworkError] = useState(false);
-    const [isLoginModalVisible, setIsLoginModalVisible] = React.useState(false);
-    const [authBuffering, setAuthBuffering] = React.useState(false);
-    const [showLockedScreen, setShowLockedScreen] = React.useState(false);
-    const [isStaffSignedIn, setIsStaffSignedIn] = React.useState(false);
+    const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
+    const [authBuffering, setAuthBuffering] = useState(false);
     const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
-    const [hasMenuAccess, setHasMenuAccess] = useState(true);
 
 
     const [currentView, setCurrentView] = useState<"main" | "addItem" | "heldOrders" | "checkout">("main");
@@ -119,13 +115,14 @@ const MainMenuView = () => {
     const isPrinting = useRef(false);
     const flatListRef = useRef<any>(null);
     const isFocused = useIsFocused();
-    const { login } = useLocalSearchParams();
+    const login = params.login;
 
 
 
 
     const addSound = { play: () => { } };
-    const removeSound = { play: () => { } }; const prevSignedIn = useRef(isSignedIn);
+    const removeSound = { play: () => { } };
+    const prevSignedIn = useRef(isSignedIn);
 
     useEffect(() => {
         if (login === 'true') {
@@ -139,21 +136,12 @@ const MainMenuView = () => {
     }, [login]);
 
     useEffect(() => {
-        if (!isFocused) {
-            setShowLockedScreen(false);
-            return;
-        }
+        if (!isFocused) return;
 
-        if (!isSignedIn && !isStaffSignedIn && isLoaded) {
-            if (!authBuffering) {
-                setShowLockedScreen(true);
-            } else {
-                setShowLockedScreen(false);
-            }
-        } else {
-            setShowLockedScreen(false);
+        if (!isSignedIn && !isLoaded && !authBuffering) {
+            // Handled by top level
         }
-    }, [isSignedIn, isLoaded, isFocused, authBuffering, isStaffSignedIn]);
+    }, [isSignedIn, isLoaded, isFocused, authBuffering]);
 
     useFocusEffect(useCallback(() => {
         const checkKOTCheckout = async () => {
@@ -202,11 +190,26 @@ const MainMenuView = () => {
         checkKOTCheckout();
     }, [menus, paymentMethod]));
 
-    const fetchMenus = async (isManualRefresh = false) => {
+    const fetchMenus = useCallback(async (isManualRefresh = false) => {
+        if (isLockedUser) {
+            setMenus([]);
+            setCart({});
+            setHeldCount(0);
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
         try {
             if (!isLoaded) return;
 
-            if (!isSignedIn && !isStaffSignedIn) {
+            // 1. Get Authentication Context
+            const authToken = await getToken();
+            const session = await StaffPermissionEngine.getSession();
+            const finalToken = authToken || session?.token;
+            const bId = activeBusinessId || session?.businessId;
+
+            // Allow if OWNER (has token) OR STAFF (has bId + session)
+            if (!finalToken && !bId) {
                 setMenus([]);
                 setLoading(false);
                 setRefreshing(false);
@@ -227,24 +230,14 @@ const MainMenuView = () => {
                 }
             }
 
-            const authToken = await getToken();
-            const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
-
-            if (!authToken && !bId) {
-                setMenus([]);
-                setLoading(false);
-                setRefreshing(false);
-                return;
-            }
-
             // Fetching logic depends on having either a token or a business ID for staff
             const url = bId ? `https://billing.kravy.in/api/menu/view?businessId=${bId}` : "https://billing.kravy.in/api/menu/view";
 
             const response = await fetch(url, {
-                headers: authToken ? {
-                    Authorization: `Bearer ${authToken}`,
+                headers: {
+                    Authorization: `Bearer ${finalToken}`,
                     "Cache-Control": "no-cache"
-                } : { "Cache-Control": "no-cache" },
+                },
             });
 
             if (!response.ok) {
@@ -301,7 +294,7 @@ const MainMenuView = () => {
             });
 
             const catRes = await fetch("https://billing.kravy.in/api/categories", {
-                headers: { Authorization: `Bearer ${authToken}` },
+                headers: { Authorization: `Bearer ${finalToken}` },
             });
             if (catRes.ok) {
                 const allCats = await catRes.json();
@@ -335,9 +328,9 @@ const MainMenuView = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    };
+    }, [isLoaded, isSignedIn, activeBusinessId, getToken, user?.id, activeOrderId]);
 
-    const fetchSettings = async () => {
+    const fetchSettings = useCallback(async () => {
         try {
             const kot = await AsyncStorage.getItem('kot_enabled');
             const table = await AsyncStorage.getItem('table_booking_enabled');
@@ -346,22 +339,26 @@ const MainMenuView = () => {
         } catch (e) {
             console.error("Error fetching settings:", e);
         }
-    };
+    }, []);
 
-    const fetchHeldCount = async () => {
+    const fetchHeldCount = useCallback(async () => {
         try {
-            if (!isLoaded || !isSignedIn) {
+            if (!isLoaded) return;
+
+            const token = await getToken();
+            const session = await StaffPermissionEngine.getSession();
+            const finalToken = token || session?.token;
+
+            if (!finalToken) {
                 setHeldCount(0);
                 return;
             }
-            const token = await getToken();
-            if (!token) return;
 
             const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
             const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
 
             const res = await fetch("https://billing.kravy.in/api/bill-manager?isHeld=true", {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: { Authorization: `Bearer ${finalToken}` },
             });
 
             let backendValidCount = 0;
@@ -389,52 +386,22 @@ const MainMenuView = () => {
                 setShowNetworkError(true);
             }
         }
-    };
+    }, [isLoaded, isSignedIn, getToken]);
+
 
     useEffect(() => {
-        const { DeviceEventEmitter } = require('react-native');
-        const sub = DeviceEventEmitter.addListener('PERMISSIONS_UPDATED', async () => {
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const isStaff = !!sessionStr;
-            setIsStaffSignedIn(isStaff);
-
-            if (isStaff && !isSignedIn) {
-                const access = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
-                setHasMenuAccess(access);
-                const bId = await StaffPermissionEngine.getActiveBusinessId(undefined);
-                setActiveBusinessId(bId);
-            } else if (isSignedIn) {
-                setHasMenuAccess(true);
-            }
-        });
-        return () => sub.remove();
-    }, [isSignedIn]);
+        fetchMenus();
+        fetchHeldCount();
+        fetchSettings();
+    }, [isLockedUser]);
 
     useFocusEffect(
         useCallback(() => {
             const resetFocus = async () => {
-                // 🔐 RE-CHECK PERMISSIONS ON FOCUS
-                const sessionStr = await AsyncStorage.getItem('staff_session');
-                const isStaff = !!sessionStr;
-                setIsStaffSignedIn(isStaff);
-
-                if (isStaff && !isSignedIn) {
-                    const access = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
-                    setHasMenuAccess(access);
-                    const bId = await StaffPermissionEngine.getActiveBusinessId(undefined);
-                    setActiveBusinessId(bId);
-                } else if (isSignedIn) {
-                    // 💡 PREVIEW MODE: If URL has ?staff=true, show what staff sees
-                    const isStaffPreview = params.staff === 'true';
-
-                    if (isStaffPreview) {
-                        const access = await StaffPermissionEngine.hasCategoryAccess("Menu", false);
-                        setHasMenuAccess(access);
-                    } else {
-                        setHasMenuAccess(true);
-                    }
-
-                    const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+                const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+                
+                // ONLY UPDATE IF CHANGED TO PREVENT LOOP
+                if (bId !== activeBusinessId) {
                     setActiveBusinessId(bId);
                 }
 
@@ -484,7 +451,7 @@ const MainMenuView = () => {
                 } catch (error) { console.error("Error loading resumed cart:", error); }
             };
             checkResumeCart();
-        }, [isLoaded, isSignedIn, isStaffSignedIn, refreshSignal])
+        }, [isLoaded, isSignedIn, params, user?.id, fetchMenus, fetchHeldCount, fetchSettings, refreshSignal])
     );
 
     useEffect(() => {
@@ -680,7 +647,7 @@ const MainMenuView = () => {
             if (itemsToPrint.length === 0) return;
 
             // 1. Print
-            await SimpleKOT(itemsToPrint, token!, bId!, selectedTable);
+            await SimpleKOT(itemsToPrint, finalToken!, bId!, selectedTable);
 
             // 2. Save to KOT Page Locally (AsyncStorage)
             const localOrder = {
@@ -772,44 +739,6 @@ const MainMenuView = () => {
         <View style={styles.center}><ActivityIndicator size="large" color={THEME_PRIMARY} /><Text style={{ marginTop: 10 }}>{t('loading')}</Text></View>
     );
 
-    if (!isSignedIn && !isStaffSignedIn && showLockedScreen) return (
-        <View style={styles.container}>
-            <MenuHeader
-                onAddItem={() => setIsLoginModalVisible(true)}
-                onPauseOrder={() => setIsLoginModalVisible(true)}
-                onViewHeldOrders={() => setIsLoginModalVisible(true)}
-                onVoicePress={() => setIsLoginModalVisible(true)}
-                heldCount={0}
-            />
-            <View style={styles.loginPlaceholder}>
-                <Ionicons name="lock-closed-outline" size={rf(60)} color="#94A3B8" />
-                <Text style={styles.loginTitle}>Menu Locked</Text>
-                <Text style={styles.loginSubtitle}>Please login as Owner to view and manage menu items.</Text>
-                <TouchableOpacity style={styles.loginBtn} onPress={() => router.push("/(auth)/sign-in")}>
-                    <Text style={styles.loginBtnText}>Go to Login</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
-
-
-
-
-    if (!hasMenuAccess && !isSignedIn) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLOR_BG_LIGHT, padding: s(30) }}>
-                <View style={{ backgroundColor: '#FFF7ED', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
-                    <Ionicons name="lock-closed" size={s(40)} color="#F59E0B" />
-                </View>
-                <Text style={{ fontSize: rf(20), fontWeight: '800', color: "#111827", textAlign: 'center' }}>
-                    Menu Restricted
-                </Text>
-                <Text style={{ fontSize: rf(14), color: "#6B7280", textAlign: 'center', marginTop: vs(10), lineHeight: vs(20) }}>
-                    You don't have permission to use the Ordering Menu. Please contact your manager.
-                </Text>
-            </View>
-        );
-    }
 
     if (currentView === "addItem") return <AddItemView onBack={() => setCurrentView("main")} />;
     if (currentView === "heldOrders") return <HeldOrdersView onBack={() => { setCurrentView("main"); fetchHeldCount(); }} />;
@@ -830,15 +759,25 @@ const MainMenuView = () => {
     return (
         <View style={styles.container}>
             <MenuHeader
-                onAddItem={() => {
-                    if (!isSignedIn && !isStaffSignedIn) {
+                onAddItem={async () => {
+                    if (isLockedUser) {
+                        setIsLoginModalVisible(true);
+                        return;
+                    }
+                    const staffSession = await StaffPermissionEngine.getSession();
+                    if (!isSignedIn && !staffSession) {
                         setIsLoginModalVisible(true);
                     } else {
                         setCurrentView("addItem");
                     }
                 }}
-                onPauseOrder={() => {
-                    if (!isSignedIn && !isStaffSignedIn) {
+                onPauseOrder={async () => {
+                    if (isLockedUser) {
+                        setIsLoginModalVisible(true);
+                        return;
+                    }
+                    const staffSession = await StaffPermissionEngine.getSession();
+                    if (!isSignedIn && !staffSession) {
                         setIsLoginModalVisible(true);
                     } else if (Object.keys(cart).length === 0) {
                         ToastAndroid.show(t('no_items'), ToastAndroid.SHORT);
@@ -846,21 +785,35 @@ const MainMenuView = () => {
                         setIsHoldModalVisible(true);
                     }
                 }}
-                onViewHeldOrders={() => {
-                    if (!isSignedIn && !isStaffSignedIn) {
+                onViewHeldOrders={async () => {
+                    if (isLockedUser) {
+                        setIsLoginModalVisible(true);
+                        return;
+                    }
+                    const staffSession = await StaffPermissionEngine.getSession();
+                    if (!isSignedIn && !staffSession) {
                         setIsLoginModalVisible(true);
                     } else {
                         setCurrentView("heldOrders");
                     }
                 }}
-                onVoicePress={() => {
-                    if (!isSignedIn && !isStaffSignedIn) {
+                onVoicePress={async () => {
+                    if (isLockedUser) {
                         setIsLoginModalVisible(true);
+                        return;
+                    }
+                    const staffSession = await StaffPermissionEngine.getSession();
+                    if (!isSignedIn && !staffSession) {
+                        setIsLoginModalVisible(true);
+                    } else if (!canAccessSync("AI Intelligence Tools")) {
+                        // Just returned, visual lock will be handled by prop
+                        return;
                     } else {
                         setIsVoiceModalVisible(true);
                     }
                 }}
                 heldCount={heldCount}
+                isVoiceLocked={!canAccessSync("AI Intelligence Tools")}
             />
 
 
@@ -907,15 +860,13 @@ const MainMenuView = () => {
                                     />
                                 ))}
                                 {!searchQuery && (
-                                    <PermissionGuard requiredPermission="Menu & Items Permissions - Add Menu Items">
-                                        <QuickAddItemCard
-                                            itemWidth={itemWidth}
-                                            onPress={() => {
-                                                setQuickAddCategoryId(cat.id);
-                                                setIsQuickAddModalVisible(true);
-                                            }}
-                                        />
-                                    </PermissionGuard>
+                                    <QuickAddItemCard
+                                        itemWidth={itemWidth}
+                                        onPress={() => {
+                                            setQuickAddCategoryId(cat.id);
+                                            setIsQuickAddModalVisible(true);
+                                        }}
+                                    />
                                 )}
                             </View>
                         </View>

@@ -40,7 +40,7 @@ const LOCAL_COLORS = {
     textLight: '#6B7280',
 };
 
-const MainSettingsView = () => {
+const MainSettingsView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     const { user, isLoaded } = useUser();
     const router = useRouter();
     const { language: currentLanguage, setLanguage: setCurrentLanguage, t } = useLanguage();
@@ -70,6 +70,11 @@ const MainSettingsView = () => {
     React.useEffect(() => { 
         loadSettings(); 
         const checkStaff = async () => {
+            if (isLockedUser) {
+                setHasSettingsAccess(true);
+                setIsStaffSignedIn(false);
+                return;
+            }
             if (user) {
                 setHasSettingsAccess(true);
                 setIsStaffSignedIn(false);
@@ -86,9 +91,25 @@ const MainSettingsView = () => {
             }
         };
         checkStaff();
-    }, []);
+    }, [isLockedUser, user]);
+
+    React.useEffect(() => {
+        loadSettings();
+    }, [isLockedUser]);
 
     const loadSettings = async () => {
+        if (isLockedUser) {
+            setTaxEnabled(false);
+            setPerProductTax(false);
+            setTaxRate("0.00");
+            setDiscountEnabled(false);
+            setDiscountRate("0.00");
+            setServiceChargeEnabled(false);
+            setServiceChargeRate("0.00");
+            setKotEnabled(false);
+            setTableBookingEnabled(false);
+            return;
+        }
         try {
             const settings = await AsyncStorage.multiGet([
                 'tax_enabled', 'per_product_tax', 'tax_rate',
@@ -129,7 +150,7 @@ const MainSettingsView = () => {
 
     if (currentView === "profile") return <CompanyInfoView onBack={() => setCurrentView("main")} />;
 
-    const effectiveUser = user || (isStaffSignedIn ? { id: 'staff_user', firstName: 'Staff' } : null);
+    const effectiveUser = isLockedUser ? null : (user || (isStaffSignedIn ? { id: 'staff_user', firstName: 'Staff' } : null));
 
     if (!hasSettingsAccess && !user) {
         return (

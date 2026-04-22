@@ -1,6 +1,4 @@
-import { useUser } from '@clerk/clerk-expo';
-import React, { useEffect, useState } from 'react';
-import { StaffPermissionEngine } from '../staff creat/StaffPermissionEngine';
+import React from 'react';
 
 interface PermissionGuardProps {
   children: React.ReactNode;
@@ -8,24 +6,15 @@ interface PermissionGuardProps {
   fallback?: React.ReactNode;
 }
 
+/**
+ * PermissionGuard
+ * Logic removed by user request for re-implementation.
+ * Currently allows all children to be rendered.
+ */
 export const PermissionGuard = ({
   children,
   requiredPermission,
   fallback = null
 }: PermissionGuardProps) => {
-  const { isSignedIn, isLoaded } = useUser();
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    const check = async () => {
-      if (!isLoaded) return;
-      const allowed = await StaffPermissionEngine.hasAccess(requiredPermission, !!isSignedIn);
-      setHasPermission(allowed);
-    };
-    check();
-  }, [isSignedIn, isLoaded, requiredPermission]);
-
-  if (hasPermission === null) return null;
-
-  return hasPermission ? <>{children}</> : <>{fallback}</>;
+  return <>{children}</>;
 };

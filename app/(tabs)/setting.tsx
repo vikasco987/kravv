@@ -1,14 +1,15 @@
 import React from "react";
 import { SafeAreaView, StyleSheet } from "react-native";
-import MainSettingsView from "../../components/settings/MainSettingsView";
+import SettingAccessWrapper from "../../components/settings/SettingAccessWrapper";
 
 export default function SettingScreen() {
     return (
         <SafeAreaView style={styles.container}>
-            <MainSettingsView />
+            <SettingAccessWrapper />
         </SafeAreaView>
     );
 }
+
 
 const styles = StyleSheet.create({
     container: {

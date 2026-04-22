@@ -21,15 +21,13 @@ import { rf, s, vs } from "../../utils/responsive";
 
 // Components
 import CustomerHistory from "../AI intelligence tools/CustomerHistory";
+import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import NetworkErrorModal from "../common/NetworkErrorModal";
-import { PermissionGuard } from "../common/PermissionGuard";
 import AddPartyView from "../menu/AddPartyView";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import ClientHeader from "./ClientHeader";
 import CustomerDetailsModal from "./CustomerDetailsModal";
 import PartyListItem from "./PartyListItem";
-
-
 
 const THEME_PRIMARY = "#4F46E5";
 const COLOR_BG_LIGHT = "#F5F5F5";
@@ -44,13 +42,12 @@ type Party = {
     isFavorite?: boolean;
 };
 
-const MainClientView = () => {
+const MainClientView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     const { getToken } = useAuth();
     const { isLoaded, isSignedIn, user } = useUser();
     const router = useRouter();
     const { t } = useLanguage();
     const { refreshSignal } = useRefresh();
-
     
     const [parties, setParties] = useState<Party[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
@@ -63,26 +60,7 @@ const MainClientView = () => {
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [allBills, setAllBills] = useState([]);
     const [showNetworkError, setShowNetworkError] = useState(false);
-    const [isStaffSignedIn, setIsStaffSignedIn] = useState(false);
-    const [hasClientAccess, setHasClientAccess] = useState(true);
-
-    useEffect(() => {
-        const checkAccess = async () => {
-            if (isSignedIn) return; // Owner always has access
-
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const isStaff = !!sessionStr;
-            setIsStaffSignedIn(isStaff);
-
-            if (isStaff) {
-                const access = await StaffPermissionEngine.hasCategoryAccess("Client", false);
-                setHasClientAccess(access);
-            } else {
-                setHasClientAccess(true); // Guest
-            }
-        };
-        checkAccess();
-    }, [isSignedIn]);
+    const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
 
     // Settings states
     const [taxEnabled, setTaxEnabled] = useState(false);
@@ -116,7 +94,14 @@ const MainClientView = () => {
     };
 
     const fetchParties = async (silent = false) => {
-        if (!isLoaded || (!isSignedIn && !isStaffSignedIn)) {
+        if (isLockedUser) {
+            setParties([]);
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
+        const sessionStr = await AsyncStorage.getItem('staff_session');
+        if (!isLoaded || (!isSignedIn && !sessionStr)) {
             setParties([]);
             setLoading(false);
             setRefreshing(false);
@@ -151,6 +136,10 @@ const MainClientView = () => {
     };
 
     const fetchBills = async () => {
+        if (isLockedUser) {
+            setAllBills([]);
+            return;
+        }
         try {
             const token = await getToken();
             const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? user?.id : undefined);
@@ -180,8 +169,13 @@ const MainClientView = () => {
             loadSettings();
             fetchParties(true);
             fetchBills();
-        }, [isLoaded, isSignedIn, isStaffSignedIn, user])
+        }, [isLoaded, isSignedIn, user])
     );
+
+    useEffect(() => {
+        fetchParties();
+        fetchBills();
+    }, [isLockedUser]);
 
     useEffect(() => {
         if (refreshSignal > 0) {
@@ -191,12 +185,15 @@ const MainClientView = () => {
     }, [refreshSignal]);
 
     const handleSelectAccount = async (party: Party) => {
+        if (isLockedUser) {
+            setIsLoginModalVisible(true);
+            return;
+        }
         const pId = party.id || (party as any)._id;
         setSelectedParty(party);
         setShowDetailsModal(true);
         fetchBills();
 
-        // --- NEW: Fetch full details to ensure we have the address ---
         try {
             const token = await getToken();
             const res = await fetch(`https://billing.kravy.in/api/parties/${pId}`, {
@@ -204,9 +201,7 @@ const MainClientView = () => {
             });
             if (res.ok) {
                 const data = await res.json();
-                if (data.party) {
-                    setSelectedParty(data.party);
-                }
+                if (data.party) setSelectedParty(data.party);
             }
         } catch (e) {
             console.log("Error fetching party profile:", e);
@@ -314,21 +309,18 @@ const MainClientView = () => {
         p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || p.phone.includes(searchTerm)
     );
 
-    if (!hasClientAccess && !isSignedIn) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLOR_BG_LIGHT, padding: s(30) }}>
-                <View style={{ backgroundColor: '#FEF3C7', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
-                    <Ionicons name="lock-closed" size={s(40)} color="#D97706" />
-                </View>
-                <Text style={{ fontSize: rf(20), fontWeight: '800', color: "#111827", textAlign: 'center' }}>
-                    Customer Data Restricted
-                </Text>
-                <Text style={{ fontSize: rf(14), color: "#6B7280", textAlign: 'center', marginTop: vs(10), lineHeight: vs(20) }}>
-                    You don't have permission to view Customer and Party details. Please contact your administrator.
-                </Text>
-            </View>
-        );
-    }
+    const handleAddParty = async () => {
+        if (isLockedUser) {
+            setIsLoginModalVisible(true);
+            return;
+        }
+        const sessionStr = await AsyncStorage.getItem('staff_session');
+        if (!isSignedIn && !sessionStr) {
+            setIsLoginModalVisible(true);
+            return;
+        }
+        setShowAddPartyForm(true);
+    };
 
     return (
         <View style={styles.container}>
@@ -368,16 +360,13 @@ const MainClientView = () => {
                 <View style={styles.emptyContainer}><Ionicons name="folder-open-outline" size={rf(64)} color="#D1D5DB" /><Text style={styles.emptyText}>Categories feature coming soon...</Text></View>
             )}
 
-            <PermissionGuard requiredPermission="Customer Permissions - Add New Customer">
-                <TouchableOpacity style={styles.fab} onPress={() => setShowAddPartyForm(true)}>
-                    <Feather name="plus-circle" size={rf(22)} color="#fff" />
-                    <Text style={styles.fabText}>{t('add_customer')}</Text>
-                </TouchableOpacity>
-            </PermissionGuard>
+            <TouchableOpacity style={styles.fab} onPress={handleAddParty}>
+                <Feather name="plus-circle" size={rf(22)} color="#fff" />
+                <Text style={styles.fabText}>{t('add_customer')}</Text>
+            </TouchableOpacity>
 
             <Modal visible={showAddPartyForm} animationType="slide" transparent={false} onRequestClose={() => setShowAddPartyForm(false)}>
                 <AddPartyView onSuccess={() => { setShowAddPartyForm(false); fetchParties(); }} onBack={() => setShowAddPartyForm(false)} />
-
             </Modal>
 
             <CustomerDetailsModal
@@ -397,6 +386,15 @@ const MainClientView = () => {
             />
 
             <NetworkErrorModal visible={showNetworkError} onClose={() => setShowNetworkError(false)} />
+
+            <LoginRequiredModal
+                visible={isLoginModalVisible}
+                onClose={() => setIsLoginModalVisible(false)}
+                onSignIn={() => {
+                    setIsLoginModalVisible(false);
+                    router.push("/(auth)/sign-in");
+                }}
+            />
         </View>
     );
 };

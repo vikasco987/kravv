@@ -1,10 +1,207 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// import AsyncStorage from '@react-native-async-storage/async-storage';
 
-/**
- * StaffPermissionEngine
- * All logic for checking staff access is centralized here.
- * This ensures no 1% change happens in existing business logic.
- */
+// /**
+//  * StaffPermissionEngine
+//  * Centralized logic for checking staff access. (Logic removed by user request for re-implementation)
+//  */
+
+// export interface StaffSession {
+//   id: string;
+//   name: string;
+//   email: string;
+//   accessType: string;
+//   permissions: string[];
+//   businessId: string;
+//   token: string;
+// }
+
+// export const StaffPermissionEngine = {
+
+//   /**
+//    * Fetches the current staff session from storage.
+//    */
+//   async getSession(): Promise<StaffSession | null> {
+//     try {
+//       const sessionStr = await AsyncStorage.getItem('staff_session');
+//       return sessionStr ? JSON.parse(sessionStr) : null;
+//     } catch {
+//       return null;
+//     }
+//   },
+
+//   /**
+//    * Simplified Access Check (Bypassed for re-implementation)
+//    */
+//   async hasAccess(requiredPermission: string, isOwner: boolean): Promise<boolean> {
+//     if (isOwner) return true;
+//     const session = await this.getSession();
+//     return session ? session.permissions.includes(requiredPermission) : false;
+//   },
+
+//   /**
+//    * Simplified Category Check (Bypassed for re-implementation)
+//    */
+//   async hasCategoryAccess(category: string, isOwner: boolean): Promise<boolean> {
+//     if (isOwner) return true;
+//     const session = await this.getSession();
+//     if (!session) return false;
+//     return session.permissions.some(p => p.toLowerCase().includes(category.toLowerCase()));
+//   },
+
+//   /**
+//    * Returns the Business ID for data fetching.
+//    */
+//   async getActiveBusinessId(clerkUserId: string | undefined): Promise<string | null> {
+//     if (clerkUserId) return null;
+//     try {
+//       const session = await this.getSession();
+//       return session ? session.businessId : null;
+//     } catch {
+//       return null;
+//     }
+//   }
+// };
+
+
+
+
+
+
+
+// import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// export interface StaffSession {
+//   id: string;
+//   name: string;
+//   email: string;
+//   accessType: string;
+//   permissions: string[];
+//   businessId: string;
+//   token: string;
+// }
+
+// export const StaffPermissionEngine = {
+
+//   async getSession(): Promise<StaffSession | null> {
+//     try {
+//       const sessionStr = await AsyncStorage.getItem('staff_session');
+//       return sessionStr ? JSON.parse(sessionStr) : null;
+//     } catch {
+//       return null;
+//     }
+//   },
+
+//   // ✅ FINAL ACCESS CHECK
+//   async hasAccess(requiredPermission: string): Promise<boolean> {
+//     try {
+//       const sessionStr = await AsyncStorage.getItem('staff_session');
+
+//       // Owner → full access
+//       if (!sessionStr) return true;
+
+//       const session: StaffSession = JSON.parse(sessionStr);
+
+//       if (!session?.permissions) return false;
+
+//       const permissions = session.permissions.map((p: string) =>
+//         p.toLowerCase().trim()
+//       );
+
+//       return permissions.includes(requiredPermission.toLowerCase().trim());
+
+//     } catch {
+//       return false;
+//     }
+//   },
+
+//   async getActiveBusinessId(clerkUserId: string | undefined): Promise<string | null> {
+//     if (clerkUserId) return null;
+//     try {
+//       const session = await this.getSession();
+//       return session ? session.businessId : null;
+//     } catch {
+//       return null;
+//     }
+//   }
+// };
+
+
+
+
+
+
+// // hooks/useStaffPermissions.ts
+
+// import AsyncStorage from "@react-native-async-storage/async-storage";
+// import { useEffect, useState } from "react";
+
+// type StaffSession = {
+//   permissions: string[];
+//   businessId: string;
+// };
+
+// export const useStaffPermissions = () => {
+//   const [session, setSession] = useState<StaffSession | null>(null);
+//   const [loading, setLoading] = useState(true);
+//   const [isOwner, setIsOwner] = useState(true);
+
+//   useEffect(() => {
+//     const loadSession = async () => {
+//       try {
+//         const data = await AsyncStorage.getItem("staff_session");
+
+//         if (data) {
+//           const parsed = JSON.parse(data);
+//           setSession(parsed);
+//           setIsOwner(false);
+//         } else {
+//           setSession(null);
+//           setIsOwner(true);
+//         }
+//       } catch (e) {
+//         setSession(null);
+//         setIsOwner(true);
+//       } finally {
+//         setLoading(false);
+//       }
+//     };
+
+//     loadSession();
+//   }, []);
+
+//   // ✅ CATEGORY ACCESS
+//   const canAccessCategory = (category: string) => {
+//     if (isOwner) return true;
+//     if (!session) return false;
+
+//     return session.permissions.some((p) =>
+//       p.toLowerCase().includes(category.toLowerCase())
+//     );
+//   };
+
+//   // ✅ GENERAL PERMISSION
+//   const canAccess = (permission: string) => {
+//     if (isOwner) return true;
+//     if (!session) return false;
+
+//     return session.permissions.includes(permission);
+//   };
+
+//   return {
+//     loading,
+//     isOwner,
+//     canAccess,
+//     canAccessCategory,
+//     businessId: session?.businessId || null,
+//   };
+// };
+
+
+
+
+
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface StaffSession {
   id: string;
@@ -17,113 +214,132 @@ export interface StaffSession {
 }
 
 export const StaffPermissionEngine = {
-  /**
-   * Features that are EXCLUSIVELY for the Owner and cannot be accessed by any staff.
-   */
-  ONLY_OWNER_FEATURES: ["Manage Staff", "Business Profile"],
 
-  /**
-   * Main function to verify if the current user has access.
-   */
-  async hasAccess(requiredPermission: string, isOwnerSignedIn: boolean): Promise<boolean> {
-    // Rule 1: Owners have 100% access to everything.
-    if (isOwnerSignedIn) return true;
-
-    // Rule 2: Strict Block for Owner-Only features
-    const isRestricted = this.ONLY_OWNER_FEATURES.some(feat =>
-      requiredPermission.includes(feat) || feat.includes(requiredPermission)
-    );
-    if (isRestricted) return false;
-
-    // Rule 3: Check for Staff Session
+  async getSession(): Promise<StaffSession | null> {
     try {
       const sessionStr = await AsyncStorage.getItem('staff_session');
-      if (!sessionStr) return false;
+      if (!sessionStr) return null;
 
-      const session: StaffSession = JSON.parse(sessionStr);
-
-      // Rule 3: Admin/Full Access has full control
-      if (session.accessType === "Admin" || session.accessType === "Full Access") return true;
-
-      // Rule 4: Smart Matching
-      // Often, the app might call with "Category - Permission" (e.g., "Menu - Add Menu Items")
-      // We check for exact match OR if the staff's permission is a part of the required string.
-      const staffPerms = session.permissions || [];
-
-      const hasDirectAccess = staffPerms.includes(requiredPermission);
-      if (hasDirectAccess) return true;
-
-      // Fallback: Check if any of the staff's permissions match the end of the required string
-      // Example: "Add Menu Items" should match "Menu & Items Permissions - Add Menu Items"
-      const hasSmartAccess = staffPerms.some(p => requiredPermission.includes(p));
-
-      return hasSmartAccess;
-    } catch (e) {
-      console.error("Permission check failed:", e);
-      return false;
-    }
-  },
-
-  /**
-   * Checks if a user has access to a WHOLE FOLDER/CATEGORY.
-   * Useful for hiding entire tabs or sidebar items.
-   */
-  async hasCategoryAccess(categoryTitle: string, isOwnerSignedIn: boolean): Promise<boolean> {
-    if (isOwnerSignedIn) return true;
-
-    try {
-      const sessionStr = await AsyncStorage.getItem('staff_session');
-      if (!sessionStr) return false;
-
-      const session: StaffSession = JSON.parse(sessionStr);
-
-      // Rule: Admin/Full Access has full control
-      if (session.accessType === "Admin" || session.accessType === "Full Access") return true;
-
-      const staffPerms = session.permissions || [];
-
-      // Mapping of Tab Names to Permission Keywords
-      const mapping: Record<string, string[]> = {
-        "Dashboard": ["Today Sales", "Weekly Sales", "Monthly Sales", "Analytics", "Dashboard"],
-        "Menu": ["Menu", "Add Menu Items", "Edit Menu Items", "QR Codes", "Items", "Menu & Items"],
-        "Orders": ["Bill Records", "Reprint", "Delete Bill", "Invoices", "Live Orders", "Tables", "Order", "Billing", "Receipts"],
-        "Client": ["Customer", "Parties", "Ledger", "Client", "History"],
-        "Intelligence": ["Profit Engine", "Voice Command", "AI Tools", "Intelligence"],
-        "Reports": ["Daily Sales Report", "Weekly Sales Report", "Monthly Sales Report", "Records", "Report"],
-        "Settings": ["App General Settings", "Printer", "PIN", "Staff", "Settings"]
-      };
-
-      const keywords = mapping[categoryTitle];
-      if (!keywords) return false;
-
-      // If staff has ANY of the permissions in this category, show the tab.
-      return staffPerms.some(sp =>
-        keywords.some(kw => sp.includes(kw) || kw.includes(sp))
-      );
-    } catch (e) {
-      return false;
-    }
-  },
-
-  /**
-   * Returns the ID that should be used for data fetching (Bills, Tables, etc.)
-   * For the Owner, we return null to ensure they use their standard API endpoints.
-   * For Staff, we return the businessId from their session.
-   */
-  async getActiveBusinessId(clerkUserId: string | undefined): Promise<string | null> {
-    // Rule: If an owner is signed in (via Clerk), we return null.
-    // This prevents adding unnecessary/problematic 'businessId' query params for the owner.
-    if (clerkUserId) return null;
-
-    // Rule: For Staff members, we return their associated businessId.
-    try {
-      const sessionStr = await AsyncStorage.getItem('staff_session');
-      if (sessionStr) {
-        const session: StaffSession = JSON.parse(sessionStr);
-        return session.businessId;
+      try {
+        const parsed = JSON.parse(sessionStr);
+        return parsed;
+      } catch (parseError) {
+        return null;
       }
-    } catch (e) { }
+    } catch (err) {
+      return null;
+    }
+  },
 
-    return null;
+  /**
+   * Generates a unique access token for terminal logging
+   */
+  generateAccessToken(permission: string, status: 'GRANTED' | 'DENIED', userType: 'OWNER' | 'STAFF'): string {
+    const timestamp = new Date().getTime();
+    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    return `[TOKEN-${userType}-${status}]_${permission.toUpperCase()}_${timestamp}_${random}`;
+  },
+
+  // ✅ MAIN CHECK (OWNER + STAFF) WITH EXTREME DEBUG LOGGING
+  async hasPermission(permission: string, isOwner: boolean): Promise<boolean> {
+    let status: 'GRANTED' | 'DENIED' = 'DENIED';
+    let userType: 'OWNER' | 'STAFF' = isOwner ? 'OWNER' : 'STAFF';
+
+    // Owner check
+    if (isOwner) {
+      status = 'GRANTED';
+      const token = this.generateAccessToken(permission, status, userType);
+      console.log(`[AUTH-SYSTEM] OWNER ACCESS: ${permission} -> GRANTED`);
+      return true;
+    }
+
+    const session = await this.getSession();
+
+    // If no session found
+    if (!session) {
+      console.log(`[AUTH-SYSTEM] SESSION ERROR: No staff session found in storage.`);
+      status = 'DENIED';
+      console.log(`[TOKEN-STAFF-DENIED]_${permission.toUpperCase()}`);
+      return false;
+    }
+
+    // DEBUGGING - See exactly what we have
+    const rawPerms = session.permissions || [];
+    const accessType = session.accessType || "None";
+
+    console.log("---------------- STAFF AUTH DEBUG ----------------");
+    console.log(`CHECKING FOR : "${permission}"`);
+    console.log(`STAFF NAME   : ${session.name}`);
+    console.log(`ACCESS TYPE  : ${accessType}`);
+    console.log(`ALL PERMS    :`, JSON.stringify(rawPerms));
+    console.log("--------------------------------------------------");
+
+    // 1. FULL ACCESS BYPASS
+    if (accessType === "Full Access") {
+      console.log(`[AUTH-SYSTEM] SUCCESS: Full Access granted to ${session.name}`);
+      status = 'GRANTED';
+      console.log(`[TOKEN-STAFF-GRANTED]_${permission.toUpperCase()}`);
+      return true;
+    }
+
+    // 2. PERMISSION MATCHING LOGIC
+    const searchTerm = permission.toLowerCase().trim();
+    // Handle common naming variations (Order/Orders, Setting/Settings, Report/Reports)
+    const variations = [
+      searchTerm,
+      searchTerm.endsWith('s') ? searchTerm.slice(0, -1) : searchTerm,
+      searchTerm.endsWith('s') ? searchTerm : searchTerm + 's',
+      // Manual overrides for common groups
+      searchTerm === 'order' ? 'billing' : '',
+      searchTerm === 'billing' ? 'order' : '',
+      searchTerm === 'reports' ? 'report' : '',
+      searchTerm === 'customer' ? 'client' : '',
+      searchTerm === 'client' ? 'customer' : '',
+    ].filter(v => v !== '');
+
+    const hasAccess = Array.isArray(rawPerms) && rawPerms.some(p => {
+      if (typeof p !== 'string') return false;
+      const pLower = p.toLowerCase().trim();
+
+      // 1. Precise or Partial Match on variations
+      if (variations.some(v => pLower === v || pLower.includes(v))) return true;
+
+      // 2. Robust Alphanumeric Normalization
+      const normalizedP = pLower.replace(/[^a-z0-9]/g, '');
+      return variations.some(v => {
+        const normalizedV = v.replace(/[^a-z0-9]/g, '');
+        return normalizedP.includes(normalizedV);
+      });
+    });
+
+    status = hasAccess ? 'GRANTED' : 'DENIED';
+
+    if (hasAccess) {
+      console.log(`[AUTH-SYSTEM] GRANTED: Staff has permission for ${permission}`);
+    } else {
+      console.log(`[AUTH-SYSTEM] DENIED: Staff MISSING permission for ${permission}`);
+    }
+
+    console.log(`[TOKEN-STAFF-${status}]_${permission.toUpperCase()}`);
+    return hasAccess;
+  },
+
+
+  // ✅ FOR BACKWARD COMPATIBILITY
+  async hasCategoryAccess(category: string, isOwner: boolean): Promise<boolean> {
+    return await this.hasPermission(category, isOwner);
+  },
+
+  // ✅ BUSINESS ID (IMPORTANT FOR STAFF DATA)
+
+  async getActiveBusinessId(clerkUserId?: string): Promise<string | null> {
+    if (clerkUserId) return null; // owner case
+
+    try {
+      const session = await this.getSession();
+      return session?.businessId || null;
+    } catch {
+      return null;
+    }
   }
 };

@@ -12,6 +12,7 @@ interface MenuHeaderProps {
     onViewHeldOrders: () => void;
     onVoicePress: () => void;
     heldCount: number;
+    isVoiceLocked?: boolean;
 }
 
 import { PermissionGuard } from "../common/PermissionGuard";
@@ -22,16 +23,18 @@ export const MenuHeader: React.FC<MenuHeaderProps> = ({
     onViewHeldOrders,
     onVoicePress,
     heldCount,
+    isVoiceLocked = false,
 }) => {
     return (
         <View style={styles.integratedHeaderBar}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
                 <Text style={styles.headerTitle}>Menu</Text>
                 <TouchableOpacity
-                    style={styles.voiceTrigger}
+                    style={[styles.voiceTrigger, isVoiceLocked && { opacity: 0.6 }]}
                     onPress={onVoicePress}
+                    activeOpacity={isVoiceLocked ? 1 : 0.7}
                 >
-                    <Ionicons name="mic" size={rf(18)} color={THEME_PRIMARY} />
+                    <Ionicons name={isVoiceLocked ? "lock-closed" : "mic"} size={rf(18)} color={isVoiceLocked ? "#EF4444" : THEME_PRIMARY} />
                 </TouchableOpacity>
             </View>
 

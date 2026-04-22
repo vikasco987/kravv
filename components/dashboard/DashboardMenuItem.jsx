@@ -13,9 +13,9 @@ const COLORS = {
     white: '#FFFFFF',
 };
 
-const DashboardMenuItem = ({ title, iconName, path, router, color, subtitle, onPress }) => (
+const DashboardMenuItem = ({ title, iconName, path, router, color, subtitle, onPress, isLocked }) => (
     <TouchableOpacity
-        style={styles.menuItem}
+        style={[styles.menuItem, { opacity: isLocked ? 0.8 : 1 }]}
         onPress={onPress}
     >
         <View style={[styles.menuIconContainer, { backgroundColor: color + '10' }]}>
@@ -25,7 +25,7 @@ const DashboardMenuItem = ({ title, iconName, path, router, color, subtitle, onP
             <Text style={styles.menuTitle}>{title}</Text>
             <Text style={styles.menuSubtitle}>{subtitle}</Text>
         </View>
-        <Feather name="chevron-right" size={rf(20)} color="#CBD5E1" />
+        <Ionicons name={isLocked ? "lock-closed" : "chevron-forward"} size={rf(20)} color={isLocked ? "#EF4444" : "#CBD5E1"} />
     </TouchableOpacity>
 );
 

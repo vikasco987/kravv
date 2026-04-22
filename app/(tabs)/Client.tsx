@@ -1,14 +1,15 @@
 import React from "react";
 import { SafeAreaView, StyleSheet } from "react-native";
-import MainClientView from "../../components/client/MainClientView";
+import ClientAccessWrapper from "../../components/client/ClientAccessWrapper";
 
 export default function CustomersScreen() {
     return (
         <SafeAreaView style={styles.container}>
-            <MainClientView />
+            <ClientAccessWrapper />
         </SafeAreaView>
     );
 }
+
 
 const styles = StyleSheet.create({
     container: {

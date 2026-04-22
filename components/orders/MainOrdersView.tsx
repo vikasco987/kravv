@@ -1,6 +1,7 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -12,19 +13,15 @@ import {
     View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
-import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 import TableRotation from "../table-insights/TableRotation";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
-
 
 // --- Orders Components ---
+import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import CreateTableModal from "./CreateTableModal";
 import OrderHeader from "./OrderHeader";
 import TableCard from "./TableCard";
 import TableOrdersView from "./TableOrdersView";
-
 
 const THEME_PRIMARY = "#4F46E5";
 
@@ -34,44 +31,47 @@ interface Table {
     orderCount?: number;
 }
 
-const MainOrdersView = () => {
+const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     const { getToken } = useAuth();
     const { isSignedIn, user } = useUser();
-    const router = useRouter();
-    const params = useLocalSearchParams();
     const { t } = useLanguage();
-    const { refreshSignal } = useRefresh();
+    const router = useRouter();
     const [tables, setTables] = useState<Table[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [isCreateTableVisible, setIsCreateTableVisible] = useState(false);
+    const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
     const [newTableName, setNewTableName] = useState("");
     const [allOrders, setAllOrders] = useState<any[]>([]);
     const [rotationVisible, setRotationVisible] = useState(false);
     const [selectedTableData, setSelectedTableData] = useState<any>(null);
     const [currentView, setCurrentView] = useState<"main" | "tableOrders">("main");
     const [selectedTable, setSelectedTable] = useState<Table | null>(null);
-    const [hasOrdersAccess, setHasOrdersAccess] = useState(true);
-
-
 
     const fetchInProgress = React.useRef(false);
 
+    const getTokenRef = React.useRef(getToken);
+    const isLockedRef = React.useRef(isLockedUser);
+
+    useEffect(() => {
+        getTokenRef.current = getToken;
+        isLockedRef.current = isLockedUser;
+    });
+
     const fetchTables = useCallback(async () => {
         if (fetchInProgress.current) return;
+        const currentLock = isLockedRef.current;
+        if (currentLock) {
+            setTables([]); // Clear tables on logout/lock
+            setAllOrders([]); // Clear orders on logout/lock
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
 
         try {
             fetchInProgress.current = true;
-            const token = await getToken();
-
-            // Load from cache first if we have nothing yet
-            if (tables.length === 0) {
-                const cachedTables = await AsyncStorage.getItem('@cached_tables');
-                if (cachedTables) {
-                    setTables(JSON.parse(cachedTables));
-                    setLoading(false);
-                }
-            }
+            const token = await getTokenRef.current();
 
             const response = await fetch(`https://billing.kravy.in/api/tables?t=${Date.now()}`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -93,32 +93,25 @@ const MainOrdersView = () => {
                         if (oContentType && oContentType.includes("application/json")) {
                             const oData = await ordersResponse.json();
                             currentOrders = Array.isArray(oData) ? oData : (oData.orders || []);
-                            setAllOrders(currentOrders);
+                            setAllOrders(prev => JSON.stringify(prev) === JSON.stringify(currentOrders) ? prev : currentOrders);
                         }
                     }
 
                     const normalizedTables = tablesArray.map((t: any) => {
                         const tId = t.id || t._id || "";
                         const activeOrdersForTable = currentOrders.filter((o: any) => {
-                            const oTableId = String(o.tableId ||
-                                (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) ||
-                                "");
+                            const oTableId = String(o.tableId || (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || "");
                             return oTableId === String(tId);
                         });
 
-                        return {
-                            ...t,
-                            id: tId || Math.random().toString(),
-                            orderCount: activeOrdersForTable.length
-                        };
+                        return { ...t, id: tId || Math.random().toString(), orderCount: activeOrdersForTable.length };
                     });
 
-                    setTables(normalizedTables);
+                    setTables(prev => JSON.stringify(prev) === JSON.stringify(normalizedTables) ? prev : normalizedTables);
                     await AsyncStorage.setItem('@cached_tables', JSON.stringify(normalizedTables));
                 }
             }
         } catch (error) {
-            console.log("Offline mode: Fetching from cache");
             const cachedTables = await AsyncStorage.getItem('@cached_tables');
             if (cachedTables) setTables(JSON.parse(cachedTables));
         } finally {
@@ -126,7 +119,20 @@ const MainOrdersView = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [getToken, tables.length]);
+    }, []);
+
+    useEffect(() => {
+        const loadCache = async () => {
+            if (!isLockedUser && tables.length === 0) {
+                const cachedTables = await AsyncStorage.getItem('@cached_tables');
+                if (cachedTables) {
+                    setTables(JSON.parse(cachedTables));
+                    setLoading(false);
+                }
+            }
+        };
+        loadCache();
+    }, [isLockedUser]);
 
     const createTable = async () => {
         if (!newTableName.trim()) return;
@@ -134,10 +140,7 @@ const MainOrdersView = () => {
             const token = await getToken();
             const response = await fetch("https://billing.kravy.in/api/tables", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ name: newTableName }),
             });
             if (response.ok) {
@@ -151,51 +154,13 @@ const MainOrdersView = () => {
     };
 
     useEffect(() => {
-        const { DeviceEventEmitter } = require('react-native');
-        const checkAccess = async () => {
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const isStaff = !!sessionStr;
-
-            if (isStaff && !isSignedIn) {
-                const access = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
-                setHasOrdersAccess(access);
-            } else if (isSignedIn) {
-                const isStaffPreview = params.staff === 'true';
-                if (isStaffPreview) {
-                    const access = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
-                    setHasOrdersAccess(access);
-                } else {
-                    setHasOrdersAccess(true);
-                }
-            }
-        };
-        checkAccess();
-
-        const sub = DeviceEventEmitter.addListener('PERMISSIONS_UPDATED', checkAccess);
-        return () => sub.remove();
-    }, [isSignedIn, params.staff]);
+        fetchTables();
+    }, [isLockedUser]);
 
     useFocusEffect(
         useCallback(() => {
-            const recheck = async () => {
-                const sessionStr = await AsyncStorage.getItem('staff_session');
-                const isStaff = !!sessionStr;
-                if (isStaff && !isSignedIn) {
-                    const access = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
-                    setHasOrdersAccess(access);
-                } else if (isSignedIn) {
-                    const isStaffPreview = params.staff === 'true';
-                    if (isStaffPreview) {
-                        const access = await StaffPermissionEngine.hasCategoryAccess("Orders", false);
-                        setHasOrdersAccess(access);
-                    } else {
-                        setHasOrdersAccess(true);
-                    }
-                }
-            };
-            recheck();
             fetchTables();
-        }, [fetchTables, isSignedIn, params.staff])
+        }, [fetchTables])
     );
 
     useEffect(() => {
@@ -203,48 +168,34 @@ const MainOrdersView = () => {
         return () => clearInterval(interval);
     }, [fetchTables]);
 
-
     const onRefresh = () => {
         setRefreshing(true);
         fetchTables();
     };
 
     const navigateToTable = (item: Table) => {
+        if (isLockedUser) {
+            setIsLoginModalVisible(true);
+            return;
+        }
         setSelectedTable(item);
         setCurrentView("tableOrders");
     };
 
-
     const showTableInsights = (item: Table) => {
+        if (isLockedUser) {
+            setIsLoginModalVisible(true);
+            return;
+        }
         const tableOrders = allOrders.filter((o: any) => {
-            const oTableId = String(o.tableId ||
-                (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) ||
-                "");
+            const oTableId = String(o.tableId || (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || "");
             return oTableId === String(item.id);
         });
         setSelectedTableData({ name: item.name, orders: tableOrders });
         setRotationVisible(true);
     };
 
-
-    if (!hasOrdersAccess && !isSignedIn) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: "#F9FAFB", padding: s(30) }}>
-                 <View style={{ backgroundColor: '#E0E7FF', padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
-                    <Ionicons name="lock-closed" size={s(40)} color="#4F46E5" />
-                </View>
-                <Text style={{ fontSize: rf(20), fontWeight: '800', color: "#111827", textAlign: 'center' }}>
-                    Orders Restricted
-                </Text>
-                <Text style={{ fontSize: rf(14), color: "#6B7280", textAlign: 'center', marginTop: vs(10), lineHeight: vs(20) }}>
-                    You don't have permission to view or manage Table Orders. Please contact your administrator.
-                </Text>
-            </View>
-        );
-    }
-
     if (currentView === "tableOrders" && selectedTable) {
-
         const tableOrders = allOrders.filter((o: any) => {
             const oTableId = String(o.tableId || (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || "");
             return oTableId === String(selectedTable.id);
@@ -252,15 +203,19 @@ const MainOrdersView = () => {
         return <TableOrdersView tableId={selectedTable.id} tableName={selectedTable.name} initialOrders={tableOrders} onBack={() => setCurrentView("main")} />;
     }
 
-
     return (
         <View style={styles.content}>
-
-            <OrderHeader 
+            <OrderHeader
                 title={t('live_orders')}
                 subtitle={t('tap_table')}
                 addButtonText={t('add_table')}
-                onAddPress={() => setIsCreateTableVisible(true)}
+                onAddPress={() => {
+                    if (isLockedUser) {
+                        setIsLoginModalVisible(true);
+                    } else {
+                        setIsCreateTableVisible(true);
+                    }
+                }}
             />
 
             {loading && !refreshing ? (
@@ -277,7 +232,7 @@ const MainOrdersView = () => {
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME_PRIMARY} />
                     }
                     renderItem={({ item }) => (
-                        <TableCard 
+                        <TableCard
                             name={item.name}
                             orderCount={item.orderCount || 0}
                             activeOrdersText={t('active_orders')}
@@ -298,7 +253,7 @@ const MainOrdersView = () => {
                 />
             )}
 
-            <CreateTableModal 
+            <CreateTableModal
                 visible={isCreateTableVisible}
                 onClose={() => setIsCreateTableVisible(false)}
                 onSave={createTable}
@@ -315,6 +270,15 @@ const MainOrdersView = () => {
                 onClose={() => setRotationVisible(false)}
                 tableName={selectedTableData?.name || ''}
                 orders={selectedTableData?.orders || []}
+            />
+
+            <LoginRequiredModal
+                visible={isLoginModalVisible}
+                onClose={() => setIsLoginModalVisible(false)}
+                onSignIn={() => {
+                    setIsLoginModalVisible(false);
+                    router.push("/(auth)/sign-in");
+                }}
             />
         </View>
     );

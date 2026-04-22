@@ -1,13 +1,12 @@
 
-import { Ionicons } from "@expo/vector-icons";
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Modal,
-  NativeModules,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -15,14 +14,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 // @ts-ignore
-import Voice from '@react-native-voice/voice';
-import { rf, s, vs } from "../../utils/responsive";
-import { PERMISSION_GROUPS, StaffMember, TOTAL_PERMISSIONS_COUNT } from "./StaffPermissionsData";
 import { staffService } from "../../services/staffService";
+import { rf, s, vs } from "../../utils/responsive";
 import StaffAddEditModal from "./StaffAddEditModal";
+import { StaffMember, TOTAL_PERMISSIONS_COUNT } from "./StaffPermissionsData";
 
 const COLORS = {
   primary: "#4F46E5",
@@ -107,7 +105,7 @@ export const StaffModal = ({ visible, onClose }: StaffModalProps) => {
     try {
       const enabled = await AsyncStorage.getItem("assign_staff_enabled");
       setAssignEnabled(enabled === "true");
-      
+
       const token = await getToken();
       if (token && user?.id) {
         const res = await staffService.getStaffList(user.id, token);
