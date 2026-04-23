@@ -67,7 +67,7 @@ const NewOrderNotifier = () => {
     try {
       if (soundRef.current) return; // Already playing
       const { sound } = await Audio.Sound.createAsync(
-        { uri: 'https://assets.mixkit.co/active_storage/sfx/2190/2190-preview.mp3' },
+        { uri: 'https://assets.mixkit.co/active_storage/sfx/1357/1357-preview.mp3' },
         { shouldPlay: true, isLooping: true, volume: 1.0 }
       );
       soundRef.current = sound;

@@ -100,6 +100,22 @@ const MainClientView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
             setRefreshing(false);
             return;
         }
+
+        let cacheFound = false;
+        try {
+            const cachedData = await AsyncStorage.getItem('@cached_parties');
+            if (cachedData) {
+                const parsed = JSON.parse(cachedData);
+                if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+                    setParties(parsed);
+                    setLoading(false);
+                    cacheFound = true;
+                }
+            }
+        } catch (e) {
+            console.log("Error loading parties cache:", e);
+        }
+
         const sessionStr = await AsyncStorage.getItem('staff_session');
         if (!isLoaded || (!isSignedIn && !sessionStr)) {
             setParties([]);
@@ -110,7 +126,8 @@ const MainClientView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
         fetchBills();
         try {
             if (silent) setRefreshing(true);
-            else setLoading(true);
+            else if (!cacheFound) setLoading(true);
+            
             const token = await getToken();
             const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? user?.id : undefined);
 
@@ -126,9 +143,13 @@ const MainClientView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
             if (res.ok) {
                 const data = await res.json();
                 setParties(data);
+                await AsyncStorage.setItem('@cached_parties', JSON.stringify(data));
             }
         } catch (err: any) {
-            if (err.message === "Network request failed") setShowNetworkError(true);
+            console.log("Fetch Parties Error:", err.message);
+            if (!cacheFound && err.message === "Network request failed") {
+                setShowNetworkError(true);
+            }
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -140,6 +161,21 @@ const MainClientView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
             setAllBills([]);
             return;
         }
+
+        let cacheFound = false;
+        try {
+            const cachedBills = await AsyncStorage.getItem('@cached_all_bills');
+            if (cachedBills) {
+                const parsed = JSON.parse(cachedBills);
+                if (parsed && Array.isArray(parsed)) {
+                    setAllBills(parsed);
+                    cacheFound = true;
+                }
+            }
+        } catch (e) {
+            console.log("Error loading bills cache:", e);
+        }
+
         try {
             const token = await getToken();
             const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? user?.id : undefined);
@@ -157,10 +193,14 @@ const MainClientView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
 
             if (res.ok) {
                 const data = await res.json();
-                if (data && data.bills) setAllBills(data.bills);
+                if (data && data.bills) {
+                    setAllBills(data.bills);
+                    await AsyncStorage.setItem('@cached_all_bills', JSON.stringify(data.bills));
+                }
             }
         } catch (err: any) {
-            if (err.message === "Network request failed") setShowNetworkError(true);
+            console.log("Fetch Bills Error:", err.message);
+            // We don't necessarily show network error here if fetchParties already might
         }
     };
 

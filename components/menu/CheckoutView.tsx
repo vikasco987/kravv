@@ -86,7 +86,7 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
         serviceChargeRate: parseFloat(settings['service_charge_rate'] || "0")
       });
     } catch (e) {
-      console.error("Error loading tax settings in Checkout:", e);
+      console.log("Tax settings loading info (local):", e);
     }
   };
 
@@ -124,6 +124,20 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
   }, [params.cart]);
 
   const fetchParties = useCallback(async () => {
+    let cacheFound = false;
+    try {
+      const cachedData = await AsyncStorage.getItem('@cached_parties');
+      if (cachedData) {
+        const parsed = JSON.parse(cachedData);
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          setParties(parsed);
+          cacheFound = true;
+        }
+      }
+    } catch (e) {
+      console.log("Error loading parties cache in Checkout:", e);
+    }
+
     try {
       const token = await getToken();
       const sessionStr = await AsyncStorage.getItem('staff_session');
@@ -138,10 +152,20 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
       });
       if (res.ok) {
         const data = await res.json();
-        setParties(data.parties || []);
+        const partiesList = data.parties || data; // Handle both response formats
+        if (Array.isArray(partiesList)) {
+          setParties(partiesList);
+          await AsyncStorage.setItem('@cached_parties', JSON.stringify(partiesList));
+        }
       }
-    } catch (e) { console.error("Parties fetch error", e); }
-  }, [getToken]);
+    } catch (e) {
+      if (!cacheFound) {
+        console.log("Parties fetch info (empty cache):", e);
+      } else {
+        console.log("Parties fetch info (using cache):", e);
+      }
+    }
+  }, [getToken, activeBusinessId]);
 
   useFocusEffect(useCallback(() => { fetchParties(); }, [fetchParties]));
 
@@ -255,11 +279,25 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
     if (cart.length === 0) return;
     try {
       setIsProcessing(true);
-      const bId = (activeBusinessId && activeBusinessId !== "") ? activeBusinessId : await StaffPermissionEngine.getActiveBusinessId(user?.id);
-      const sessionStr = await AsyncStorage.getItem('staff_session');
-      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-      const authToken = await getToken();
-      const finalToken = (authToken && authToken !== "") ? authToken : staffSession?.token;
+      let finalToken = null;
+      let bId = activeBusinessId;
+      let staffSession = null;
+
+      try {
+        const sessionStr = await AsyncStorage.getItem('staff_session');
+        staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+        
+        const authToken = await getToken();
+        finalToken = (authToken && authToken !== "") ? authToken : staffSession?.token;
+        
+        if (!bId) {
+          bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+        }
+      } catch (e) {
+        console.log("Auth fetch failed in Print (using cached session):", e);
+        finalToken = staffSession?.token;
+        bId = bId || staffSession?.businessId;
+      }
 
       let finalPartyId = selectedParty?.id || selectedParty?._id;
       const customerName = (newParty.name || searchQuery).trim();
@@ -273,7 +311,7 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
           if (existing) {
             finalPartyId = existing.id || existing._id;
           } else {
-            // Create new party
+            // Create new party - but FAIL SILENTLY if offline to allow printing
             const pRes = await fetch("https://billing.kravy.in/api/parties", {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
@@ -284,7 +322,10 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
               finalPartyId = pData.party?.id || pData.party?._id || pData.id;
             }
           }
-        } catch (e) { console.error("Auto Party Create Error:", e); }
+        } catch (e) { 
+          console.log("Auto Party Create skipped (offline?):", e); 
+          // Don't throw - let the print continue!
+        }
       }
 
       const result = await SimpleBill(cart, finalToken!, bId!, {

@@ -31,8 +31,17 @@ export default function SignInScreen() {
   const [isStaffModalVisible, setIsStaffModalVisible] = React.useState(false);
 
 
+  const { isSignedIn } = useClerk();
+
   const handleGoogleSignIn = React.useCallback(async () => {
     if (!isLoaded) return;
+
+    // If already signed in, just go to menu
+    if (isSignedIn) {
+      console.log("Already signed in, redirecting...");
+      router.replace("/(tabs)/menu?login=true");
+      return;
+    }
 
     try {
       // Basic connectivity check before starting OAuth
@@ -61,13 +70,17 @@ export default function SignInScreen() {
         await setSessionActive?.({ session: createdSessionId });
         router.replace("/(tabs)/menu?login=true");
       } else {
-
-
         console.warn("⚠️ OAuth flow did not result in a session immediately. Check Clerk dashboard for required steps.");
       }
     } catch (err) {
       const errorMsg = err && typeof err === 'object' && 'message' in err ? String(err.message) : String(err);
-      console.error("❌ Google Sign-in error:", errorMsg);
+      console.log("❌ Google Sign-in Debug Info:", errorMsg);
+
+      if (errorMsg.toLowerCase().includes("already signed in")) {
+        console.log("Gracefully handling 'already signed in' error...");
+        router.replace("/(tabs)/menu?login=true");
+        return;
+      }
 
       if (errorMsg.toLowerCase().includes("network") || errorMsg.toLowerCase().includes("failed to fetch")) {
         setIsNoNetworkModalVisible(true);
@@ -78,7 +91,7 @@ export default function SignInScreen() {
     } finally {
       await WebBrowser.coolDownAsync();
     }
-  }, [isLoaded, startOAuthFlow, router]);
+  }, [isLoaded, isSignedIn, startOAuthFlow, router]);
 
 
   return (

@@ -19,7 +19,8 @@ import { rf, s, vs } from "../../utils/responsive";
 // Project level imports
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
-import { SimpleBill } from "../../utils/SimpleBill";
+import { preCacheLogo, SimpleBill } from "../../utils/SimpleBill";
+import { getRecentCompanyProfile } from "../../services/companyService";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import { SaveBill } from "../common/SaveBill";
 import { SimpleKOT } from "../common/SimpleKOT";
@@ -44,6 +45,7 @@ import { useStaffPermissions } from "../staff creat/useStaffPermissions";
 import AddItemView from "./AddItemView";
 import CheckoutView from "./CheckoutView";
 import HeldOrdersView from "./HeldOrdersView";
+import { SyncManager } from "../../services/SyncManager";
 
 
 // --- TYPE DEFINITIONS ---
@@ -200,17 +202,46 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setRefreshing(false);
             return;
         }
+
+        let cacheFound = false;
+
+        try {
+            // 🚀 STEP 1: Always try to load from Cache FIRST for instant UI
+            const cachedData = await AsyncStorage.getItem('@cached_menu');
+            if (cachedData) {
+                const parsed = JSON.parse(cachedData);
+                if (parsed && parsed.length > 0) {
+                    setMenus(parsed);
+                    setLoading(false);
+                    cacheFound = true;
+                }
+            }
+        } catch (e) {
+            console.log("Error reading menu cache:", e);
+        }
+
         try {
             if (!isLoaded) return;
 
             // 1. Get Authentication Context
-            const authToken = await getToken();
+            let authToken = null;
+            try {
+                authToken = await getToken();
+            } catch (e) {
+                console.log("Token fetch failed (offline?)");
+            }
+
             const session = await StaffPermissionEngine.getSession();
             const finalToken = authToken || session?.token;
             const bId = activeBusinessId || session?.businessId;
 
-            // Allow if OWNER (has token) OR STAFF (has bId + session)
-            if (!finalToken && !bId) {
+            // Allow syncing only if online/token exists
+            if (finalToken) {
+                SyncManager.syncPendingBills(finalToken);
+            }
+
+            // If we have NO token/bId AND NO cache, then we can't show anything
+            if (!finalToken && !bId && !cacheFound) {
                 setMenus([]);
                 setLoading(false);
                 setRefreshing(false);
@@ -219,16 +250,15 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
 
             if (isManualRefresh) {
                 setRefreshing(true);
-            } else {
-                if (menus.length === 0) {
-                    const cachedData = await AsyncStorage.getItem('@cached_menu');
-                    if (cachedData) {
-                        setMenus(JSON.parse(cachedData));
-                        setLoading(false);
-                    } else {
-                        setLoading(true);
-                    }
-                }
+            } else if (!cacheFound) {
+                setLoading(true);
+            }
+
+            // Only proceed with network fetch if we have a way to identify the business
+            if (!finalToken && !bId) {
+                setLoading(false);
+                setRefreshing(false);
+                return;
             }
 
             // Fetching logic depends on having either a token or a business ID for staff
@@ -242,15 +272,15 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             });
 
             if (!response.ok) {
-                const cachedData = await AsyncStorage.getItem('@cached_menu');
-                if (cachedData) setMenus(JSON.parse(cachedData));
+                setLoading(false);
+                setRefreshing(false);
                 return;
             }
 
             const contentType = response.headers.get("content-type");
             if (!contentType || !contentType.includes("application/json")) {
-                const cachedData = await AsyncStorage.getItem('@cached_menu');
-                if (cachedData) setMenus(JSON.parse(cachedData));
+                setLoading(false);
+                setRefreshing(false);
                 return;
             }
 
@@ -294,19 +324,24 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                 });
             });
 
-            const catRes = await fetch("https://billing.kravy.in/api/categories", {
-                headers: { Authorization: `Bearer ${finalToken}` },
-            });
-            if (catRes.ok) {
-                const allCats = await catRes.json();
-                if (Array.isArray(allCats)) {
-                    allCats.forEach((c: any) => {
-                        const cid = String(c.id || c._id);
-                        if (!categoryMap[cid]) {
-                            categoryMap[cid] = { id: cid, name: c.name, items: [] };
-                        }
-                    });
+            // Parallel fetch for empty categories (optional, don't let it crash the main flow)
+            try {
+                const catRes = await fetch("https://billing.kravy.in/api/categories", {
+                    headers: { Authorization: `Bearer ${finalToken}` },
+                });
+                if (catRes.ok) {
+                    const allCats = await catRes.json();
+                    if (Array.isArray(allCats)) {
+                        allCats.forEach((c: any) => {
+                            const cid = String(c.id || c._id);
+                            if (!categoryMap[cid]) {
+                                categoryMap[cid] = { id: cid, name: c.name, items: [] };
+                            }
+                        });
+                    }
                 }
+            } catch (e) {
+                console.log("Categories fetch failed, skipping...");
             }
 
             const sortedMenus = Object.values(categoryMap)
@@ -320,11 +355,13 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setMenus(sortedMenus);
 
         } catch (err: any) {
-            if (err.message === "Network request failed") {
-                setShowNetworkError(true);
+            console.log("Fetch Error:", err.message);
+            // ONLY show network error if we have NOTHING to show (no cache)
+            if (!cacheFound) {
+                if (err.message === "Network request failed") {
+                    setShowNetworkError(true);
+                }
             }
-            const cachedData = await AsyncStorage.getItem('@cached_menu');
-            if (cachedData) setMenus(JSON.parse(cachedData));
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -338,7 +375,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setKotEnabled(kot === 'true');
             setTableBookingEnabled(table === 'true');
         } catch (e) {
-            console.error("Error fetching settings:", e);
+            console.log("Settings fetch info (local):", e);
         }
     }, []);
 
@@ -400,7 +437,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                 setHeldCount(getConsolidatedCount(bills, localOrders));
             }
         } catch (e: any) {
-            console.error("Fetch held count error:", e);
+            console.log("Fetch held count info (using cache):", e.message);
         } finally {
             isFetchingHeldCount.current = false;
         }
@@ -427,6 +464,16 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                 fetchHeldCount();
                 fetchSettings();
 
+
+                try {
+                    const authToken = await getToken();
+                    const session = await StaffPermissionEngine.getSession();
+                    const finalToken = authToken || session?.token;
+                    const profile = await getRecentCompanyProfile(finalToken || "");
+                    if (profile && profile.logoUrl) {
+                        preCacheLogo(profile.logoUrl);
+                    }
+                } catch (e) { }
 
                 try {
                     const clearSignal = await AsyncStorage.getItem('@clear_cart_after_bill');
@@ -481,7 +528,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                         }
                         ToastAndroid.show("Order Loaded from Hold List", ToastAndroid.SHORT);
                     }
-                } catch (error) { console.error("Error loading resumed cart:", error); }
+                } catch (error) { console.log("Error loading resumed cart (local):", error); }
             };
             checkResumeCart();
         }, [isLoaded, isSignedIn, params, user?.id, fetchMenus, fetchHeldCount, fetchSettings, refreshSignal])

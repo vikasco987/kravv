@@ -1,4 +1,5 @@
 const BACKEND_URL = "https://billing.kravy.in";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert, ToastAndroid } from "react-native";
 
 /**
@@ -24,7 +25,7 @@ export async function getRecentCompanyProfile(token: string) {
     const data: any = await res.json();
     if (!data) return null;
 
-    return {
+    const profile = {
       companyName: (data.businessName as string) || "",
       companyAddress: (data.businessAddress as string) || "",
       companyPhone: (data.contactPersonPhone as string) || "",
@@ -41,13 +42,16 @@ export async function getRecentCompanyProfile(token: string) {
       pinCode: (data.pinCode as string) || "",
       googleReviewLink: (data.googleReviewLink as string) || "",
     };
+
+    await AsyncStorage.setItem('@cached_company_profile', JSON.stringify(profile));
+    return profile;
   } catch (err: any) {
+    const cached = await AsyncStorage.getItem('@cached_company_profile');
+    if (cached) return JSON.parse(cached);
+
     if (err.message === "Network request failed") {
-      Alert.alert(
-        "Connectivity Issue", 
-        "It seems you are offline. Please check your internet connection and try again.",
-        [{ text: "OK" }]
-      );
+      // Offline but no cache - only then show alert or just return null
+      console.log("Offline and no cached profile available");
     } else {
       console.error("❌ getRecentCompanyProfile Error:", err);
     }

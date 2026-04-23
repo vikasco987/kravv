@@ -100,8 +100,7 @@ export async function ensurePrinterConnected(silent?: boolean) {
 async function processAndPrintLogo(printer: any, url: string, silent?: boolean) {
   try {
     if (!url) return;
-    if (!silent) ToastAndroid.show("🖼️ Printing Logo...", ToastAndroid.SHORT);
-
+    
     // 1. Scale to ~240px and convert to 24-bit BMP (uncompressed)
     let transformedUrl = url;
     if (url.includes("cloudinary.com")) {
@@ -113,69 +112,164 @@ async function processAndPrintLogo(printer: any, url: string, silent?: boolean) 
       }
     }
 
-    let printerData: Uint8Array;
+    let printerData: Uint8Array | null = null;
 
-    // --- CACHE CHECK ---
+    // --- CACHE LAYER 1: MEMORY ---
     if (cachedLogoData && lastLogoUrl === transformedUrl) {
       printerData = cachedLogoData;
     } else {
-      const response = await fetch(transformedUrl);
-      if (!response.ok) return;
-
-      const buffer = await response.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-
-      // 2. BMP Parsing (Windows BMP V3 Header)
-      if (bytes[0] !== 0x42 || bytes[1] !== 0x4D) return; // 'BM'
-      const dataOffset = bytes[10] | (bytes[11] << 8) | (bytes[12] << 16) | (bytes[13] << 24);
-      const width = bytes[18] | (bytes[19] << 8) | (bytes[20] << 16) | (bytes[21] << 24);
-      const height = Math.abs(bytes[22] | (bytes[23] << 8) | (bytes[24] << 16) | (bytes[25] << 24));
-      const bpp = bytes[28] | (bytes[29] << 8);
-
-      if (bpp !== 24 && bpp !== 32) return; // Standard RGB formats
-
-      const bytesPerLine = Math.ceil(width / 8);
-      const bppBytes = bpp / 8;
-      const bmpStride = Math.ceil((width * bppBytes) / 4) * 4;
-
-      const xL = bytesPerLine % 256;
-      const xH = Math.floor(bytesPerLine / 256);
-      const yL = height % 256;
-      const yH = Math.floor(height / 256);
-
-      printerData = new Uint8Array(8 + (bytesPerLine * height));
-      printerData.set([0x1D, 0x76, 0x30, 0, xL, xH, yL, yH]);
-
-      let pos = 8;
-      for (let y = height - 1; y >= 0; y--) {
-        const lineStart = dataOffset + y * bmpStride;
-        for (let xByte = 0; xByte < bytesPerLine; xByte++) {
-          let byteValue = 0;
-          for (let bit = 0; bit < 8; bit++) {
-            const x = xByte * 8 + bit;
-            if (x < width) {
-              const p = lineStart + x * bppBytes;
-              const luminance = bytes[p + 2] * 0.299 + bytes[p + 1] * 0.587 + bytes[p] * 0.114;
-              if (luminance < 128) byteValue |= (1 << (7 - bit));
-            }
-          }
-          printerData[pos++] = byteValue;
+      // --- CACHE LAYER 2: ASYNC STORAGE ---
+      try {
+        const storedLogo = await AsyncStorage.getItem('@cached_logo_bitmap');
+        const storedUrl = await AsyncStorage.getItem('@cached_logo_url');
+        if (storedLogo && (storedUrl === transformedUrl || !url.startsWith("http"))) {
+          const arr = JSON.parse(storedLogo);
+          printerData = new Uint8Array(arr);
+          cachedLogoData = printerData;
+          lastLogoUrl = transformedUrl;
         }
+      } catch (e) {
+        console.log("Logo storage read failed:", e);
       }
 
-      // Update Cache
-      cachedLogoData = printerData;
-      lastLogoUrl = transformedUrl;
+      // --- LAYER 3: FETCH & PROCESS ---
+      if (!printerData) {
+        try {
+          if (!silent) ToastAndroid.show("🖼️ Processing Logo...", ToastAndroid.SHORT);
+          const response = await fetch(transformedUrl);
+          if (!response.ok) throw new Error("Logo fetch failed");
+
+          const buffer = await response.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+
+          // 2. BMP Parsing (Windows BMP V3 Header)
+          if (bytes[0] !== 0x42 || bytes[1] !== 0x4D) return; // 'BM'
+          const dataOffset = bytes[10] | (bytes[11] << 8) | (bytes[12] << 16) | (bytes[13] << 24);
+          const width = bytes[18] | (bytes[19] << 8) | (bytes[20] << 16) | (bytes[21] << 24);
+          const height = Math.abs(bytes[22] | (bytes[23] << 8) | (bytes[24] << 16) | (bytes[25] << 24));
+          const bpp = bytes[28] | (bytes[29] << 8);
+
+          if (bpp !== 24 && bpp !== 32) return; // Standard RGB formats
+
+          const bytesPerLine = Math.ceil(width / 8);
+          const bppBytes = bpp / 8;
+          const bmpStride = Math.ceil((width * bppBytes) / 4) * 4;
+
+          const xL = bytesPerLine % 256;
+          const xH = Math.floor(bytesPerLine / 256);
+          const yL = height % 256;
+          const yH = Math.floor(height / 256);
+
+          printerData = new Uint8Array(8 + (bytesPerLine * height));
+          printerData.set([0x1D, 0x76, 0x30, 0, xL, xH, yL, yH]);
+
+          let pos = 8;
+          for (let y = height - 1; y >= 0; y--) {
+            const lineStart = dataOffset + y * bmpStride;
+            for (let xByte = 0; xByte < bytesPerLine; xByte++) {
+              let byteValue = 0;
+              for (let bit = 0; bit < 8; bit++) {
+                const x = xByte * 8 + bit;
+                if (x < width) {
+                  const p = lineStart + x * bppBytes;
+                  const luminance = bytes[p + 2] * 0.299 + bytes[p + 1] * 0.587 + bytes[p] * 0.114;
+                  if (luminance < 128) byteValue |= (1 << (7 - bit));
+                }
+              }
+              printerData[pos++] = byteValue;
+            }
+          }
+
+          // Update Persistent Cache
+          cachedLogoData = printerData;
+          lastLogoUrl = transformedUrl;
+          await AsyncStorage.setItem('@cached_logo_bitmap', JSON.stringify(Array.from(printerData)));
+          await AsyncStorage.setItem('@cached_logo_url', transformedUrl);
+
+        } catch (fetchErr) {
+          console.log("Logo fetch/process failed (expected offline):", fetchErr);
+          // If we have ANY stored logo, return it as fallback even if URL doesn't match
+          const storedLogo = await AsyncStorage.getItem('@cached_logo_bitmap');
+          if (storedLogo) {
+             const arr = JSON.parse(storedLogo);
+             printerData = new Uint8Array(arr);
+          }
+        }
+      }
     }
 
-    // 3. Write in larger chunks for speed (1024 is usually safe for most printers)
-    for (let i = 0; i < printerData.length; i += 1024) {
-      const chunk = printerData.slice(i, i + 1024);
-      await printer.write(chunk);
+    if (printerData) {
+      // 3. Write in larger chunks for speed (1024 is usually safe for most printers)
+      for (let i = 0; i < printerData.length; i += 1024) {
+        const chunk = printerData.slice(i, i + 1024);
+        await printer.write(chunk);
+      }
+      await printer.write("\n\n"); // Extra padding after logo
     }
-    await printer.write("\n\n"); // Extra padding after logo
   } catch (err) {
-    console.log("Logo processing failed:", err);
+    console.log("Logo overall printing failed:", err);
+  }
+}
+
+// ✅ NEW: Pre-cache logo bitmap when online to ensure offline availability
+export async function preCacheLogo(url: string) {
+  if (!url || !url.startsWith("http")) return;
+  try {
+    let transformedUrl = url;
+    if (url.includes("cloudinary.com")) {
+      const uploadIdx = url.indexOf("/upload/");
+      if (uploadIdx !== -1) {
+        transformedUrl = url.slice(0, uploadIdx + 8) + "c_scale,w_240,f_bmp/" + url.slice(uploadIdx + 8);
+      }
+    }
+
+    const response = await fetch(transformedUrl);
+    if (!response.ok) return;
+
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+
+    if (bytes[0] !== 0x42 || bytes[1] !== 0x4D) return;
+    const dataOffset = bytes[10] | (bytes[11] << 8) | (bytes[12] << 16) | (bytes[13] << 24);
+    const width = bytes[18] | (bytes[19] << 8) | (bytes[20] << 16) | (bytes[21] << 24);
+    const height = Math.abs(bytes[22] | (bytes[23] << 8) | (bytes[24] << 16) | (bytes[25] << 24));
+    const bpp = bytes[28] | (bytes[29] << 8);
+    if (bpp !== 24 && bpp !== 32) return;
+
+    const bytesPerLine = Math.ceil(width / 8);
+    const bppBytes = bpp / 8;
+    const bmpStride = Math.ceil((width * bppBytes) / 4) * 4;
+
+    const xL = bytesPerLine % 256;
+    const xH = Math.floor(bytesPerLine / 256);
+    const yL = height % 256;
+    const yH = Math.floor(height / 256);
+
+    const printerData = new Uint8Array(8 + (bytesPerLine * height));
+    printerData.set([0x1D, 0x76, 0x30, 0, xL, xH, yL, yH]);
+
+    let pos = 8;
+    for (let y = height - 1; y >= 0; y--) {
+      const lineStart = dataOffset + y * bmpStride;
+      for (let xByte = 0; xByte < bytesPerLine; xByte++) {
+        let byteValue = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const x = xByte * 8 + bit;
+          if (x < width) {
+            const p = lineStart + x * bppBytes;
+            const luminance = bytes[p + 2] * 0.299 + bytes[p + 1] * 0.587 + bytes[p] * 0.114;
+            if (luminance < 128) byteValue |= (1 << (7 - bit));
+          }
+        }
+        printerData[pos++] = byteValue;
+      }
+    }
+
+    await AsyncStorage.setItem('@cached_logo_bitmap', JSON.stringify(Array.from(printerData)));
+    await AsyncStorage.setItem('@cached_logo_url', transformedUrl);
+    console.log("[SimpleBill] Logo pre-cached successfully for offline use.");
+  } catch (err) {
+    console.log("[SimpleBill] Logo pre-caching failed (expected if offline):", err.message);
   }
 }
 
@@ -227,13 +321,8 @@ export async function SimpleBill(
     }
 
     if (!finalToken || finalToken === "" || finalToken === "null") {
-      const errorMsg = "❌ Billing Token Missing (Staff Session Error)";
-      ToastAndroid.show(errorMsg, ToastAndroid.LONG);
-      console.error("SimpleBill: Missing Token", { finalToken, finalUserId });
-      throw new Error("❌ Clerk token missing!");
-    } else {
-      // Log token availability (safe check)
-      console.log("SimpleBill: Token verified, proceeding with bill...");
+      console.log("SimpleBill: token missing, using placeholder for offline queue");
+      finalToken = "OFFLINE_HOLDER";
     }
     // if (!finalUserId) throw new Error("❌ userClerkId missing!");
 
