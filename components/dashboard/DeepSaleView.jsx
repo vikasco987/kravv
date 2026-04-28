@@ -50,7 +50,7 @@ const isYesterday = (d) => {
   return isSameDay(d, y);
 };
 
-export default function DeepSaleView({ onBack, isSidebar = false }) {
+export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
 
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
@@ -107,8 +107,20 @@ export default function DeepSaleView({ onBack, isSidebar = false }) {
     outputRange: ["0deg", "360deg"],
   });
 
+  useEffect(() => {
+    if (allBills && allBills.length > 0) {
+      const onlySales = allBills.filter((b) => b.isHeld !== true);
+      setBills(onlySales);
+      setFilteredBills(onlySales);
+      setLoading(false);
+    } else {
+      fetchBills();
+    }
+  }, [allBills, isLoaded, isSignedIn, user]);
+
   const fetchBills = async (silent = false) => {
     if (!isLoaded) return;
+    if (allBills) return;
 
     if (!silent) setLoading(true);
     else setRefreshing(true);
@@ -131,7 +143,11 @@ export default function DeepSaleView({ onBack, isSidebar = false }) {
 
       const url = bId ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}` : "https://billing.kravy.in/api/bill-manager";
       const res = await fetch(url, {
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` }
+        headers: { 
+            "Content-Type": "application/json", 
+            Authorization: `Bearer ${finalToken}`,
+            Cookie: `staff_token=${finalToken}`
+        }
       });
 
       if (res.ok) {
@@ -148,10 +164,6 @@ export default function DeepSaleView({ onBack, isSidebar = false }) {
       setRefreshing(false);
     }
   };
-
-  useEffect(() => {
-    fetchBills();
-  }, [isLoaded, isSignedIn, user]);
 
   useEffect(() => {
     if (refreshSignal > 0) {

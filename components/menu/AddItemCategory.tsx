@@ -1,4 +1,5 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { menuService } from "../../services/menuService";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ArrowLeft } from "lucide-react-native";
@@ -86,38 +87,21 @@ export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd
             }, 150);
         }
 
-        // Background Task: Run network call separately without blocking UI
+        // Background Task
         (async () => {
             try {
                 const authToken = await getToken();
-                const sessionStr = await AsyncStorage.getItem('staff_session');
-                const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-                const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+                const staffSession = await StaffPermissionEngine.getSession();
                 const finalToken = authToken || staffSession?.token;
+                const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
 
-                if (!finalToken && !bId) return;
-
-                const response = await fetch("https://billing.kravy.in/api/categories", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${finalToken}`,
-                    },
-                    body: JSON.stringify({ name: trimmedName, businessId: bId }),
-                });
-
-                if (response.ok) {
-                    const savedData = await response.json().catch(() => ({}));
-                    const realId = savedData.id || savedData._id;
-                    if (realId && onSuccess) {
-                        onSuccess({ id: realId, name: trimmedName });
-                    }
-                    onRefresh();
-                } else {
-                    console.error("BG Save failed:", await response.text());
+                if (finalToken) {
+                    const realCategory = await menuService.createCategory(finalToken, trimmedName, bId);
+                    if (onSuccess) onSuccess(realCategory);
+                    if (onRefresh) onRefresh();
                 }
-            } catch (err) {
-                console.error("BG Save error:", err);
+            } catch (error) {
+                console.error("Failed to save category to backend:", error);
             }
         })();
     };

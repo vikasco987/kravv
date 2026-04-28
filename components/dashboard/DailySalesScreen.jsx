@@ -8,6 +8,8 @@ import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
+import { applyTrueBillTotals } from "../../utils/billCalculator";
+import DetailedBillListView from "./DetailedBillListView";
 
 const COLORS = {
   primary: '#007AFF',
@@ -42,7 +44,7 @@ const SalesStat = ({ label, value, icon, color, isMain = false }) => (
   </View>
 );
 
-const TableListView = ({ data, refreshing, onRefresh, t }) => (
+const TableListView = ({ data, refreshing, onRefresh, t, onRowPress }) => (
 
   <View style={enhancedStyles.tableContainer}>
     <View style={enhancedStyles.tableHeaderRow}>
@@ -56,13 +58,13 @@ const TableListView = ({ data, refreshing, onRefresh, t }) => (
 
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
       renderItem={({ item }) => (
-        <View style={enhancedStyles.tableRow}>
+        <TouchableOpacity style={enhancedStyles.tableRow} onPress={() => onRowPress && onRowPress(item.id)}>
           <Text style={[enhancedStyles.tableCell, { flex: 3 }]}>{item.date}</Text>
           <Text style={enhancedStyles.tableCell}>{item.numberOfBills}</Text>
           <Text style={[enhancedStyles.tableCell, { flex: 2, color: COLORS.success, fontWeight: 'bold', textAlign: 'right' }]}>
             ₹{item.totalSales.toLocaleString('en-IN')}
           </Text>
-        </View>
+        </TouchableOpacity>
       )}
       ListEmptyComponent={() => (
         <View style={enhancedStyles.emptyContainer}>
@@ -73,7 +75,7 @@ const TableListView = ({ data, refreshing, onRefresh, t }) => (
   </View>
 );
 
-export default function DailySalesScreen({ onBack }) {
+export default function DailySalesScreen({ onBack, allBills }) {
 
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
@@ -90,9 +92,11 @@ export default function DailySalesScreen({ onBack }) {
   const { t } = useLanguage();
 
   const [dailySales, setDailySales] = useState([]);
+  const [rawBillsList, setRawBillsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState('card');
+  const [selectedDateReport, setSelectedDateReport] = useState(null);
 
   // @ts-ignore
   const totalGrandSales = dailySales.reduce((sum, item) => sum + item.totalSales, 0);
@@ -119,8 +123,19 @@ export default function DailySalesScreen({ onBack }) {
 
   };
 
+  useEffect(() => {
+    if (allBills && allBills.length > 0) {
+      setRawBillsList(allBills);
+      setDailySales(groupSalesByDate(allBills.filter((b) => b.isHeld !== true)));
+      setLoading(false);
+    } else {
+      fetchBills();
+    }
+  }, [allBills, isLoaded, isSignedIn, user]);
+
   const fetchBills = async (silent = false) => {
     if (!isLoaded) return;
+    if (allBills) return;
 
     try {
       if (silent) setRefreshing(true);
@@ -142,12 +157,17 @@ export default function DailySalesScreen({ onBack }) {
 
       const url = bId ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}` : "https://billing.kravy.in/api/bill-manager";
       const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${finalToken}` }
+        headers: { 
+            Authorization: `Bearer ${finalToken}`,
+            Cookie: `staff_token=${finalToken}`
+        }
       });
 
       if (res.ok) {
         const data = await res.json();
         const billsList = Array.isArray(data) ? data : (data.bills || []);
+        await applyTrueBillTotals(billsList);
+        setRawBillsList(billsList);
         setDailySales(groupSalesByDate(billsList.filter((b) => b.isHeld !== true)));
       }
     } catch (err) {
@@ -160,13 +180,23 @@ export default function DailySalesScreen({ onBack }) {
     }
   };
 
-  useEffect(() => { fetchBills(); }, [isLoaded, isSignedIn, user]);
-
   useEffect(() => {
     if (refreshSignal > 0) {
       fetchBills(true);
     }
   }, [refreshSignal]);
+
+  if (selectedDateReport) {
+    return (
+      <DetailedBillListView 
+        onBack={() => setSelectedDateReport(null)} 
+        allBills={rawBillsList} 
+        filterType="daily" 
+        filterKey={selectedDateReport} 
+        title={`Bills for ${new Date(selectedDateReport).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric'})}`}
+      />
+    );
+  }
 
   if (loading) return <ActivityIndicator size="large" color={COLORS.primary} style={{ flex: 1, justifyContent: "center" }} />;
 
@@ -202,12 +232,14 @@ export default function DailySalesScreen({ onBack }) {
 
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchBills(true)} colors={[COLORS.primary]} />}
             renderItem={({ item }) => (
-              <SalesCard
-                date={item.date}
-                numberOfBills={item.numberOfBills}
-                totalSales={item.totalSales}
-                t={t}
-              />
+              <TouchableOpacity onPress={() => setSelectedDateReport(item.id)} activeOpacity={0.8}>
+                <SalesCard
+                  date={item.date}
+                  numberOfBills={item.numberOfBills}
+                  totalSales={item.totalSales}
+                  t={t}
+                />
+              </TouchableOpacity>
             )}
             ListEmptyComponent={() => (
               <View style={enhancedStyles.emptyContainer}>
@@ -217,7 +249,7 @@ export default function DailySalesScreen({ onBack }) {
             )}
           />
         ) : (
-          <TableListView data={dailySales} refreshing={refreshing} onRefresh={() => fetchBills(true)} t={t} />
+          <TableListView data={dailySales} refreshing={refreshing} onRefresh={() => fetchBills(true)} t={t} onRowPress={(id) => setSelectedDateReport(id)} />
         )}
       </View>
     </SafeAreaView>

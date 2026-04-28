@@ -1,7 +1,8 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     RefreshControl,
@@ -13,6 +14,7 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
+import { applyTrueBillTotals } from "../../utils/billCalculator";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { useStaffPermissions } from "../staff creat/useStaffPermissions";
@@ -55,73 +57,7 @@ const MainDashboardView = ({ isLockedUser }) => {
     // State for switching views inside the same tab
     const [currentView, setCurrentView] = useState("main"); // 'main', 'daily', 'weekly', 'monthly', 'deepsale'
 
-    const fetchStats = async () => {
-        if (!isLoaded) return;
-
-        // NEW: If user is strictly locked (public), don't fetch anything
-        if (isLockedUser) {
-            setStats({ daily: 0, weekly: 0, monthly: 0 });
-            setAllBills([]);
-            setLoading(false);
-            setRefreshing(false);
-            return;
-        }
-
-        try {
-            const token = await getToken();
-            const session = await StaffPermissionEngine.getSession();
-            const finalToken = token || session?.token;
-            const bId = session?.businessId;
-
-            // Allow access if we have an authentication token (Owner or Staff)
-            if (!finalToken) {
-                setStats({ daily: 0, weekly: 0, monthly: 0 });
-                setLoading(false);
-                setRefreshing(false);
-                return;
-            }
-
-            if (stats.daily === 0) {
-                setLoading(true);
-                const cached = await AsyncStorage.getItem('@cached_dash_stats');
-                if (cached) {
-                    const parsed = JSON.parse(cached);
-                    setStats(parsed.stats);
-                    setAllBills(parsed.bills || []);
-                    setLoading(false);
-                }
-            } else {
-                setRefreshing(true);
-            }
-
-            const url = bId ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}` : "https://billing.kravy.in/api/bill-manager";
-            const res = await fetch(url, {
-                headers: { 
-                    "Content-Type": "application/json", 
-                    Authorization: `Bearer ${finalToken}` 
-                },
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                const billsList = Array.isArray(data) ? data : (data.bills || []);
-                setAllBills(billsList);
-                calculateStats(billsList);
-            }
-        } catch {
-            const cached = await AsyncStorage.getItem('@cached_dash_stats');
-            if (cached) {
-                const parsed = JSON.parse(cached);
-                setStats(parsed.stats);
-                setAllBills(parsed.bills || []);
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
-
-    const calculateStats = (bills) => {
+    const calculateStats = async (bills) => {
         const now = new Date();
         const today = new Date(now);
         today.setHours(0, 0, 0, 0);
@@ -143,11 +79,14 @@ const MainDashboardView = ({ isLockedUser }) => {
         let monthly = 0;
 
         const onlySales = (bills || []).filter(b => b.isHeld !== true);
+        
+        // Mutate bill.total with true full amount dynamically
+        await applyTrueBillTotals(onlySales);
 
         onlySales.forEach(bill => {
             const billDate = new Date(bill.createdAt);
             const billTs = billDate.getTime();
-            const total = Number(bill.total) || 0;
+            const total = bill.total || 0;
 
             if (billTs >= todayTs) daily += total;
             if (billTs >= weekTs) weekly += total;
@@ -161,9 +100,95 @@ const MainDashboardView = ({ isLockedUser }) => {
         }
     };
 
+    const fetchStats = async () => {
+        if (!isLoaded) return;
+
+        // NEW: If user is strictly locked (public), don't fetch anything
+        if (isLockedUser) {
+            setStats({ daily: 0, weekly: 0, monthly: 0 });
+            setAllBills([]);
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
+
+        try {
+            const token = await getToken();
+            const session = await StaffPermissionEngine.getSession();
+            const finalToken = token || session?.token;
+            const bId = session?.businessId;
+
+            // Allow access if we have an authentication token (Owner or Staff)
+            if (!finalToken) {
+                const cached = await AsyncStorage.getItem('@cached_dash_stats');
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    const cachedBills = parsed.bills || [];
+                    setAllBills(cachedBills);
+                    await calculateStats(cachedBills);
+                } else {
+                    setStats({ daily: 0, weekly: 0, monthly: 0 });
+                }
+                setLoading(false);
+                setRefreshing(false);
+                return;
+            }
+
+            if (stats.daily === 0) {
+                setLoading(true);
+                const cached = await AsyncStorage.getItem('@cached_dash_stats');
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    const cachedBills = parsed.bills || [];
+                    setAllBills(cachedBills);
+                    await calculateStats(cachedBills);
+                }
+            } else {
+                setRefreshing(true);
+            }
+
+            const url = bId ? `https://billing.kravy.in/api/bill-manager?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/bill-manager?t=${Date.now()}`;
+            const res = await fetch(url, {
+                headers: { 
+                    "Content-Type": "application/json", 
+                    Authorization: `Bearer ${finalToken}`,
+                    Cookie: `staff_token=${finalToken}`
+                },
+            });
+
+            if (!res.ok) {
+                console.warn("MainDashboard fetch failed with status:", res.status);
+                throw new Error("Failed to fetch dashboard data");
+            }
+
+            const data = await res.json();
+            const billsList = Array.isArray(data) ? data : (data.bills || []);
+            setAllBills(billsList);
+            await calculateStats(billsList);
+            
+        } catch {
+            const cached = await AsyncStorage.getItem('@cached_dash_stats');
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                const cachedBills = parsed.bills || [];
+                setAllBills(cachedBills);
+                await calculateStats(cachedBills);
+            }
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
     useEffect(() => {
         fetchStats();
     }, [isLoaded, isSignedIn, isLockedUser]);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchStats();
+        }, [isLoaded, isSignedIn, isLockedUser])
+    );
 
     useEffect(() => {
         if (refreshSignal > 0) fetchStats();
@@ -189,10 +214,10 @@ const MainDashboardView = ({ isLockedUser }) => {
         setCurrentView(viewName);
     };
 
-    if (currentView === "daily") return <DailySalesScreen onBack={() => setCurrentView("main")} />;
-    if (currentView === "weekly") return <WeeklySalesScreen onBack={() => setCurrentView("main")} />;
-    if (currentView === "monthly") return <MonthlySalesScreen onBack={() => setCurrentView("main")} />;
-    if (currentView === "deepsale") return <DeepSaleView onBack={() => setCurrentView("main")} />;
+    if (currentView === "daily") return <DailySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
+    if (currentView === "weekly") return <WeeklySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
+    if (currentView === "monthly") return <MonthlySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
+    if (currentView === "deepsale") return <DeepSaleView onBack={() => setCurrentView("main")} allBills={allBills} />;
 
     return (
         <ScrollView

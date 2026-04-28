@@ -54,6 +54,16 @@ const MainSettingsView = ({ isLockedUser = false }: { isLockedUser?: boolean }) 
     const [discountRate, setDiscountRate] = React.useState("0.00");
     const [serviceChargeEnabled, setServiceChargeEnabled] = React.useState(false);
     const [serviceChargeRate, setServiceChargeRate] = React.useState("0.00");
+    const [serviceGstEnabled, setServiceGstEnabled] = React.useState(false);
+    const [serviceGstRate, setServiceGstRate] = React.useState("0.00");
+    const [deliveryChargeEnabled, setDeliveryChargeEnabled] = React.useState(false);
+    const [deliveryChargeAmount, setDeliveryChargeAmount] = React.useState("0.00");
+    const [deliveryGstEnabled, setDeliveryGstEnabled] = React.useState(false);
+    const [deliveryGstRate, setDeliveryGstRate] = React.useState("0.00");
+    const [packagingChargeEnabled, setPackagingChargeEnabled] = React.useState(false);
+    const [packagingChargeAmount, setPackagingChargeAmount] = React.useState("0.00");
+    const [packagingGstEnabled, setPackagingGstEnabled] = React.useState(false);
+    const [packagingGstRate, setPackagingGstRate] = React.useState("0.00");
     const [taxModalVisible, setTaxModalVisible] = React.useState(false);
     const [advancedDiscountModalVisible, setAdvancedDiscountModalVisible] = React.useState(false);
     const [kotModalVisible, setKotModalVisible] = React.useState(false);
@@ -119,6 +129,11 @@ const MainSettingsView = ({ isLockedUser = false }: { isLockedUser?: boolean }) 
                 'tax_enabled', 'per_product_tax', 'tax_rate',
                 'discount_enabled', 'discount_rate',
                 'service_charge_enabled', 'service_charge_rate',
+                'service_gst_enabled', 'service_gst_rate',
+                'delivery_charge_enabled', 'delivery_charge_amount',
+                'delivery_gst_enabled', 'delivery_gst_rate',
+                'packaging_charge_enabled', 'packaging_charge_amount',
+                'packaging_gst_enabled', 'packaging_gst_rate',
                 'kot_enabled', 'table_booking_enabled',
                 'app_language', 'order_auto_accept'
             ]);
@@ -132,6 +147,16 @@ const MainSettingsView = ({ isLockedUser = false }: { isLockedUser?: boolean }) 
                         case 'discount_rate': setDiscountRate(value); break;
                         case 'service_charge_enabled': setServiceChargeEnabled(value === 'true'); break;
                         case 'service_charge_rate': setServiceChargeRate(value); break;
+                        case 'service_gst_enabled': setServiceGstEnabled(value === 'true'); break;
+                        case 'service_gst_rate': setServiceGstRate(value); break;
+                        case 'delivery_charge_enabled': setDeliveryChargeEnabled(value === 'true'); break;
+                        case 'delivery_charge_amount': setDeliveryChargeAmount(value); break;
+                        case 'delivery_gst_enabled': setDeliveryGstEnabled(value === 'true'); break;
+                        case 'delivery_gst_rate': setDeliveryGstRate(value); break;
+                        case 'packaging_charge_enabled': setPackagingChargeEnabled(value === 'true'); break;
+                        case 'packaging_charge_amount': setPackagingChargeAmount(value); break;
+                        case 'packaging_gst_enabled': setPackagingGstEnabled(value === 'true'); break;
+                        case 'packaging_gst_rate': setPackagingGstRate(value); break;
                         case 'kot_enabled': setKotEnabled(value === 'true'); break;
                         case 'table_booking_enabled': setTableBookingEnabled(value === 'true'); break;
                         case 'order_auto_accept': setOrderAutoAccept(value === 'true'); break;
@@ -203,7 +228,45 @@ const MainSettingsView = ({ isLockedUser = false }: { isLockedUser?: boolean }) 
             </View>
 
             {/* Modals */}
-            <TaxDiscountsModal visible={taxModalVisible} onClose={() => setTaxModalVisible(false)} taxEnabled={taxEnabled} setTaxEnabled={setTaxEnabled} perProductTax={perProductTax} setPerProductTax={setPerProductTax} taxRate={taxRate} setTaxRate={setTaxRate} discountEnabled={discountEnabled} setDiscountEnabled={setDiscountEnabled} discountRate={discountRate} setDiscountRate={setDiscountRate} serviceChargeEnabled={serviceChargeEnabled} setServiceChargeEnabled={setServiceChargeEnabled} serviceChargeRate={serviceChargeRate} setServiceChargeRate={setServiceChargeRate} onSave={saveSetting} />
+            <TaxDiscountsModal 
+                visible={taxModalVisible} 
+                onClose={() => setTaxModalVisible(false)} 
+                taxEnabled={taxEnabled} 
+                setTaxEnabled={setTaxEnabled} 
+                perProductTax={perProductTax} 
+                setPerProductTax={setPerProductTax} 
+                taxRate={taxRate} 
+                setTaxRate={setTaxRate} 
+                discountEnabled={discountEnabled} 
+                setDiscountEnabled={setDiscountEnabled} 
+                discountRate={discountRate} 
+                setDiscountRate={setDiscountRate} 
+                serviceChargeEnabled={serviceChargeEnabled}
+                setServiceChargeEnabled={setServiceChargeEnabled}
+                serviceChargeRate={serviceChargeRate}
+                setServiceChargeRate={setServiceChargeRate}
+                serviceGstEnabled={serviceGstEnabled}
+                setServiceGstEnabled={setServiceGstEnabled}
+                serviceGstRate={serviceGstRate}
+                setServiceGstRate={setServiceGstRate}
+                deliveryChargeEnabled={deliveryChargeEnabled}
+                setDeliveryChargeEnabled={setDeliveryChargeEnabled}
+                deliveryChargeAmount={deliveryChargeAmount}
+                setDeliveryChargeAmount={setDeliveryChargeAmount}
+                deliveryGstEnabled={deliveryGstEnabled}
+                setDeliveryGstEnabled={setDeliveryGstEnabled}
+                deliveryGstRate={deliveryGstRate}
+                setDeliveryGstRate={setDeliveryGstRate}
+                packagingChargeEnabled={packagingChargeEnabled}
+                setPackagingChargeEnabled={setPackagingChargeEnabled}
+                packagingChargeAmount={packagingChargeAmount}
+                setPackagingChargeAmount={setPackagingChargeAmount}
+                packagingGstEnabled={packagingGstEnabled}
+                setPackagingGstEnabled={setPackagingGstEnabled}
+                packagingGstRate={packagingGstRate}
+                setPackagingGstRate={setPackagingGstRate}
+                onSave={saveSetting} 
+            />
             <AdvancedDiscountModal visible={advancedDiscountModalVisible} onClose={() => setAdvancedDiscountModalVisible(false)} />
             <KOTTablesModal visible={kotModalVisible} onClose={() => setKotModalVisible(false)} kotEnabled={kotEnabled} setKotEnabled={setKotEnabled} tableBookingEnabled={tableBookingEnabled} setTableBookingEnabled={setTableBookingEnabled} onSave={saveSetting} />
             <LoginRequiredModal visible={loginModalVisible} onClose={() => setLoginModalVisible(false)} onSignIn={() => { setLoginModalVisible(false); router.push("/(auth)/sign-in" as any); }} />

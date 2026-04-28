@@ -28,10 +28,11 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
-import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
-import { rf, s, vs } from "../../utils/responsive";
-import { AddItemCategory } from "./AddItemCategory";
 import { useLanguage } from "../../context/LanguageContext";
+import { menuService, uploadToCloudinary } from "../../services/menuService";
+import { rf, s, vs } from "../../utils/responsive";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+import { AddItemCategory } from "./AddItemCategory";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -122,30 +123,27 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
     const fetchAllCategories = async () => {
         try {
-            const authToken = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-            const finalToken = authToken || staffSession?.token;
-
-            if (!finalToken && !bId) return;
-
-            const url = bId ? `https://billing.kravy.in/api/categories?businessId=${bId}` : "https://billing.kravy.in/api/categories";
-            const response = await fetch(url, {
-                headers: {
-                    Authorization: `Bearer ${finalToken}`,
-                    "Cache-Control": "no-cache"
-                },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const normalized = Array.isArray(data) ? data.map(c => ({
-                    ...c,
-                    id: String(c.id || c._id || ""),
-                    name: String(c.name || "")
-                })).filter(c => c.id !== "") : [];
-                setAllCategories(normalized);
+            // 1. Try Cache First
+            const cachedCats = await AsyncStorage.getItem('@cached_categories');
+            if (cachedCats) {
+                setAllCategories(JSON.parse(cachedCats));
             }
+
+            const authToken = await getToken();
+            const session = await StaffPermissionEngine.getSession();
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || session?.token;
+
+            if (!finalToken) return;
+
+            const data = await menuService.getCategories(finalToken, bId);
+            const normalized = Array.isArray(data) ? data.map(c => ({
+                id: String(c.id || c._id || ""),
+                name: String(c.name || "")
+            })).filter(c => c.id !== "") : [];
+
+            setAllCategories(normalized);
+            await AsyncStorage.setItem('@cached_categories', JSON.stringify(normalized));
         } catch (err) {
             console.error("Fetch categories error:", err);
         }
@@ -190,36 +188,36 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         return () => backHandler.remove();
     }, [isEditModalVisible, isCreateCategoryModalVisible, showCategoryModal, onBack, showAddItemCategoryScreen]);
 
-    const fetchMenus = useCallback(async () => {
+    const fetchMenus = useCallback(async (isManual = false) => {
         if (!isLoaded) return;
+        let cacheFound = false;
         try {
-            setLoading(true);
-            const authToken = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-            const finalToken = authToken || staffSession?.token;
+            // 🚀 STEP 1: Load from Cache FIRST for instant UI
+            const cachedData = await AsyncStorage.getItem('@cached_menu');
+            if (cachedData && !isManual) {
+                const parsed = JSON.parse(cachedData);
+                if (parsed && parsed.length > 0) {
+                    setMenus(parsed);
+                    setLoading(false);
+                    cacheFound = true;
+                }
+            }
 
-            if (!finalToken && !bId) {
+            if (!cacheFound || isManual) {
+                setLoading(true);
+            }
+
+            const authToken = await getToken();
+            const session = await StaffPermissionEngine.getSession();
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const finalToken = authToken || session?.token;
+
+            if (!finalToken) {
                 setLoading(false);
                 return;
             }
 
-            const url = bId ? `https://billing.kravy.in/api/menu/view?businessId=${bId}` : "https://billing.kravy.in/api/menu/view";
-            const response = await fetch(url, {
-                headers: {
-                    Authorization: `Bearer ${finalToken}`,
-                    "Cache-Control": "no-cache"
-                },
-            });
-
-            if (!response.ok) {
-                const cachedData = await AsyncStorage.getItem('@cached_menu');
-                if (cachedData) setMenus(JSON.parse(cachedData));
-                return;
-            }
-
-            const data = await response.json();
+            const data = await menuService.getMenu(finalToken, bId);
             let processedItems: any[] = [];
             if (Array.isArray(data)) {
                 processedItems = data;
@@ -254,7 +252,9 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 });
             });
 
-            setMenus(Object.values(categoryMap).sort((a, b) => a.name.localeCompare(b.name)));
+            const finalMenus = Object.values(categoryMap).sort((a, b) => a.name.localeCompare(b.name));
+            setMenus(finalMenus);
+            await AsyncStorage.setItem('@cached_menu', JSON.stringify(finalMenus));
         } catch (err) {
             console.error("Fetch menu error:", err);
         } finally {
@@ -264,25 +264,40 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
     useEffect(() => {
         if (isLoaded) {
-            fetchMenus();
-            fetchAllCategories();
+            // Load both in parallel for speed
+            Promise.all([
+                fetchMenus(),
+                fetchAllCategories()
+            ]);
         }
     }, [isLoaded, isSignedIn, user]);
 
     const handleItemClick = async (item: MenuItem, catId: string, catName: string) => {
         try {
-            setIsFetchingItemDetails(true);
+            // 🚀 STEP 1: Show Modal Instantly with existing basic data
             setSelectedItem(item);
-
-            // Set initial category from the clicked section
+            setEditName(item.name);
+            setEditPrice(String(item.price || "0"));
             setEditCategoryId(catId);
             setEditCategoryName(catName);
+            setEditImageUrl(item.imageUrl || "");
+            setEditUnit(item.unit || "");
+            setEditIsVeg(item.isVeg !== undefined ? item.isVeg : true);
+            setEditDescription(item.description || "");
 
+            setIsEditModalVisible(true);
+            setIsFetchingItemDetails(true);
+
+            // 🚀 STEP 2: Fetch background details for full form
             const authToken = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const session = await StaffPermissionEngine.getSession();
             const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-            const finalToken = authToken || staffSession?.token;
+            const finalToken = authToken || session?.token;
+
+            if (!finalToken) {
+                setIsFetchingItemDetails(false);
+                return;
+            }
 
             const url = bId ? `https://billing.kravy.in/api/items?id=${item.id}&businessId=${bId}` : `https://billing.kravy.in/api/items?id=${item.id}`;
             const response = await fetch(url, {
@@ -292,7 +307,6 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 const details = await response.json();
                 setEditName(details.name || item.name);
                 setEditPrice(String(details.sellingPrice || details.price || "0"));
-                // Fallback to catId/catName if API doesn't provide them
                 setEditCategoryId(details.categoryId || catId);
                 setEditCategoryName(details.category?.name || catName);
                 setEditImageUrl(details.imageUrl || item.imageUrl || "");
@@ -300,9 +314,9 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 setEditIsVeg(details.isVeg !== undefined ? details.isVeg : true);
                 setEditDescription(details.description || "");
             }
-            setIsEditModalVisible(true);
         } catch (err) {
-            Alert.alert(t('error') || "Error", t('fetch_details_error') || "Could not fetch details.");
+            console.log("Background details fetch info:", err);
+            // We already show the modal with basic data, so no need for loud alert
         } finally {
             setIsFetchingItemDetails(false);
         }
@@ -325,45 +339,6 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         }
     };
 
-    const uploadImageToCloudinary = async (uri: string) => {
-        const cloudName = "digpvlfup";
-        const uploadPreset = "mybillingmenu";
-
-        const formData = new FormData();
-        const fileName = uri.split("/").pop() || "upload.jpg";
-        const fileType = fileName.split(".").pop() || "jpg";
-
-        // @ts-ignore
-        formData.append("file", {
-            uri: uri,
-            type: `image/${fileType}`,
-            name: fileName,
-        });
-        formData.append("upload_preset", uploadPreset);
-        formData.append("cloud_name", cloudName);
-
-        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-            method: "POST",
-            body: formData,
-            headers: {
-                "Accept": "application/json",
-            },
-        });
-
-        const text = await response.text();
-        let data: any;
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            throw new Error(`Cloudinary error: ${text || "Empty response"}`);
-        }
-
-        if (!response.ok) {
-            throw new Error(data.error?.message || `Cloudinary upload failed: ${text}`);
-        }
-
-        return data.secure_url;
-    };
 
     const handleDelete = async () => {
         if (!selectedItem) return;
@@ -388,20 +363,12 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         try {
             setIsDeleting(true);
             const authToken = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const session = await StaffPermissionEngine.getSession();
             const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-            const finalToken = authToken || staffSession?.token;
+            const finalToken = authToken || session?.token;
 
-            const url = bId ? `https://billing.kravy.in/api/items?id=${itemId}&businessId=${bId}` : `https://billing.kravy.in/api/items?id=${itemId}`;
-
-            const response = await fetch(url, {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${finalToken}` },
-            });
-
-            if (response.ok) {
-                // Background refresh if needed
+            if (finalToken) {
+                await menuService.deleteItem(finalToken, itemId, bId);
                 fetchMenus();
             }
         } catch (err) {
@@ -426,10 +393,11 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         try {
             setIsUpdatingCategory(true);
             const authToken = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const session = await StaffPermissionEngine.getSession();
             const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-            const finalToken = authToken || staffSession?.token;
+            const finalToken = authToken || session?.token;
+
+            if (!finalToken) return;
 
             // Optimistic UI Update
             setMenus(prev => prev.map(cat =>
@@ -439,32 +407,19 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 cat.id === selectedCategoryToEdit.id ? { ...cat, name: editCategoryNewName } : cat
             ));
 
-            const response = await fetch(`https://billing.kravy.in/api/categories`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
-                body: JSON.stringify({
-                    id: selectedCategoryToEdit.id,
-                    name: editCategoryNewName,
-                    businessId: bId
-                }),
-            });
+            await menuService.updateCategory(finalToken, selectedCategoryToEdit.id, editCategoryNewName, bId);
 
-            if (response.ok) {
-                setShowUpdateCategorySuccess(true);
-                fetchMenus();
-                fetchAllCategories();
-                setTimeout(() => {
-                    setShowUpdateCategorySuccess(false);
-                    setIsEditCategoryModalVisible(false);
-                }, 1500);
-            } else {
-                fetchMenus(); // Revert optimistic UI
-                const textDetail = await response.text().catch(() => "");
-                Alert.alert("Update Failed", `Status: ${response.status}. ${textDetail.slice(0, 100)}`);
-            }
+            setShowUpdateCategorySuccess(true);
+            fetchMenus();
+            fetchAllCategories();
+            setTimeout(() => {
+                setShowUpdateCategorySuccess(false);
+                setIsEditCategoryModalVisible(false);
+            }, 1500);
         } catch (err) {
             console.error("Update category error:", err);
             Alert.alert("Error", "Network error while updating.");
+            fetchMenus(); // Revert optimistic UI
         } finally {
             setIsUpdatingCategory(false);
         }
@@ -479,37 +434,26 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         try {
             setIsDeletingCategory(true);
             const authToken = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const session = await StaffPermissionEngine.getSession();
             const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-            const finalToken = authToken || staffSession?.token;
+            const finalToken = authToken || session?.token;
 
-            const response = await fetch(`https://billing.kravy.in/api/categories`, {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${finalToken}`
-                },
-                body: JSON.stringify({ id: selectedCategoryToEdit.id, businessId: bId })
-            });
+            if (!finalToken) return;
 
-            if (response.ok) {
-                // Optimistic UI Removal
-                setMenus(prev => prev.filter(cat => cat.id !== selectedCategoryToEdit.id));
-                setAllCategories(prev => prev.filter(cat => cat.id !== selectedCategoryToEdit.id));
+            await menuService.deleteCategory(finalToken, selectedCategoryToEdit.id, bId);
 
-                setShowDeleteCategoryConfirm(false);
-                setShowDeleteCategorySuccess(true);
-                fetchMenus();
-                fetchAllCategories();
-                setTimeout(() => {
-                    setShowDeleteCategorySuccess(false);
-                    setIsEditCategoryModalVisible(false);
-                }, 1500);
-            } else {
-                const textDetail = await response.text().catch(() => "");
-                Alert.alert("Delete Failed", `Status: ${response.status}. ${textDetail.slice(0, 100)}`);
-            }
+            // Optimistic UI Removal
+            setMenus(prev => prev.filter(cat => cat.id !== selectedCategoryToEdit.id));
+            setAllCategories(prev => prev.filter(cat => cat.id !== selectedCategoryToEdit.id));
+
+            setShowDeleteCategoryConfirm(false);
+            setShowDeleteCategorySuccess(true);
+            fetchMenus();
+            fetchAllCategories();
+            setTimeout(() => {
+                setShowDeleteCategorySuccess(false);
+                setIsEditCategoryModalVisible(false);
+            }, 1500);
         } catch (err) {
             console.error("Delete category error:", err);
             Alert.alert("Error", "Network error while deleting.");
@@ -553,36 +497,30 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         try {
             setIsSaving(true);
             const authToken = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+            const session = await StaffPermissionEngine.getSession();
             const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-            const finalToken = authToken || staffSession?.token;
+            const finalToken = authToken || session?.token;
+
+            if (!finalToken) return;
 
             let finalImageUrl = editImageUrl;
-
             if (editImageUrl.startsWith("file://") || editImageUrl.startsWith("content://")) {
-                finalImageUrl = await uploadImageToCloudinary(editImageUrl).catch(() => editImageUrl);
+                finalImageUrl = await uploadToCloudinary(editImageUrl).catch(() => editImageUrl);
             }
 
-            const response = await fetch("https://billing.kravy.in/api/items", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
-                body: JSON.stringify({
-                    id: selectedItem?.id,
-                    name: editName,
-                    sellingPrice: parseFloat(editPrice),
-                    categoryId: editCategoryId,
-                    imageUrl: finalImageUrl,
-                    unit: editUnit,
-                    isVeg: editIsVeg,
-                    description: editDescription,
-                    businessId: bId
-                }),
+            await menuService.updateItem(finalToken, {
+                id: selectedItem?.id,
+                name: editName,
+                sellingPrice: parseFloat(editPrice),
+                categoryId: editCategoryId,
+                imageUrl: finalImageUrl,
+                unit: editUnit,
+                isVeg: editIsVeg,
+                description: editDescription,
+                businessId: bId
             });
 
-            if (response.ok) {
-                fetchMenus(); // Silently sync
-            }
+            fetchMenus(); // Silently sync
         } catch (err) {
             console.error("Background update failed:", err);
         } finally {
@@ -739,6 +677,10 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                     keyExtractor={(item) => item.id}
                     renderItem={renderItem}
                     contentContainerStyle={styles.listPadding}
+                    initialNumToRender={8}
+                    maxToRenderPerBatch={10}
+                    windowSize={5}
+                    removeClippedSubviews={true}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="folder-open-outline" size={rf(50)} color={COLORS.LIGHT_GRAY} />
@@ -767,8 +709,8 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 </TouchableOpacity>
             </View>
 
-            {/* Loading Overlay */}
-            {isFetchingItemDetails && (
+            {/* Loading Overlay (Only show if modal is not open) */}
+            {isFetchingItemDetails && !isEditModalVisible && (
                 <View style={styles.overlay}><ActivityIndicator size="large" color={COLORS.PRIMARY} /></View>
             )}
 
@@ -965,7 +907,9 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                     <View style={styles.modalHeader}>
                         <TouchableOpacity onPress={() => setIsEditModalVisible(false)}><ArrowLeft size={rf(26)} color={COLORS.SECONDARY} /></TouchableOpacity>
                         <Text style={styles.modalHeaderTitle}>{t('edit_item')}</Text>
-                        <View style={{ width: 30 }} />
+                        <View style={{ width: s(30), alignItems: 'center' }}>
+                            {isFetchingItemDetails && <ActivityIndicator size="small" color={COLORS.PRIMARY} />}
+                        </View>
                     </View>
                     <ScrollView style={{ padding: 20 }}>
                         {/* Image Section */}
@@ -983,7 +927,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                     </View>
                                 ) : (
                                     <View style={styles.pickerImagePlaceholder}>
-                                         <ImageIcon size={rf(40)} color={COLORS.GRAY} />
+                                        <ImageIcon size={rf(40)} color={COLORS.GRAY} />
                                         <Text style={{ marginTop: 10, color: COLORS.GRAY }}>{t('add_image')}</Text>
                                     </View>
                                 )}
@@ -1032,7 +976,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 onPress={handleSave}
                                 disabled={isSaving || isDeleting}
                             >
-                                 <Text style={styles.saveBtnText}>
+                                <Text style={styles.saveBtnText}>
                                     {isSaving ? <ActivityIndicator color="white" /> : t('update_item')}
                                 </Text>
                             </TouchableOpacity>
@@ -1237,7 +1181,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 <View style={styles.successCircle}>
                                     <Ionicons name="checkmark-circle" size={rf(36)} color="#10B981" />
                                 </View>
-                                 <Text style={styles.feedbackTitle}>{t('category_updated')}</Text>
+                                <Text style={styles.feedbackTitle}>{t('category_updated')}</Text>
                             </View>
                         </View>
                     </Modal>
@@ -1249,7 +1193,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                 <View style={[styles.successCircle, { backgroundColor: '#FEE2E2' }]}>
                                     <Ionicons name="trash" size={rf(36)} color="#EF4444" />
                                 </View>
-                                 <Text style={[styles.feedbackTitle, { color: '#EF4444' }]}>{t('category_deleted')}</Text>
+                                <Text style={[styles.feedbackTitle, { color: '#EF4444' }]}>{t('category_deleted')}</Text>
                             </View>
                         </View>
                     </Modal>

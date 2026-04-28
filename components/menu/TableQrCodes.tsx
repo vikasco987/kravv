@@ -17,6 +17,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  DeviceEventEmitter,
   Dimensions,
   FlatList,
   Modal,
@@ -101,32 +102,40 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
 
   const fetchTables = useCallback(async () => {
     try {
-      setLoading(true);
+      // Only show loading if we don't have any tables yet (first time)
+      const hasTables = tables.length > 0;
+      if (!hasTables) setLoading(true);
+
       const authToken = await getToken();
       const sessionStr = await AsyncStorage.getItem('staff_session');
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
       const finalToken = authToken || staffSession?.token;
-      setBusinessId(bId);
+      
+      if (bId) {
+        setBusinessId(bId);
+        await AsyncStorage.setItem('@cached_business_id', bId);
+      }
 
-      if (!finalToken && !bId) {
+      if (!finalToken) {
         setLoading(false);
         return;
       }
 
-      const url = bId ? `https://billing.kravy.in/api/tables?businessId=${bId}` : "https://billing.kravy.in/api/tables";
-      const response = await fetch(url, {
+      // Standard API URL without trailing slash
+      const response = await fetch("https://billing.kravy.in/api/tables", {
         headers: { Authorization: `Bearer ${finalToken}` },
       });
 
-      // Fetch Profile to get Business Name
-      const profileUrl = bId ? `https://billing.kravy.in/api/profile?businessId=${bId}` : "https://billing.kravy.in/api/profile";
-      const pRes = await fetch(profileUrl, {
+      // Base URL for Profile
+      const pRes = await fetch("https://billing.kravy.in/api/profile", {
         headers: { Authorization: `Bearer ${finalToken}` },
       });
       if (pRes.ok) {
         const pData = await pRes.json();
-        setBusinessName(pData.businessName || pData.companyName || "KRAVY");
+        const bName = pData.businessName || pData.companyName || "KRAVY";
+        setBusinessName(bName);
+        await AsyncStorage.setItem('@cached_business_name', bName);
       }
 
       if (response.ok) {
@@ -139,25 +148,42 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
             id: t.id || t._id || Math.random().toString()
           }));
           setTables(normalizedTables);
+          await AsyncStorage.setItem('@cached_tables', JSON.stringify(normalizedTables));
         } else {
           const text = await response.text();
           console.warn(`ℹ️ [TableQrCodes] Received non-JSON for tables. Status: ${response.status}. Body: ${text.slice(0, 50)}`);
         }
       } else {
         const text = await response.text();
-        console.error(`❌ [TableQrCodes] Backend fetch failed: ${response.status}. Body: ${text.slice(0, 50)}`);
+        // Use console.log instead of console.error to prevent intrusive red screen on phone
+        console.log(`ℹ️ [TableQrCodes] Backend fetch failed: ${response.status}. Body: ${text.slice(0, 50)}`);
       }
     } catch (error) {
-      console.error("Fetch tables error:", error);
+      console.log("Fetch tables silent error:", error);
     } finally {
       setLoading(false);
     }
-  }, [getToken, user]);
+  }, [getToken, user, tables.length]);
 
   const createTable = async () => {
     if (!newTableName.trim()) return;
+    
+    const savedName = newTableName.trim();
+    // OPTIMISTIC UPDATE: Add table to list immediately
+    const tempId = `temp-${Date.now()}`;
+    const optimisticTable = { id: tempId, name: savedName };
+    const updatedTables = [...tables, optimisticTable];
+
+    // Update UI and Cache instantly
+    setTables(updatedTables);
+    AsyncStorage.setItem('@cached_tables', JSON.stringify(updatedTables));
+    
+    // Close modal and clear input immediately for "instant" feel
+    setNewTableName("");
+    setIsCreateModalVisible(false);
+
     try {
-      setIsSaving(true);
+      // background API call
       const authToken = await getToken();
       const sessionStr = await AsyncStorage.getItem('staff_session');
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
@@ -170,18 +196,22 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${finalToken}`,
         },
-        body: JSON.stringify({ name: newTableName, businessId: bId }),
+        body: JSON.stringify({ name: savedName, businessId: bId }),
       });
+      
       if (response.ok) {
-        setNewTableName("");
-        setIsCreateModalVisible(false);
+        // Sync with backend to get the real database ID
+        await fetchTables();
+        // Signal other views AFTER server confirmation and local sync
+        setTimeout(() => DeviceEventEmitter.emit('REFRESH_TABLES'), 500);
+      } else {
+        // If save failed, fetchTables will sync the UI back to reality
         fetchTables();
+        Alert.alert("Error", "FAILED: Could not create new table on server.");
       }
     } catch (error) {
       console.error("Create table error:", error);
-      Alert.alert("Error", "Could not create table.");
-    } finally {
-      setIsSaving(false);
+      fetchTables(); // Sync back
     }
   };
 
@@ -192,29 +222,44 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
 
   const handleConfirmDelete = async () => {
     if (!tableToDelete) return;
+    
+    const tableId = tableToDelete.id;
+    // OPTIMISTIC DELETE: Remove from list immediately
+    const updatedTables = tables.filter(t => t.id !== tableId);
+    setTables(updatedTables);
+    AsyncStorage.setItem('@cached_tables', JSON.stringify(updatedTables));
+    
+    // Close modal immediately for instant feel
+    setIsDeleteModalVisible(false);
+    setTableToDelete(null);
+
     try {
-      setIsDeleting(true);
       const authToken = await getToken();
       const sessionStr = await AsyncStorage.getItem('staff_session');
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
       const finalToken = authToken || staffSession?.token;
 
-      const url = bId ? `https://billing.kravy.in/api/tables?id=${tableToDelete.id}&businessId=${bId}` : `https://billing.kravy.in/api/tables?id=${tableToDelete.id}`;
+      // Use simplified URL if possible, or keep query for DELETE if required by backend
+      const url = bId ? `https://billing.kravy.in/api/tables?id=${tableId}&businessId=${bId}` : `https://billing.kravy.in/api/tables?id=${tableId}`;
       const response = await fetch(url, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${finalToken}` },
       });
+      
       if (response.ok) {
-        setIsDeleteModalVisible(false);
-        setTableToDelete(null);
-        fetchTables();
+        // Background refresh to sync state
+        await fetchTables();
+        // Signal other views AFTER server confirmation and local sync
+        setTimeout(() => DeviceEventEmitter.emit('REFRESH_TABLES'), 500);
+      } else {
+        // If delete failed, fetchTables will restore the table to UI
+        await fetchTables();
+        Alert.alert("Error", "FAILED_TO_DELETE_TABLE");
       }
     } catch (error) {
       console.error("Delete table error:", error);
-      Alert.alert("Error", "Could not delete table.");
-    } finally {
-      setIsDeleting(false);
+      fetchTables(); // Revert/Sync
     }
   };
 
@@ -236,7 +281,30 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   };
 
   useEffect(() => {
-    fetchTables();
+    const loadInitialData = async () => {
+      try {
+        const [cachedTables, cachedBusinessName, cachedBusinessId] = await Promise.all([
+          AsyncStorage.getItem('@cached_tables'),
+          AsyncStorage.getItem('@cached_business_name'),
+          AsyncStorage.getItem('@cached_business_id')
+        ]);
+
+        if (cachedTables) setTables(JSON.parse(cachedTables));
+        if (cachedBusinessName) setBusinessName(cachedBusinessName);
+        if (cachedBusinessId) setBusinessId(cachedBusinessId);
+        
+        // If we have cached data, we don't need to show the initial loading state
+        if (cachedTables) {
+          setLoading(false);
+        }
+      } catch (e) {
+        console.error("Error loading cached table data:", e);
+      }
+      // Always fetch fresh data in the background
+      fetchTables();
+    };
+
+    loadInitialData();
   }, []);
 
   const openQrModal = (table: Table) => {
@@ -244,21 +312,6 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
     setIsQrModalVisible(true);
   };
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.headerTopRow}>
-            <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
-              <ArrowLeft size={rf(26)} color={COLORS.SECONDARY} />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.title}>{t('table_qr_codes')}</Text>
-        </View>
-        <Shimmer />
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>

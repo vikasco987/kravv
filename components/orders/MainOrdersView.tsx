@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    DeviceEventEmitter,
     FlatList,
     RefreshControl,
     StyleSheet,
@@ -93,7 +94,7 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                         if (oContentType && oContentType.includes("application/json")) {
                             const oData = await ordersResponse.json();
                             currentOrders = Array.isArray(oData) ? oData : (oData.orders || []);
-                            setAllOrders(prev => JSON.stringify(prev) === JSON.stringify(currentOrders) ? prev : currentOrders);
+                            setAllOrders(currentOrders);
                         }
                     }
 
@@ -107,7 +108,7 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                         return { ...t, id: tId || Math.random().toString(), orderCount: activeOrdersForTable.length };
                     });
 
-                    setTables(prev => JSON.stringify(prev) === JSON.stringify(normalizedTables) ? prev : normalizedTables);
+                    setTables(normalizedTables);
                     await AsyncStorage.setItem('@cached_tables', JSON.stringify(normalizedTables));
                 }
             }
@@ -164,6 +165,15 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
     );
 
     useEffect(() => {
+        const sub1 = DeviceEventEmitter.addListener('REFRESH_ORDERS', fetchTables);
+        const sub2 = DeviceEventEmitter.addListener('REFRESH_TABLES', fetchTables);
+        return () => {
+            sub1.remove();
+            sub2.remove();
+        };
+    }, [fetchTables]);
+
+    useEffect(() => {
         const interval = setInterval(fetchTables, 5000);
         return () => clearInterval(interval);
     }, [fetchTables]);
@@ -173,16 +183,16 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
         fetchTables();
     };
 
-    const navigateToTable = (item: Table) => {
+    const navigateToTable = useCallback((item: Table) => {
         if (isLockedUser) {
             setIsLoginModalVisible(true);
             return;
         }
         setSelectedTable(item);
         setCurrentView("tableOrders");
-    };
+    }, [isLockedUser]);
 
-    const showTableInsights = (item: Table) => {
+    const showTableInsights = useCallback((item: Table) => {
         if (isLockedUser) {
             setIsLoginModalVisible(true);
             return;
@@ -193,7 +203,7 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
         });
         setSelectedTableData({ name: item.name, orders: tableOrders });
         setRotationVisible(true);
-    };
+    }, [isLockedUser, allOrders]);
 
     if (currentView === "tableOrders" && selectedTable) {
         const tableOrders = allOrders.filter((o: any) => {
@@ -228,6 +238,10 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                     keyExtractor={(item) => item.id}
                     numColumns={2}
                     contentContainerStyle={styles.listPadding}
+                    initialNumToRender={6}
+                    maxToRenderPerBatch={10}
+                    windowSize={10}
+                    removeClippedSubviews={true}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME_PRIMARY} />
                     }

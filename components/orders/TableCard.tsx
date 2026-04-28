@@ -14,7 +14,7 @@ interface TableCardProps {
 
 const THEME_PRIMARY = "#4F46E5";
 
-const TableCard = ({ 
+export const TableCard = React.memo(({ 
     name, 
     orderCount, 
     activeOrdersText, 
@@ -26,6 +26,7 @@ const TableCard = ({
         <TouchableOpacity
             style={styles.tableCard}
             onPress={onPress}
+            activeOpacity={0.7}
         >
             {orderCount > 0 && (
                 <TouchableOpacity
@@ -34,6 +35,7 @@ const TableCard = ({
                         e.stopPropagation();
                         onInsightPress();
                     }}
+                    activeOpacity={0.6}
                 >
                     <Ionicons name="flash" size={rf(14)} color="#F59E0B" />
                 </TouchableOpacity>
@@ -54,7 +56,7 @@ const TableCard = ({
             </View>
         </TouchableOpacity>
     );
-};
+});
 
 const styles = StyleSheet.create({
     tableCard: {

@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
+import { useRefresh } from "../../context/RefreshContext";
 import { getRecentCompanyProfile } from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill } from "../../utils/SimpleBill";
@@ -39,6 +40,7 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   const { t } = useLanguage();
+  const { triggerRefresh } = useRefresh();
 
   const [cart, setCart] = useState<any[]>([]);
   const [paymentMode, setPaymentMode] = useState<string>("Cash");
@@ -60,7 +62,17 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
     discountEnabled: false,
     discountRate: 0,
     serviceChargeEnabled: false,
-    serviceChargeRate: 0
+    serviceChargeRate: 0,
+    serviceGstEnabled: false,
+    serviceGstRate: 0,
+    deliveryChargeEnabled: false,
+    deliveryChargeAmount: 0,
+    deliveryGstEnabled: false,
+    deliveryGstRate: 0,
+    packagingChargeEnabled: false,
+    packagingChargeAmount: 0,
+    packagingGstEnabled: false,
+    packagingGstRate: 0
   });
   const [businessProfile, setBusinessProfile] = useState<any>(null);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
@@ -70,7 +82,12 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
       const keys = [
         'tax_enabled', 'tax_rate', 'per_product_tax',
         'discount_enabled', 'discount_rate',
-        'service_charge_enabled', 'service_charge_rate'
+        'service_charge_enabled', 'service_charge_rate',
+        'service_gst_enabled', 'service_gst_rate',
+        'delivery_charge_enabled', 'delivery_charge_amount',
+        'delivery_gst_enabled', 'delivery_gst_rate',
+        'packaging_charge_enabled', 'packaging_charge_amount',
+        'packaging_gst_enabled', 'packaging_gst_rate'
       ];
       const results = await AsyncStorage.multiGet(keys);
       const settings: any = {};
@@ -83,7 +100,17 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
         discountEnabled: settings['discount_enabled'] === 'true',
         discountRate: parseFloat(settings['discount_rate'] || "0"),
         serviceChargeEnabled: settings['service_charge_enabled'] === 'true',
-        serviceChargeRate: parseFloat(settings['service_charge_rate'] || "0")
+        serviceChargeRate: parseFloat(settings['service_charge_rate'] || "0") || 0,
+        serviceGstEnabled: settings['service_gst_enabled'] === 'true',
+        serviceGstRate: parseFloat(settings['service_gst_rate'] || "0") || 0,
+        deliveryChargeEnabled: settings['delivery_charge_enabled'] === 'true',
+        deliveryChargeAmount: parseFloat(settings['delivery_charge_amount'] || "0") || 0,
+        deliveryGstEnabled: settings['delivery_gst_enabled'] === 'true',
+        deliveryGstRate: parseFloat(settings['delivery_gst_rate'] || "0") || 0,
+        packagingChargeEnabled: settings['packaging_charge_enabled'] === 'true',
+        packagingChargeAmount: parseFloat(settings['packaging_charge_amount'] || "0") || 0,
+        packagingGstEnabled: settings['packaging_gst_enabled'] === 'true',
+        packagingGstRate: parseFloat(settings['packaging_gst_rate'] || "0") || 0
       });
     } catch (e) {
       console.log("Tax settings loading info (local):", e);
@@ -92,6 +119,13 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
 
   const loadBusinessProfile = async () => {
     try {
+      // 🚀 Step 1: Quick Load from Cache
+      const cached = await AsyncStorage.getItem('@cached_business_profile');
+      if (cached) {
+        const data = JSON.parse(cached);
+        if (data) setBusinessProfile(data);
+      }
+
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
       setActiveBusinessId(bId);
 
@@ -101,9 +135,14 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
       const finalToken = token || staffSession?.token;
 
       if (!finalToken) return;
+      
+      // Step 2: Refresh from network
       const profile = await getRecentCompanyProfile(finalToken);
-      if (profile) setBusinessProfile(profile);
-    } catch (e) { console.error("Error loading profile in Checkout:", e); }
+      if (profile) {
+        setBusinessProfile(profile);
+        await AsyncStorage.setItem('@cached_business_profile', JSON.stringify(profile));
+      }
+    } catch (e) { console.log("Error loading profile in Checkout (using cache fallback):", e); }
   };
 
   useFocusEffect(useCallback(() => {
@@ -175,29 +214,29 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
   );
 
   // --- Cart Management Logic ---
-  const addToCart = (item: any) => {
+  const addToCart = useCallback((item: any) => {
     setCart(prev => prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
-  };
+  }, []);
 
-  const removeFromCart = (item: any) => {
+  const removeFromCart = useCallback((item: any) => {
     setCart(prev => prev.map(i => {
       if (i.id === item.id) {
         return { ...i, quantity: Math.max(1, i.quantity - 1) };
       }
       return i;
     }));
-  };
+  }, []);
 
-  const deleteFromCart = (itemId: string) => {
+  const deleteFromCart = useCallback((itemId: string) => {
     setCart(prev => prev.filter(i => i.id !== itemId));
-  };
+  }, []);
 
   const clearCart = () => {
     setCart([]);
   };
 
   // --- Calculation Logic (Matching SimpleBill.ts) ---
-  const calculateTotals = () => {
+  const totals = useMemo(() => {
     let totalTaxable = 0;
     let totalGst = 0;
     let subtotal = 0;
@@ -237,10 +276,9 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
     const discountAmount = taxSettings.discountEnabled ? (totalTaxable * (taxSettings.discountRate / 100)) : 0;
     const taxableAfterDiscount = totalTaxable - discountAmount;
 
-    const serviceChargeAmount = taxSettings.serviceChargeEnabled ? (taxableAfterDiscount * (taxSettings.serviceChargeRate / 100)) : 0;
-    const netTaxableValue = taxableAfterDiscount + serviceChargeAmount;
+    // Service Charge moved to add-on section
+    const netTaxableValue = taxableAfterDiscount;
 
-    // Recalculate GST based on net taxable amount (after discount and service charge)
     let finalGst = totalGst;
     if (taxSettings.enabled || taxSettings.perProduct) {
       const avgGstRate = totalTaxable > 0 ? (totalGst / totalTaxable) : 0;
@@ -248,6 +286,39 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
     }
 
     const finalTotal = netTaxableValue + finalGst;
+
+    let serviceChargeAmount = 0;
+    let serviceGstAmount = 0;
+    if (taxSettings.serviceChargeEnabled) {
+      serviceChargeAmount = taxSettings.serviceChargeRate;
+      if (taxSettings.serviceGstEnabled) {
+        serviceGstAmount = (serviceChargeAmount * taxSettings.serviceGstRate) / 100;
+      }
+    }
+
+    const grandTotalBeforeDel = finalTotal + serviceChargeAmount + serviceGstAmount;
+
+    let deliveryChargeAmount = 0;
+    let deliveryGstAmount = 0;
+    if (taxSettings.deliveryChargeEnabled) {
+      deliveryChargeAmount = taxSettings.deliveryChargeAmount;
+      if (taxSettings.deliveryGstEnabled) {
+        deliveryGstAmount = (deliveryChargeAmount * taxSettings.deliveryGstRate) / 100;
+      }
+    }
+
+    const grandTotal = grandTotalBeforeDel + deliveryChargeAmount + deliveryGstAmount;
+
+    let packagingChargeAmount = 0;
+    let packagingGstAmount = 0;
+    if (taxSettings.packagingChargeEnabled) {
+      packagingChargeAmount = taxSettings.packagingChargeAmount;
+      if (taxSettings.packagingGstEnabled) {
+        packagingGstAmount = (packagingChargeAmount * taxSettings.packagingGstRate) / 100;
+      }
+    }
+
+    const finalGrandTotal = grandTotal + packagingChargeAmount + packagingGstAmount;
 
     let displayGstLabel = 'GST';
     if (taxSettings.enabled) {
@@ -262,18 +333,24 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
 
     return {
       subtotal: subtotal,
-      taxableAmount: totalTaxable,
+      taxableAmount: netTaxableValue,
       discountAmount,
       discountRate: taxSettings.discountRate,
       serviceChargeAmount,
       serviceChargeRate: taxSettings.serviceChargeRate,
+      serviceGstAmount,
+      serviceGstRate: taxSettings.serviceGstRate,
       gst: finalGst,
-      totalDue: finalTotal,
+      deliveryChargeAmount,
+      deliveryGstAmount,
+      deliveryGstRate: taxSettings.deliveryGstRate,
+      packagingChargeAmount,
+      packagingGstAmount,
+      packagingGstRate: taxSettings.packagingGstRate,
+      totalDue: finalGrandTotal,
       gstLabel: displayGstLabel
     };
-  };
-
-  const totals = calculateTotals();
+  }, [cart, taxSettings]);
 
   const handlePrint = async () => {
     if (cart.length === 0) return;
@@ -304,42 +381,39 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
       const customerPhone = newParty.phone.trim();
 
       // --- NEW: Automatically create party/client if it's a new customer ---
+      let partyCreationPromise = Promise.resolve(null);
       if (!finalPartyId && customerName && customerPhone.length >= 10) {
-        try {
-          // Check if party with this phone already exists locally
-          const existing = parties.find(p => p.phone === customerPhone);
-          if (existing) {
-            finalPartyId = existing.id || existing._id;
-          } else {
-            // Create new party - but FAIL SILENTLY if offline to allow printing
-            const pRes = await fetch("https://billing.kravy.in/api/parties", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
-              body: JSON.stringify({ name: customerName, phone: customerPhone, address: newParty.address.trim(), businessId: bId }),
-            });
-            if (pRes.ok) {
-              const pData = await pRes.json();
-              finalPartyId = pData.party?.id || pData.party?._id || pData.id;
-            }
-          }
-        } catch (e) { 
-          console.log("Auto Party Create skipped (offline?):", e); 
-          // Don't throw - let the print continue!
+        // Check if party with this phone already exists locally
+        const existing = parties.find(p => p.phone === customerPhone);
+        if (existing) {
+          finalPartyId = existing.id || existing._id;
+        } else {
+          // Fire and forget or handle in background
+          partyCreationPromise = fetch("https://billing.kravy.in/api/parties", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+            body: JSON.stringify({ name: customerName, phone: customerPhone, address: newParty.address.trim(), businessId: bId }),
+          }).then(res => res.ok ? res.json() : null)
+            .then(pData => pData?.party?.id || pData?.party?._id || pData?.id);
         }
       }
 
+      // We start SimpleBill immediately. If partyId is still being created, 
+      // it might be null for this specific call, but we prioritize SPEED.
+      // Usually, backend should handle phone-based mapping if partyId is missing.
       const result = await SimpleBill(cart, finalToken!, bId!, {
         paymentMode,
         partyId: finalPartyId,
         customerName: customerName,
         phone: customerPhone,
-        businessProfile, // Pass current business profile
-        taxSettings,      // Pass current tax settings
+        businessProfile, 
+        taxSettings,      
         tableName: params.selectedTable || undefined
       });
 
       if (result?.status === "success") {
         setIsSuccessModalVisible(true);
+        triggerRefresh(); // Update dashboard
       } else {
         setPrintErrorMessage(result?.error || "Failed to process bill.");
         setIsErrorModalVisible(true);
@@ -509,12 +583,6 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
             </View>
           )}
 
-          {taxSettings.serviceChargeEnabled && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabelSmall}>S. Charge ({totals.serviceChargeRate}%)</Text>
-              <Text style={styles.totalValueSmall}>₹{totals.serviceChargeAmount.toFixed(2)}</Text>
-            </View>
-          )}
 
           <View style={styles.totalRow}>
             <Text style={styles.totalLabelSmall}>taxable_amount</Text>
@@ -525,6 +593,48 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
             <Text style={styles.totalLabelSmall}>{totals.gstLabel}</Text>
             <Text style={styles.totalValueSmall}>₹{totals.gst.toFixed(2)}</Text>
           </View>
+
+          {taxSettings.serviceChargeEnabled && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabelSmall}>Service Charge</Text>
+              <Text style={styles.totalValueSmall}>₹{totals.serviceChargeAmount.toFixed(2)}</Text>
+            </View>
+          )}
+
+          {taxSettings.serviceChargeEnabled && taxSettings.serviceGstEnabled && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabelSmall}>GST on Service ({totals.serviceGstRate}%)</Text>
+              <Text style={styles.totalValueSmall}>₹{totals.serviceGstAmount.toFixed(2)}</Text>
+            </View>
+          )}
+
+          {taxSettings.deliveryChargeEnabled && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabelSmall}>Delivery Charge</Text>
+              <Text style={styles.totalValueSmall}>₹{totals.deliveryChargeAmount.toFixed(2)}</Text>
+            </View>
+          )}
+
+          {taxSettings.deliveryChargeEnabled && taxSettings.deliveryGstEnabled && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabelSmall}>GST on Delivery ({totals.deliveryGstRate}%)</Text>
+              <Text style={styles.totalValueSmall}>₹{totals.deliveryGstAmount.toFixed(2)}</Text>
+            </View>
+          )}
+
+          {taxSettings.packagingChargeEnabled && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabelSmall}>Packaging Charge</Text>
+              <Text style={styles.totalValueSmall}>₹{totals.packagingChargeAmount.toFixed(2)}</Text>
+            </View>
+          )}
+
+          {taxSettings.packagingChargeEnabled && taxSettings.packagingGstEnabled && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabelSmall}>GST on Packaging ({totals.packagingGstRate}%)</Text>
+              <Text style={styles.totalValueSmall}>₹{totals.packagingGstAmount.toFixed(2)}</Text>
+            </View>
+          )}
 
           <View style={[styles.totalRow, { marginTop: vs(15) }]}>
             <Text style={styles.grandTotalLabel}>Total Due</Text>

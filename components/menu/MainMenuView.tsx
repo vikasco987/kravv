@@ -19,8 +19,8 @@ import { rf, s, vs } from "../../utils/responsive";
 // Project level imports
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
-import { preCacheLogo, SimpleBill } from "../../utils/SimpleBill";
 import { getRecentCompanyProfile } from "../../services/companyService";
+import { preCacheLogo, SimpleBill } from "../../utils/SimpleBill";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import { SaveBill } from "../common/SaveBill";
 import { SimpleKOT } from "../common/SimpleKOT";
@@ -40,12 +40,12 @@ import { QuickAddItemModal } from "./QuickAddItemModal";
 import { TableSelectionModal } from "./TableSelectionModal";
 
 // Batched Components
+import { SyncManager } from "../../services/SyncManager";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { useStaffPermissions } from "../staff creat/useStaffPermissions";
 import AddItemView from "./AddItemView";
 import CheckoutView from "./CheckoutView";
 import HeldOrdersView from "./HeldOrdersView";
-import { SyncManager } from "../../services/SyncManager";
 
 
 // --- TYPE DEFINITIONS ---
@@ -138,6 +138,262 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         }
     }, [login]);
 
+    const fetchMenus = useCallback(async (isManualRefresh = false) => {
+        if (isLockedUser) {
+            setMenus([]);
+            setCart({});
+            setHeldCount(0);
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
+
+        let cacheFound = false;
+
+        try {
+            // 🚀 STEP 1: Always try to load from Cache FIRST for instant UI
+            const cachedData = await AsyncStorage.getItem('@cached_menu');
+            if (cachedData) {
+                const parsed = JSON.parse(cachedData);
+                if (parsed && parsed.length > 0) {
+                    setMenus(prev => JSON.stringify(prev) !== JSON.stringify(parsed) ? parsed : prev);
+                    setLoading(prev => prev ? false : prev);
+                    cacheFound = true;
+                }
+            }
+        } catch (e) {
+            console.log("Error reading menu cache:", e);
+        }
+
+        try {
+            if (!isLoaded) return;
+
+            // 1. Get Authentication Context
+            let authToken = null;
+            try {
+                authToken = await getToken();
+            } catch (e) {
+                console.log("Token fetch failed (offline?)");
+            }
+
+            const session = await StaffPermissionEngine.getSession();
+            const finalToken = authToken || session?.token;
+            const bId = activeBusinessId || session?.businessId;
+
+            // Allow syncing only if online/token exists
+            if (finalToken) {
+                SyncManager.syncPendingBills(finalToken);
+            }
+
+            // If we have NO token/bId AND NO cache, then we can't show anything
+            if (!finalToken && !bId && !cacheFound) {
+                setMenus([]);
+                setLoading(false);
+                setRefreshing(false);
+                return;
+            }
+
+            if (isManualRefresh) {
+                setRefreshing(prev => !prev ? true : prev);
+            } else if (!cacheFound) {
+                setLoading(prev => !prev ? true : prev);
+            }
+
+            // Only proceed with network fetch if we have a way to identify the business
+            if (!finalToken && !bId) {
+                // Keep showing cached menus if we have them
+                setLoading(false);
+                setRefreshing(false);
+                return;
+            }
+
+            const itemsUrl = bId ? `https://billing.kravy.in/api/menu/view?businessId=${bId}` : "https://billing.kravy.in/api/menu/view";
+            const catUrl = bId ? `https://billing.kravy.in/api/categories?businessId=${bId}` : "https://billing.kravy.in/api/categories";
+
+            // 🚀 Parallel Fetch for ultimate speed
+            const [menuRes, catRes] = await Promise.all([
+                fetch(itemsUrl, { headers: { Authorization: `Bearer ${finalToken}`, "Cache-Control": "no-cache" } }).catch(e => null),
+                fetch(catUrl, { headers: { Authorization: `Bearer ${finalToken}`, "Cache-Control": "no-cache" } }).catch(e => null)
+            ]);
+
+            let processedItems: any[] = [];
+            const categoryMap: Record<string, MenuCategory> = {};
+
+            // Process Menu Items
+            if (menuRes && menuRes.ok) {
+                const items = await menuRes.json();
+                let itemsList = Array.isArray(items) ? items : (items?.menus || items?.items || []);
+
+                // If it's the 'menus' structure (grouped by category)
+                if (items && Array.isArray(items.menus)) {
+                    items.menus.forEach((cat: any) => {
+                        const categoryRaw = { id: cat.id || cat._id || "others", name: cat.name || "Others" };
+                        if (Array.isArray(cat.items)) {
+                            cat.items.forEach((item: any) => {
+                                processedItems.push({ ...item, category: categoryRaw });
+                            });
+                        }
+                    });
+                } else {
+                    processedItems = itemsList;
+                }
+
+                processedItems.forEach((item: any) => {
+                    const rawCat = item.category || { id: "others", name: "Others" };
+                    const catId = String(rawCat.id || rawCat._id || "others");
+                    const catName = String(rawCat.name || "Others");
+
+                    if (!categoryMap[catId]) {
+                        categoryMap[catId] = { id: catId, name: catName, items: [] };
+                    }
+
+                    categoryMap[catId].items.push({
+                        id: String(item.id || item._id || Math.random().toString()),
+                        name: String(item.name || "Unnamed Item"),
+                        price: Number(item.sellingPrice || item.price || item.selling_price || 0),
+                        imageUrl: item.imageUrl,
+                        unit: item.unit,
+                        gst: item.gst,
+                        taxType: item.taxType,
+                        hsnCode: item.hsnCode,
+                    });
+                });
+            }
+
+            // Process Extra Categories (empty ones)
+            if (catRes && catRes.ok) {
+                const allCats = await catRes.json();
+                if (Array.isArray(allCats)) {
+                    allCats.forEach((c: any) => {
+                        const cid = String(c.id || c._id);
+                        if (!categoryMap[cid]) {
+                            categoryMap[cid] = { id: cid, name: c.name, items: [] };
+                        }
+                    });
+                }
+            }
+
+            const sortedMenus = Object.values(categoryMap)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(cat => ({
+                    ...cat,
+                    items: cat.items.sort((a, b) => a.name.localeCompare(b.name))
+                }));
+
+            if (sortedMenus.length > 0) {
+                // MERGE STRATEGY: Ensure we don't lose categories that were already there
+                const existingMenus = menus || [];
+                const mergedMenus = [...sortedMenus];
+
+                existingMenus.forEach(exCat => {
+                    const exists = mergedMenus.some(m => String(m.id) === String(exCat.id));
+                    if (!exists) {
+                        mergedMenus.push({ ...exCat, items: [] });
+                    }
+                });
+
+                const finalMenus = mergedMenus.sort((a, b) => a.name.localeCompare(b.name));
+                await AsyncStorage.setItem('@cached_menu', JSON.stringify(finalMenus));
+                setMenus(prev => JSON.stringify(prev) !== JSON.stringify(finalMenus) ? finalMenus : prev);
+            } else if (!cacheFound) {
+                setMenus(prev => prev.length > 0 ? [] : prev);
+            }
+
+        } catch (err: any) {
+            console.log("Fetch Error:", err.message);
+            // ONLY show network error if we have NOTHING to show (no cache)
+            if (!cacheFound) {
+                if (err.message === "Network request failed") {
+                    setShowNetworkError(true);
+                }
+            }
+        } finally {
+            setLoading(prev => prev ? false : prev);
+            setRefreshing(prev => prev ? false : prev);
+        }
+    }, [isLoaded, isSignedIn, activeBusinessId, user?.id, activeOrderId]);
+
+    const fetchSettings = useCallback(async () => {
+        try {
+            const kot = await AsyncStorage.getItem('kot_enabled');
+            const table = await AsyncStorage.getItem('table_booking_enabled');
+            const isKot = kot === 'true';
+            const isTable = table === 'true';
+
+            setKotEnabled(prev => prev !== isKot ? isKot : prev);
+            setTableBookingEnabled(prev => prev !== isTable ? isTable : prev);
+        } catch (e) {
+            console.log("Settings fetch info (local):", e);
+        }
+    }, []);
+
+
+
+    const fetchHeldCount = useCallback(async () => {
+        if (!isLoaded || isFetchingHeldCount.current) return;
+        isFetchingHeldCount.current = true;
+
+        try {
+            const token = await getToken();
+            const session = await StaffPermissionEngine.getSession();
+            const finalToken = token || session?.token;
+
+            if (!finalToken) {
+                setHeldCount(0);
+                return;
+            }
+
+            // Standardize ID comparison
+            const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
+            const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
+
+            const localData = await AsyncStorage.getItem('@held_orders');
+            const localOrders = localData ? JSON.parse(localData) : [];
+
+            const cachedBackendStr = await AsyncStorage.getItem('@cached_held_orders');
+            const cachedBackend = cachedBackendStr ? JSON.parse(cachedBackendStr) : [];
+
+            const getConsolidatedCount = (backend: any[], local: any[]) => {
+                const uniqueIds = new Set();
+                let count = 0;
+
+                const process = (id: any) => {
+                    if (!id) return;
+                    const cleanId = id.toString();
+                    if (!hiddenIds.includes(cleanId) && !uniqueIds.has(cleanId)) {
+                        uniqueIds.add(cleanId);
+                        count++;
+                    }
+                };
+
+                backend.forEach(b => process(b.id || b._id || b.billNumber));
+                local.forEach(l => process(l.id));
+                return count;
+            };
+
+            // 1. Instant show from cache
+            const initialCount = getConsolidatedCount(cachedBackend, localOrders);
+            setHeldCount(prev => prev !== initialCount ? initialCount : prev);
+
+            // 2. Refresh from API
+            const res = await fetch("https://billing.kravy.in/api/bill-manager?isHeld=true", {
+                headers: { Authorization: `Bearer ${finalToken}` },
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const bills = data.bills || [];
+                const nextCount = getConsolidatedCount(bills, localOrders);
+                setHeldCount(prev => prev !== nextCount ? nextCount : prev);
+            }
+        } catch (e: any) {
+            console.log("Fetch held count info (using cache):", e.message);
+        } finally {
+            isFetchingHeldCount.current = false;
+        }
+    }, [isLoaded, isSignedIn]);
+
+
     useEffect(() => {
         if (!isFocused) return;
 
@@ -145,6 +401,13 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             // Handled by top level
         }
     }, [isSignedIn, isLoaded, isFocused, authBuffering]);
+
+    useEffect(() => {
+        const sub = DeviceEventEmitter.addListener('refresh_menu_data', () => {
+            fetchMenus(false);
+        });
+        return () => sub.remove();
+    }, [fetchMenus]);
 
     useFocusEffect(useCallback(() => {
         const checkKOTCheckout = async () => {
@@ -193,257 +456,6 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         checkKOTCheckout();
     }, [menus, paymentMethod]));
 
-    const fetchMenus = useCallback(async (isManualRefresh = false) => {
-        if (isLockedUser) {
-            setMenus([]);
-            setCart({});
-            setHeldCount(0);
-            setLoading(false);
-            setRefreshing(false);
-            return;
-        }
-
-        let cacheFound = false;
-
-        try {
-            // 🚀 STEP 1: Always try to load from Cache FIRST for instant UI
-            const cachedData = await AsyncStorage.getItem('@cached_menu');
-            if (cachedData) {
-                const parsed = JSON.parse(cachedData);
-                if (parsed && parsed.length > 0) {
-                    setMenus(parsed);
-                    setLoading(false);
-                    cacheFound = true;
-                }
-            }
-        } catch (e) {
-            console.log("Error reading menu cache:", e);
-        }
-
-        try {
-            if (!isLoaded) return;
-
-            // 1. Get Authentication Context
-            let authToken = null;
-            try {
-                authToken = await getToken();
-            } catch (e) {
-                console.log("Token fetch failed (offline?)");
-            }
-
-            const session = await StaffPermissionEngine.getSession();
-            const finalToken = authToken || session?.token;
-            const bId = activeBusinessId || session?.businessId;
-
-            // Allow syncing only if online/token exists
-            if (finalToken) {
-                SyncManager.syncPendingBills(finalToken);
-            }
-
-            // If we have NO token/bId AND NO cache, then we can't show anything
-            if (!finalToken && !bId && !cacheFound) {
-                setMenus([]);
-                setLoading(false);
-                setRefreshing(false);
-                return;
-            }
-
-            if (isManualRefresh) {
-                setRefreshing(true);
-            } else if (!cacheFound) {
-                setLoading(true);
-            }
-
-            // Only proceed with network fetch if we have a way to identify the business
-            if (!finalToken && !bId) {
-                setLoading(false);
-                setRefreshing(false);
-                return;
-            }
-
-            // Fetching logic depends on having either a token or a business ID for staff
-            const url = bId ? `https://billing.kravy.in/api/menu/view?businessId=${bId}` : "https://billing.kravy.in/api/menu/view";
-
-            const response = await fetch(url, {
-                headers: {
-                    Authorization: `Bearer ${finalToken}`,
-                    "Cache-Control": "no-cache"
-                },
-            });
-
-            if (!response.ok) {
-                setLoading(false);
-                setRefreshing(false);
-                return;
-            }
-
-            const contentType = response.headers.get("content-type");
-            if (!contentType || !contentType.includes("application/json")) {
-                setLoading(false);
-                setRefreshing(false);
-                return;
-            }
-
-            let items = await response.json();
-            let processedItems: any[] = [];
-
-            if (Array.isArray(items)) {
-                processedItems = items;
-            } else if (items && Array.isArray(items.menus)) {
-                items.menus.forEach((cat: any) => {
-                    const categoryRaw = { id: cat.id || cat._id || "others", name: cat.name || "Others" };
-                    if (Array.isArray(cat.items)) {
-                        cat.items.forEach((item: any) => {
-                            processedItems.push({ ...item, category: categoryRaw });
-                        });
-                    }
-                });
-            } else if (items && Array.isArray(items.items)) {
-                processedItems = items.items;
-            }
-
-            const categoryMap: Record<string, MenuCategory> = {};
-            processedItems.forEach((item: any) => {
-                const rawCat = item.category || { id: "others", name: "Others" };
-                const catId = String(rawCat.id || rawCat._id || "others");
-                const catName = String(rawCat.name || "Others");
-
-                if (!categoryMap[catId]) {
-                    categoryMap[catId] = { id: catId, name: catName, items: [] };
-                }
-
-                categoryMap[catId].items.push({
-                    id: String(item.id || item._id || Math.random().toString()),
-                    name: String(item.name || "Unnamed Item"),
-                    price: Number(item.sellingPrice || item.price || item.selling_price || 0),
-                    imageUrl: item.imageUrl,
-                    unit: item.unit,
-                    gst: item.gst,
-                    taxType: item.taxType,
-                    hsnCode: item.hsnCode,
-                });
-            });
-
-            // Parallel fetch for empty categories (optional, don't let it crash the main flow)
-            try {
-                const catRes = await fetch("https://billing.kravy.in/api/categories", {
-                    headers: { Authorization: `Bearer ${finalToken}` },
-                });
-                if (catRes.ok) {
-                    const allCats = await catRes.json();
-                    if (Array.isArray(allCats)) {
-                        allCats.forEach((c: any) => {
-                            const cid = String(c.id || c._id);
-                            if (!categoryMap[cid]) {
-                                categoryMap[cid] = { id: cid, name: c.name, items: [] };
-                            }
-                        });
-                    }
-                }
-            } catch (e) {
-                console.log("Categories fetch failed, skipping...");
-            }
-
-            const sortedMenus = Object.values(categoryMap)
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map(cat => ({
-                    ...cat,
-                    items: cat.items.sort((a, b) => a.name.localeCompare(b.name))
-                }));
-
-            await AsyncStorage.setItem('@cached_menu', JSON.stringify(sortedMenus));
-            setMenus(sortedMenus);
-
-        } catch (err: any) {
-            console.log("Fetch Error:", err.message);
-            // ONLY show network error if we have NOTHING to show (no cache)
-            if (!cacheFound) {
-                if (err.message === "Network request failed") {
-                    setShowNetworkError(true);
-                }
-            }
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [isLoaded, isSignedIn, activeBusinessId, getToken, user?.id, activeOrderId]);
-
-    const fetchSettings = useCallback(async () => {
-        try {
-            const kot = await AsyncStorage.getItem('kot_enabled');
-            const table = await AsyncStorage.getItem('table_booking_enabled');
-            setKotEnabled(kot === 'true');
-            setTableBookingEnabled(table === 'true');
-        } catch (e) {
-            console.log("Settings fetch info (local):", e);
-        }
-    }, []);
-
-
-
-    const fetchHeldCount = useCallback(async () => {
-        if (!isLoaded || isFetchingHeldCount.current) return;
-        isFetchingHeldCount.current = true;
-
-        try {
-            const token = await getToken();
-            const session = await StaffPermissionEngine.getSession();
-            const finalToken = token || session?.token;
-
-            if (!finalToken) {
-                setHeldCount(0);
-                return;
-            }
-
-            // Standardize ID comparison
-            const hiddenIdsStr = await AsyncStorage.getItem('@hidden_bill_ids');
-            const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
-
-            const localData = await AsyncStorage.getItem('@held_orders');
-            const localOrders = localData ? JSON.parse(localData) : [];
-
-            const cachedBackendStr = await AsyncStorage.getItem('@cached_held_orders');
-            const cachedBackend = cachedBackendStr ? JSON.parse(cachedBackendStr) : [];
-            
-            const getConsolidatedCount = (backend: any[], local: any[]) => {
-                const uniqueIds = new Set();
-                let count = 0;
-
-                const process = (id: any) => {
-                    if (!id) return;
-                    const cleanId = id.toString();
-                    if (!hiddenIds.includes(cleanId) && !uniqueIds.has(cleanId)) {
-                        uniqueIds.add(cleanId);
-                        count++;
-                    }
-                };
-
-                backend.forEach(b => process(b.id || b._id || b.billNumber));
-                local.forEach(l => process(l.id));
-                return count;
-            };
-
-            // 1. Instant show from cache
-            setHeldCount(getConsolidatedCount(cachedBackend, localOrders));
-
-            // 2. Refresh from API
-            const res = await fetch("https://billing.kravy.in/api/bill-manager?isHeld=true", {
-                headers: { Authorization: `Bearer ${finalToken}` },
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                const bills = data.bills || [];
-                setHeldCount(getConsolidatedCount(bills, localOrders));
-            }
-        } catch (e: any) {
-            console.log("Fetch held count info (using cache):", e.message);
-        } finally {
-            isFetchingHeldCount.current = false;
-        }
-    }, [isLoaded, isSignedIn, getToken]);
-
-
     useEffect(() => {
         fetchMenus();
         fetchHeldCount();
@@ -454,7 +466,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         useCallback(() => {
             const resetFocus = async () => {
                 const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-                
+
                 // ONLY UPDATE IF CHANGED TO PREVENT LOOP
                 if (bId !== activeBusinessId) {
                     setActiveBusinessId(bId);
@@ -487,8 +499,12 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
 
                     const activeCustStr = await AsyncStorage.getItem('@active_customer');
                     if (activeCustStr) {
-                        setActiveCustomer(JSON.parse(activeCustStr));
-                    } else {
+                        const parsed = JSON.parse(activeCustStr);
+                        // Deep comparison to avoid unnecessary updates and infinite loops
+                        if (JSON.stringify(parsed) !== JSON.stringify(activeCustomer)) {
+                            setActiveCustomer(parsed);
+                        }
+                    } else if (activeCustomer !== null) {
                         setActiveCustomer(null);
                     }
                 } catch (e) {
@@ -503,7 +519,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                     if (data) {
                         const resumedItems = JSON.parse(data);
                         const newCart: Record<string, CartItem> = {};
-                        
+
                         resumedItems.forEach((item: any) => {
                             let enrichedItem = { ...item };
                             // Try to find image in menus if missing
@@ -531,7 +547,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                 } catch (error) { console.log("Error loading resumed cart (local):", error); }
             };
             checkResumeCart();
-        }, [isLoaded, isSignedIn, params, user?.id, fetchMenus, fetchHeldCount, fetchSettings, refreshSignal])
+        }, [isLoaded, isSignedIn, user?.id, refreshSignal, activeCustomer, activeBusinessId])
     );
 
     useEffect(() => {
@@ -564,11 +580,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         return () => sub.remove();
     }, [menus]);
 
-    useEffect(() => {
-        if (refreshSignal > 0) {
-            fetchHeldCount();
-        }
-    }, [refreshSignal]);
+
 
     const filteredMenus = useMemo(() => {
         if (!searchQuery) return menus;
@@ -587,14 +599,14 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             .filter((cat) => cat !== null) as MenuCategory[];
     }, [searchQuery, menus]);
 
-    const addToCart = async (item: MenuItem) => {
+    const addToCart = useCallback(async (item: MenuItem) => {
         setCart((prev) => ({
             ...prev,
             [item.id]: { ...item, quantity: (prev[item.id]?.quantity || 0) + 1 },
         }));
-    };
+    }, []);
 
-    const removeFromCart = async (item: MenuItem) => {
+    const removeFromCart = useCallback(async (item: MenuItem) => {
         setCart((prev) => {
             const existing = prev[item.id];
             if (!existing) return prev;
@@ -605,15 +617,15 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             }
             return { ...prev, [item.id]: { ...existing, quantity: existing.quantity - 1 } };
         });
-    };
+    }, []);
 
-    const deleteFromCart = (item: MenuItem) => {
+    const deleteFromCart = useCallback((item: MenuItem) => {
         setCart((prev) => {
             const newCart = { ...prev };
             delete newCart[item.id];
             return newCart;
         });
-    };
+    }, []);
 
     const handleConfirmClear = () => {
         setCart({});
@@ -625,8 +637,13 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         setTimeout(() => setShowClearSuccess(false), 2000);
     };
 
-    const totalItems = Object.values(cart).reduce((sum, i) => sum + i.quantity, 0);
-    const totalAmount = Object.values(cart).reduce((sum, i) => sum + ((i.editedPrice ?? i.price ?? 0) * i.quantity), 0);
+    const { totalItems, totalAmount } = useMemo(() => {
+        const cartValues = Object.values(cart);
+        return {
+            totalItems: cartValues.reduce((sum, i) => sum + i.quantity, 0),
+            totalAmount: cartValues.reduce((sum, i) => sum + ((i.editedPrice ?? i.price ?? 0) * i.quantity), 0)
+        };
+    }, [cart]);
 
     const confirmPauseOrder = async (itemsToHold?: any[], totalOverride?: number, cName?: string, cPhone?: string) => {
         const itemsSnapshot = itemsToHold || Object.values(cart);
@@ -705,23 +722,23 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                     let orders = localData ? JSON.parse(localData) : [];
 
                     if (activeOrderId && activeOrderId.startsWith("BILL-")) {
-                        orders = orders.map((o: any) => o.id === activeOrderId ? { 
-                            ...o, 
-                            items: snapshot, 
-                            total: totalVal, 
-                            customerName: cName || o.customerName || "Walk-in", 
+                        orders = orders.map((o: any) => o.id === activeOrderId ? {
+                            ...o,
+                            items: snapshot,
+                            total: totalVal,
+                            customerName: cName || o.customerName || "Walk-in",
                             customerPhone: cPhone || o.customerPhone || "",
-                            timestamp: new Date().toISOString() 
+                            timestamp: new Date().toISOString()
                         } : o);
                     } else {
                         const id = "BILL-" + Date.now();
-                        orders.push({ 
-                            id, 
-                            items: snapshot, 
-                            total: totalVal, 
-                            customerName: cName || "Walk-in", 
+                        orders.push({
+                            id,
+                            items: snapshot,
+                            total: totalVal,
+                            customerName: cName || "Walk-in",
                             customerPhone: cPhone || "",
-                            timestamp: new Date().toISOString() 
+                            timestamp: new Date().toISOString()
                         });
                     }
                     await AsyncStorage.setItem('@held_orders', JSON.stringify(orders));
@@ -739,37 +756,45 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         if (isPrinting.current) return;
         isPrinting.current = true;
         try {
-            const token = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-            const finalToken = token || staffSession?.token;
-            const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
-
             const itemsToPrint = Array.isArray(itemsOverride) ? itemsOverride : Object.values(cart);
             if (itemsToPrint.length === 0) return;
 
-            // 1. Print
-            await SimpleKOT(itemsToPrint, finalToken!, bId!, selectedTable);
+            // 🚀 INSTANT UI FEEDBACK: Clear cart immediately for large orders
+            if (!itemsOverride) {
+                setCart({});
+                setSelectedTable(null);
+            }
 
-            // 2. Save to KOT Page Locally (AsyncStorage)
-            const localOrder = {
-                id: Date.now().toString(),
-                billNumber: Math.floor(1000 + Math.random() * 9000).toString(),
-                tableName: selectedTable ? `Table ${selectedTable}` : "Counter",
-                items: itemsToPrint.map(i => ({
-                    name: i.name,
-                    quantity: i.quantity
-                })),
-                createdAt: new Date().toISOString(),
-                status: "PENDING"
-            };
+            // 1. Background Work
+            (async () => {
+                try {
+                    const sessionStr = await AsyncStorage.getItem('staff_session');
+                    const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+                    const finalToken = staffSession?.token || await getToken();
+                    const bId = activeBusinessId || staffSession?.businessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
 
-            const existingData = await AsyncStorage.getItem('@local_kot_list');
-            const kotList = existingData ? JSON.parse(existingData) : [];
-            kotList.unshift(localOrder); // Add to top
-            await AsyncStorage.setItem('@local_kot_list', JSON.stringify(kotList));
+                    // Print (Now non-blocking inside SimpleKOT)
+                    SimpleKOT(itemsToPrint, finalToken!, bId!, selectedTable);
 
-            ToastAndroid.show("Sent to KOT Page & Printed!", ToastAndroid.SHORT);
+                    // 2. Save KOT Page Locally
+                    const localOrder = {
+                        id: Date.now().toString(),
+                        billNumber: Math.floor(1000 + Math.random() * 9000).toString(),
+                        tableName: selectedTable ? `Table ${selectedTable}` : "Counter",
+                        items: itemsToPrint.map(i => ({ name: i.name, quantity: i.quantity })),
+                        createdAt: new Date().toISOString(),
+                        status: "PENDING"
+                    };
+                    const existingData = await AsyncStorage.getItem('@local_kot_list');
+                    const kotList = existingData ? JSON.parse(existingData) : [];
+                    kotList.unshift(localOrder);
+                    await AsyncStorage.setItem('@local_kot_list', JSON.stringify(kotList));
+                } catch (e) {
+                    console.log("Background KOT error:", e);
+                }
+            })();
+
+            ToastAndroid.show("🍽️ KOT Sent!", ToastAndroid.SHORT);
         } catch (e) {
             console.error("KOT Process Error:", e);
         } finally {
@@ -788,51 +813,68 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
 
         isPrinting.current = true;
         try {
-            ToastAndroid.show("Generating Bill...", ToastAndroid.SHORT);
-            const token = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-            const finalToken = token || staffSession?.token;
-            const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            // 🚀 INSTANT UI FEEDBACK
+            setCart({});
+            setActiveOrderId(null);
+            setSelectedTable(null);
+            setActiveCustomer(null);
+            AsyncStorage.removeItem('@active_customer');
 
-            const result = await SimpleBill(itemsToPrint, finalToken!, bId!, {
-                paymentMode: paymentMethod,
-                billId: activeOrderId || undefined,
-                partyId: activeCustomer?.id || activeCustomer?._id
-            });
+            (async () => {
+                try {
+                    const sessionStr = await AsyncStorage.getItem('staff_session');
+                    const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+                    const finalToken = staffSession?.token || await getToken();
+                    const bId = activeBusinessId || staffSession?.businessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
 
-            if (result?.status === "success") {
-                setCart({});
-                setActiveOrderId(null);
-                setSelectedTable(null);
-                fetchHeldCount();
-                setActiveCustomer(null);
-                await AsyncStorage.removeItem('@active_customer');
-            }
+                    await SimpleBill(itemsToPrint, finalToken!, bId!, {
+                        paymentMode: paymentMethod,
+                        billId: activeOrderId || undefined,
+                        partyId: activeCustomer?.id || activeCustomer?._id
+                    });
+                    fetchHeldCount();
+                } catch (e) {
+                    console.log("Background Bill error:", e);
+                }
+            })();
+
+            ToastAndroid.show("⚡ Bill Processed", ToastAndroid.SHORT);
         } finally {
             isPrinting.current = false;
         }
     };
 
     const handleSaveBill = async () => {
-        const token = await getToken();
-        const sessionStr = await AsyncStorage.getItem('staff_session');
-        const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-        const finalToken = token || staffSession?.token;
-        const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
+        // 🚀 INSTANT UI FEEDBACK
+        const itemsToSave = Object.values(cart);
+        setCart({});
+        setActiveOrderId(null);
+        setSelectedTable(null);
+        setActiveCustomer(null);
+        AsyncStorage.removeItem('@active_customer');
 
-        const result = await SaveBill(Object.values(cart), finalToken!, bId!, {
-            paymentMode: paymentMethod,
-            billId: activeOrderId || undefined,
-            partyId: activeCustomer?.id || activeCustomer?._id,
-            customerName: activeCustomer?.name,
-            customerPhone: activeCustomer?.phone
-        });
-        if (result?.status === "saved") {
-            setCart({}); setActiveOrderId(null); setSelectedTable(null); fetchHeldCount();
-            setActiveCustomer(null);
-            await AsyncStorage.removeItem('@active_customer');
-        }
+        (async () => {
+            try {
+                const token = await getToken();
+                const sessionStr = await AsyncStorage.getItem('staff_session');
+                const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+                const finalToken = token || staffSession?.token;
+                const bId = activeBusinessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
+
+                await SaveBill(itemsToSave, finalToken!, bId!, {
+                    paymentMode: paymentMethod,
+                    billId: activeOrderId || undefined,
+                    partyId: activeCustomer?.id || activeCustomer?._id,
+                    customerName: activeCustomer?.name,
+                    customerPhone: activeCustomer?.phone
+                });
+                fetchHeldCount();
+            } catch (e) {
+                console.log("Background Save error:", e);
+            }
+        })();
+
+        ToastAndroid.show("💾 Bill Saved", ToastAndroid.SHORT);
     };
 
     const itemWidth = (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32)) / 3;
@@ -842,7 +884,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     );
 
 
-    if (currentView === "addItem") return <AddItemView onBack={() => setCurrentView("main")} />;
+    if (currentView === "addItem") return <AddItemView onBack={() => setCurrentView("main")} categories={menus} onRefresh={() => fetchMenus(true)} />;
     if (currentView === "heldOrders") return <HeldOrdersView onBack={() => { setCurrentView("main"); fetchHeldCount(); }} onRefreshCount={fetchHeldCount} />;
     if (currentView === "checkout") return (
         <CheckoutView
@@ -940,9 +982,12 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                     data={filteredMenus}
                     keyExtractor={(cat) => cat.id}
                     contentContainerStyle={{ paddingBottom: 450, flexGrow: 1 }}
+                    initialNumToRender={4}
+                    maxToRenderPerBatch={2}
+                    windowSize={5}
+                    removeClippedSubviews={true}
                     ListEmptyComponent={null}
                     onScrollToIndexFailed={(info) => {
-
                         const estimatedOffset = info.averageItemLength * info.index;
                         flatListRef.current?.scrollToOffset({ offset: estimatedOffset, animated: false });
                         setTimeout(() => flatListRef.current?.scrollToIndex({ index: info.index, animated: true }), 100);

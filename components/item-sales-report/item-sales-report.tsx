@@ -1,18 +1,114 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useUser } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { rf, s, vs } from "../../utils/responsive";
+import { useRefresh } from "../../context/RefreshContext";
 import DailyItemSalesReport from './DailyItemSalesReport';
 import WeeklyItemSalesReport from './WeeklyItemSalesReport';
 import MonthlyItemSalesReport from './MonthlyItemSalesReport';
+import { applyTrueBillTotals } from "../../utils/billCalculator";
 
-const ItemSalesReport = ({ onBack }: { onBack: () => void }) => {
-  const [activeReport, setActiveReport] = React.useState<string | null>(null);
-  const { isSignedIn } = useUser();
+const ItemSalesReport = ({ onBack, defaultReport, targetDate, targetSortKey }: { onBack: () => void, defaultReport?: string, targetDate?: string, targetSortKey?: string }) => {
+  const [activeReport, setActiveReport] = React.useState<string | null>(defaultReport || null);
+  const { isLoaded, isSignedIn, user } = useUser();
+  const { getToken } = useAuth();
+  const { refreshSignal } = useRefresh();
   const [hasReportsAccess, setHasReportsAccess] = useState(true);
+
+  const [loadingData, setLoadingData] = useState(true);
+  const [sharedData, setSharedData] = useState<{ categories: any[], itemCategoryMap: Record<string, string>, allBills: any[] } | null>(null);
+
+  useEffect(() => {
+    const loadCache = async () => {
+      try {
+        const cached = await AsyncStorage.getItem('cached_sales_report_data');
+        if (cached) {
+          setSharedData(JSON.parse(cached));
+          setLoadingData(false);
+        }
+      } catch (e) {}
+    };
+    loadCache();
+  }, []);
+
+  const fetchAllData = async () => {
+    if (!isLoaded) return;
+    try {
+      setLoadingData(true);
+      const authToken = await getToken();
+      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const finalToken = authToken || staffSession?.token;
+
+      if (!finalToken && !bId) {
+        setLoadingData(false);
+        return;
+      }
+
+      const catUrl = bId ? `https://billing.kravy.in/api/categories?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/categories?t=${Date.now()}`;
+      const menuUrl = bId ? `https://billing.kravy.in/api/menu/view?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/menu/view?t=${Date.now()}`;
+      const billUrl = bId ? `https://billing.kravy.in/api/bill-manager?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/bill-manager?t=${Date.now()}`;
+
+      const [catRes, menuRes, billRes] = await Promise.all([
+        fetch(catUrl, { headers: { Authorization: `Bearer ${finalToken}` } }),
+        fetch(menuUrl, { headers: { Authorization: `Bearer ${finalToken}` } }),
+        fetch(billUrl, { headers: { Authorization: `Bearer ${finalToken}` } })
+      ]);
+
+      let cats = [];
+      let mapping: Record<string, string> = {};
+      let bills = [];
+
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        cats = Array.isArray(catData) ? catData : [];
+      }
+
+      if (menuRes.ok) {
+        let menuItemsRaw = await menuRes.json();
+        let allItems: any[] = [];
+        if (Array.isArray(menuItemsRaw)) {
+          allItems = menuItemsRaw;
+        } else if (menuItemsRaw?.menus) {
+          menuItemsRaw.menus.forEach((m: any) => {
+            if (m.items) {
+              m.items.forEach((it: any) => {
+                allItems.push({ ...it, categoryName: m.name });
+              });
+            }
+          });
+        }
+        allItems.forEach((item: any) => {
+          const name = (item.name || "").toLowerCase().trim();
+          const catName = item.category?.name || item.categoryName || "Others";
+          mapping[name] = catName;
+        });
+      }
+
+      if (billRes.ok) {
+        const data = await billRes.json();
+        bills = Array.isArray(data) ? data : (data.bills || []);
+        await applyTrueBillTotals(bills);
+      }
+
+        const fetchedData = { categories: cats, itemCategoryMap: mapping, allBills: bills };
+        setSharedData(fetchedData);
+        AsyncStorage.setItem('cached_sales_report_data', JSON.stringify(fetchedData));
+      } catch (error) {
+        console.error("Sales report preload error:", error);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+  useEffect(() => {
+    fetchAllData();
+  }, [isLoaded, isSignedIn, user, refreshSignal]);
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -26,9 +122,9 @@ const ItemSalesReport = ({ onBack }: { onBack: () => void }) => {
     checkAccess();
   }, [isSignedIn]);
 
-  if (activeReport === 'daily') return <DailyItemSalesReport onBack={() => setActiveReport(null)} />;
-  if (activeReport === 'weekly') return <WeeklyItemSalesReport onBack={() => setActiveReport(null)} />;
-  if (activeReport === 'monthly') return <MonthlyItemSalesReport onBack={() => setActiveReport(null)} />;
+  if (activeReport === 'daily') return <DailyItemSalesReport onBack={() => { if(defaultReport) onBack(); else setActiveReport(null); }} preloadedData={sharedData} loadingData={loadingData} onRefresh={fetchAllData} targetDate={targetDate} />;
+  if (activeReport === 'weekly') return <WeeklyItemSalesReport onBack={() => { if(defaultReport) onBack(); else setActiveReport(null); }} preloadedData={sharedData} loadingData={loadingData} onRefresh={fetchAllData} targetSortKey={targetSortKey} />;
+  if (activeReport === 'monthly') return <MonthlyItemSalesReport onBack={() => { if(defaultReport) onBack(); else setActiveReport(null); }} preloadedData={sharedData} loadingData={loadingData} onRefresh={fetchAllData} targetSortKey={targetSortKey} />;
 
   if (!hasReportsAccess && !isSignedIn) {
     return (

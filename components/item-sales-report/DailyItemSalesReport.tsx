@@ -4,134 +4,58 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
+import { useRefresh } from "../../context/RefreshContext";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import ItemWiseSalesDetail from './ItemWiseSalesDetail';
 
-const DailyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
-  const { getToken } = useAuth();
-  const { isLoaded, isSignedIn, user } = useUser();
-  const [loading, setLoading] = useState(true);
+const DailyItemSalesReport = ({ onBack, preloadedData, loadingData, onRefresh: parentRefresh, targetDate }: any) => {
   const [refreshing, setRefreshing] = useState(false);
-  const [reportData, setReportData] = useState<{ items: any[], totalSales: number, totalQty: number }>({ items: [], totalSales: 0, totalQty: 0 });
-  const [categories, setCategories] = useState<{ id: string, name: string }[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
-  const [itemCategoryMap, setItemCategoryMap] = useState<Record<string, string>>({});
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
-  const [todayBills, setTodayBills] = useState<any[]>([]);
 
-  const fetchSalesReport = async () => {
-    if (!isLoaded) return;
-    try {
-      setLoading(true);
-      const authToken = await getToken();
-      const sessionStr = await AsyncStorage.getItem('staff_session');
-      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+  const categories = preloadedData?.categories || [];
+  const itemCategoryMap = preloadedData?.itemCategoryMap || {};
 
-      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-      const finalToken = authToken || staffSession?.token;
+  const { todayBills, reportData } = React.useMemo(() => {
+    if (!preloadedData) return { todayBills: [], reportData: { items: [], totalSales: 0, totalQty: 0 } };
 
-      if (!finalToken && !bId) {
-        setLoading(false);
-        setRefreshing(false);
-        return;
-      }
+    const targetDateStr = targetDate ? new Date(targetDate).toDateString() : new Date().toDateString();
+    const todayBills = preloadedData.allBills.filter((bill: any) => {
+      const billDate = new Date(bill.createdAt).toDateString();
+      return billDate === targetDateStr && bill.isHeld !== true;
+    });
 
-      // 1. Fetch Categories
-      const catUrl = bId ? `https://billing.kravy.in/api/categories?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/categories?t=${Date.now()}`;
-      const catRes = await fetch(catUrl, {
-        headers: { Authorization: `Bearer ${finalToken}` },
-      });
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        setCategories(Array.isArray(catData) ? catData : []);
-      }
+    const itemMap: Record<string, { name: string, qty: number, total: number }> = {};
+    let totalRevenue = 0;
+    let totalItemsSold = 0;
 
-      // 2. Fetch Menu to map items to categories
-      const menuUrl = bId ? `https://billing.kravy.in/api/menu/view?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/menu/view?t=${Date.now()}`;
-      const menuRes = await fetch(menuUrl, {
-        headers: { Authorization: `Bearer ${finalToken}` },
-      });
-      if (menuRes.ok) {
-        let menuItemsRaw = await menuRes.json();
-        const mapping: Record<string, string> = {};
-        let allItems: any[] = [];
-        if (Array.isArray(menuItemsRaw)) {
-          allItems = menuItemsRaw;
-        } else if (menuItemsRaw?.menus) {
-          menuItemsRaw.menus.forEach((m: any) => {
-            if (m.items) {
-              m.items.forEach((it: any) => {
-                allItems.push({ ...it, categoryName: m.name });
-              });
-            }
-          });
+    todayBills.forEach((bill: any) => {
+      totalRevenue += (bill.total || 0);
+      const items = bill.items || [];
+      items.forEach((item: any) => {
+        const name = item.name || "Unknown Item";
+        const qty = Number(item.qty || item.quantity || 0);
+        const rate = Number(item.rate || item.price || 0);
+
+        if (!itemMap[name]) {
+          itemMap[name] = { name, qty: 0, total: 0 };
         }
-        allItems.forEach((item: any) => {
-          const name = (item.name || "").toLowerCase().trim();
-          const catName = item.category?.name || item.categoryName || "Others";
-          mapping[name] = catName;
-        });
-        setItemCategoryMap(mapping);
-      }
-
-      // 3. Fetch Bills
-      const billUrl = bId ? `https://billing.kravy.in/api/bill-manager?t=${Date.now()}&businessId=${bId}` : `https://billing.kravy.in/api/bill-manager?t=${Date.now()}`;
-      const response = await fetch(billUrl, {
-        headers: { Authorization: `Bearer ${finalToken}` },
+        itemMap[name].qty += qty;
+        itemMap[name].total += (qty * rate);
+        totalItemsSold += qty;
       });
+    });
 
-      if (response.ok) {
-        const data = await response.json();
-        const bills = Array.isArray(data) ? data : (data.bills || []);
+    const sortedItems = Object.values(itemMap).sort((a, b) => b.qty - a.qty);
+    return { todayBills, reportData: { items: sortedItems, totalSales: totalRevenue, totalQty: totalItemsSold } };
+  }, [preloadedData]);
 
-        // Filter for today's bills
-        const today = new Date().toISOString().split('T')[0];
-        const todayBills = bills.filter((bill: any) => {
-          const billDate = new Date(bill.createdAt).toISOString().split('T')[0];
-          return billDate === today;
-        });
-        setTodayBills(todayBills);
-
-        // Aggregate items
-        const itemMap: Record<string, { name: string, qty: number, total: number }> = {};
-        let totalRevenue = 0;
-        let totalItemsSold = 0;
-
-        todayBills.forEach((bill: any) => {
-          totalRevenue += (bill.total || 0);
-          const items = bill.items || [];
-          items.forEach((item: any) => {
-            const name = item.name || "Unknown Item";
-            const qty = Number(item.qty || item.quantity || 0);
-            const rate = Number(item.rate || item.price || 0);
-
-            if (!itemMap[name]) {
-              itemMap[name] = { name, qty: 0, total: 0 };
-            }
-            itemMap[name].qty += qty;
-            itemMap[name].total += (qty * rate);
-            totalItemsSold += qty;
-          });
-        });
-
-        const sortedItems = Object.values(itemMap).sort((a, b) => b.qty - a.qty);
-        setReportData({ items: sortedItems, totalSales: totalRevenue, totalQty: totalItemsSold });
-      }
-    } catch (error) {
-      console.error("Sales report error:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchSalesReport();
-  }, [isLoaded, isSignedIn, user]);
+  const loading = loadingData;
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchSalesReport();
+    if (parentRefresh) parentRefresh();
+    setTimeout(() => setRefreshing(false), 1000);
   };
 
   if (selectedItem) {
@@ -145,13 +69,13 @@ const DailyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
         <TouchableOpacity onPress={onBack}>
           <Ionicons name="arrow-back" size={rf(28)} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Daily Item Sales</Text>
+        <Text style={styles.headerTitle}>{targetDate ? `Item Sales (${new Date(targetDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric'})})` : "Daily Item Sales"}</Text>
       </View>
 
       {loading && !refreshing ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#4F46E5" />
-          <Text style={{ marginTop: vs(10), color: '#666' }}>Fetching today's sales...</Text>
+          <Text style={{ marginTop: vs(10), color: '#666' }}>Fetching sales data...</Text>
         </View>
       ) : (
         <ScrollView
@@ -219,7 +143,7 @@ const DailyItemSalesReport = ({ onBack }: { onBack: () => void }) => {
             ) : (
               <View style={styles.emptyContainer}>
                 <Ionicons name="receipt-outline" size={rf(60)} color="#ccc" />
-                <Text style={styles.emptyText}>{selectedCategory === "All" ? "No sales recorded for today yet." : `No sales in ${selectedCategory} category.`}</Text>
+                <Text style={styles.emptyText}>{selectedCategory === "All" ? "No sales recorded for this date yet." : `No sales in ${selectedCategory} category.`}</Text>
               </View>
             );
           })()}

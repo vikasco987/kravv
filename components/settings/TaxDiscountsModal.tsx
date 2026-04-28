@@ -1,8 +1,8 @@
-import React from 'react';
-import { Modal, View, Pressable, ScrollView, Text, TouchableOpacity, Switch, TextInput, StyleSheet } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
-import { rf, s, vs } from "../../utils/responsive";
+import React from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLanguage } from "../../context/LanguageContext";
+import { rf, s, vs } from "../../utils/responsive";
 
 const COLORS = {
     primary: '#4F46E5',
@@ -32,6 +32,26 @@ interface TaxDiscountsModalProps {
     setServiceChargeEnabled: (val: boolean) => void;
     serviceChargeRate: string;
     setServiceChargeRate: (val: string) => void;
+    serviceGstEnabled: boolean;
+    setServiceGstEnabled: (val: boolean) => void;
+    serviceGstRate: string;
+    setServiceGstRate: (val: string) => void;
+    deliveryChargeEnabled: boolean;
+    setDeliveryChargeEnabled: (val: boolean) => void;
+    deliveryChargeAmount: string;
+    setDeliveryChargeAmount: (val: string) => void;
+    deliveryGstEnabled: boolean;
+    setDeliveryGstEnabled: (val: boolean) => void;
+    deliveryGstRate: string;
+    setDeliveryGstRate: (val: string) => void;
+    packagingChargeEnabled: boolean;
+    setPackagingChargeEnabled: (val: boolean) => void;
+    packagingChargeAmount: string;
+    setPackagingChargeAmount: (val: string) => void;
+    packagingGstEnabled: boolean;
+    setPackagingGstEnabled: (val: boolean) => void;
+    packagingGstRate: string;
+    setPackagingGstRate: (val: string) => void;
     onSave: (key: string, value: string | boolean, label: string) => void;
 }
 
@@ -52,9 +72,30 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
     setServiceChargeEnabled,
     serviceChargeRate,
     setServiceChargeRate,
+    serviceGstEnabled,
+    setServiceGstEnabled,
+    serviceGstRate,
+    setServiceGstRate,
+    deliveryChargeEnabled,
+    setDeliveryChargeEnabled,
+    deliveryChargeAmount,
+    setDeliveryChargeAmount,
+    deliveryGstEnabled,
+    setDeliveryGstEnabled,
+    deliveryGstRate,
+    setDeliveryGstRate,
+    packagingChargeEnabled,
+    setPackagingChargeEnabled,
+    packagingChargeAmount,
+    setPackagingChargeAmount,
+    packagingGstEnabled,
+    setPackagingGstEnabled,
+    packagingGstRate,
+    setPackagingGstRate,
     onSave,
 }) => {
     const { t } = useLanguage();
+
     return (
         <Modal
             animationType="slide"
@@ -221,44 +262,304 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
 
                         <View style={styles.divider} />
 
-                        {/* Service Charge Toggle */}
-                        <View style={styles.settingRow}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.settingLabel}>{t('enable_service_charge_label') || 'Enable service charges'}</Text>
-                                <Text style={styles.settingSubLabel}>{t('service_charge_desc') || 'Add service charge to bills (e.g., delivery)'}</Text>
+                        {/* Service Charge Section (New Style) */}
+                        <View style={styles.sectionHeader}>
+                            <View style={styles.sectionIconContainer}>
+                                <Ionicons name="restaurant-outline" size={rf(14)} color={COLORS.primary} />
                             </View>
-                            <Switch
-                                value={serviceChargeEnabled}
-                                onValueChange={(val) => {
-                                    setServiceChargeEnabled(val);
-                                    onSave("service_charge_enabled", val, "Service charges");
-                                }}
-                                trackColor={{ false: "#E5E7EB", true: COLORS.primary + "80" }}
-                                thumbColor={serviceChargeEnabled ? COLORS.primary : "#F4F3F4"}
-                            />
+                            <Text style={styles.sectionTitle}>SERVICE SETTINGS</Text>
                         </View>
 
-                        {/* Default Service Charge Input */}
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.inputLabel}>{t('default_service_charge_label') || 'Default service charge'}</Text>
-                            <View style={styles.inputWrapper}>
-                                <View style={styles.inputIcon}>
-                                    <Ionicons name="restaurant-outline" size={rf(18)} color={COLORS.textLight} />
+                        <View style={styles.settingsCard}>
+                            {/* Enable Service Charges */}
+                            <View style={styles.rowItem}>
+                                <View style={[styles.iconBox, { backgroundColor: '#F0F9FF' }]}>
+                                    <View style={styles.innerIconBox}>
+                                        <Ionicons name="shield-checkmark" size={rf(20)} color="#0EA5E9" />
+                                    </View>
                                 </View>
-                                <TextInput
-                                    style={styles.textInput}
-                                    value={serviceChargeRate}
-                                    onChangeText={setServiceChargeRate}
-                                    keyboardType="decimal-pad"
-                                    placeholder="0.00"
+                                <View style={styles.rowText}>
+                                    <Text style={styles.rowLabel}>Enable Service Charges</Text>
+                                    <Text style={styles.rowSubLabel}>Charge added for services</Text>
+                                </View>
+                                <Switch
+                                    value={serviceChargeEnabled}
+                                    onValueChange={(val) => {
+                                        setServiceChargeEnabled(val);
+                                        onSave("service_charge_enabled", val, "Service Charges");
+                                    }}
+                                    trackColor={{ false: "#E5E7EB", true: "#0EA5E9" }}
+                                    thumbColor="#fff"
                                 />
-                                <Text style={styles.percentText}>%</Text>
+                            </View>
+
+                            <View style={styles.innerDivider} />
+
+                            {/* Service Charge Amount */}
+                            <View style={styles.rateSection}>
+                                <Text style={styles.miniLabel}>SERVICE AMOUNT (₹)</Text>
+                                <View style={[styles.customInputRow, { width: s(200) }]}>
+                                    <Text style={[styles.percentSuffix, { marginRight: s(5), color: COLORS.text }]}>₹</Text>
+                                    <TextInput
+                                        style={styles.customTaxInput}
+                                        value={serviceChargeRate}
+                                        onChangeText={setServiceChargeRate}
+                                        keyboardType="decimal-pad"
+                                        placeholder="0"
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.saveBtn, { backgroundColor: '#0EA5E9', paddingHorizontal: s(12), paddingVertical: vs(6) }]}
+                                        onPress={() => onSave("service_charge_rate", serviceChargeRate, "Service Amount")}
+                                    >
+                                        <Text style={[styles.saveBtnText, { fontSize: rf(12) }]}>Save</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
+                            <View style={styles.innerDivider} />
+
+                            {/* GST on Service Charge */}
+                            <View style={styles.rowItem}>
                                 <TouchableOpacity
-                                    style={styles.saveBtn}
-                                    onPress={() => onSave("service_charge_rate", serviceChargeRate, t('service_charge') || "Service charge")}
+                                    onPress={() => {
+                                        const newVal = !serviceGstEnabled;
+                                        setServiceGstEnabled(newVal);
+                                        onSave("service_gst_enabled", newVal, "Service GST");
+                                    }}
+                                    style={[styles.iconBox, { backgroundColor: serviceGstEnabled ? '#E0F2FE' : '#F3F4F6' }]}
                                 >
-                                    <Text style={styles.saveBtnText}>{t('save') || 'Save'}</Text>
+                                    <View style={styles.innerIconBox}>
+                                        <Ionicons
+                                            name={serviceGstEnabled ? "checkmark-circle" : "ellipse-outline"}
+                                            size={rf(20)}
+                                            color={serviceGstEnabled ? "#0EA5E9" : "#9CA3AF"}
+                                        />
+                                    </View>
                                 </TouchableOpacity>
+                                <View style={styles.rowText}>
+                                    <Text style={styles.rowLabel}>{serviceGstEnabled ? "GST ON SERVICE" : "GST OFF SERVICE"}</Text>
+                                    <Text style={styles.rowSubLabel}>Calculate tax on service</Text>
+                                </View>
+                                {serviceGstEnabled && (
+                                    <View style={[styles.customInputRow, { borderColor: '#0EA5E9', width: s(160), height: vs(45) }]}>
+                                        <TextInput
+                                            style={[styles.customTaxInput, { fontSize: rf(16) }]}
+                                            value={serviceGstRate}
+                                            onChangeText={setServiceGstRate}
+                                            keyboardType="decimal-pad"
+                                            placeholder="0"
+                                        />
+                                        <TouchableOpacity
+                                            onPress={() => onSave("service_gst_rate", serviceGstRate, "Service GST Rate")}
+                                            style={{ marginRight: s(8) }}
+                                        >
+                                            <Ionicons name="checkmark-circle" size={rf(20)} color="#0EA5E9" />
+                                        </TouchableOpacity>
+                                        <Ionicons name="receipt-outline" size={rf(16)} color="#9CA3AF" />
+                                    </View>
+                                )}
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        {/* Delivery Charges Section (New) */}
+                        <View style={styles.sectionHeader}>
+                            <View style={styles.sectionIconContainer}>
+                                <Ionicons name="bus-outline" size={rf(14)} color={COLORS.primary} />
+                            </View>
+                            <Text style={styles.sectionTitle}>DELIVERY SETTINGS</Text>
+                        </View>
+
+                        <View style={styles.settingsCard}>
+                            {/* Enable Delivery Charges */}
+                            <View style={styles.rowItem}>
+                                <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}>
+                                    <View style={styles.innerIconBox}>
+                                        <Ionicons name="shield-checkmark" size={rf(20)} color="#4F46E5" />
+                                    </View>
+                                </View>
+                                <View style={styles.rowText}>
+                                    <Text style={styles.rowLabel}>Enable Delivery Charges</Text>
+                                    <Text style={styles.rowSubLabel}>Fixed charge added to delivery orders</Text>
+                                </View>
+                                <Switch
+                                    value={deliveryChargeEnabled}
+                                    onValueChange={(val) => {
+                                        setDeliveryChargeEnabled(val);
+                                        onSave("delivery_charge_enabled", val, "Delivery Charges");
+                                    }}
+                                    trackColor={{ false: "#E5E7EB", true: "#4F46E5" }}
+                                    thumbColor="#fff"
+                                />
+                            </View>
+
+                            <View style={styles.innerDivider} />
+
+                            {/* Charge Amount */}
+                            <View style={styles.rateSection}>
+                                <Text style={styles.miniLabel}>CHARGE AMOUNT (₹)</Text>
+                                <View style={[styles.customInputRow, { width: s(200) }]}>
+                                    <Text style={[styles.percentSuffix, { marginRight: s(5), color: COLORS.text }]}>₹</Text>
+                                    <TextInput
+                                        style={styles.customTaxInput}
+                                        value={deliveryChargeAmount}
+                                        onChangeText={setDeliveryChargeAmount}
+                                        keyboardType="decimal-pad"
+                                        placeholder="0"
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.saveBtn, { paddingHorizontal: s(12), paddingVertical: vs(6) }]}
+                                        onPress={() => onSave("delivery_charge_amount", deliveryChargeAmount, "Delivery Amount")}
+                                    >
+                                        <Text style={[styles.saveBtnText, { fontSize: rf(12) }]}>Save</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
+                            <View style={styles.innerDivider} />
+
+                            {/* GST on Delivery */}
+                            <View style={styles.rowItem}>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        const newVal = !deliveryGstEnabled;
+                                        setDeliveryGstEnabled(newVal);
+                                        onSave("delivery_gst_enabled", newVal, "Delivery GST");
+                                    }}
+                                    style={[styles.iconBox, { backgroundColor: deliveryGstEnabled ? '#DCFCE7' : '#F3F4F6' }]}
+                                >
+                                    <View style={styles.innerIconBox}>
+                                        <Ionicons
+                                            name={deliveryGstEnabled ? "checkmark-circle" : "ellipse-outline"}
+                                            size={rf(20)}
+                                            color={deliveryGstEnabled ? "#10B981" : "#9CA3AF"}
+                                        />
+                                    </View>
+                                </TouchableOpacity>
+                                <View style={styles.rowText}>
+                                    <Text style={styles.rowLabel}>{deliveryGstEnabled ? "GST ON DELIVERY" : "GST OFF DELIVERY"}</Text>
+                                    <Text style={styles.rowSubLabel}>Calculate tax on charge</Text>
+                                </View>
+                                {deliveryGstEnabled && (
+                                    <View style={[styles.customInputRow, { borderColor: '#10B981', width: s(160), height: vs(45) }]}>
+                                        <TextInput
+                                            style={[styles.customTaxInput, { fontSize: rf(16) }]}
+                                            value={deliveryGstRate}
+                                            onChangeText={setDeliveryGstRate}
+                                            keyboardType="decimal-pad"
+                                            placeholder="0"
+                                        />
+                                        <TouchableOpacity
+                                            onPress={() => onSave("delivery_gst_rate", deliveryGstRate, "Delivery GST Rate")}
+                                            style={{ marginRight: s(8) }}
+                                        >
+                                            <Ionicons name="checkmark-circle" size={rf(20)} color="#10B981" />
+                                        </TouchableOpacity>
+                                        <Ionicons name="receipt-outline" size={rf(16)} color="#9CA3AF" />
+                                    </View>
+                                )}
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        {/* Packaging Charges Section (New) */}
+                        <View style={styles.sectionHeader}>
+                            <View style={styles.sectionIconContainer}>
+                                <Ionicons name="cube-outline" size={rf(14)} color={COLORS.primary} />
+                            </View>
+                            <Text style={styles.sectionTitle}>PACKAGING SETTINGS</Text>
+                        </View>
+
+                        <View style={styles.settingsCard}>
+                            {/* Enable Packaging Charges */}
+                            <View style={styles.rowItem}>
+                                <View style={[styles.iconBox, { backgroundColor: '#FDF2F8' }]}>
+                                    <View style={styles.innerIconBox}>
+                                        <Ionicons name="shield-checkmark" size={rf(20)} color="#DB2777" />
+                                    </View>
+                                </View>
+                                <View style={styles.rowText}>
+                                    <Text style={styles.rowLabel}>Enable Packaging Charges</Text>
+                                    <Text style={styles.rowSubLabel}>Fixed charge added for packaging</Text>
+                                </View>
+                                <Switch
+                                    value={packagingChargeEnabled}
+                                    onValueChange={(val) => {
+                                        setPackagingChargeEnabled(val);
+                                        onSave("packaging_charge_enabled", val, "Packaging Charges");
+                                    }}
+                                    trackColor={{ false: "#E5E7EB", true: "#DB2777" }}
+                                    thumbColor="#fff"
+                                />
+                            </View>
+
+                            <View style={styles.innerDivider} />
+
+                            {/* Packaging Charge Amount */}
+                            <View style={styles.rateSection}>
+                                <Text style={styles.miniLabel}>PACKAGING AMOUNT (₹)</Text>
+                                <View style={[styles.customInputRow, { width: s(200) }]}>
+                                    <Text style={[styles.percentSuffix, { marginRight: s(5), color: COLORS.text }]}>₹</Text>
+                                    <TextInput
+                                        style={styles.customTaxInput}
+                                        value={packagingChargeAmount}
+                                        onChangeText={setPackagingChargeAmount}
+                                        keyboardType="decimal-pad"
+                                        placeholder="0"
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.saveBtn, { backgroundColor: '#DB2777', paddingHorizontal: s(12), paddingVertical: vs(6) }]}
+                                        onPress={() => onSave("packaging_charge_amount", packagingChargeAmount, "Packaging Amount")}
+                                    >
+                                        <Text style={[styles.saveBtnText, { fontSize: rf(12) }]}>Save</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
+                            <View style={styles.innerDivider} />
+
+                            {/* GST on Packaging */}
+                            <View style={styles.rowItem}>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        const newVal = !packagingGstEnabled;
+                                        setPackagingGstEnabled(newVal);
+                                        onSave("packaging_gst_enabled", newVal, "Packaging GST");
+                                    }}
+                                    style={[styles.iconBox, { backgroundColor: packagingGstEnabled ? '#FCE7F3' : '#F3F4F6' }]}
+                                >
+                                    <View style={styles.innerIconBox}>
+                                        <Ionicons
+                                            name={packagingGstEnabled ? "checkmark-circle" : "ellipse-outline"}
+                                            size={rf(20)}
+                                            color={packagingGstEnabled ? "#DB2777" : "#9CA3AF"}
+                                        />
+                                    </View>
+                                </TouchableOpacity>
+                                <View style={styles.rowText}>
+                                    <Text style={styles.rowLabel}>{packagingGstEnabled ? "GST ON PACKAGING" : "GST OFF PACKAGING"}</Text>
+                                    <Text style={styles.rowSubLabel}>Calculate tax on packaging</Text>
+                                </View>
+                                {packagingGstEnabled && (
+                                    <View style={[styles.customInputRow, { borderColor: '#DB2777', width: s(160), height: vs(45) }]}>
+                                        <TextInput
+                                            style={[styles.customTaxInput, { fontSize: rf(16) }]}
+                                            value={packagingGstRate}
+                                            onChangeText={setPackagingGstRate}
+                                            keyboardType="decimal-pad"
+                                            placeholder="0"
+                                        />
+                                        <TouchableOpacity
+                                            onPress={() => onSave("packaging_gst_rate", packagingGstRate, "Packaging GST Rate")}
+                                            style={{ marginRight: s(8) }}
+                                        >
+                                            <Ionicons name="checkmark-circle" size={rf(20)} color="#DB2777" />
+                                        </TouchableOpacity>
+                                        <Ionicons name="receipt-outline" size={rf(16)} color="#9CA3AF" />
+                                    </View>
+                                )}
                             </View>
                         </View>
                     </ScrollView>

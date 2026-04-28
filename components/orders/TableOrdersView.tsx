@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
+  DeviceEventEmitter,
   FlatList,
   RefreshControl,
   SafeAreaView,
@@ -109,12 +110,17 @@ export default function TableOrdersView({ tableId, tableName, onBack, initialOrd
   }, [tableId]);
 
   useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('REFRESH_ORDERS', fetchOrders);
+    return () => sub.remove();
+  }, [fetchOrders]);
+
+  useEffect(() => {
     fetchOrders();
     const interval = setInterval(fetchOrders, 10000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
-  const updateOrderStatus = async (orderId: string, status: string) => {
+  const updateOrderStatus = useCallback(async (orderId: string, status: string) => {
     try {
       const token = await getToken();
       const response = await fetch("https://billing.kravy.in/api/orders", {
@@ -125,7 +131,7 @@ export default function TableOrdersView({ tableId, tableName, onBack, initialOrd
       if (response.ok) fetchOrders();
       else Alert.alert("Error", "Failed to update status");
     } catch (error) { console.error("Update status error:", error); }
-  };
+  }, [getToken, fetchOrders]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -137,21 +143,21 @@ export default function TableOrdersView({ tableId, tableName, onBack, initialOrd
     }
   };
 
-  const handlePrintKOT = async (item: Order) => {
+  const handlePrintKOT = useCallback(async (item: Order) => {
     try {
       const token = await getToken();
       const cartItems = item.items.map((it: any) => ({ name: it.name, quantity: it.quantity }));
       await SimpleKOT(cartItems, token!, user?.id!, (tableName as string) || "Table");
     } catch (error) { ToastAndroid.show("Print Error", ToastAndroid.SHORT); }
-  };
+  }, [getToken, user?.id, tableName]);
 
-  const handlePrintBill = async (item: Order) => {
+  const handlePrintBill = useCallback(async (item: Order) => {
     try {
       const token = await getToken();
       const cartItems = item.items.map((it: any) => ({ id: Math.random().toString(), name: it.name, price: it.price, quantity: it.quantity }));
       await SimpleBill(cartItems, token!, user?.id!, { orderId: item.id as string, customerName: "Table Guest", paymentMode: "CASH", tableName: (tableName as string) || "Table" });
     } catch (error) { ToastAndroid.show("Print Error", ToastAndroid.SHORT); }
-  };
+  }, [getToken, user?.id, tableName]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -168,50 +174,18 @@ export default function TableOrdersView({ tableId, tableName, onBack, initialOrd
       <FlatList
         data={orders}
         keyExtractor={(item) => item.id}
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={10}
+        removeClippedSubviews={true}
         renderItem={({ item }) => (
-          <View style={styles.orderCard}>
-            <View style={styles.orderHeader}>
-              <View>
-                <Text style={styles.billNumber}>Bill #{item.billNumber}</Text>
-                <Text style={styles.orderTime}>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-              </View>
-              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-                <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status}</Text>
-              </View>
-            </View>
-            <View style={styles.divider} />
-            {item.items.map((it, idx) => (
-              <View key={idx} style={styles.itemRow}><Text style={styles.itemName}>{it.name} x{it.quantity}</Text><Text style={styles.itemPrice}>₹{(it.price * it.quantity).toFixed(2)}</Text></View>
-            ))}
-            <View style={styles.divider} />
-            <View style={styles.footer}>
-              <Text style={styles.totalText}>Total: ₹{item.total.toFixed(2)}</Text>
-              <View style={styles.actionRow}>
-                {item.status === 'PENDING' && (
-                  <TouchableOpacity style={[styles.actionBtn, styles.startBtn]} onPress={() => updateOrderStatus(item.id, 'PREPARING')}>
-                    <Text style={styles.actionBtnText}>Start</Text>
-                  </TouchableOpacity>
-                )}
-                {item.status === 'PREPARING' && (
-                  <TouchableOpacity style={[styles.actionBtn, styles.readyBtn]} onPress={() => updateOrderStatus(item.id, 'READY')}>
-                    <Text style={styles.actionBtnText}>Ready</Text>
-                  </TouchableOpacity>
-                )}
-                {item.status === 'READY' && (
-                  <TouchableOpacity style={[styles.actionBtn, styles.handOverBtn]} onPress={() => updateOrderStatus(item.id, 'SERVED')}>
-                    <Text style={styles.actionBtnText}>Hand Over</Text>
-                  </TouchableOpacity>
-                )}
-                {item.status === 'SERVED' && (
-                  <TouchableOpacity style={[styles.actionBtn, styles.completeBtn]} onPress={() => updateOrderStatus(item.id, 'COMPLETED')}>
-                    <Text style={styles.actionBtnText}>Complete</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={[styles.actionBtn, styles.kotBtn]} onPress={() => handlePrintKOT(item)}><Text style={styles.actionBtnText}>KOT</Text></TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, styles.printBtn]} onPress={() => handlePrintBill(item)}><Text style={styles.actionBtnText}>Print</Text></TouchableOpacity>
-              </View>
-            </View>
-          </View>
+          <OrderCard 
+            item={item} 
+            getStatusColor={getStatusColor} 
+            updateOrderStatus={updateOrderStatus} 
+            handlePrintKOT={handlePrintKOT} 
+            handlePrintBill={handlePrintBill} 
+          />
         )}
         contentContainerStyle={styles.listContainer}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOrders(); }} />}
@@ -219,6 +193,59 @@ export default function TableOrdersView({ tableId, tableName, onBack, initialOrd
     </SafeAreaView>
   );
 }
+
+const OrderCard = React.memo(({ item, getStatusColor, updateOrderStatus, handlePrintKOT, handlePrintBill }: any) => (
+  <View style={styles.orderCard}>
+    <View style={styles.orderHeader}>
+      <View>
+        <Text style={styles.billNumber}>Bill #{item.billNumber}</Text>
+        <Text style={styles.orderTime}>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+      </View>
+      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+        <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status}</Text>
+      </View>
+    </View>
+    <View style={styles.divider} />
+    {item.items.map((it: any, idx: number) => (
+      <View key={idx} style={styles.itemRow}>
+        <Text style={styles.itemName}>{it.name} x{it.quantity}</Text>
+        <Text style={styles.itemPrice}>₹{(it.price * it.quantity).toFixed(2)}</Text>
+      </View>
+    ))}
+    <View style={styles.divider} />
+    <View style={styles.footer}>
+      <Text style={styles.totalText}>Total: ₹{item.total.toFixed(2)}</Text>
+      <View style={styles.actionRow}>
+        {item.status === 'PENDING' && (
+          <TouchableOpacity style={[styles.actionBtn, styles.startBtn]} onPress={() => updateOrderStatus(item.id, 'PREPARING')}>
+            <Text style={styles.actionBtnText}>Start</Text>
+          </TouchableOpacity>
+        )}
+        {item.status === 'PREPARING' && (
+          <TouchableOpacity style={[styles.actionBtn, styles.readyBtn]} onPress={() => updateOrderStatus(item.id, 'READY')}>
+            <Text style={styles.actionBtnText}>Ready</Text>
+          </TouchableOpacity>
+        )}
+        {item.status === 'READY' && (
+          <TouchableOpacity style={[styles.actionBtn, styles.handOverBtn]} onPress={() => updateOrderStatus(item.id, 'SERVED')}>
+            <Text style={styles.actionBtnText}>Hand Over</Text>
+          </TouchableOpacity>
+        )}
+        {item.status === 'SERVED' && (
+          <TouchableOpacity style={[styles.actionBtn, styles.completeBtn]} onPress={() => updateOrderStatus(item.id, 'COMPLETED')}>
+            <Text style={styles.actionBtnText}>Complete</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={[styles.actionBtn, styles.kotBtn]} onPress={() => handlePrintKOT(item)}>
+          <Text style={styles.actionBtnText}>KOT</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.actionBtn, styles.printBtn]} onPress={() => handlePrintBill(item)}>
+          <Text style={styles.actionBtnText}>Print</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+));
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F9FAFB" },

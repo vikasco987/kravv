@@ -4,9 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  AppState,
+  DeviceEventEmitter,
   Dimensions,
   StyleSheet,
   Text,
@@ -35,8 +38,38 @@ const NewOrderNotifier = () => {
   const fetchInProgress = useRef(false);
   const soundRef = useRef<Audio.Sound | null>(null);
 
-  // Setup Audio Mode
+  // Setup Notifications Handler
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+
+  // Setup Notification Channels and Permissions
   useEffect(() => {
+    async function setupNotifications() {
+      // Create Channel for Android
+      await Notifications.setNotificationChannelAsync('urgent-orders', {
+        name: 'Urgent Orders',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+        sound: 'urgent_order.wav', // Fallback for custom sound if added in assets
+      });
+
+      // Request Permissions
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+    }
+    
+    setupNotifications();
+
     Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
       playsInSilentModeIOS: true,
@@ -135,6 +168,9 @@ const NewOrderNotifier = () => {
       }
 
       if (token && currentOrder) {
+        // Clear locally if needed, but the main thing is to refresh global views
+        DeviceEventEmitter.emit('REFRESH_ORDERS');
+        
         // --- DEEP SEARCH FOR ITEMS ---
         let rawItems = currentOrder.items || currentOrder.cart || currentOrder.products || 
                        currentOrder.orderItems || currentOrder.order_items || 
@@ -221,6 +257,23 @@ const NewOrderNotifier = () => {
 
         if (newlyArrivedOrders.length > 0) {
           newlyArrivedOrders.forEach(o => processedOrderIds.current.add(o._id || o.id));
+
+          // ✅ TRIGGER SYSTEM NOTIFICATION FOR BACKGROUND
+          if (AppState.currentState !== 'active') {
+             const firstOrder = newlyArrivedOrders[0];
+             const tableName = firstOrder.tableName || firstOrder.table?.name || "Online Order";
+             Notifications.scheduleNotificationAsync({
+               content: {
+                 title: "🚨 NEW URGENT ORDER!",
+                 body: `${tableName} has sent a new order. Open app to accept!`,
+                 data: { orderId: firstOrder._id || firstOrder.id },
+                 sound: true,
+                 priority: 'max',
+               },
+               trigger: null, // show immediately
+             });
+          }
+
           setPendingOrders(prev => {
             const updated = [...prev, ...newlyArrivedOrders];
             if (prev.length === 0 && !showNotification) {
@@ -244,8 +297,25 @@ const NewOrderNotifier = () => {
       return;
     }
     fetchOrders();
-    const interval = setInterval(fetchOrders, 3000);
-    return () => clearInterval(interval);
+
+    // ✅ Listen for manual refresh signals to show popup instantly
+    const refreshSub = DeviceEventEmitter.addListener('REFRESH_ORDERS', fetchOrders);
+
+    // ✅ Extreme fast polling (1 second) for "instant" feel
+    const interval = setInterval(fetchOrders, 1000);
+
+    // ✅ Refresh immediately when app returns to foreground
+    const appStateSub = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        fetchOrders();
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      appStateSub.remove();
+      refreshSub.remove();
+    };
   }, [isSignedIn, staffData]);
 
   if (!showNotification || !newOrderInfo) return null;

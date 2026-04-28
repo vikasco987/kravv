@@ -1,4 +1,5 @@
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import { menuService, uploadToCloudinary } from "../../services/menuService";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from 'react';
@@ -12,9 +13,12 @@ import {
     TextInput,
     ToastAndroid,
     TouchableOpacity,
-    View
+    View,
+    DeviceEventEmitter
 } from 'react-native';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { rf, s, vs } from "../../utils/responsive";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 interface QuickAddItemModalProps {
     visible: boolean;
@@ -30,6 +34,7 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
     onSuccess,
 }) => {
     const { getToken } = useAuth();
+    const { user } = useUser();
     const [name, setName] = useState("");
     const [price, setPrice] = useState("");
     const [image, setImage] = useState<string | null>(null);
@@ -37,6 +42,8 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
     const [gstPercent, setGstPercent] = useState<number | null>(null);
     const [hsnCode, setHsnCode] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    const [uploadedImageUrl, setUploadedImageUrl] = useState("");
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
 
     const gstOptions = [5, 12, 18, 28];
 
@@ -47,6 +54,8 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
         setTaxType("Without Tax");
         setGstPercent(null);
         setHsnCode("");
+        setUploadedImageUrl("");
+        setIsUploadingImage(false);
     };
 
     const pickImage = async () => {
@@ -65,7 +74,20 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
             });
 
             if (!result.canceled && result.assets && result.assets[0]) {
-                setImage(result.assets[0].uri);
+                const localUri = result.assets[0].uri;
+                setImage(localUri);
+                setIsUploadingImage(true);
+                // Eager upload in background
+                (async () => {
+                    try {
+                        const url = await uploadImageToCloudinary(localUri);
+                        setUploadedImageUrl(url);
+                    } catch (err) {
+                        console.error("Quick Add Eager Upload Error:", err);
+                    } finally {
+                        setIsUploadingImage(false);
+                    }
+                })();
             }
         } catch (error) {
             console.error("ImagePicker Error:", error);
@@ -74,43 +96,12 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
     };
 
     const uploadImageToCloudinary = async (uri: string) => {
-        const cloudName = "digpvlfup";
-        const uploadPreset = "mybillingmenu";
-
-        const formData = new FormData();
-        const fileName = uri.split("/").pop() || "upload.jpg";
-        const fileType = fileName.split(".").pop() || "jpg";
-
-        // @ts-ignore
-        formData.append("file", {
-            uri: uri,
-            type: `image/${fileType}`,
-            name: fileName,
-        });
-        formData.append("upload_preset", uploadPreset);
-        formData.append("cloud_name", cloudName);
-
-        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-            method: "POST",
-            body: formData,
-            headers: {
-                "Accept": "application/json",
-            },
-        });
-
-        const text = await response.text();
-        let data: any;
         try {
-            data = JSON.parse(text);
-        } catch (e) {
-            throw new Error(`Cloudinary error: ${text || "Empty response"}`);
+            return await uploadToCloudinary(uri);
+        } catch (error) {
+            console.error("Cloudinary upload error:", error);
+            throw error;
         }
-
-        if (!response.ok) {
-            throw new Error(data.error?.message || `Cloudinary upload failed: ${text}`);
-        }
-
-        return data.secure_url;
     };
 
     const handleAddItem = async () => {
@@ -125,49 +116,72 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
 
         try {
             setIsSaving(true);
-            const token = await getToken();
+            
+            let finalImageUrl = uploadedImageUrl || "";
+            if (!finalImageUrl && image && !image.startsWith('http')) {
+                finalImageUrl = await uploadImageToCloudinary(image);
+            }
 
-            let finalImageUrl = "";
-            if (image && (image.startsWith("file://") || image.startsWith("content://"))) {
-                try {
-                    finalImageUrl = await uploadImageToCloudinary(image);
-                } catch (uploadError) {
-                    console.error("Cloudinary Upload Error:", uploadError);
+            const itemPrice = parseFloat(price);
+
+            // 🚀 UI OPTIMISTIC (Local Sync Only)
+            const tempId = `temp-${Date.now()}`;
+            try {
+                const cachedData = await AsyncStorage.getItem('@cached_menu');
+                if (cachedData) {
+                    let menus = JSON.parse(cachedData);
+                    const catIndex = menus.findIndex((c: any) => String(c.id) === String(categoryId));
+                    if (catIndex !== -1) {
+                        const optimisticItem = {
+                            id: tempId,
+                            name: name.trim(),
+                            price: itemPrice,
+                            sellingPrice: itemPrice,
+                            imageUrl: finalImageUrl || null,
+                            unit: "pcs",
+                            taxType: taxType,
+                            gst: gstPercent,
+                            hsnCode: hsnCode.trim()
+                        };
+                        if (!menus[catIndex].items) menus[catIndex].items = [];
+                        menus[catIndex].items = [optimisticItem, ...menus[catIndex].items];
+                        await AsyncStorage.setItem('@cached_menu', JSON.stringify(menus));
+                        DeviceEventEmitter.emit('refresh_menu_data');
+                    }
                 }
+            } catch (e) { console.error("Quick Add Optimistic Error:", e); }
+
+            // Instant Feedback
+            onSuccess(); 
+            onClose();
+            ToastAndroid.show("Item added successfully", ToastAndroid.SHORT);
+
+            // Network Save
+            const authToken = await getToken();
+            const staffSession = await StaffPermissionEngine.getSession();
+            const finalToken = authToken || staffSession?.token;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+
+            if (finalToken) {
+                await menuService.createItem(finalToken, {
+                    name: name.trim(),
+                    price: itemPrice,
+                    sellingPrice: itemPrice,
+                    categoryId: categoryId,
+                    imageUrl: finalImageUrl || null,
+                    unit: "pcs",
+                    taxStatus: taxType,
+                    gst: Number(gstPercent || 0),
+                    hsnCode: hsnCode.trim(),
+                    isVeg: true,
+                    currentStock: 0,
+                    businessId: bId
+                });
+                DeviceEventEmitter.emit('refresh_menu_data');
             }
-
-            const payload = {
-                name: name.trim(),
-                sellingPrice: parseFloat(price),
-                price: parseFloat(price),
-                categoryId: categoryId,
-                imageUrl: finalImageUrl,
-                taxType: taxType,
-                gst: gstPercent,
-                hsnCode: hsnCode.trim(),
-            };
-
-            const response = await fetch("https://billing.kravy.in/api/items", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify(payload),
-            });
-
-            if (response.ok) {
-                ToastAndroid.show("Item added successfully!", ToastAndroid.SHORT);
-                onSuccess();
-                resetForm();
-                onClose();
-            } else {
-                const errData = await response.json().catch(() => ({}));
-                ToastAndroid.show(errData.message || "Failed to add item", ToastAndroid.SHORT);
-            }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Add item error:", error);
-            ToastAndroid.show("Something went wrong", ToastAndroid.SHORT);
+            ToastAndroid.show(error.message || "Something went wrong", ToastAndroid.SHORT);
         } finally {
             setIsSaving(false);
         }

@@ -70,7 +70,8 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
     upiId: "",
     googleReviewLink: "",
     profileImage: "",
-    signatureUrl: "", // This is the Image Link from screenshot
+    signatureUrl: "",
+    businessEmail: "", // Added businessEmail state
   });
 
   const [hasProfile, setHasProfile] = useState(false);
@@ -83,57 +84,90 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
 
   const loadProfile = async () => {
     try {
+      // 🚀 STEP 1: Quick Load from Cache for local UI
+      const cached = await AsyncStorage.getItem('@cached_business_profile');
+      if (cached) {
+        try {
+          const data = JSON.parse(cached);
+          if (data && (data.businessName || data.companyName || data.business_name)) {
+            updateFormWithData(data);
+            setHasProfile(true);
+            setStep(-1);
+          }
+        } catch (e) {
+          console.error("Cache Parse Error:", e);
+        }
+      }
+      
+      // Stop blocking UI immediately after cache read
+      setIsInitialLoading(false);
+
+      // 🚀 STEP 2: Background Refresh from Network
       const token = await getToken();
       const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? user?.id : undefined);
 
-      if (!token && !bId) {
-        setIsInitialLoading(false);
-        return;
-      }
+      if (!token && !bId) return;
 
-      // Fetch by businessId if staff, otherwise normal
       const url = bId ? `https://billing.kravy.in/api/profile?businessId=${bId}` : "https://billing.kravy.in/api/profile";
 
       const response = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
       });
 
       if (!response.ok) {
-        setIsInitialLoading(false);
+        // If unauthorized or error, don't reset to step 0 if we have cached data
         return;
       }
 
-      const data = await response.json();
+      const resData = await response.json();
+      const data = resData.data || resData;
 
-      // The backend returns fields like businessName, businessAddress, etc.
-      if (data && (data.businessName || data.companyName)) {
-        setForm({
-          businessType: data.businessType || "",
-          businessName: data.businessName || data.companyName || "",
-          tagline: data.businessTagLine || "",
-          contactPerson: data.contactPersonName || data.contactPerson || "",
-          phone: data.contactPersonPhone || data.companyPhone || "",
-          email: data.email || "",
-          gstNumber: data.gstNumber || "",
-          businessAddress: data.businessAddress || data.companyAddress || "",
-          state: data.state || "",
-          pinCode: data.pinCode || "",
-          upiId: data.upiId || data.upi || "",
-          googleReviewLink: data.googleReviewLink || "",
-          profileImage: data.profileImageUrl || data.logoUrl || "",
-          signatureUrl: data.signatureUrl || "",
-        });
+      if (data && (data.businessName || data.companyName || data.business_name)) {
+        updateFormWithData(data);
+        await AsyncStorage.setItem('@cached_business_profile', JSON.stringify(data));
         setHasProfile(true);
-        setStep(-1); // Show summary if profile exists
+        // Only jump to summary if we aren't already in an editing step
+        if (step === 0 || step === -1) setStep(-1);
       } else {
-        setHasProfile(false);
-        setStep(0); // Show landing/setup if no profile
+        // If network explicitly returns empty or not found
+        // but only if we don't already have profile from cache
+        if (!hasProfile) {
+          setHasProfile(false);
+          if (step === -1) setStep(0);
+        }
       }
     } catch (e) {
       console.error("Load Profile Error:", e);
     } finally {
       setIsInitialLoading(false);
     }
+  };
+
+  const updateFormWithData = (data: any) => {
+    // Handle potential nesting
+    const d = data.data || data;
+    
+    setForm({
+      businessType: d.businessType || d.business_type || "",
+      businessName: d.businessName || d.companyName || d.business_name || d.company_name || "",
+      tagline: d.businessTagLine || d.tagline || d.business_tagline || "",
+      contactPerson: d.contactPersonName || d.contactPerson || d.contact_person || d.name || "",
+      phone: d.contactPersonPhone || d.companyPhone || d.phone || d.mobile || "",
+      email: d.email || d.contactPersonEmail || d.contact_person_email || "",
+      gstNumber: d.gstNumber || d.gst_number || d.gstin || "",
+      businessAddress: d.businessAddress || d.companyAddress || d.address || d.business_address || "",
+      state: d.state || "",
+      pinCode: d.pinCode || d.pincode || d.zip || d.zip_code || "",
+      upiId: d.upiId || d.upi || d.upi_id || "",
+      googleReviewLink: d.googleReviewLink || d.google_review_link || d.review_link || "",
+      profileImage: d.profileImageUrl || d.logoUrl || d.logo_url || d.image || d.profile_image || "",
+      signatureUrl: d.signatureUrl || d.signature_url || d.signature || "",
+      businessEmail: d.businessEmail || d.business_email || "",
+    });
   };
 
   const handleBack = () => {
@@ -184,7 +218,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
     setStep(step + 1);
   };
 
-  const pickImage = async () => {
+  const pickImage = async (field: 'profileImage' | 'signatureUrl') => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
@@ -195,29 +229,35 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       let result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [1, 1],
+        aspect: field === 'profileImage' ? [1, 1] : [2, 1],
         quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
-        uploadImage(result.assets[0].uri);
+        uploadToCloudinary(result.assets[0].uri, field);
       }
     } catch (e) {
       showAlert("error", "Error", "Failed to pick image.");
     }
   };
 
-  const uploadImage = async (uri: string) => {
+  const uploadToCloudinary = async (uri: string, field: 'profileImage' | 'signatureUrl') => {
     setUploadingImage(true);
     try {
       const cloudName = "digpvlfup";
       const uploadPreset = "mybillingmenu";
       const formData = new FormData();
       const fileName = uri.split("/").pop() || "upload.jpg";
-      const fileType = fileName.split(".").pop() || "jpg";
+      const fileExt = fileName.split(".").pop() || "jpg";
+      const fileType = `image/${fileExt}`;
 
+      // Create blob or use simpler approach for RN
       // @ts-ignore
-      formData.append("file", { uri, type: `image/${fileType}`, name: fileName });
+      formData.append("file", {
+        uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+        type: fileType,
+        name: fileName,
+      });
       formData.append("upload_preset", uploadPreset);
       formData.append("cloud_name", cloudName);
 
@@ -229,8 +269,9 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.message || "Upload failed");
 
-      setForm({ ...form, profileImage: data.secure_url });
+      setForm(prev => ({ ...prev, [field]: data.secure_url }));
     } catch (e) {
+      console.error("Cloudinary Upload Error:", e);
       showAlert("error", "Upload Failed", "Could not upload image to Cloudinary.");
     } finally {
       setUploadingImage(false);
@@ -255,25 +296,33 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
         businessTagLine: form.tagline,
         contactPersonName: form.contactPerson,
         contactPersonPhone: form.phone,
-        email: form.email,
+        contactPersonEmail: form.email,
         gstNumber: form.gstNumber,
         businessAddress: form.businessAddress,
         state: form.state,
         pinCode: form.pinCode,
-        upiId: form.upiId,
+        upi: form.upiId,
+        businessEmail: form.businessEmail,
         googleReviewLink: form.googleReviewLink,
+        logoUrl: form.profileImage,
         profileImageUrl: form.profileImage,
         signatureUrl: form.signatureUrl,
       };
 
       const res = await fetch("https://billing.kravy.in/api/profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { 
+          "Content-Type": "application/json", 
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}` 
+        },
         body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         setHasProfile(true);
+        // Update cache immediately with the latest form data
+        await AsyncStorage.setItem('@cached_business_profile', JSON.stringify(payload));
         showAlert("success", "Success!", "Profile saved successfully!");
       } else {
         const errorData = await res.json();
@@ -348,7 +397,8 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
           {renderSummarySection("Contact", [
             { label: "Person", value: form.contactPerson },
             { label: "Phone", value: form.phone },
-            { label: "Email", value: form.email }
+            { label: "Contact Email", value: form.email },
+            { label: "Business Email", value: form.businessEmail }
           ], "person")}
 
           {renderSummarySection("Address", [
@@ -361,7 +411,22 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
             { label: "UPI", value: form.upiId || "N/A" },
             { label: "Review Link", value: form.googleReviewLink || "N/A" }
           ], "credit-card-outline")}
+
+          {form.signatureUrl ? (
+            <View style={styles.summarySection}>
+              <View style={styles.summarySectionHeader}>
+                <Ionicons name="pencil" size={rf(18)} color={THEME_COLOR} />
+                <Text style={styles.summarySectionTitle}>Signature</Text>
+              </View>
+              <Image 
+                source={{ uri: form.signatureUrl }} 
+                style={{ width: s(150), height: vs(70), borderRadius: s(8), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#F1F5F9' }} 
+                resizeMode="contain" 
+              />
+            </View>
+          ) : null}
         </View>
+
 
         <TouchableOpacity style={styles.editButton} onPress={() => setStep(1)}>
           <Feather name="edit-3" size={rf(20)} color="#fff" />
@@ -432,9 +497,10 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
                 <Ionicons name="person" size={rf(22)} color={THEME_COLOR} />
                 <Text style={styles.sectionTitle}>Contact Details</Text>
               </View>
-              {renderInput("Contact Person*", form.contactPerson, (t) => setForm({ ...form, contactPerson: t }), "Contact Person*")}
-              {renderInput("Phone*", form.phone, (t) => setForm({ ...form, phone: t }), "Phone*", "phone-pad")}
-              {renderInput("Email*", form.email, (t) => setForm({ ...form, email: t }), "Email*", "email-address")}
+              { renderInput("Contact Person*", form.contactPerson, (t) => setForm({ ...form, contactPerson: t }), "Contact Person*")}
+              { renderInput("Phone*", form.phone, (t) => setForm({ ...form, phone: t }), "Phone*", "phone-pad")}
+              { renderInput("Contact Email*", form.email, (t) => setForm({ ...form, email: t }), "Contact Email*", "email-address")}
+              { renderInput("Business Email", form.businessEmail, (t) => setForm({ ...form, businessEmail: t }), "Business Email", "email-address")}
             </View>
           )}
 
@@ -467,7 +533,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
               {renderInput("Google Review Link", form.googleReviewLink, (t) => setForm({ ...form, googleReviewLink: t }), "Google Review Link")}
 
               <Text style={styles.label}>Profile Image / Logo</Text>
-              <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
+              <TouchableOpacity style={styles.uploadBox} onPress={() => pickImage('profileImage')}>
                 {uploadingImage ? (
                   <ActivityIndicator color={THEME_COLOR} />
                 ) : form.profileImage ? (
@@ -480,7 +546,21 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
                 )}
               </TouchableOpacity>
 
-              {renderInput("Signature URL (Image Link)", form.signatureUrl, (t) => setForm({ ...form, signatureUrl: t }), "Paste Link Here")}
+              <Text style={styles.label}>Business Signature</Text>
+              <TouchableOpacity style={styles.uploadBox} onPress={() => pickImage('signatureUrl')}>
+                {uploadingImage ? (
+                  <ActivityIndicator color={THEME_COLOR} />
+                ) : form.signatureUrl ? (
+                  <Image source={{ uri: form.signatureUrl }} style={styles.logoPreview} resizeMode="contain" />
+                ) : (
+                  <>
+                    <Ionicons name="pencil-outline" size={rf(30)} color="#94A3B8" />
+                    <Text style={styles.uploadText}>Upload Signature</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              {renderInput("Signature URL (Manual)", form.signatureUrl, (t) => setForm({ ...form, signatureUrl: t }), "Paste Link or Upload above")}
+
             </View>
           )}
         </View>

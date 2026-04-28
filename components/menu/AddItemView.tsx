@@ -1,4 +1,5 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { menuService, uploadToCloudinary } from "../../services/menuService";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from "expo-router";
@@ -6,6 +7,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    DeviceEventEmitter,
     FlatList,
     Image,
     KeyboardAvoidingView,
@@ -21,6 +23,7 @@ import {
 } from "react-native";
 
 import { useLanguage } from "../../context/LanguageContext";
+import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { PermissionGuard } from "../common/PermissionGuard";
 import { LoginRequiredModal } from "../settings/LoginRequiredModal";
@@ -31,20 +34,29 @@ const THEME_PRIMARY = "#4F46E5"; // Indigo
 const COLOR_BG = "#F9FAFB";
 
 interface AddItemViewProps {
-    onBack?: () => void;
+    onBack: () => void;
+    categories: { id: string; name: string }[];
+    onRefresh: () => Promise<void>;
 }
 
-export default function AddItemView({ onBack }: AddItemViewProps) {
+export default function AddItemView({ onBack, categories: initialCategories, onRefresh }: AddItemViewProps) {
     const router = useRouter();
     const { getToken } = useAuth();
     const { isLoaded, isSignedIn, user } = useUser();
     const { t } = useLanguage();
+    const { triggerRefresh } = useRefresh();
 
-    const [categories, setCategories] = useState<any[]>([]); // Objects with id and name
+    // 🚀 Performance: Use passed categories immediately to avoid first-time fetch lag
+    const [categoriesList, setCategoriesList] = useState<{ id: string, name: string }[]>(() => {
+        if (!initialCategories) return [];
+        return initialCategories.map(c => ({
+            id: String(c.id),
+            name: String(c.name)
+        }));
+    });
     const [isLoadingCategories, setIsLoadingCategories] = useState(false);
     const [categoryModalVisible, setCategoryModalVisible] = useState(false);
     const [isAddCatModalVisible, setIsAddCatModalVisible] = useState(false);
-    const [allCategoriesList, setAllCategoriesList] = useState<{ id: string, name: string }[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [uploadedImageUrl, setUploadedImageUrl] = useState("");
@@ -93,137 +105,102 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
         try {
             setIsLoadingCategories(true);
             const authToken = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+            const staffSession = await StaffPermissionEngine.getSession();
             const finalToken = authToken || staffSession?.token;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
 
-            if (!finalToken && !bId) {
-                setIsLoadingCategories(false);
-                return;
-            }
-
-            const url = bId ? `https://billing.kravy.in/api/menu/view?businessId=${bId}` : "https://billing.kravy.in/api/menu/view";
-            const res = await fetch(url, {
-                headers: {
-                    Authorization: `Bearer ${finalToken}`,
-                    "Cache-Control": "no-cache"
-                },
-            });
-
-            if (!res.ok) {
-                console.error(`❌ Categories fetch failed: ${res.status}`);
-                return;
-            }
-
-            const contentType = res.headers.get("content-type");
-            if (!contentType || !contentType.includes("application/json")) {
-                const text = await res.text();
-                console.warn(`ℹ️ [Items] Received non-JSON response for categories. Body starts with: ${text.slice(0, 50)}`);
-                return;
-            }
-
-            let data = await res.json();
-            let items: any[] = [];
-            let directCategories: any[] = [];
-
-            if (Array.isArray(data)) {
-                items = data;
-            } else if (data && Array.isArray(data.menus)) {
-                // Backend is returning nested categories
-                directCategories = data.menus.map((cat: any) => ({
-                    id: cat.id || cat._id || "others",
-                    name: cat.name || "Others"
-                }));
-                data.menus.forEach((cat: any) => {
-                    if (Array.isArray(cat.items)) {
-                        cat.items.forEach((item: any) => {
-                            items.push({
-                                ...item,
-                                category: { id: cat.id || cat._id, name: cat.name }
-                            });
-                        });
-                    }
-                });
-            } else if (data && Array.isArray(data.items)) {
-                items = data.items;
-            }
-
-            if (directCategories.length > 0) {
-                const sorted = directCategories.sort((a, b) => a.name.localeCompare(b.name));
-                setCategories(sorted);
-                setAllCategoriesList(sorted); // Sync with local list for AddItemCategory
-            } else if (items.length > 0) {
-                const categoryMap: Record<string, any> = {};
-                items.forEach((item: any) => {
-                    const rawCat = item.category || { id: "others", name: "Others" };
-                    const catId = String(rawCat.id || rawCat._id || "others");
-                    const catName = String(rawCat.name || "Others");
-
-                    if (!categoryMap[catId]) {
-                        categoryMap[catId] = { id: catId, name: catName };
-                    }
-                });
-                const sortedCategories = Object.values(categoryMap).sort((a: any, b: any) =>
-                    a.name.localeCompare(b.name)
-                );
-                setCategories(sortedCategories);
+            if (finalToken) {
+                const data = await menuService.getCategories(finalToken, bId);
+                const normalized = Array.isArray(data) ? data.map((c: any) => ({
+                    id: String(c.id || c._id || ""),
+                    name: String(c.name || "")
+                })).filter(c => c.id !== "") : [];
+                setCategoriesList(normalized);
             }
         } catch (error) {
-            console.error("Error fetching categories:", error);
+            console.error("fetchCategories error:", error);
         } finally {
             setIsLoadingCategories(false);
         }
-    }, [getToken]);
+    }, [getToken, user?.id]);
 
     const fetchAllCategoriesRaw = useCallback(async () => {
-        try {
-            const authToken = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-            const finalToken = authToken || staffSession?.token;
-
-            if (!finalToken && !bId) return;
-
-            const url = bId ? `https://billing.kravy.in/api/categories?businessId=${bId}` : "https://billing.kravy.in/api/categories";
-            const response = await fetch(url, {
-                headers: {
-                    Authorization: `Bearer ${finalToken}`,
-                    "Cache-Control": "no-cache"
-                },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const categoryList = Array.isArray(data) ? data : [];
-                setAllCategoriesList(categoryList);
-            }
-        } catch (err) {
-            console.error("Fetch all categories error:", err);
-        }
-    }, [getToken]);
+        // Already handled by fetchCategories in this implementation
+    }, []);
 
     useFocusEffect(
         useCallback(() => {
-            if (isLoaded && (isSignedIn || isStaffSignedIn)) {
+            // Only fetch if we don't have any categories yet
+            if (isLoaded && (isSignedIn || isStaffSignedIn) && categoriesList.length === 0) {
                 fetchCategories();
-                fetchAllCategoriesRaw();
             }
-        }, [isLoaded, isSignedIn, isStaffSignedIn])
+        }, [isLoaded, isSignedIn, isStaffSignedIn, categoriesList.length])
     );
 
     const combinedCategories = React.useMemo(() => {
-        const map: Record<string, { id: string, name: string }> = {};
-        allCategoriesList.forEach(c => {
-            if (c.id && c.name) map[c.id] = { id: c.id, name: c.name };
-        });
-        categories.forEach(c => {
-            if (c.id && c.name && !map[c.id]) {
-                map[c.id] = { id: c.id, name: c.name };
-            }
-        });
-        return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
-    }, [allCategoriesList, categories]);
+        return [...categoriesList].sort((a, b) => a.name.localeCompare(b.name));
+    }, [categoriesList]);
+
+    // Optimize Category List Item
+    const CategoryItem = React.memo(({ item, isSelected, onSelect }: any) => (
+        <TouchableOpacity
+            style={[styles.categorySelectItem, isSelected && styles.categorySelected]}
+            onPress={() => onSelect(item)}
+        >
+            <Text style={[styles.categorySelectText, isSelected && styles.categorySelectedText]}>{item.name}</Text>
+        </TouchableOpacity>
+    ));
+
+    const renderCategoryItem = useCallback(({ item }: { item: any }) => (
+        <CategoryItem
+            item={item}
+            isSelected={newItem.categoryId === item.id}
+            onSelect={(selected: any) => {
+                setNewItem(prev => ({ ...prev, category: selected.name, categoryId: selected.id }));
+                setCategoryModalVisible(false);
+            }}
+        />
+    ), [newItem.categoryId]);
+
+    // Optimized Category Selection (Standard Modal used for reliability, but optimized content)
+    const CategorySelectionSheet = React.memo(({ visible, onClose, data, renderItem }: any) => {
+        if (!visible) return null;
+        
+        return (
+            <Modal 
+                animationType="fade" 
+                transparent 
+                visible={visible} 
+                onRequestClose={onClose}
+                statusBarTranslucent
+            >
+                <TouchableOpacity 
+                    activeOpacity={1} 
+                    style={styles.modalOverlay} 
+                    onPress={onClose}
+                >
+                    <View style={styles.modalContent}>
+                        <View style={styles.sheetHandle} />
+                        <Text style={{ fontSize: rf(18), fontWeight: '700', color: '#111827', marginBottom: vs(15) }}>
+                            Select Category
+                        </Text>
+                        <FlatList
+                            data={data}
+                            keyExtractor={(item: any) => item.id}
+                            renderItem={renderItem}
+                            initialNumToRender={15}
+                            maxToRenderPerBatch={20}
+                            windowSize={10}
+                            removeClippedSubviews={true}
+                            getItemLayout={(_, index) => (
+                                { length: vs(55), offset: vs(55) * index, index }
+                            )}
+                        />
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+        );
+    });
 
     const pickImage = async () => {
         const staffSession = await StaffPermissionEngine.getSession();
@@ -270,22 +247,12 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
     };
 
     const uploadImageToCloudinary = async (uri: string) => {
-        const cloudName = "digpvlfup";
-        const uploadPreset = "mybillingmenu";
-        const formData = new FormData();
-        const fileName = uri.split("/").pop() || "upload.jpg";
-        const fileType = fileName.split(".").pop() || "jpg";
-        // @ts-ignore
-        formData.append("file", { uri, type: `image/${fileType}`, name: fileName });
-        formData.append("upload_preset", uploadPreset);
-        formData.append("cloud_name", cloudName);
-        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-            method: "POST",
-            body: formData,
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error?.message || "Upload failed");
-        return data.secure_url;
+        try {
+            return await uploadToCloudinary(uri);
+        } catch (error) {
+            console.error("Cloudinary upload error:", error);
+            throw error;
+        }
     };
 
     const handleClear = () => {
@@ -304,8 +271,6 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
     };
 
     const handleSaveItem = async () => {
-        const staffSession = await StaffPermissionEngine.getSession();
-        if (!isSignedIn && !staffSession) { setLoginModalVisible(true); return; }
         if (!newItem.name || !newItem.price || !newItem.categoryId) {
             setErrorModalTitle("Incomplete Form");
             setErrorModalDetail("Please fill name, price, and category.");
@@ -314,58 +279,76 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
         }
         try {
             setIsSaving(true);
-            const authToken = await getToken();
-            const sessionStr = await AsyncStorage.getItem('staff_session');
-            const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-            const finalToken = authToken || staffSession?.token;
-            let finalCategoryId = newItem.categoryId;
-            let finalImageUrl = uploadedImageUrl;
-
-            if (isUploadingImage) {
-                let retry = 0;
-                while (isUploadingImage && retry < 10) {
-                    await new Promise(r => setTimeout(r, 500)); retry++;
-                    finalImageUrl = uploadedImageUrl;
-                    if (finalImageUrl) break;
-                }
+            
+            let finalImageUrl = uploadedImageUrl || "";
+            // If we have a local URI but no uploaded URL yet (rare if eager worked)
+            if (!finalImageUrl && newItem.imageUrl && !newItem.imageUrl.startsWith('http')) {
+                finalImageUrl = await uploadImageToCloudinary(newItem.imageUrl);
             }
 
             const itemPrice = parseFloat(newItem.price);
-            const payload = {
-                name: newItem.name.trim(),
-                price: itemPrice,
-                sellingPrice: itemPrice,
-                categoryId: finalCategoryId,
-                imageUrl: finalImageUrl || null,
-                taxType: newItem.taxType || "Without Tax",
-                gst: Number(newItem.gst) || 0,
-                hsnCode: newItem.hsnCode || "",
-                businessId: bId // Important for staff
-            };
 
-            const response = await fetch("https://billing.kravy.in/api/items", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${finalToken}`
-                },
-                body: JSON.stringify(payload),
-            });
+            // 🚀 UI OPTIMISTIC (Local Sync Only)
+            let tempId = `temp-${Date.now()}`;
+            try {
+                const cachedData = await AsyncStorage.getItem('@cached_menu');
+                if (cachedData) {
+                    let menus = JSON.parse(cachedData);
+                    const catIndex = menus.findIndex((c: any) => String(c.id) === String(newItem.categoryId));
+                    if (catIndex !== -1) {
+                        const optimisticItem = {
+                            id: tempId,
+                            name: newItem.name.trim(),
+                            price: itemPrice,
+                            sellingPrice: itemPrice,
+                            imageUrl: finalImageUrl || null,
+                            unit: "pcs",
+                            taxType: newItem.taxType || "Without Tax",
+                            gst: Number(newItem.gst) || 0,
+                            hsnCode: newItem.hsnCode || ""
+                        };
+                        if (!menus[catIndex].items) menus[catIndex].items = [];
+                        menus[catIndex].items = [optimisticItem, ...menus[catIndex].items];
+                        await AsyncStorage.setItem('@cached_menu', JSON.stringify(menus));
+                        DeviceEventEmitter.emit('refresh_menu_data');
+                    }
+                }
+            } catch (e) { console.error("Optimistic update failed:", e); }
 
-            if (response.ok) {
-                setShowSuccess(true);
-                setNewItem({ name: "", price: "", category: "", categoryId: "", imageUrl: "", taxType: "Without Tax", gst: null, hsnCode: "" });
-                setUploadedImageUrl("");
-                setTimeout(() => { setShowSuccess(false); handleBack(); }, 2000);
-            } else {
-                setErrorModalTitle("Save Failed");
-                setErrorModalDetail(`Server error ${response.status}`);
-                setShowError(true);
+            // Close the view immediately for instant feel
+            setShowSuccess(true);
+            setTimeout(() => {
+                onBack();
+            }, 800);
+
+            // Network Save
+            const authToken = await getToken();
+            const staffSession = await StaffPermissionEngine.getSession();
+            const finalToken = authToken || staffSession?.token;
+            const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+
+            if (finalToken) {
+                await menuService.createItem(finalToken, {
+                    name: newItem.name.trim(),
+                    price: itemPrice,
+                    sellingPrice: itemPrice,
+                    categoryId: newItem.categoryId,
+                    imageUrl: finalImageUrl || null,
+                    unit: "pcs",
+                    taxStatus: newItem.taxType,
+                    gst: Number(newItem.gst || 0),
+                    hsnCode: newItem.hsnCode,
+                    isVeg: true,
+                    currentStock: 0,
+                    businessId: bId // Pass businessId for staff support
+                });
+                if (onRefresh) onRefresh();
+                triggerRefresh();
             }
-        } catch (error) {
+        } catch (error: any) {
+            console.error("Save error:", error);
             setErrorModalTitle("Error");
-            setErrorModalDetail("Failed to save item.");
+            setErrorModalDetail(error.message || "Failed to save item.");
             setShowError(true);
         } finally {
             setIsSaving(false);
@@ -556,39 +539,23 @@ export default function AddItemView({ onBack }: AddItemViewProps) {
                     onBack={() => setIsAddCatModalVisible(false)}
                     categories={combinedCategories}
                     onOptimisticAdd={(newCat) => {
-                        setAllCategoriesList(prev => [...prev, newCat]);
+                        setCategoriesList(prev => [...prev, newCat]);
                         setNewItem(prev => ({ ...prev, category: newCat.name, categoryId: newCat.id }));
                     }}
                     onSuccess={(realCat) => {
-                        setAllCategoriesList(prev => prev.map(c => c.name === realCat.name ? realCat : c));
+                        setCategoriesList(prev => prev.map(c => c.name === realCat.name ? realCat : c));
                         setNewItem(prev => prev.category === realCat.name ? { ...prev, categoryId: realCat.id } : prev);
                     }}
                     onRefresh={fetchCategories}
                 />
             </Modal>
 
-            <Modal animationType="slide" transparent visible={categoryModalVisible}>
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.sheetHandle} />
-                        <FlatList
-                            data={combinedCategories}
-                            keyExtractor={(item: any) => item.id || item.name}
-                            renderItem={({ item }: { item: any }) => (
-                                <TouchableOpacity
-                                    style={[styles.categorySelectItem, newItem.categoryId === item.id && styles.categorySelected]}
-                                    onPress={() => {
-                                        setNewItem({ ...newItem, category: item.name, categoryId: item.id });
-                                        setCategoryModalVisible(false);
-                                    }}
-                                >
-                                    <Text style={[styles.categorySelectText, newItem.categoryId === item.id && styles.categorySelectedText]}>{item.name}</Text>
-                                </TouchableOpacity>
-                            )}
-                        />
-                    </View>
-                </View>
-            </Modal>
+            <CategorySelectionSheet
+                visible={categoryModalVisible}
+                onClose={() => setCategoryModalVisible(false)}
+                data={combinedCategories}
+                renderItem={renderCategoryItem}
+            />
 
             <Modal transparent visible={showSuccess} animationType="fade">
                 <View style={styles.modalOverlayCentered}>

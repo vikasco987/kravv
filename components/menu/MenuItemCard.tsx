@@ -23,18 +23,18 @@ interface MenuItemCardProps {
     onRemove: (item: MenuItem) => void;
 }
 
-export const MenuItemCard: React.FC<MenuItemCardProps> = ({
+export const MenuItemCard = React.memo(({
     item,
     itemWidth,
     quantity,
     onAdd,
     onRemove,
-}) => {
+}: MenuItemCardProps) => {
     return (
         <View style={[styles.gridItem, { width: itemWidth }]}>
             <TouchableOpacity 
                 onPress={() => onAdd(item)} 
-                activeOpacity={0.8} 
+                activeOpacity={0.7} 
                 style={{ width: "100%", alignItems: "center" }}
             >
                 <View>
@@ -42,9 +42,17 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
                         source={{ uri: item.imageUrl?.startsWith("http") ? item.imageUrl : "https://via.placeholder.com/80?text=No+Image" }}
                         style={[styles.itemImage, { width: itemWidth - s(12), height: itemWidth - s(12) }]}
                         resizeMode="cover"
+                        fadeDuration={0}
                     />
                     {quantity > 0 && (
-                        <TouchableOpacity style={styles.minusIcon} onPress={() => onRemove(item)}>
+                        <TouchableOpacity 
+                            style={styles.minusIcon} 
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                onRemove(item);
+                            }}
+                            activeOpacity={0.6}
+                        >
                             <Feather name="minus" size={12} color="#fff" />
                         </TouchableOpacity>
                     )}
@@ -61,7 +69,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
             </TouchableOpacity>
         </View>
     );
-};
+});
 
 const styles = StyleSheet.create({
     gridItem: {

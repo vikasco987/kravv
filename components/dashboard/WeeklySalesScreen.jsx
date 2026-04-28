@@ -17,6 +17,8 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+import { applyTrueBillTotals } from "../../utils/billCalculator";
+import DetailedBillListView from "./DetailedBillListView";
 
 const COLORS = {
     primary: '#FF9800',
@@ -62,7 +64,7 @@ const WeeklySalesCard = ({ weekLabel, numberOfBills, totalSales, t }) => (
     </View>
 );
 
-const TableListView = ({ data, refreshing, onRefresh, t }) => (
+const TableListView = ({ data, refreshing, onRefresh, t, onRowPress }) => (
 
     <View style={enhancedStyles.tableContainer}>
         <View style={enhancedStyles.tableHeaderRow}>
@@ -76,13 +78,13 @@ const TableListView = ({ data, refreshing, onRefresh, t }) => (
 
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
             renderItem={({ item, index }) => (
-                <View style={[enhancedStyles.tableRow, index % 2 === 0 ? enhancedStyles.evenRow : enhancedStyles.oddRow]}>
+                <TouchableOpacity onPress={() => onRowPress && onRowPress(item.sortKey)} activeOpacity={0.8} style={[enhancedStyles.tableRow, index % 2 === 0 ? enhancedStyles.evenRow : enhancedStyles.oddRow]}>
                     <Text style={[enhancedStyles.tableCell, { flex: 3, textAlign: 'left', fontWeight: 'bold' }]}>{item.weekLabel}</Text>
                     <Text style={enhancedStyles.tableCell}>{item.numberOfBills.toLocaleString()}</Text>
                     <Text style={[enhancedStyles.tableCell, { flex: 2, color: COLORS.success, fontWeight: 'bold', textAlign: 'right' }]}>
                         ₹{item.totalSales.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </Text>
-                </View>
+                </TouchableOpacity>
             )}
             ListEmptyComponent={() => (
                 <View style={enhancedStyles.emptyContainer}>
@@ -93,7 +95,7 @@ const TableListView = ({ data, refreshing, onRefresh, t }) => (
     </View>
 );
 
-export default function WeeklySalesScreen({ onBack }) {
+export default function WeeklySalesScreen({ onBack, allBills }) {
 
     const { getToken } = useAuth();
     const { isLoaded, isSignedIn, user } = useUser();
@@ -113,6 +115,7 @@ export default function WeeklySalesScreen({ onBack }) {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [viewMode, setViewMode] = useState('card');
+    const [selectedWeekReport, setSelectedWeekReport] = useState(null);
 
     const getWeekNumber = (date) => {
 
@@ -142,8 +145,18 @@ export default function WeeklySalesScreen({ onBack }) {
     const totalGrandSales = useMemo(() => rawBills.reduce((acc, bill) => acc + (bill.total || 0), 0), [rawBills]);
 
 
+    useEffect(() => {
+        if (allBills && allBills.length > 0) {
+            setRawBills(allBills.filter((b) => b.isHeld !== true));
+            setLoading(false);
+        } else {
+            fetchBills();
+        }
+    }, [allBills, isLoaded, isSignedIn, user]);
+
     const fetchBills = async (silent = false) => {
         if (!isLoaded) return;
+        if (allBills) return;
 
         try {
             if (silent) setRefreshing(true);
@@ -165,12 +178,17 @@ export default function WeeklySalesScreen({ onBack }) {
 
             const url = bId ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}` : "https://billing.kravy.in/api/bill-manager";
             const res = await fetch(url, {
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+                headers: { 
+                    "Content-Type": "application/json", 
+                    Authorization: `Bearer ${finalToken}`,
+                    Cookie: `staff_token=${finalToken}`
+                },
             });
 
             if (res.ok) {
                 const data = await res.json();
                 const billsList = Array.isArray(data) ? data : (data.bills || []);
+                await applyTrueBillTotals(billsList);
                 setRawBills(billsList.filter((b) => b.isHeld !== true));
             }
         } catch (err) {
@@ -183,13 +201,23 @@ export default function WeeklySalesScreen({ onBack }) {
         }
     };
 
-    useEffect(() => { fetchBills(); }, [isLoaded, isSignedIn, user]);
-
     useEffect(() => {
         if (refreshSignal > 0) {
             fetchBills(true);
         }
     }, [refreshSignal]);
+
+    if (selectedWeekReport) {
+        return (
+            <DetailedBillListView 
+                onBack={() => setSelectedWeekReport(null)} 
+                allBills={rawBills} 
+                filterType="weekly" 
+                filterKey={selectedWeekReport} 
+                title={`Bills for ${selectedWeekReport.replace('-W', ' Week ')}`}
+            />
+        );
+    }
 
     if (loading) return <ActivityIndicator size="large" color={COLORS.primary} style={{ flex: 1, justifyContent: "center" }} />;
 
@@ -225,12 +253,14 @@ export default function WeeklySalesScreen({ onBack }) {
 
                         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchBills(true)} colors={[COLORS.primary]} />}
                         renderItem={({ item }) => (
-                            <WeeklySalesCard
-                                weekLabel={item.weekLabel}
-                                numberOfBills={item.numberOfBills}
-                                totalSales={item.totalSales}
-                                t={t}
-                            />
+                            <TouchableOpacity onPress={() => setSelectedWeekReport(item.sortKey)} activeOpacity={0.8}>
+                                <WeeklySalesCard
+                                    weekLabel={item.weekLabel}
+                                    numberOfBills={item.numberOfBills}
+                                    totalSales={item.totalSales}
+                                    t={t}
+                                />
+                            </TouchableOpacity>
                         )}
                         ListEmptyComponent={() => (
                             <View style={enhancedStyles.emptyContainer}>
@@ -240,7 +270,7 @@ export default function WeeklySalesScreen({ onBack }) {
                         )}
                     />
                 ) : (
-                    <TableListView data={groupedSales} refreshing={refreshing} onRefresh={() => fetchBills(true)} t={t} />
+                    <TableListView data={groupedSales} refreshing={refreshing} onRefresh={() => fetchBills(true)} t={t} onRowPress={(key) => setSelectedWeekReport(key)} />
                 )}
             </View>
         </SafeAreaView>
