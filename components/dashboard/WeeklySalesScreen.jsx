@@ -215,6 +215,7 @@ export default function WeeklySalesScreen({ onBack, allBills }) {
                 filterType="weekly" 
                 filterKey={selectedWeekReport} 
                 title={`Bills for ${selectedWeekReport.replace('-W', ' Week ')}`}
+                onRefresh={() => fetchBills(true)}
             />
         );
     }

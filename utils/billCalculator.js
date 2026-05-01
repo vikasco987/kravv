@@ -45,7 +45,7 @@ export const applyTrueBillTotals = async (bills) => {
             const rate = Number(it.rate || it.price || 0);
             const lineTotal = qty * rate;
 
-            let itemGstRate = settings.tax_enabled ? settings.tax_rate : (settings.per_product_tax ? ((it.gst !== undefined && it.gst !== null) ? Number(it.gst) : 0) : 0);
+            let itemGstRate = it.gstRate !== undefined ? Number(it.gstRate) : (settings.tax_enabled ? settings.tax_rate : (settings.per_product_tax ? ((it.gst !== undefined && it.gst !== null) ? Number(it.gst) : 0) : 0));
 
             let taxable = 0;
             let gst = 0;
@@ -65,38 +65,32 @@ export const applyTrueBillTotals = async (bills) => {
         const savedDiscount = (bill.discountAmount ?? bill.discount_amount ?? bill.discount ?? 0);
         const discountAmount = (savedDiscount > 0)
             ? Number(savedDiscount)
-            : (settings.discount_enabled ? (totalItemsTaxable * (settings.discount_rate / 100)) : 0);
+            : (totalItemsTaxable * (settings.discount_rate / 100));
 
         const taxableAfterDiscount = totalItemsTaxable - discountAmount;
-        
+
         const avgGstRate = totalItemsTaxable > 0 ? (totalItemsGstAtBase / totalItemsTaxable) : 0;
         const finalGstAmount = taxableAfterDiscount * avgGstRate;
 
-        let serviceCharge = 0;
-        let serviceGst = 0;
-        if (settings.service_charge_enabled) {
+        let serviceCharge = Number(bill.serviceCharge || 0);
+        let serviceGst = Number(bill.serviceGst || 0);
+        if (!serviceCharge) {
             serviceCharge = settings.service_charge_rate;
-            if (settings.service_gst_enabled) {
-                serviceGst = (serviceCharge * settings.service_gst_rate) / 100;
-            }
+            serviceGst = (serviceCharge * settings.service_gst_rate) / 100;
         }
 
-        let deliveryCharge = 0;
-        let deliveryGst = 0;
-        if (settings.delivery_charge_enabled) {
+        let deliveryCharge = Number(bill.deliveryCharge || 0);
+        let deliveryGst = Number(bill.deliveryGst || 0);
+        if (!deliveryCharge) {
             deliveryCharge = settings.delivery_charge_amount;
-            if (settings.delivery_gst_enabled) {
-                deliveryGst = (deliveryCharge * settings.delivery_gst_rate) / 100;
-            }
+            deliveryGst = (deliveryCharge * settings.delivery_gst_rate) / 100;
         }
 
-        let packagingCharge = 0;
-        let packagingGst = 0;
-        if (settings.packaging_charge_enabled) {
+        let packagingCharge = Number(bill.packagingCharge || 0);
+        let packagingGst = Number(bill.packagingGst || 0);
+        if (!packagingCharge) {
             packagingCharge = settings.packaging_charge_amount;
-            if (settings.packaging_gst_enabled) {
-                packagingGst = (packagingCharge * settings.packaging_gst_rate) / 100;
-            }
+            packagingGst = (packagingCharge * settings.packaging_gst_rate) / 100;
         }
 
         const total = taxableAfterDiscount + finalGstAmount + serviceCharge + serviceGst + deliveryCharge + deliveryGst + packagingCharge + packagingGst;

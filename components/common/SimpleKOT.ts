@@ -33,7 +33,7 @@ async function ensurePrinterConnected() {
 }
 
 /* ---------- MAIN KOT FUNCTION ---------- */
-export async function SimpleKOT(cartItems: any[], token: string, userClerkId: string, tableNumber?: string | null) {
+export async function SimpleKOT(cartItems: any[], token: string, userClerkId: string, tableNumber?: string | null, tokenNumber?: string) {
     try {
         const printer = await ensurePrinterConnected();
         if (!printer) {
@@ -54,17 +54,31 @@ export async function SimpleKOT(cartItems: any[], token: string, userClerkId: st
             // @ts-ignore
             await printer.write(new Uint8Array([0x1B, 0x61, 0x01])); // Align center
 
-            let kotHeader = "";
-            kotHeader += line("=") + "\n";
-            kotHeader += centerText("KITCHEN ORDER TICKET") + "\n";
-            kotHeader += line("-") + "\n";
-            kotHeader += `KOT No: ${kotNo}\n`;
-            if (tableNumber) kotHeader += `Table: ${tableNumber}\n`;
-            kotHeader += `Date: ${date.toLocaleString()}\n`;
-            kotHeader += line("-") + "\n";
+            let kotHeader1 = "";
+            kotHeader1 += line("=") + "\n";
+            kotHeader1 += "KITCHEN ORDER TICKET\n";
+            kotHeader1 += line("-") + "\n";
+            kotHeader1 += `KOT No: ${kotNo}\n`;
+            if (tableNumber) kotHeader1 += `Table: ${tableNumber}\n`;
 
             // @ts-ignore
-            await printer.write(encoder.encode(kotHeader));
+            await printer.write(encoder.encode(kotHeader1));
+
+            if (tokenNumber) {
+                // @ts-ignore
+                await printer.write(new Uint8Array([0x1B, 0x45, 0x01])); // BOLD ON
+                // @ts-ignore
+                await printer.write(encoder.encode(`TOKEN NO: #${tokenNumber}\n`));
+                // @ts-ignore
+                await printer.write(new Uint8Array([0x1B, 0x45, 0x00])); // BOLD OFF
+            }
+
+            let kotHeader2 = "";
+            kotHeader2 += `Date: ${date.toLocaleString()}\n`;
+            kotHeader2 += line("-") + "\n";
+
+            // @ts-ignore
+            await printer.write(encoder.encode(kotHeader2));
             // @ts-ignore
             await printer.write(new Uint8Array([0x1B, 0x61, 0x00])); // Align left
 
@@ -80,7 +94,7 @@ export async function SimpleKOT(cartItems: any[], token: string, userClerkId: st
             // @ts-ignore
             await printer.write(new Uint8Array([0x1B, 0x61, 0x01])); // Align center
             // @ts-ignore
-            await printer.write(encoder.encode(centerText("PREPARE FAST") + "\n\n"));
+            await printer.write(encoder.encode("PREPARE FAST\n\n"));
             
             // Feed 3 lines & cut
             // @ts-ignore

@@ -32,6 +32,7 @@ export type BillOptions = {
   partyId?: string;
   businessProfile?: any;
   taxSettings?: any;
+  tokenNo?: string;
 };
 
 // @ts-ignore
@@ -458,8 +459,24 @@ export async function SimpleBill(
 
         // Simple text body (Already optimized in background)
         let body = `Bill No: ${tempBillNo}\nDate: ${date.toLocaleString()}\n`;
+        if (options?.tableName) body += `Table: ${options.tableName}\n`;
         if (options?.customerName) body += `Cust: ${options.customerName}\n`;
-        body += `${line('-')}\nItem         Qty  Price   Total\n${line('-')}\n`;
+        
+        await printer.write(encoder.encode(body));
+
+        if (options?.tokenNo) {
+          await printer.write(ALIGN_CENTER);
+          await printer.write(BOLD_ON);
+          await printer.write(SIZE_LARGE);
+          await printer.write(encoder.encode("================\n"));
+          await printer.write(encoder.encode(` TOKEN NO: #${options.tokenNo} \n`));
+          await printer.write(encoder.encode("================\n"));
+          await printer.write(SIZE_NORMAL);
+          await printer.write(BOLD_OFF);
+          await printer.write(ALIGN_LEFT);
+        }
+
+        body = `${line('-')}\nItem         Qty  Price   Total\n${line('-')}\n`;
         productsForBackend.forEach(i => {
           body += `${i.name.slice(0, 12).padEnd(12)} ${String(i.quantity).padStart(3)} ${i.price?.toFixed(2).padStart(6)} ${i.total.toFixed(2).padStart(8)}\n`;
         });
@@ -523,11 +540,17 @@ export async function SimpleBill(
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${finalToken}` },
         body: JSON.stringify({
           items: productsForBackend,
-          total: finalTotalFixed,
+          total: Number(finalGrandTotal.toFixed(2)),
           paymentMode: options?.paymentMode || "Cash",
           customerName: options?.customerName || "Walk-in",
           userClerkId: finalUserId,
-          businessId: options?.orderId // or similar
+          businessId: options?.orderId,
+          serviceCharge: Number(serviceCharge.toFixed(2)),
+          serviceGst: Number(serviceGst.toFixed(2)),
+          deliveryCharge: Number(deliveryCharge.toFixed(2)),
+          deliveryGst: Number(deliveryGst.toFixed(2)),
+          packagingCharge: Number(packagingCharge.toFixed(2)),
+          packagingGst: Number(packagingGst.toFixed(2)),
         }),
       });
       DeviceEventEmitter.emit('refresh_orders_list');

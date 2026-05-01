@@ -408,7 +408,8 @@ export default function CheckoutView({ onBack, cartParams }: CheckoutViewProps) 
         phone: customerPhone,
         businessProfile, 
         taxSettings,      
-        tableName: params.selectedTable || undefined
+        tableName: params.selectedTable || undefined,
+        tokenNo: params.tokenNo
       });
 
       if (result?.status === "success") {

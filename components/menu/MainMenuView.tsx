@@ -414,7 +414,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             try {
                 const data = await AsyncStorage.getItem('@temp_cart_for_checkout');
                 if (data && menus.length > 0) {
-                    const { items, tableName } = JSON.parse(data);
+                    const { items, tableName, tokenNumber } = JSON.parse(data);
 
                     const newCart: Record<string, CartItem> = {};
                     items.forEach((kotItem: any) => {
@@ -441,7 +441,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                         setCheckoutParams({
                             cart: JSON.stringify(newCart),
                             paymentMethod,
-                            selectedTable: tableName === "Counter" ? null : tableName
+                            selectedTable: tableName === "Counter" ? null : tableName,
+                            tokenNo: tokenNumber
                         });
                         setCurrentView("checkout");
                     }
@@ -752,6 +753,17 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         }
     };
 
+    const getNextTokenNumber = async () => {
+        try {
+            const currentToken = await AsyncStorage.getItem('@token_counter');
+            const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
+            await AsyncStorage.setItem('@token_counter', String(nextToken));
+            return String(nextToken);
+        } catch (e) {
+            return String(Math.floor(100 + Math.random() * 900));
+        }
+    };
+
     const handlePrintKot = async (itemsOverride?: any[]) => {
         if (isPrinting.current) return;
         isPrinting.current = true;
@@ -773,12 +785,15 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                     const finalToken = staffSession?.token || await getToken();
                     const bId = activeBusinessId || staffSession?.businessId || await StaffPermissionEngine.getActiveBusinessId(user?.id);
 
+                    const tokenNo = await getNextTokenNumber();
+
                     // Print (Now non-blocking inside SimpleKOT)
-                    SimpleKOT(itemsToPrint, finalToken!, bId!, selectedTable);
+                    SimpleKOT(itemsToPrint, finalToken!, bId!, selectedTable, tokenNo);
 
                     // 2. Save KOT Page Locally
                     const localOrder = {
                         id: Date.now().toString(),
+                        tokenNumber: tokenNo,
                         billNumber: Math.floor(1000 + Math.random() * 9000).toString(),
                         tableName: selectedTable ? `Table ${selectedTable}` : "Counter",
                         items: itemsToPrint.map(i => ({ name: i.name, quantity: i.quantity })),
@@ -830,7 +845,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                     await SimpleBill(itemsToPrint, finalToken!, bId!, {
                         paymentMode: paymentMethod,
                         billId: activeOrderId || undefined,
-                        partyId: activeCustomer?.id || activeCustomer?._id
+                        partyId: activeCustomer?.id || activeCustomer?._id,
+                        tableName: selectedTable || undefined
                     });
                     fetchHeldCount();
                 } catch (e) {

@@ -303,9 +303,9 @@ const CustomerHistory = ({ visible, onClose, party, bills }: CustomerHistoryProp
                 totalGst += gst;
             });
 
-            const dAmt = discountEnabled ? (totalTaxable * (discountRate / 100)) : 0;
+            const dAmt = (totalTaxable * (discountRate / 100));
             const taxableAfterDisc = totalTaxable - dAmt;
-            const scAmt = serviceChargeEnabled ? (taxableAfterDisc * (serviceChargeRate / 100)) : 0;
+            const scAmt = (taxableAfterDisc * (serviceChargeRate / 100));
             const netTaxableVal = taxableAfterDisc + scAmt;
 
             const avgGstRate = totalTaxable > 0 ? (totalGst / totalTaxable) : 0;

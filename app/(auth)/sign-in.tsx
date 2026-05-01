@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -29,12 +30,13 @@ export default function SignInScreen() {
   const { triggerRefresh } = useRefresh();
   const [isNoNetworkModalVisible, setIsNoNetworkModalVisible] = React.useState(false);
   const [isStaffModalVisible, setIsStaffModalVisible] = React.useState(false);
+  const [isLoggingIn, setIsLoggingIn] = React.useState(false);
 
 
   const { isSignedIn } = useClerk();
 
   const handleGoogleSignIn = React.useCallback(async () => {
-    if (!isLoaded) return;
+    if (!isLoaded || isLoggingIn) return;
 
     // If already signed in, just go to menu
     if (isSignedIn) {
@@ -43,15 +45,24 @@ export default function SignInScreen() {
       return;
     }
 
+    setIsLoggingIn(true);
+
     try {
-      // Basic connectivity check before starting OAuth
+      // Basic connectivity check before starting OAuth with a 4s timeout
       try {
-        await fetch("https://www.google.com", { method: "HEAD", mode: "no-cors" });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        await fetch("https://www.google.com", {
+          method: "HEAD",
+          mode: "no-cors",
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
       } catch (e) {
         setIsNoNetworkModalVisible(true);
+        setIsLoggingIn(false);
         return;
       }
-
 
       await WebBrowser.warmUpAsync();
 
@@ -71,6 +82,7 @@ export default function SignInScreen() {
         router.replace("/(tabs)/menu?login=true");
       } else {
         console.warn("⚠️ OAuth flow did not result in a session immediately. Check Clerk dashboard for required steps.");
+        setIsLoggingIn(false);
       }
     } catch (err) {
       const errorMsg = err && typeof err === 'object' && 'message' in err ? String(err.message) : String(err);
@@ -82,6 +94,8 @@ export default function SignInScreen() {
         return;
       }
 
+      setIsLoggingIn(false);
+
       if (errorMsg.toLowerCase().includes("network") || errorMsg.toLowerCase().includes("failed to fetch")) {
         setIsNoNetworkModalVisible(true);
       } else {
@@ -91,7 +105,7 @@ export default function SignInScreen() {
     } finally {
       await WebBrowser.coolDownAsync();
     }
-  }, [isLoaded, isSignedIn, startOAuthFlow, router]);
+  }, [isLoaded, isSignedIn, startOAuthFlow, router, isLoggingIn]);
 
 
   return (
@@ -133,14 +147,24 @@ export default function SignInScreen() {
         </Text>
 
         {/* Google Button */}
-        <TouchableOpacity style={styles.googleBtn} onPress={handleGoogleSignIn}>
-          <Image
-            source={{
-              uri: "https://upload.wikimedia.org/wikipedia/commons/4/4e/Google_%22G%22_Logo.svg",
-            }}
-            style={styles.googleIcon}
-          />
-          <Text style={styles.googleText}>Continue with Google</Text>
+        <TouchableOpacity
+          style={[styles.googleBtn, (!isLoaded || isLoggingIn) && { opacity: 0.7 }]}
+          onPress={handleGoogleSignIn}
+          disabled={!isLoaded || isLoggingIn}
+        >
+          {isLoggingIn || !isLoaded ? (
+            <ActivityIndicator color="#FF5F6D" size="small" style={{ marginRight: 15 }} />
+          ) : (
+            <Image
+              source={{
+                uri: "https://upload.wikimedia.org/wikipedia/commons/4/4e/Google_%22G%22_Logo.svg",
+              }}
+              style={styles.googleIcon}
+            />
+          )}
+          <Text style={styles.googleText}>
+            {isLoggingIn ? "Signing in..." : (!isLoaded ? "Loading..." : "Continue with Google")}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity

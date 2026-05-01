@@ -44,7 +44,7 @@ const NewOrderNotifier = () => {
       shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: true,
-    }),
+    } as any),
   });
 
   // Setup Notification Channels and Permissions
@@ -150,6 +150,17 @@ const NewOrderNotifier = () => {
     }
   };
 
+  const getNextTokenNumber = async () => {
+    try {
+      const currentToken = await AsyncStorage.getItem('@token_counter');
+      const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
+      await AsyncStorage.setItem('@token_counter', String(nextToken));
+      return String(nextToken);
+    } catch (e) {
+      return String(Math.floor(100 + Math.random() * 900));
+    }
+  };
+
   const handleAccept = async () => {
     const currentOrder = newOrderInfo; // Capture current
     // Hide/Next happens immediately in UI but logic continues
@@ -190,7 +201,8 @@ const NewOrderNotifier = () => {
         
         if (items.length > 0) {
            const tableName = currentOrder.tableName || currentOrder.table?.name || currentOrder.table_name || "Online Order";
-           await SimpleKOT(items, token, userId, tableName);
+           const tokenNo = await getNextTokenNumber();
+           await SimpleKOT(items, token, userId, tableName, tokenNo);
         }
       }
     } catch (e) {

@@ -44,16 +44,25 @@ const MonthlyItemSalesReport = ({ onBack, preloadedData, loadingData, onRefresh:
     monthlyBillsList.forEach((bill: any) => {
       totalRevenue += (bill.total || 0);
       const items = bill.items || [];
+      const billSubtotal = items.reduce((acc: number, it: any) => {
+        const q = Number(it.qty || it.quantity || 1);
+        const r = Number(it.rate || it.price || 0);
+        return acc + (q * r);
+      }, 0);
+
       items.forEach((item: any) => {
         const name = item.name || "Unknown Item";
         const qty = Number(item.qty || item.quantity || 0);
         const rate = Number(item.rate || item.price || 0);
 
+        const itemShare = billSubtotal > 0 ? ((qty * rate) / billSubtotal) : 0;
+        const finalItemAmount = itemShare * (bill.total || 0);
+
         if (!itemMap[name]) {
           itemMap[name] = { name, qty: 0, total: 0 };
         }
         itemMap[name].qty += qty;
-        itemMap[name].total += (qty * rate);
+        itemMap[name].total += finalItemAmount;
         totalItemsSold += qty;
       });
     });

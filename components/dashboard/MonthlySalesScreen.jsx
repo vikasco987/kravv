@@ -220,6 +220,7 @@ export default function MonthlySalesScreen({ onBack, allBills }) {
                 filterType="monthly" 
                 filterKey={selectedMonthReport} 
                 title={`Bills for ${new Date(selectedMonthReport + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}`}
+                onRefresh={() => fetchBills(true)}
             />
         );
     }

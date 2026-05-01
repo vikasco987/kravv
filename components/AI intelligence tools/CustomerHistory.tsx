@@ -1,23 +1,23 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-    Modal,
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    ScrollView,
-    Dimensions,
-    TextInput,
     DeviceEventEmitter,
+    Dimensions,
+    Modal,
     NativeModules,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
     Vibration,
+    View,
 } from 'react-native';
 // @ts-ignore
-import Voice from '@react-native-voice/voice';
 import { Ionicons } from '@expo/vector-icons';
-import { rf, s, vs } from '../../utils/responsive';
-import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Voice from '@react-native-voice/voice';
+import { useRouter } from 'expo-router';
+import { rf, s, vs } from '../../utils/responsive';
 
 interface CustomerHistoryProps {
     visible: boolean;
@@ -308,9 +308,9 @@ const CustomerHistory = ({ visible, onClose, party, bills, allParties }: Custome
                 totalGst += gst;
             });
 
-            const dAmt = discountEnabled ? (totalTaxable * (discountRate / 100)) : 0;
+            const dAmt = (totalTaxable * (discountRate / 100));
             const taxableAfterDisc = totalTaxable - dAmt;
-            const scAmt = serviceChargeEnabled ? (taxableAfterDisc * (serviceChargeRate / 100)) : 0;
+            const scAmt = (taxableAfterDisc * (serviceChargeRate / 100));
             const netTaxableVal = taxableAfterDisc + scAmt;
 
             const avgGstRate = totalTaxable > 0 ? (totalGst / totalTaxable) : 0;

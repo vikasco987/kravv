@@ -194,6 +194,7 @@ export default function DailySalesScreen({ onBack, allBills }) {
         filterType="daily" 
         filterKey={selectedDateReport} 
         title={`Bills for ${new Date(selectedDateReport).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric'})}`}
+        onRefresh={() => fetchBills(true)}
       />
     );
   }

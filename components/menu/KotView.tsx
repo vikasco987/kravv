@@ -121,8 +121,8 @@ export default function KotView() {
     <View style={styles.card}>
       <View style={[styles.cardHeader, { backgroundColor: COLORS.PRIMARY }]}>
         <View>
-          <Text style={styles.cardTitle}>{item.tableName}</Text>
-          <Text style={styles.cardSubtitle}>#{item.billNumber} • {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+          <Text style={styles.cardTitle}>{item.tableName} { (item as any).tokenNumber ? `(Token #${(item as any).tokenNumber})` : ''}</Text>
+          <Text style={styles.cardSubtitle}>Order #{(item as any).tokenNumber || item.billNumber} • {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
         </View>
         <TouchableOpacity onPress={() => removeLocalOrder(item.id)}>
           <Ionicons name="close-circle" size={24} color="#fff" />
@@ -144,7 +144,8 @@ export default function KotView() {
           onPress={async () => {
             const checkoutData = {
               items: item.items,
-              tableName: item.tableName?.replace("Table ", "") || "Counter"
+              tableName: item.tableName?.replace("Table ", "") || "Counter",
+              tokenNumber: (item as any).tokenNumber || item.billNumber
             };
             await AsyncStorage.setItem('@temp_cart_for_checkout', JSON.stringify(checkoutData));
             // Also remove from KOT list as it's going to checkout
