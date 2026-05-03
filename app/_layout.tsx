@@ -4,7 +4,7 @@ import { ClerkProvider, useAuth, useSession } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore
 import Constants from "expo-constants";
-import { useRouter, usePathname, Slot } from "expo-router";
+import { useRouter, usePathname, Slot, Stack } from "expo-router";
 // @ts-ignore
 import { Drawer } from "expo-router/drawer";
 // @ts-ignore
@@ -87,18 +87,22 @@ function AuthRedirect() {
     }
   };
 
+  const pathname = usePathname();
+  const isPublicMenu = pathname?.startsWith('/menu/');
+
   useEffect(() => {
     if (!ready || !isLoaded || isStaffSignedIn === null) return;
 
-    // Only redirect to menu if we are at the root or just signed in and not yet on a screen
-    if ((isSignedIn || isStaffSignedIn) && session?.id && session.id !== lastSessionId) {
-      setLastSessionId(session.id);
-      // Removed the forced router.replace("/(tabs)/menu") to allow navigation to other screens
-    }
-  }, [ready, isLoaded, isSignedIn, session?.id, isStaffSignedIn]);
+    const isAuthRoute = pathname?.startsWith('/(auth)');
 
-  const pathname = usePathname();
-  const isPublicMenu = pathname?.startsWith('/menu/');
+    // 1. If signed in (Google or Staff) and on an auth page, go to Menu
+    if ((isSignedIn || isStaffSignedIn) && isAuthRoute) {
+      router.replace("/(tabs)/menu?login=true");
+    }
+
+    // [REMOVED] Forced redirect to sign-in to allow back button to work properly.
+    // The Menu screen handles restricted access via MenuAccessWrapper.
+  }, [ready, isLoaded, isSignedIn, isStaffSignedIn, pathname]);
 
   if (!isLoaded || !ready || isStaffSignedIn === null) {
     return (
@@ -108,11 +112,13 @@ function AuthRedirect() {
     );
   }
 
-  // Handle Public Menu Route separately (bypass Drawer and Auth logic)
-  if (isPublicMenu) {
+  const isAuthRoute = pathname?.startsWith('/(auth)');
+
+  // Handle Public Menu & Auth Routes separately (bypass Drawer)
+  if (isPublicMenu || isAuthRoute) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <Slot />
+        <Stack screenOptions={{ headerShown: false }} />
       </GestureHandlerRootView>
     );
   }

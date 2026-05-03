@@ -14,17 +14,16 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  ToastAndroid,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
-import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { SimpleBill } from "../../utils/SimpleBill";
-import { ToastAndroid } from "react-native";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 const formatBillDate = (dateString) => {
-
   const date = new Date(dateString);
   return `${date.toLocaleTimeString("en-IN", {
     hour: "2-digit",
@@ -37,21 +36,18 @@ const formatBillDate = (dateString) => {
 };
 
 const isSameDay = (d1, d2) =>
-
   d1.getDate() === d2.getDate() &&
   d1.getMonth() === d2.getMonth() &&
   d1.getFullYear() === d2.getFullYear();
 
 const isToday = (d) => isSameDay(d, new Date());
 const isYesterday = (d) => {
-
   const y = new Date();
   y.setDate(y.getDate() - 1);
   return isSameDay(d, y);
 };
 
 export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
-
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
@@ -91,7 +87,7 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
           duration: 1000,
           easing: Easing.linear,
           useNativeDriver: true,
-        })
+        }),
       ).start();
     } else {
       Animated.timing(rotateAnim, {
@@ -127,7 +123,7 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
 
     try {
       const authToken = await getToken();
-      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const sessionStr = await AsyncStorage.getItem("staff_session");
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
 
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
@@ -141,18 +137,20 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
         return;
       }
 
-      const url = bId ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}` : "https://billing.kravy.in/api/bill-manager";
+      const url = bId
+        ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}&limit=2000`
+        : `https://billing.kravy.in/api/bill-manager?limit=2000`;
       const res = await fetch(url, {
-        headers: { 
-            "Content-Type": "application/json", 
-            Authorization: `Bearer ${finalToken}`,
-            Cookie: `staff_token=${finalToken}`
-        }
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${finalToken}`,
+          Cookie: `staff_token=${finalToken}`,
+        },
       });
 
       if (res.ok) {
         const data = await res.json();
-        const billsArray = Array.isArray(data) ? data : (data.bills || []);
+        const billsArray = Array.isArray(data) ? data : data.bills || [];
         const onlySales = billsArray.filter((b) => b.isHeld !== true);
 
         setBills(onlySales);
@@ -177,7 +175,7 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
     if (search.trim()) {
       temp = temp.filter((b) => {
         const productMatch = b.items?.some((p) =>
-          (p.name || "").toLowerCase().includes(search.toLowerCase())
+          (p.name || "").toLowerCase().includes(search.toLowerCase()),
         );
         return (
           (b.billNumber || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -188,7 +186,6 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
     }
 
     temp = temp.filter((b) => {
-
       const d = new Date(b.createdAt);
       if (dateFilter === "today") return isToday(d);
       if (dateFilter === "yesterday") return isYesterday(d);
@@ -212,7 +209,6 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
     if (sortFilter === "low") temp.sort((a, b) => a.total - b.total);
     if (sortFilter === "high") temp.sort((a, b) => b.total - a.total);
 
-
     setFilteredBills(temp);
     setPage(1);
   }, [search, dateFilter, bills, selectedDay, sortFilter, fromDate, toDate]);
@@ -229,32 +225,35 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
 
   const paginatedData = filteredBills.slice(
     (page - 1) * pageSize,
-    page * pageSize
+    page * pageSize,
   );
 
   const handleRePrint = async (item) => {
     try {
       const token = await getToken();
-      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const sessionStr = await AsyncStorage.getItem("staff_session");
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
       const finalToken = token || staffSession?.token;
 
       if (!finalToken) {
-        ToastAndroid.show("Session expired. Please login again.", ToastAndroid.SHORT);
+        ToastAndroid.show(
+          "Session expired. Please login again.",
+          ToastAndroid.SHORT,
+        );
         return;
       }
 
       ToastAndroid.show("🖨️ Printing Bill...", ToastAndroid.SHORT);
 
       // Map bill items to CartItem format
-      const cartItems = (item.items || []).map(it => ({
+      const cartItems = (item.items || []).map((it) => ({
         id: it.productId || it.itemId || it._id || Math.random().toString(),
         name: it.name,
         price: it.price || it.rate || 0,
         quantity: it.quantity || it.qty || 1,
         gst: it.gst,
-        taxType: it.taxStatus || it.taxType || "Without Tax"
+        taxType: it.taxStatus || it.taxType || "Without Tax",
       }));
 
       await SimpleBill(cartItems, finalToken, bId, {
@@ -263,7 +262,7 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
         phone: item.customerPhone,
         tableName: item.tableName,
         paymentMode: item.paymentMode,
-        silent: false
+        silent: false,
       });
     } catch (e) {
       console.error("Print error:", e);
@@ -274,23 +273,23 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
   const handleEditBill = async (item) => {
     try {
       // Map bill items to CartItem format for Menu cart
-      const cartToResume = (item.items || []).map(it => ({
+      const cartToResume = (item.items || []).map((it) => ({
         id: it.productId || it.itemId || it._id || Math.random().toString(),
         name: it.name,
         imageUrl: it.imageUrl || it.image || it.image_url,
         price: it.price || it.rate || 0,
         quantity: it.quantity || it.qty || 1,
         gst: it.gst,
-        taxType: it.taxStatus || it.taxType || "Without Tax"
+        taxType: it.taxStatus || it.taxType || "Without Tax",
       }));
 
-      await AsyncStorage.setItem('@resume_cart', JSON.stringify(cartToResume));
+      await AsyncStorage.setItem("@resume_cart", JSON.stringify(cartToResume));
       if (item._id || item.id) {
-        await AsyncStorage.setItem('@resume_cart_id', item._id || item.id);
+        await AsyncStorage.setItem("@resume_cart_id", item._id || item.id);
       }
-      
+
       ToastAndroid.show("🔄 Loading bill to Menu...", ToastAndroid.SHORT);
-      
+
       // Navigate to Menu tab
       router.push("/(tabs)/menu");
       if (onBack) onBack();
@@ -304,19 +303,27 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#6C63FF" />
-        <Text style={{ marginTop: vs(10), fontSize: rf(16) }}>Loading Bills...</Text>
+        <Text style={{ marginTop: vs(10), fontSize: rf(16) }}>
+          Loading Bills...
+        </Text>
       </View>
     );
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F7FA" }}>
-      <LinearGradient colors={["#6C63FF", "#4E43E3"]} style={[styles.header, { paddingTop: isSidebar ? vs(45) : vs(15) }]}>
+      <LinearGradient
+        colors={["#6C63FF", "#4E43E3"]}
+        style={[styles.header, { paddingTop: isSidebar ? vs(45) : vs(15) }]}
+      >
         <View style={styles.headerTopRow}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Ionicons name="arrow-back" size={rf(26)} color="white" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Bills & Transactions</Text>
-          <TouchableOpacity onPress={triggerRefresh} style={styles.headerReloadBtn}>
+          <TouchableOpacity
+            onPress={triggerRefresh}
+            style={styles.headerReloadBtn}
+          >
             <Animated.View style={{ transform: [{ rotate: spin }] }}>
               <Ionicons name="refresh" size={rf(26)} color="white" />
             </Animated.View>
@@ -339,10 +346,7 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
           <TouchableOpacity
             key={type}
             onPress={() => setDateFilter(type)}
-            style={[
-              styles.chip,
-              dateFilter === type && styles.chipActive,
-            ]}
+            style={[styles.chip, dateFilter === type && styles.chipActive]}
           >
             <Text
               style={[
@@ -350,7 +354,11 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
                 dateFilter === type && styles.chipTextActive,
               ]}
             >
-              {type === "today" ? "Today" : type === "yesterday" ? "Yesterday" : "Last 7 Days"}
+              {type === "today"
+                ? "Today"
+                : type === "yesterday"
+                  ? "Yesterday"
+                  : "Last 7 Days"}
             </Text>
           </TouchableOpacity>
         ))}
@@ -380,23 +388,26 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
           onChange={(e, date) => {
             setShowDatePicker(false);
             if (date) setSelectedDay(date);
-
           }}
         />
       )}
 
       <View style={styles.chipRow}>
-        <TouchableOpacity onPress={() => setShowFromPicker(true)} style={styles.dateRangeBtn}>
+        <TouchableOpacity
+          onPress={() => setShowFromPicker(true)}
+          style={styles.dateRangeBtn}
+        >
           <Text style={styles.dateRangeText}>
             From: {fromDate ? fromDate.toDateString() : "Select"}
-
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => setShowToPicker(true)} style={styles.dateRangeBtn}>
+        <TouchableOpacity
+          onPress={() => setShowToPicker(true)}
+          style={styles.dateRangeBtn}
+        >
           <Text style={styles.dateRangeText}>
             To: {toDate ? toDate.toDateString() : "Select"}
-
           </Text>
         </TouchableOpacity>
       </View>
@@ -408,7 +419,6 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
           onChange={(e, d) => {
             setShowFromPicker(false);
             if (d) setFromDate(d);
-
           }}
         />
       )}
@@ -420,7 +430,6 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
           onChange={(e, d) => {
             setShowToPicker(false);
             if (d) setToDate(d);
-
           }}
         />
       )}
@@ -455,28 +464,34 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={clearFilters} style={styles.clearBtn}>
-          <Text style={{ color: "white", fontWeight: "600" }}>Clear Filters</Text>
+          <Text style={{ color: "white", fontWeight: "600" }}>
+            Clear Filters
+          </Text>
         </TouchableOpacity>
       </View>
 
       <FlatList
         data={paginatedData}
         keyExtractor={(i) => i.id}
-
         contentContainerStyle={{ paddingBottom: vs(120) }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => fetchBills(true)} colors={["#6C63FF"]} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => fetchBills(true)}
+            colors={["#6C63FF"]}
+          />
         }
         renderItem={({ item }) => (
           <View style={styles.card}>
             <Text style={styles.billId}>🧾 {item.billNumber}</Text>
-            <Text style={styles.customer}>👤 {item.customerName || "No Customer"}</Text>
+            <Text style={styles.customer}>
+              👤 {item.customerName || "No Customer"}
+            </Text>
             <Text style={styles.total}>₹ {item.total}</Text>
             <Text style={styles.date}>{formatBillDate(item.createdAt)}</Text>
 
             <View style={styles.itemsBox}>
               {item.items?.map((p, i) => (
-
                 <View key={i} style={styles.itemRow}>
                   <Text style={styles.itemName}>{p.name}</Text>
                   <Text style={styles.itemQty}>x{p.quantity}</Text>
@@ -487,21 +502,36 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
             </View>
 
             <View style={styles.actionRow}>
-              <TouchableOpacity onPress={() => handleRePrint(item)} style={[styles.actionBtn, { backgroundColor: '#10B98115' }]}>
+              <TouchableOpacity
+                onPress={() => handleRePrint(item)}
+                style={[styles.actionBtn, { backgroundColor: "#10B98115" }]}
+              >
                 <Ionicons name="print" size={rf(18)} color="#10B981" />
-                <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Print</Text>
+                <Text style={[styles.actionBtnText, { color: "#10B981" }]}>
+                  Print
+                </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => handleEditBill(item)} style={[styles.actionBtn, { backgroundColor: '#6C63FF15' }]}>
+              <TouchableOpacity
+                onPress={() => handleEditBill(item)}
+                style={[styles.actionBtn, { backgroundColor: "#6C63FF15" }]}
+              >
                 <Ionicons name="create" size={rf(18)} color="#6C63FF" />
-                <Text style={[styles.actionBtnText, { color: '#6C63FF' }]}>Edit</Text>
+                <Text style={[styles.actionBtnText, { color: "#6C63FF" }]}>
+                  Edit
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
       />
 
-      <View style={[styles.paginationRow, { paddingBottom: isSidebar ? vs(50) : vs(10) }]}>
+      <View
+        style={[
+          styles.paginationRow,
+          { paddingBottom: isSidebar ? vs(50) : vs(10) },
+        ]}
+      >
         <TouchableOpacity
           disabled={page === 1}
           onPress={() => setPage(page - 1)}
@@ -519,7 +549,9 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
           onPress={() => setPage(page + 1)}
           style={[
             styles.pageBtn,
-            page >= Math.ceil(filteredBills.length / pageSize) && { opacity: 0.4 },
+            page >= Math.ceil(filteredBills.length / pageSize) && {
+              opacity: 0.4,
+            },
           ]}
         >
           <Text style={styles.pageText}>Next</Text>
@@ -531,55 +563,134 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { paddingTop: vs(45), paddingBottom: vs(15), paddingHorizontal: s(18), borderBottomLeftRadius: s(25), borderBottomRightRadius: s(25), elevation: 10 },
-  headerTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: vs(15) },
+  header: {
+    paddingTop: vs(45),
+    paddingBottom: vs(15),
+    paddingHorizontal: s(18),
+    borderBottomLeftRadius: s(25),
+    borderBottomRightRadius: s(25),
+    elevation: 10,
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: vs(15),
+  },
   backButton: { padding: s(5) },
-  headerTitle: { fontSize: rf(20), fontWeight: "700", color: "white", flex: 1, textAlign: "center" },
+  headerTitle: {
+    fontSize: rf(20),
+    fontWeight: "700",
+    color: "white",
+    flex: 1,
+    textAlign: "center",
+  },
   headerReloadBtn: { padding: s(5) },
-  searchWrapper: { backgroundColor: "rgba(255,255,255,0.25)", paddingHorizontal: s(15), paddingVertical: vs(10), borderRadius: s(10) },
+  searchWrapper: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+    paddingHorizontal: s(15),
+    paddingVertical: vs(10),
+    borderRadius: s(10),
+  },
   searchInput: { color: "#fff", fontSize: rf(17), fontWeight: "500" },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", marginTop: vs(8), paddingHorizontal: s(10) },
-  chip: { backgroundColor: "#EDEDED", paddingVertical: vs(6), paddingHorizontal: s(12), borderRadius: s(25), marginRight: s(8), marginBottom: vs(8) },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: vs(8),
+    paddingHorizontal: s(10),
+  },
+  chip: {
+    backgroundColor: "#EDEDED",
+    paddingVertical: vs(6),
+    paddingHorizontal: s(12),
+    borderRadius: s(25),
+    marginRight: s(8),
+    marginBottom: vs(8),
+  },
   chipActive: { backgroundColor: "#6C63FF" },
   chipText: { color: "#333", fontSize: rf(13), fontWeight: "600" },
   chipTextActive: { color: "white" },
-  dateRangeBtn: { backgroundColor: "#EEE", paddingVertical: vs(7), paddingHorizontal: s(14), borderRadius: s(20), marginRight: s(10) },
+  dateRangeBtn: {
+    backgroundColor: "#EEE",
+    paddingVertical: vs(7),
+    paddingHorizontal: s(14),
+    borderRadius: s(20),
+    marginRight: s(10),
+  },
   dateRangeText: { fontSize: rf(13), fontWeight: "600", color: "#444" },
-  clearBtn: { backgroundColor: "red", paddingVertical: vs(6), paddingHorizontal: s(12), borderRadius: s(25) },
-  card: { margin: s(12), padding: s(15), backgroundColor: "rgba(255,255,255,0.85)", borderRadius: s(14), elevation: 4 },
+  clearBtn: {
+    backgroundColor: "red",
+    paddingVertical: vs(6),
+    paddingHorizontal: s(12),
+    borderRadius: s(25),
+  },
+  card: {
+    margin: s(12),
+    padding: s(15),
+    backgroundColor: "rgba(255,255,255,0.85)",
+    borderRadius: s(14),
+    elevation: 4,
+  },
   billId: { fontSize: rf(15), fontWeight: "700" },
   customer: { fontSize: rf(14), marginTop: vs(5) },
-  total: { fontSize: rf(18), fontWeight: "700", marginTop: vs(5), color: "#6C63FF" },
+  total: {
+    fontSize: rf(18),
+    fontWeight: "700",
+    marginTop: vs(5),
+    color: "#6C63FF",
+  },
   date: { fontSize: rf(12), color: "#666", marginBottom: vs(10) },
   itemsBox: { backgroundColor: "#F1F1F1", padding: s(10), borderRadius: s(10) },
-  itemRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: vs(4) },
+  itemRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: vs(4),
+  },
   itemName: { flex: 2, fontWeight: "600", fontSize: rf(14) },
   itemQty: { flex: 1, textAlign: "center", fontSize: rf(14) },
   itemRate: { flex: 1, textAlign: "right", fontSize: rf(14) },
-  itemTotal: { flex: 1, textAlign: "right", fontWeight: "700", fontSize: rf(14) },
-  paginationRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: s(15), paddingTop: vs(20), paddingBottom: vs(50), backgroundColor: "#fff", elevation: 20 },
-  pageBtn: { backgroundColor: "#6C63FF", paddingHorizontal: s(18), paddingVertical: vs(8), borderRadius: s(25) },
+  itemTotal: {
+    flex: 1,
+    textAlign: "right",
+    fontWeight: "700",
+    fontSize: rf(14),
+  },
+  paginationRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: s(15),
+    paddingTop: vs(20),
+    paddingBottom: vs(50),
+    backgroundColor: "#fff",
+    elevation: 20,
+  },
+  pageBtn: {
+    backgroundColor: "#6C63FF",
+    paddingHorizontal: s(18),
+    paddingVertical: vs(8),
+    borderRadius: s(25),
+  },
   pageText: { color: "white", fontWeight: "700", fontSize: rf(14) },
   pageNumber: { fontSize: rf(16), fontWeight: "700" },
   actionRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: s(10),
     marginTop: vs(12),
     borderTopWidth: 1,
-    borderTopColor: '#eee',
-    paddingTop: vs(10)
+    borderTopColor: "#eee",
+    paddingTop: vs(10),
   },
   actionBtn: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: vs(8),
     borderRadius: s(10),
-    gap: s(6)
+    gap: s(6),
   },
   actionBtnText: {
     fontSize: rf(13),
-    fontWeight: '700'
-  }
+    fontWeight: "700",
+  },
 });

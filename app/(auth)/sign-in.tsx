@@ -1,5 +1,6 @@
 "use client";
 import { useClerk, useOAuth, useSignIn } from "@clerk/clerk-expo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as AuthSession from "expo-auth-session";
 import { LinearGradient } from "expo-linear-gradient";
@@ -34,6 +35,23 @@ export default function SignInScreen() {
 
 
   const { isSignedIn } = useClerk();
+
+  React.useEffect(() => {
+    // 🛡️ Safety: If we land on Sign-In, ensure staff session is cleared to prevent stale data leaks
+    const clearStaleStaff = async () => {
+      try {
+        const session = await AsyncStorage.getItem("staff_session");
+        if (session) {
+          console.log("🧹 Clearing stale staff session on Sign-In screen");
+          await AsyncStorage.removeItem("staff_session");
+          triggerRefresh();
+        }
+      } catch (e) {
+        console.log("Error clearing stale staff session:", e);
+      }
+    };
+    clearStaleStaff();
+  }, []);
 
   const handleGoogleSignIn = React.useCallback(async () => {
     if (!isLoaded || isLoggingIn) return;
@@ -78,6 +96,16 @@ export default function SignInScreen() {
 
       if (createdSessionId) {
         console.log("✅ OAuth Success, setting session...");
+        
+        // 🛡️ DATA ISOLATION: Wipe previous cached data before setting active session
+        const currentLang = await AsyncStorage.getItem("app_language");
+        const savedPrinter = await AsyncStorage.getItem("saved_printer");
+        
+        await AsyncStorage.clear();
+        
+        if (currentLang) await AsyncStorage.setItem("app_language", currentLang);
+        if (savedPrinter) await AsyncStorage.setItem("saved_printer", savedPrinter);
+
         await setSessionActive?.({ session: createdSessionId });
         router.replace("/(tabs)/menu?login=true");
       } else {
@@ -94,8 +122,6 @@ export default function SignInScreen() {
         return;
       }
 
-      setIsLoggingIn(false);
-
       if (errorMsg.toLowerCase().includes("network") || errorMsg.toLowerCase().includes("failed to fetch")) {
         setIsNoNetworkModalVisible(true);
       } else {
@@ -103,6 +129,7 @@ export default function SignInScreen() {
       }
 
     } finally {
+      setIsLoggingIn(false);
       await WebBrowser.coolDownAsync();
     }
   }, [isLoaded, isSignedIn, startOAuthFlow, router, isLoggingIn]);
@@ -115,7 +142,16 @@ export default function SignInScreen() {
       <View style={styles.bottomWave} />
 
       {/* Back Button */}
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+      <TouchableOpacity 
+        style={styles.backButton} 
+        onPress={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace("/(tabs)/menu");
+          }
+        }}
+      >
         <View style={styles.backButtonCircle}>
           <Ionicons name="arrow-back" size={24} color="#FF5F6D" />
         </View>
@@ -152,7 +188,7 @@ export default function SignInScreen() {
           onPress={handleGoogleSignIn}
           disabled={!isLoaded || isLoggingIn}
         >
-          {isLoggingIn || !isLoaded ? (
+          {isLoggingIn ? (
             <ActivityIndicator color="#FF5F6D" size="small" style={{ marginRight: 15 }} />
           ) : (
             <Image
@@ -163,7 +199,7 @@ export default function SignInScreen() {
             />
           )}
           <Text style={styles.googleText}>
-            {isLoggingIn ? "Signing in..." : (!isLoaded ? "Loading..." : "Continue with Google")}
+            {isLoggingIn ? "Signing in..." : "Continue with Google"}
           </Text>
         </TouchableOpacity>
 

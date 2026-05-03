@@ -50,7 +50,16 @@ export const StaffLogin = ({ visible, onClose }: StaffLoginProps) => {
         try {
             const res = await staffService.login(email.trim(), password);
             if (res.success && res.data) {
-                // Save staff session with token
+                // 1. 🛡️ DATA ISOLATION: Wipe previous cached data to ensure a fresh start for this staff member
+                const currentLang = await AsyncStorage.getItem("app_language");
+                const savedPrinter = await AsyncStorage.getItem("saved_printer");
+                
+                await AsyncStorage.clear();
+                
+                if (currentLang) await AsyncStorage.setItem("app_language", currentLang);
+                if (savedPrinter) await AsyncStorage.setItem("saved_printer", savedPrinter);
+
+                // 2. Save new staff session
                 const sessionData = {
                     ...res.data,
                     token: res.token || res.data.token

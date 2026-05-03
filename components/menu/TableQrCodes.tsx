@@ -1,7 +1,7 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import * as Sharing from 'expo-sharing';
+import * as Sharing from "expo-sharing";
 import {
   ArrowLeft,
   Download,
@@ -10,17 +10,23 @@ import {
   Printer,
   QrCode,
   Trash2,
-  X
+  X,
 } from "lucide-react-native";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
   Animated,
   DeviceEventEmitter,
   Dimensions,
-  FlatList,
   Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -33,7 +39,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // KRAVY THEME COLORS (Orange / White / Black)
 const COLORS = {
@@ -56,15 +62,23 @@ const Shimmer = () => {
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(anim, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(anim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
-      ])
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim, {
+          toValue: 0.3,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]),
     ).start();
   }, []);
 
   return (
     <View style={styles.shimmerContainer}>
-      {[1, 2, 3, 4, 5, 6].map(i => (
+      {[1, 2, 3, 4, 5, 6].map((i) => (
         <Animated.View key={i} style={[styles.shimmerBox, { opacity: anim }]} />
       ))}
     </View>
@@ -82,13 +96,19 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   const [isQrModalVisible, setIsQrModalVisible] = useState(false);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [newTableName, setNewTableName] = useState("");
+  const [newType, setNewType] = useState<"table" | "room">("table");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
-  const [tableToDelete, setTableToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [tableToDelete, setTableToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isComingSoonVisible, setIsComingSoonVisible] = useState(false);
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState<string>("KRAVY");
+  const [tableBookingEnabled, setTableBookingEnabled] = useState(true);
+  const [roomBookingEnabled, setRoomBookingEnabled] = useState(false);
 
   const viewShotRef = useRef<ViewShot>(null);
 
@@ -107,14 +127,14 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
       if (!hasTables) setLoading(true);
 
       const authToken = await getToken();
-      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const sessionStr = await AsyncStorage.getItem("staff_session");
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
       const finalToken = authToken || staffSession?.token;
-      
+
       if (bId) {
         setBusinessId(bId);
-        await AsyncStorage.setItem('@cached_business_id', bId);
+        await AsyncStorage.setItem("@cached_business_id", bId);
       }
 
       if (!finalToken) {
@@ -135,28 +155,35 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
         const pData = await pRes.json();
         const bName = pData.businessName || pData.companyName || "KRAVY";
         setBusinessName(bName);
-        await AsyncStorage.setItem('@cached_business_name', bName);
+        await AsyncStorage.setItem("@cached_business_name", bName);
       }
 
       if (response.ok) {
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const data = await response.json();
-          const tablesArray = Array.isArray(data) ? data : (data.tables || []);
+          const tablesArray = Array.isArray(data) ? data : data.tables || [];
           const normalizedTables = tablesArray.map((t: any) => ({
             ...t,
-            id: t.id || t._id || Math.random().toString()
+            id: t.id || t._id || Math.random().toString(),
           }));
           setTables(normalizedTables);
-          await AsyncStorage.setItem('@cached_tables', JSON.stringify(normalizedTables));
+          await AsyncStorage.setItem(
+            "@cached_tables",
+            JSON.stringify(normalizedTables),
+          );
         } else {
           const text = await response.text();
-          console.warn(`ℹ️ [TableQrCodes] Received non-JSON for tables. Status: ${response.status}. Body: ${text.slice(0, 50)}`);
+          console.warn(
+            `ℹ️ [TableQrCodes] Received non-JSON for tables. Status: ${response.status}. Body: ${text.slice(0, 50)}`,
+          );
         }
       } else {
         const text = await response.text();
         // Use console.log instead of console.error to prevent intrusive red screen on phone
-        console.log(`ℹ️ [TableQrCodes] Backend fetch failed: ${response.status}. Body: ${text.slice(0, 50)}`);
+        console.log(
+          `ℹ️ [TableQrCodes] Backend fetch failed: ${response.status}. Body: ${text.slice(0, 50)}`,
+        );
       }
     } catch (error) {
       console.log("Fetch tables silent error:", error);
@@ -167,8 +194,13 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
 
   const createTable = async () => {
     if (!newTableName.trim()) return;
-    
-    const savedName = newTableName.trim();
+
+    let savedName = newTableName.trim();
+    // Ensure "Room " prefix for rooms if not already present
+    if (newType === "room" && !savedName.toLowerCase().startsWith("room")) {
+      savedName = `Room ${savedName}`;
+    }
+
     // OPTIMISTIC UPDATE: Add table to list immediately
     const tempId = `temp-${Date.now()}`;
     const optimisticTable = { id: tempId, name: savedName };
@@ -176,8 +208,8 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
 
     // Update UI and Cache instantly
     setTables(updatedTables);
-    AsyncStorage.setItem('@cached_tables', JSON.stringify(updatedTables));
-    
+    AsyncStorage.setItem("@cached_tables", JSON.stringify(updatedTables));
+
     // Close modal and clear input immediately for "instant" feel
     setNewTableName("");
     setIsCreateModalVisible(false);
@@ -185,7 +217,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
     try {
       // background API call
       const authToken = await getToken();
-      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const sessionStr = await AsyncStorage.getItem("staff_session");
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
       const finalToken = authToken || staffSession?.token;
@@ -198,12 +230,12 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
         },
         body: JSON.stringify({ name: savedName, businessId: bId }),
       });
-      
+
       if (response.ok) {
         // Sync with backend to get the real database ID
         await fetchTables();
         // Signal other views AFTER server confirmation and local sync
-        setTimeout(() => DeviceEventEmitter.emit('REFRESH_TABLES'), 500);
+        setTimeout(() => DeviceEventEmitter.emit("REFRESH_TABLES"), 500);
       } else {
         // If save failed, fetchTables will sync the UI back to reality
         fetchTables();
@@ -222,36 +254,38 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
 
   const handleConfirmDelete = async () => {
     if (!tableToDelete) return;
-    
+
     const tableId = tableToDelete.id;
     // OPTIMISTIC DELETE: Remove from list immediately
-    const updatedTables = tables.filter(t => t.id !== tableId);
+    const updatedTables = tables.filter((t) => t.id !== tableId);
     setTables(updatedTables);
-    AsyncStorage.setItem('@cached_tables', JSON.stringify(updatedTables));
-    
+    AsyncStorage.setItem("@cached_tables", JSON.stringify(updatedTables));
+
     // Close modal immediately for instant feel
     setIsDeleteModalVisible(false);
     setTableToDelete(null);
 
     try {
       const authToken = await getToken();
-      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const sessionStr = await AsyncStorage.getItem("staff_session");
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
       const finalToken = authToken || staffSession?.token;
 
       // Use simplified URL if possible, or keep query for DELETE if required by backend
-      const url = bId ? `https://billing.kravy.in/api/tables?id=${tableId}&businessId=${bId}` : `https://billing.kravy.in/api/tables?id=${tableId}`;
+      const url = bId
+        ? `https://billing.kravy.in/api/tables?id=${tableId}&businessId=${bId}`
+        : `https://billing.kravy.in/api/tables?id=${tableId}`;
       const response = await fetch(url, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${finalToken}` },
       });
-      
+
       if (response.ok) {
         // Background refresh to sync state
         await fetchTables();
         // Signal other views AFTER server confirmation and local sync
-        setTimeout(() => DeviceEventEmitter.emit('REFRESH_TABLES'), 500);
+        setTimeout(() => DeviceEventEmitter.emit("REFRESH_TABLES"), 500);
       } else {
         // If delete failed, fetchTables will restore the table to UI
         await fetchTables();
@@ -272,7 +306,10 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
       if (isAvailable) {
         await Sharing.shareAsync(uri);
       } else {
-        Alert.alert("Sharing not available", "Could not share or save the QR code.");
+        Alert.alert(
+          "Sharing not available",
+          "Could not share or save the QR code.",
+        );
       }
     } catch (err) {
       console.error("Capture error:", err);
@@ -283,16 +320,24 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const [cachedTables, cachedBusinessName, cachedBusinessId] = await Promise.all([
-          AsyncStorage.getItem('@cached_tables'),
-          AsyncStorage.getItem('@cached_business_name'),
-          AsyncStorage.getItem('@cached_business_id')
-        ]);
+        const [cachedTables, cachedBusinessName, cachedBusinessId] =
+          await Promise.all([
+            AsyncStorage.getItem("@cached_tables"),
+            AsyncStorage.getItem("@cached_business_name"),
+            AsyncStorage.getItem("@cached_business_id"),
+          ]);
 
         if (cachedTables) setTables(JSON.parse(cachedTables));
         if (cachedBusinessName) setBusinessName(cachedBusinessName);
         if (cachedBusinessId) setBusinessId(cachedBusinessId);
-        
+
+        const [tEnabled, rEnabled] = await Promise.all([
+          AsyncStorage.getItem("table_booking_enabled"),
+          AsyncStorage.getItem("room_booking_enabled"),
+        ]);
+        setTableBookingEnabled(tEnabled === "true");
+        setRoomBookingEnabled(rEnabled === "true");
+
         // If we have cached data, we don't need to show the initial loading state
         if (cachedTables) {
           setLoading(false);
@@ -307,11 +352,18 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
     loadInitialData();
   }, []);
 
+  const tableItems = useMemo(() => {
+    return tables.filter((t) => !t.name.toLowerCase().startsWith("room"));
+  }, [tables]);
+
+  const roomItems = useMemo(() => {
+    return tables.filter((t) => t.name.toLowerCase().startsWith("room"));
+  }, [tables]);
+
   const openQrModal = (table: Table) => {
     setSelectedTable(table);
     setIsQrModalVisible(true);
   };
-
 
   return (
     <View style={styles.container}>
@@ -328,48 +380,160 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
           </TouchableOpacity>
         </View>
         <View style={styles.headerBottomRow}>
-          <Text style={styles.title}>{t('table_qr_codes')}</Text>
-          <Text style={styles.subtitle}>{t('manage_tables_desc') || 'Manage your dining tables and QR codes'}</Text>
+          <Text style={styles.title}>
+            {tableBookingEnabled && roomBookingEnabled
+              ? "Table & Room QR Codes"
+              : roomBookingEnabled
+                ? "Room QR Codes"
+                : t("table_qr_codes")}
+          </Text>
+          <Text style={styles.subtitle}>
+            {tableBookingEnabled && roomBookingEnabled
+              ? "Manage your tables, rooms and QR codes"
+              : roomBookingEnabled
+                ? "Manage your rooms and QR codes"
+                : t("manage_tables_desc") ||
+                  "Manage your dining tables and QR codes"}
+          </Text>
         </View>
       </View>
 
-      <FlatList
-        data={tables}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
+      <ScrollView
         contentContainerStyle={styles.listPadding}
-        renderItem={({ item }) => (
-          <View style={styles.tableCardContainer}>
-            <TouchableOpacity
-              style={styles.tableCard}
-              onPress={() => openQrModal(item)}
-            >
-              <View style={styles.qrPreviewIcon}>
-                <QrCode size={rf(32)} color={COLORS.PRIMARY} strokeWidth={1.5} />
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Tables Section */}
+        {tableBookingEnabled && (
+          <View style={styles.sectionContainer}>
+            {roomBookingEnabled && (
+              <View style={styles.sectionHeader}>
+                <Grid size={rf(18)} color={COLORS.PRIMARY} />
+                <Text style={styles.sectionTitle}>Dining Tables</Text>
               </View>
-              <Text style={styles.tableName}>{item.name}</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{t('live_qr') || 'Live QR'}</Text>
+            )}
+
+            <View style={styles.gridContainer}>
+              {tableItems.map((item) => (
+                <View key={item.id} style={styles.tableCardContainer}>
+                  <TouchableOpacity
+                    style={styles.tableCard}
+                    onPress={() => openQrModal(item)}
+                  >
+                    <View style={styles.qrPreviewIcon}>
+                      <QrCode
+                        size={rf(32)}
+                        color={COLORS.PRIMARY}
+                        strokeWidth={1.5}
+                      />
+                    </View>
+                    <Text style={styles.tableName}>{item.name}</Text>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>
+                        {t("live_qr") || "Live QR"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteIcon}
+                    onPress={() => deleteTable(item.id, item.name)}
+                  >
+                    <Trash2 size={rf(18)} color={COLORS.DANGER} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {tableItems.length === 0 && tableBookingEnabled && (
+                <View style={styles.miniEmptyState}>
+                  <Text style={styles.miniEmptyText}>
+                    No tables created yet.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Rooms Section */}
+        {roomBookingEnabled && (
+          <View
+            style={[
+              styles.sectionContainer,
+              tableBookingEnabled && { marginTop: vs(30) },
+            ]}
+          >
+            {tableBookingEnabled && (
+              <View style={styles.sectionHeader}>
+                <QrCode size={rf(18)} color={COLORS.PRIMARY} />
+                <Text style={styles.sectionTitle}>Rooms</Text>
               </View>
-            </TouchableOpacity>
+            )}
+
+            <View style={styles.gridContainer}>
+              {roomItems.map((item) => (
+                <View key={item.id} style={styles.tableCardContainer}>
+                  <TouchableOpacity
+                    style={styles.tableCard}
+                    onPress={() => openQrModal(item)}
+                  >
+                    <View style={styles.qrPreviewIcon}>
+                      <QrCode
+                        size={rf(32)}
+                        color={COLORS.PRIMARY}
+                        strokeWidth={1.5}
+                      />
+                    </View>
+                    <Text style={styles.tableName}>{item.name}</Text>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>
+                        {t("live_qr") || "Live QR"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteIcon}
+                    onPress={() => deleteTable(item.id, item.name)}
+                  >
+                    <Trash2 size={rf(18)} color={COLORS.DANGER} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {roomItems.length === 0 && roomBookingEnabled && (
+                <View style={styles.miniEmptyState}>
+                  <Text style={styles.miniEmptyText}>
+                    No rooms created yet.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {tables.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Grid size={rf(60)} color={COLORS.LIGHT_GRAY} />
+            <Text style={styles.emptyText}>
+              {tableBookingEnabled && roomBookingEnabled
+                ? "No tables or rooms created yet."
+                : roomBookingEnabled
+                  ? "No rooms created yet."
+                  : t("no_tables") || "No tables created yet."}
+            </Text>
             <TouchableOpacity
-              style={styles.deleteIcon}
-              onPress={() => deleteTable(item.id, item.name)}
+              style={styles.emptyAddBtn}
+              onPress={() => setIsCreateModalVisible(true)}
             >
-              <Trash2 size={rf(18)} color={COLORS.DANGER} />
+              <Text style={styles.emptyAddBtnText}>
+                {tableBookingEnabled && roomBookingEnabled
+                  ? "Add New Table/Room"
+                  : roomBookingEnabled
+                    ? "Add New Room"
+                    : t("add_new_table")}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Grid size={rf(60)} color={COLORS.LIGHT_GRAY} />
-            <Text style={styles.emptyText}>{t('no_tables') || 'No tables created yet.'}</Text>
-            <TouchableOpacity style={styles.emptyAddBtn} onPress={() => setIsCreateModalVisible(true)}>
-              <Text style={styles.emptyAddBtnText}>{t('add_new_table')}</Text>
-            </TouchableOpacity>
-          </View>
-        }
-      />
+      </ScrollView>
 
       {/* QR Code Modal */}
       <Modal
@@ -382,18 +546,28 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>{selectedTable?.name}</Text>
-                <Text style={styles.modalSubtitle}>{businessName} Digital Menu</Text>
+                <Text style={styles.modalSubtitle}>
+                  {businessName} Digital Menu
+                </Text>
               </View>
-              <TouchableOpacity onPress={() => setIsQrModalVisible(false)} style={styles.closeBtn}>
+              <TouchableOpacity
+                onPress={() => setIsQrModalVisible(false)}
+                style={styles.closeBtn}
+              >
                 <X size={rf(24)} color={COLORS.SECONDARY} />
               </TouchableOpacity>
             </View>
 
             {selectedTable && (
               <View style={styles.qrContainer}>
-                <ViewShot ref={viewShotRef} options={{ format: "png", quality: 1.0 }}>
+                <ViewShot
+                  ref={viewShotRef}
+                  options={{ format: "png", quality: 1.0 }}
+                >
                   <View style={styles.qrCaptureArea}>
-                    <Text style={styles.qrBrandName}>{businessName.toUpperCase()}</Text>
+                    <Text style={styles.qrBrandName}>
+                      {businessName.toUpperCase()}
+                    </Text>
                     <View style={styles.qrWrapper}>
                       <QRCode
                         value={`https://billing.kravy.in/menu/${businessId || user?.id}?tableId=${selectedTable.id}`}
@@ -405,30 +579,36 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
                       />
                     </View>
                     <Text style={styles.qrTableName}>{selectedTable.name}</Text>
-                    <Text style={styles.qrScanPrompt}>{t('scan_to_view_menu') || 'Scan to View Menu'}</Text>
+                    <Text style={styles.qrScanPrompt}>
+                      {roomBookingEnabled && !tableBookingEnabled
+                        ? "Scan to view Room Menu"
+                        : "Scan to view Menu"}
+                    </Text>
                   </View>
                 </ViewShot>
 
                 <Text style={styles.qrInstructions}>
-                  {t('qr_instructions') || 'Let customers scan this to see your live menu and place orders.'}
+                  {t("qr_instructions") ||
+                    "Let customers scan this to see your live menu and place orders."}
                 </Text>
               </View>
             )}
 
             <View style={styles.qrModalButtons}>
-              <TouchableOpacity
-                style={styles.downloadBtn}
-                onPress={downloadQr}
-              >
+              <TouchableOpacity style={styles.downloadBtn} onPress={downloadQr}>
                 <Download size={rf(18)} color="#fff" />
-                <Text style={styles.btnText}>{t('download_qr') || 'Download QR'}</Text>
+                <Text style={styles.btnText}>
+                  {t("download_qr") || "Download QR"}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.printBtn}
                 onPress={() => setIsComingSoonVisible(true)}
               >
                 <Printer size={rf(18)} color={COLORS.SECONDARY} />
-                <Text style={[styles.btnText, { color: COLORS.SECONDARY }]}>{t('print')}</Text>
+                <Text style={[styles.btnText, { color: COLORS.SECONDARY }]}>
+                  {t("print")}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -444,15 +624,69 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.createModalContent}>
             <View style={styles.createHeader}>
-              <Text style={styles.createTitle}>{t('add_new_table')}</Text>
+              <Text style={styles.createTitle}>
+                {tableBookingEnabled && roomBookingEnabled
+                  ? "Add New Table/Room"
+                  : roomBookingEnabled
+                    ? "Add New Room"
+                    : t("add_new_table")}
+              </Text>
               <TouchableOpacity onPress={() => setIsCreateModalVisible(false)}>
                 <X size={rf(20)} color={COLORS.GRAY} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.inputLabel}>{t('table_name')?.toUpperCase() || 'TABLE NAME'}</Text>
+
+            {tableBookingEnabled && roomBookingEnabled && (
+              <View style={styles.typeSelector}>
+                <TouchableOpacity
+                  style={[
+                    styles.typeOption,
+                    newType === "table" && styles.typeOptionActive,
+                  ]}
+                  onPress={() => setNewType("table")}
+                >
+                  <Text
+                    style={[
+                      styles.typeText,
+                      newType === "table" && styles.typeTextActive,
+                    ]}
+                  >
+                    Table
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.typeOption,
+                    newType === "room" && styles.typeOptionActive,
+                  ]}
+                  onPress={() => setNewType("room")}
+                >
+                  <Text
+                    style={[
+                      styles.typeText,
+                      newType === "room" && styles.typeTextActive,
+                    ]}
+                  >
+                    Room
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <Text style={styles.inputLabel}>
+              {newType === "room"
+                ? "ROOM NAME / NUMBER"
+                : "TABLE NAME / NUMBER"}
+            </Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. Table 5, Booth A"
+              placeholder={
+                tableBookingEnabled && roomBookingEnabled
+                  ? "e.g. Table 5 or Room 101"
+                  : roomBookingEnabled
+                    ? "e.g. Room 101, Suite A"
+                    : "e.g. Table 5, Booth A"
+              }
               value={newTableName}
               onChangeText={setNewTableName}
               placeholderTextColor="#9CA3AF"
@@ -463,7 +697,13 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
               onPress={createTable}
               disabled={isSaving}
             >
-              {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>{t('save_table') || 'Save Table'}</Text>}
+              {isSaving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.saveBtnText}>
+                  {t("save_table") || "Save Table"}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -480,26 +720,39 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
             <View style={styles.deleteIconWrapper}>
               <Trash2 size={rf(32)} color={COLORS.DANGER} />
             </View>
-            <Text style={styles.deleteTitle}>Delete Table?</Text>
+            <Text style={styles.deleteTitle}>
+              {tableBookingEnabled && roomBookingEnabled
+                ? "Delete Item?"
+                : roomBookingEnabled
+                  ? "Delete Room?"
+                  : "Delete Table?"}
+            </Text>
             <Text style={styles.deleteDescription}>
-              Are you sure you want to delete <Text style={{ fontWeight: 'bold', color: COLORS.SECONDARY }}>{tableToDelete?.name}</Text>? This action cannot be undone.
+              Are you sure you want to delete{" "}
+              <Text style={{ fontWeight: "bold", color: COLORS.SECONDARY }}>
+                {tableToDelete?.name}
+              </Text>
+              ? This action cannot be undone.
             </Text>
             <View style={styles.deleteButtonGroup}>
               <TouchableOpacity
                 style={styles.cancelBtn}
                 onPress={() => setIsDeleteModalVisible(false)}
               >
-                <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
+                <Text style={styles.cancelBtnText}>{t("cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmDeleteBtn, isDeleting && { opacity: 0.7 }]}
+                style={[
+                  styles.confirmDeleteBtn,
+                  isDeleting && { opacity: 0.7 },
+                ]}
                 onPress={handleConfirmDelete}
                 disabled={isDeleting}
               >
                 {isDeleting ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.confirmDeleteBtnText}>{t('delete')}</Text>
+                  <Text style={styles.confirmDeleteBtnText}>{t("delete")}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -520,7 +773,8 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
             </View>
             <Text style={styles.comingSoonTitle}>Coming Soon!</Text>
             <Text style={styles.comingSoonDescription}>
-              Direct printing support for thermal printers is currently under development and will be available in the next update.
+              Direct printing support for thermal printers is currently under
+              development and will be available in the next update.
             </Text>
             <TouchableOpacity
               style={styles.comingSoonCloseBtn}
@@ -546,9 +800,9 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.LIGHT_GRAY,
   },
   headerTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: vs(15), // Push title/subtitle down
     marginTop: vs(10), // Extra space from top
   },
@@ -559,7 +813,12 @@ const styles = StyleSheet.create({
     padding: s(5),
     marginLeft: s(-5),
   },
-  title: { fontSize: rf(24), fontWeight: '900', color: COLORS.SECONDARY, letterSpacing: -0.5 },
+  title: {
+    fontSize: rf(24),
+    fontWeight: "900",
+    color: COLORS.SECONDARY,
+    letterSpacing: -0.5,
+  },
   subtitle: { fontSize: rf(13), color: COLORS.GRAY, marginTop: vs(2) },
   addBtn: {
     backgroundColor: COLORS.WHITE,
@@ -578,7 +837,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.WHITE,
     padding: s(20),
     borderRadius: s(24),
-    alignItems: 'center',
+    alignItems: "center",
     elevation: 4,
     borderWidth: 1,
     borderColor: COLORS.LIGHT_GRAY,
@@ -586,21 +845,26 @@ const styles = StyleSheet.create({
   qrPreviewIcon: {
     width: s(60),
     height: s(60),
-    backgroundColor: COLORS.PRIMARY + '08',
+    backgroundColor: COLORS.PRIMARY + "08",
     borderRadius: s(18),
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: vs(10),
   },
   deleteIcon: {
-    position: 'absolute',
+    position: "absolute",
     top: 10,
     right: 10,
     padding: s(6),
-    backgroundColor: '#FEF2F2',
+    backgroundColor: "#FEF2F2",
     borderRadius: s(10),
   },
-  tableName: { fontSize: rf(17), fontWeight: '800', marginTop: vs(5), color: COLORS.SECONDARY },
+  tableName: {
+    fontSize: rf(17),
+    fontWeight: "800",
+    marginTop: vs(5),
+    color: COLORS.SECONDARY,
+  },
   badge: {
     marginTop: vs(8),
     paddingHorizontal: s(10),
@@ -611,26 +875,119 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: rf(10),
     color: COLORS.WHITE,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
+    fontWeight: "bold",
+    textTransform: "uppercase",
   },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: '90%', backgroundColor: COLORS.WHITE, padding: s(25), borderRadius: s(32), elevation: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: vs(25) },
-  modalTitle: { fontSize: rf(22), fontWeight: '900', color: COLORS.SECONDARY },
-  modalSubtitle: { fontSize: rf(12), color: COLORS.PRIMARY, fontWeight: '700', textTransform: 'uppercase' },
+
+  // New Section Styles
+  sectionContainer: {
+    width: "100%",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: vs(15),
+    paddingHorizontal: s(8),
+    gap: s(10),
+  },
+  sectionTitle: {
+    fontSize: rf(18),
+    fontWeight: "800",
+    color: COLORS.SECONDARY,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  miniEmptyState: {
+    width: "100%",
+    padding: s(20),
+    alignItems: "center",
+    backgroundColor: COLORS.WHITE,
+    borderRadius: s(16),
+    borderStyle: "dashed",
+    borderWidth: 1,
+    borderColor: COLORS.LIGHT_GRAY,
+  },
+  miniEmptyText: {
+    color: COLORS.GRAY,
+    fontSize: rf(13),
+  },
+
+  // Type Selector Styles
+  typeSelector: {
+    flexDirection: "row",
+    backgroundColor: COLORS.BG_LIGHT,
+    borderRadius: s(12),
+    padding: s(4),
+    marginBottom: vs(20),
+    borderWidth: 1,
+    borderColor: COLORS.LIGHT_GRAY,
+  },
+  typeOption: {
+    flex: 1,
+    paddingVertical: vs(10),
+    alignItems: "center",
+    borderRadius: s(8),
+  },
+  typeOptionActive: {
+    backgroundColor: COLORS.WHITE,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  typeText: {
+    fontSize: rf(14),
+    fontWeight: "600",
+    color: COLORS.GRAY,
+  },
+  typeTextActive: {
+    color: COLORS.PRIMARY,
+    fontWeight: "800",
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "90%",
+    backgroundColor: COLORS.WHITE,
+    padding: s(25),
+    borderRadius: s(32),
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: vs(25),
+  },
+  modalTitle: { fontSize: rf(22), fontWeight: "900", color: COLORS.SECONDARY },
+  modalSubtitle: {
+    fontSize: rf(12),
+    color: COLORS.PRIMARY,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
   closeBtn: { padding: s(5) },
 
-  qrContainer: { alignItems: 'center', marginBottom: vs(30) },
+  qrContainer: { alignItems: "center", marginBottom: vs(30) },
   qrCaptureArea: {
     backgroundColor: COLORS.WHITE,
     padding: s(25),
     borderRadius: s(20),
-    alignItems: 'center',
+    alignItems: "center",
   },
   qrBrandName: {
     fontSize: rf(26),
-    fontWeight: '900',
+    fontWeight: "900",
     color: COLORS.SECONDARY,
     marginBottom: vs(15),
     letterSpacing: 2,
@@ -645,7 +1002,7 @@ const styles = StyleSheet.create({
   },
   qrTableName: {
     fontSize: rf(20),
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginTop: vs(15),
     color: COLORS.SECONDARY,
   },
@@ -657,54 +1014,60 @@ const styles = StyleSheet.create({
   qrInstructions: {
     fontSize: rf(14),
     color: COLORS.GRAY,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: rf(20),
     marginTop: vs(10),
   },
   qrModalButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: s(12),
   },
   downloadBtn: {
     flex: 2,
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: COLORS.PRIMARY,
     paddingVertical: vs(16),
     borderRadius: s(16),
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     gap: s(10),
     elevation: 5,
   },
   printBtn: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: COLORS.WHITE,
     paddingVertical: vs(16),
     borderRadius: s(16),
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     gap: s(6),
     borderWidth: 1.5,
     borderColor: COLORS.SECONDARY,
   },
-  btnText: { color: '#fff', fontSize: rf(15), fontWeight: '900' },
+  btnText: { color: "#fff", fontSize: rf(15), fontWeight: "900" },
 
   createModalContent: {
-    width: '85%',
+    width: "85%",
     backgroundColor: COLORS.WHITE,
     padding: s(25),
     borderRadius: s(24),
-    elevation: 20
+    elevation: 20,
   },
   createHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: vs(20),
   },
-  createTitle: { fontSize: rf(20), fontWeight: '900', color: COLORS.SECONDARY },
-  inputLabel: { fontSize: rf(11), fontWeight: 'bold', color: COLORS.GRAY, marginBottom: vs(8), letterSpacing: 1 },
+  createTitle: { fontSize: rf(20), fontWeight: "900", color: COLORS.SECONDARY },
+  inputLabel: {
+    fontSize: rf(11),
+    fontWeight: "bold",
+    color: COLORS.GRAY,
+    marginBottom: vs(8),
+    letterSpacing: 1,
+  },
   input: {
     borderWidth: 1.5,
     borderColor: COLORS.LIGHT_GRAY,
@@ -719,80 +1082,100 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.SECONDARY,
     paddingVertical: vs(16),
     borderRadius: s(16),
-    alignItems: 'center',
+    alignItems: "center",
     elevation: 5,
   },
-  saveBtnText: { color: '#fff', fontSize: rf(16), fontWeight: 'bold' },
+  saveBtnText: { color: "#fff", fontSize: rf(16), fontWeight: "bold" },
 
   // Empty state & Shimmer
-  emptyContainer: { alignItems: 'center', marginTop: vs(100), paddingHorizontal: s(40) },
-  emptyText: { color: COLORS.GRAY, marginTop: vs(15), fontSize: rf(15), textAlign: 'center' },
-  emptyAddBtn: { marginTop: vs(20), backgroundColor: COLORS.PRIMARY, paddingHorizontal: s(25), paddingVertical: vs(12), borderRadius: s(12) },
-  emptyAddBtnText: { color: COLORS.WHITE, fontWeight: '800' },
+  emptyContainer: {
+    alignItems: "center",
+    marginTop: vs(100),
+    paddingHorizontal: s(40),
+  },
+  emptyText: {
+    color: COLORS.GRAY,
+    marginTop: vs(15),
+    fontSize: rf(15),
+    textAlign: "center",
+  },
+  emptyAddBtn: {
+    marginTop: vs(20),
+    backgroundColor: COLORS.PRIMARY,
+    paddingHorizontal: s(25),
+    paddingVertical: vs(12),
+    borderRadius: s(12),
+  },
+  emptyAddBtnText: { color: COLORS.WHITE, fontWeight: "800" },
 
-  shimmerContainer: { padding: s(15), flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  shimmerContainer: {
+    padding: s(15),
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
   shimmerBox: {
     width: (SCREEN_WIDTH - s(45)) / 2,
     height: vs(150),
     backgroundColor: COLORS.LIGHT_GRAY,
     borderRadius: s(24),
-    marginBottom: vs(15)
+    marginBottom: vs(15),
   },
 
   // Delete Modal Styles
   deleteModalContent: {
-    width: '85%',
+    width: "85%",
     backgroundColor: COLORS.WHITE,
     padding: s(25),
     borderRadius: s(32),
-    alignItems: 'center',
+    alignItems: "center",
     elevation: 25,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.58,
-    shadowRadius: 16.00,
+    shadowRadius: 16.0,
   },
   deleteIconWrapper: {
     width: s(70),
     height: s(70),
-    backgroundColor: '#FEF2F2',
+    backgroundColor: "#FEF2F2",
     borderRadius: s(35),
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: vs(20),
   },
   deleteTitle: {
     fontSize: rf(22),
-    fontWeight: '900',
+    fontWeight: "900",
     color: COLORS.SECONDARY,
     marginBottom: vs(10),
   },
   deleteDescription: {
     fontSize: rf(15),
     color: COLORS.GRAY,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: rf(22),
     marginBottom: vs(30),
     paddingHorizontal: s(10),
   },
   deleteButtonGroup: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: s(12),
-    width: '100%',
+    width: "100%",
   },
   cancelBtn: {
     flex: 1,
     paddingVertical: vs(15),
     borderRadius: s(16),
     backgroundColor: COLORS.BG_LIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: COLORS.LIGHT_GRAY,
   },
   cancelBtnText: {
     fontSize: rf(16),
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.GRAY,
   },
   confirmDeleteBtn: {
@@ -800,58 +1183,58 @@ const styles = StyleSheet.create({
     paddingVertical: vs(15),
     borderRadius: s(16),
     backgroundColor: COLORS.DANGER,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     elevation: 4,
   },
   confirmDeleteBtnText: {
     fontSize: rf(16),
-    fontWeight: '800',
+    fontWeight: "800",
     color: COLORS.WHITE,
   },
 
   // Coming Soon Modal Styles
   comingSoonContent: {
-    width: '80%',
+    width: "80%",
     backgroundColor: COLORS.WHITE,
     padding: s(30),
     borderRadius: s(32),
-    alignItems: 'center',
+    alignItems: "center",
     elevation: 25,
   },
   rocketIconWrapper: {
     width: s(70),
     height: s(70),
-    backgroundColor: COLORS.PRIMARY + '15',
+    backgroundColor: COLORS.PRIMARY + "15",
     borderRadius: s(35),
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: vs(20),
   },
   comingSoonTitle: {
     fontSize: rf(24),
-    fontWeight: '900',
+    fontWeight: "900",
     color: COLORS.SECONDARY,
     marginBottom: vs(12),
   },
   comingSoonDescription: {
     fontSize: rf(15),
     color: COLORS.GRAY,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: rf(22),
     marginBottom: vs(25),
   },
   comingSoonCloseBtn: {
-    width: '100%',
+    width: "100%",
     paddingVertical: vs(15),
     backgroundColor: COLORS.SECONDARY,
     borderRadius: s(16),
-    alignItems: 'center',
+    alignItems: "center",
     elevation: 4,
   },
   comingSoonCloseBtnText: {
     fontSize: rf(16),
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.WHITE,
   },
 });

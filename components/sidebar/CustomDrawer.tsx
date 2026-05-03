@@ -139,11 +139,14 @@ export default function CustomDrawerContent(props: any) {
     };
 
     const handleLogout = async () => {
+        // 1. Preserve critical non-sensitive preferences
+        const currentLang = await AsyncStorage.getItem("app_language");
+        const savedPrinter = await AsyncStorage.getItem("saved_printer");
+
         const session = await AsyncStorage.getItem("staff_session");
         if (session) {
             try {
                 const staff = JSON.parse(session);
-                // ✅ TERMINAL LOGOUT TOKEN GENERATION
                 console.log("---------------- STAFF LOGOUT TOKEN ---------------");
                 console.log(`[TOKEN-STAFF-LOGOUT] SUCCESS`);
                 console.log(`STAFF NAME : ${staff.name}`);
@@ -154,15 +157,23 @@ export default function CustomDrawerContent(props: any) {
             }
         }
 
+        // 2. Clear ALL business data to ensure NO data leaks between users
+        await AsyncStorage.clear();
+
+        // 3. Restore preferences
+        if (currentLang) await AsyncStorage.setItem("app_language", currentLang);
+        if (savedPrinter) await AsyncStorage.setItem("saved_printer", savedPrinter);
+
+        // 4. Sign out from Clerk if active
         if (isSignedIn) {
             await signOut();
         }
-        await AsyncStorage.removeItem("staff_session");
-        setStaffMember(null);
         
-        // 👋 Emit signal so all AccessWrappers and useStaffPermissions reactive hooks trigger immediately
+        // 5. Reset local state and signal update
+        setStaffMember(null);
         DeviceEventEmitter.emit('PERMISSIONS_UPDATED');
 
+        // 6. Force immediate redirect to sign-in
         router.replace("/(auth)/sign-in");
     };
 

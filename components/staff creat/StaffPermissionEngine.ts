@@ -62,12 +62,6 @@
 //   }
 // };
 
-
-
-
-
-
-
 // import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // export interface StaffSession {
@@ -124,11 +118,6 @@
 //     }
 //   }
 // };
-
-
-
-
-
 
 // // hooks/useStaffPermissions.ts
 
@@ -196,12 +185,7 @@
 //   };
 // };
 
-
-
-
-
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface StaffSession {
   id: string;
@@ -214,10 +198,9 @@ export interface StaffSession {
 }
 
 export const StaffPermissionEngine = {
-
   async getSession(): Promise<StaffSession | null> {
     try {
-      const sessionStr = await AsyncStorage.getItem('staff_session');
+      const sessionStr = await AsyncStorage.getItem("staff_session");
       if (!sessionStr) return null;
 
       try {
@@ -234,20 +217,26 @@ export const StaffPermissionEngine = {
   /**
    * Generates a unique access token for terminal logging
    */
-  generateAccessToken(permission: string, status: 'GRANTED' | 'DENIED', userType: 'OWNER' | 'STAFF'): string {
+  generateAccessToken(
+    permission: string,
+    status: "GRANTED" | "DENIED",
+    userType: "OWNER" | "STAFF",
+  ): string {
     const timestamp = new Date().getTime();
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    const random = Math.floor(Math.random() * 10000)
+      .toString()
+      .padStart(4, "0");
     return `[TOKEN-${userType}-${status}]_${permission.toUpperCase()}_${timestamp}_${random}`;
   },
 
   // ✅ MAIN CHECK (OWNER + STAFF) WITH EXTREME DEBUG LOGGING
   async hasPermission(permission: string, isOwner: boolean): Promise<boolean> {
-    let status: 'GRANTED' | 'DENIED' = 'DENIED';
-    let userType: 'OWNER' | 'STAFF' = isOwner ? 'OWNER' : 'STAFF';
+    let status: "GRANTED" | "DENIED" = "DENIED";
+    let userType: "OWNER" | "STAFF" = isOwner ? "OWNER" : "STAFF";
 
     // Owner check
     if (isOwner) {
-      status = 'GRANTED';
+      status = "GRANTED";
       const token = this.generateAccessToken(permission, status, userType);
       console.log(`[AUTH-SYSTEM] OWNER ACCESS: ${permission} -> GRANTED`);
       return true;
@@ -257,8 +246,10 @@ export const StaffPermissionEngine = {
 
     // If no session found
     if (!session) {
-      console.log(`[AUTH-SYSTEM] SESSION ERROR: No staff session found in storage.`);
-      status = 'DENIED';
+      console.log(
+        `[AUTH-SYSTEM] SESSION ERROR: No staff session found in storage.`,
+      );
+      status = "DENIED";
       console.log(`[TOKEN-STAFF-DENIED]_${permission.toUpperCase()}`);
       return false;
     }
@@ -276,8 +267,10 @@ export const StaffPermissionEngine = {
 
     // 1. FULL ACCESS BYPASS
     if (accessType === "Full Access") {
-      console.log(`[AUTH-SYSTEM] SUCCESS: Full Access granted to ${session.name}`);
-      status = 'GRANTED';
+      console.log(
+        `[AUTH-SYSTEM] SUCCESS: Full Access granted to ${session.name}`,
+      );
+      status = "GRANTED";
       console.log(`[TOKEN-STAFF-GRANTED]_${permission.toUpperCase()}`);
       return true;
     }
@@ -287,59 +280,76 @@ export const StaffPermissionEngine = {
     // Handle common naming variations (Order/Orders, Setting/Settings, Report/Reports)
     const variations = [
       searchTerm,
-      searchTerm.endsWith('s') ? searchTerm.slice(0, -1) : searchTerm,
-      searchTerm.endsWith('s') ? searchTerm : searchTerm + 's',
+      searchTerm.endsWith("s") ? searchTerm.slice(0, -1) : searchTerm,
+      searchTerm.endsWith("s") ? searchTerm : searchTerm + "s",
       // Manual overrides for common groups
-      searchTerm === 'order' ? 'billing' : '',
-      searchTerm === 'billing' ? 'order' : '',
-      searchTerm === 'reports' ? 'report' : '',
-      searchTerm === 'customer' ? 'client' : '',
-      searchTerm === 'client' ? 'customer' : '',
-    ].filter(v => v !== '');
+      searchTerm === "order" ? "billing" : "",
+      searchTerm === "billing" ? "order" : "",
+      searchTerm === "reports" ? "report" : "",
+      searchTerm === "customer" ? "client" : "",
+      searchTerm === "client" ? "customer" : "",
+    ].filter((v) => v !== "");
 
-    const hasAccess = Array.isArray(rawPerms) && rawPerms.some(p => {
-      if (typeof p !== 'string') return false;
-      const pLower = p.toLowerCase().trim();
+    const hasAccess =
+      Array.isArray(rawPerms) &&
+      rawPerms.some((p) => {
+        if (typeof p !== "string") return false;
+        const pLower = p.toLowerCase().trim();
 
-      // 1. Precise or Partial Match on variations
-      if (variations.some(v => pLower === v || pLower.includes(v))) return true;
+        // 1. Precise or Partial Match on variations
+        if (variations.some((v) => pLower === v || pLower.includes(v)))
+          return true;
 
-      // 2. Robust Alphanumeric Normalization
-      const normalizedP = pLower.replace(/[^a-z0-9]/g, '');
-      return variations.some(v => {
-        const normalizedV = v.replace(/[^a-z0-9]/g, '');
-        return normalizedP.includes(normalizedV);
+        // 2. Robust Alphanumeric Normalization
+        const normalizedP = pLower.replace(/[^a-z0-9]/g, "");
+        return variations.some((v) => {
+          const normalizedV = v.replace(/[^a-z0-9]/g, "");
+          return normalizedP.includes(normalizedV);
+        });
       });
-    });
 
-    status = hasAccess ? 'GRANTED' : 'DENIED';
+    status = hasAccess ? "GRANTED" : "DENIED";
 
     if (hasAccess) {
-      console.log(`[AUTH-SYSTEM] GRANTED: Staff has permission for ${permission}`);
+      console.log(
+        `[AUTH-SYSTEM] GRANTED: Staff has permission for ${permission}`,
+      );
     } else {
-      console.log(`[AUTH-SYSTEM] DENIED: Staff MISSING permission for ${permission}`);
+      console.log(
+        `[AUTH-SYSTEM] DENIED: Staff MISSING permission for ${permission}`,
+      );
     }
 
     console.log(`[TOKEN-STAFF-${status}]_${permission.toUpperCase()}`);
     return hasAccess;
   },
 
-
   // ✅ FOR BACKWARD COMPATIBILITY
-  async hasCategoryAccess(category: string, isOwner: boolean): Promise<boolean> {
+  async hasCategoryAccess(
+    category: string,
+    isOwner: boolean,
+  ): Promise<boolean> {
     return await this.hasPermission(category, isOwner);
   },
 
   // ✅ BUSINESS ID (IMPORTANT FOR STAFF DATA)
 
   async getActiveBusinessId(clerkUserId?: string): Promise<string | null> {
-    if (clerkUserId) return null; // owner case
-
     try {
       const session = await this.getSession();
-      return session?.businessId || null;
+      if (session?.businessId) return session.businessId;
+
+      // Fallback for Owners: check cached profile
+      const cached = await AsyncStorage.getItem("@cached_business_profile");
+      if (cached) {
+        const data = JSON.parse(cached);
+        const id = data._id || data.id || data.businessId;
+        if (id) return id;
+      }
+
+      return null;
     } catch {
       return null;
     }
-  }
+  },
 };
