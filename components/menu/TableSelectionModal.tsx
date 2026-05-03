@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     paddingTop: vs(15),
-    paddingBottom: vs(10),
+    paddingBottom: vs(45),
     gap: s(10),
     borderTopWidth: 1,
     borderTopColor: "#F3F4F6",

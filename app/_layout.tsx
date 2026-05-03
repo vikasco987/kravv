@@ -4,20 +4,20 @@ import { ClerkProvider, useAuth, useSession } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 // @ts-ignore
 import Constants from "expo-constants";
-import { useRouter, usePathname, Slot, Stack } from "expo-router";
+import { Stack, usePathname, useRouter } from "expo-router";
 // @ts-ignore
 import { Drawer } from "expo-router/drawer";
 // @ts-ignore
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import CustomDrawerContent from "../components/sidebar/CustomDrawer";
-import { RefreshProvider, useRefresh } from "../context/RefreshContext";
-import { LanguageProvider, useLanguage } from "../context/LanguageContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import NewOrderNotifier from "../components/common/NewOrderNotifier";
+import CustomDrawerContent from "../components/sidebar/CustomDrawer";
+import { LanguageProvider, useLanguage } from "../context/LanguageContext";
+import { RefreshProvider, useRefresh } from "../context/RefreshContext";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -29,7 +29,11 @@ const tokenCache = {
     return value;
   },
   async saveToken(key: string, value: string) {
-    console.log("💾 saveToken:", key, value ? value.slice(0, 15) + "..." : null);
+    console.log(
+      "💾 saveToken:",
+      key,
+      value ? value.slice(0, 15) + "..." : null,
+    );
     return SecureStore.setItemAsync(key, value);
   },
   async clearToken() {
@@ -88,12 +92,12 @@ function AuthRedirect() {
   };
 
   const pathname = usePathname();
-  const isPublicMenu = pathname?.startsWith('/menu/');
+  const isPublicMenu = pathname?.startsWith("/menu/");
 
   useEffect(() => {
     if (!ready || !isLoaded || isStaffSignedIn === null) return;
 
-    const isAuthRoute = pathname?.startsWith('/(auth)');
+    const isAuthRoute = pathname?.startsWith("/(auth)");
 
     // 1. If signed in (Google or Staff) and on an auth page, go to Menu
     if ((isSignedIn || isStaffSignedIn) && isAuthRoute) {
@@ -112,7 +116,7 @@ function AuthRedirect() {
     );
   }
 
-  const isAuthRoute = pathname?.startsWith('/(auth)');
+  const isAuthRoute = pathname?.startsWith("/(auth)");
 
   // Handle Public Menu & Auth Routes separately (bypass Drawer)
   if (isPublicMenu || isAuthRoute) {
@@ -137,12 +141,12 @@ function AuthRedirect() {
         <Drawer.Screen
           name="(tabs)"
           options={{
-            drawerLabel: t('home'),
-            drawerIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+            drawerLabel: t("home"),
+            drawerIcon: ({ color, size }) => (
+              <Ionicons name="home-outline" size={size} color={color} />
+            ),
           }}
         />
-
-
       </Drawer>
     </GestureHandlerRootView>
   );

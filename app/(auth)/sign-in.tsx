@@ -1,7 +1,7 @@
 "use client";
 import { useClerk, useOAuth, useSignIn } from "@clerk/clerk-expo";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as AuthSession from "expo-auth-session";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -16,7 +16,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { StaffLogin } from "../../components/staff creat/StaffLogin";
 import { useRefresh } from "../../context/RefreshContext";
@@ -29,10 +29,10 @@ export default function SignInScreen() {
   const { isLoaded } = useSignIn();
   const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
   const { triggerRefresh } = useRefresh();
-  const [isNoNetworkModalVisible, setIsNoNetworkModalVisible] = React.useState(false);
+  const [isNoNetworkModalVisible, setIsNoNetworkModalVisible] =
+    React.useState(false);
   const [isStaffModalVisible, setIsStaffModalVisible] = React.useState(false);
   const [isLoggingIn, setIsLoggingIn] = React.useState(false);
-
 
   const { isSignedIn } = useClerk();
 
@@ -73,7 +73,7 @@ export default function SignInScreen() {
         await fetch("https://www.google.com", {
           method: "HEAD",
           mode: "no-cors",
-          signal: controller.signal
+          signal: controller.signal,
         });
         clearTimeout(timeoutId);
       } catch (e) {
@@ -90,30 +90,38 @@ export default function SignInScreen() {
 
       console.log("🚀 Starting Google OAuth with useOAuth...");
 
-      const { createdSessionId, setActive: setSessionActive } = await startOAuthFlow({
-        redirectUrl,
-      });
+      const { createdSessionId, setActive: setSessionActive } =
+        await startOAuthFlow({
+          redirectUrl,
+        });
 
       if (createdSessionId) {
         console.log("✅ OAuth Success, setting session...");
-        
+
         // 🛡️ DATA ISOLATION: Wipe previous cached data before setting active session
         const currentLang = await AsyncStorage.getItem("app_language");
         const savedPrinter = await AsyncStorage.getItem("saved_printer");
-        
+
         await AsyncStorage.clear();
-        
-        if (currentLang) await AsyncStorage.setItem("app_language", currentLang);
-        if (savedPrinter) await AsyncStorage.setItem("saved_printer", savedPrinter);
+
+        if (currentLang)
+          await AsyncStorage.setItem("app_language", currentLang);
+        if (savedPrinter)
+          await AsyncStorage.setItem("saved_printer", savedPrinter);
 
         await setSessionActive?.({ session: createdSessionId });
         router.replace("/(tabs)/menu?login=true");
       } else {
-        console.warn("⚠️ OAuth flow did not result in a session immediately. Check Clerk dashboard for required steps.");
+        console.warn(
+          "⚠️ OAuth flow did not result in a session immediately. Check Clerk dashboard for required steps.",
+        );
         setIsLoggingIn(false);
       }
     } catch (err) {
-      const errorMsg = err && typeof err === 'object' && 'message' in err ? String(err.message) : String(err);
+      const errorMsg =
+        err && typeof err === "object" && "message" in err
+          ? String(err.message)
+          : String(err);
       console.log("❌ Google Sign-in Debug Info:", errorMsg);
 
       if (errorMsg.toLowerCase().includes("already signed in")) {
@@ -122,18 +130,22 @@ export default function SignInScreen() {
         return;
       }
 
-      if (errorMsg.toLowerCase().includes("network") || errorMsg.toLowerCase().includes("failed to fetch")) {
+      if (
+        errorMsg.toLowerCase().includes("network") ||
+        errorMsg.toLowerCase().includes("failed to fetch")
+      ) {
         setIsNoNetworkModalVisible(true);
       } else {
-        Alert.alert("Sign-in Failed", "Could not complete Google sign-in. Please try again.");
+        Alert.alert(
+          "Sign-in Failed",
+          "Could not complete Google sign-in. Please try again.",
+        );
       }
-
     } finally {
       setIsLoggingIn(false);
       await WebBrowser.coolDownAsync();
     }
   }, [isLoaded, isSignedIn, startOAuthFlow, router, isLoggingIn]);
-
 
   return (
     <LinearGradient colors={["#FF5F6D", "#FFC371"]} style={styles.container}>
@@ -142,8 +154,8 @@ export default function SignInScreen() {
       <View style={styles.bottomWave} />
 
       {/* Back Button */}
-      <TouchableOpacity 
-        style={styles.backButton} 
+      <TouchableOpacity
+        style={styles.backButton}
         onPress={() => {
           if (router.canGoBack()) {
             router.back();
@@ -184,12 +196,19 @@ export default function SignInScreen() {
 
         {/* Google Button */}
         <TouchableOpacity
-          style={[styles.googleBtn, (!isLoaded || isLoggingIn) && { opacity: 0.7 }]}
+          style={[
+            styles.googleBtn,
+            (!isLoaded || isLoggingIn) && { opacity: 0.7 },
+          ]}
           onPress={handleGoogleSignIn}
           disabled={!isLoaded || isLoggingIn}
         >
           {isLoggingIn ? (
-            <ActivityIndicator color="#FF5F6D" size="small" style={{ marginRight: 15 }} />
+            <ActivityIndicator
+              color="#FF5F6D"
+              size="small"
+              style={{ marginRight: 15 }}
+            />
           ) : (
             <Image
               source={{
@@ -204,11 +223,29 @@ export default function SignInScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.googleBtn, { backgroundColor: '#4F46E5', elevation: 10, shadowColor: '#4F46E5', shadowOpacity: 0.4, shadowRadius: 10 }]}
+          style={[
+            styles.googleBtn,
+            {
+              backgroundColor: "#4F46E5",
+              elevation: 10,
+              shadowColor: "#4F46E5",
+              shadowOpacity: 0.4,
+              shadowRadius: 10,
+            },
+          ]}
           onPress={() => setIsStaffModalVisible(true)}
         >
-          <Ionicons name="shield-checkmark" size={24} color="#fff" style={{ marginRight: 15 }} />
-          <Text style={[styles.googleText, { color: '#fff', letterSpacing: 1 }]}>STAFF PORTAL ACCESS</Text>
+          <Ionicons
+            name="shield-checkmark"
+            size={24}
+            color="#fff"
+            style={{ marginRight: 15 }}
+          />
+          <Text
+            style={[styles.googleText, { color: "#fff", letterSpacing: 1 }]}
+          >
+            STAFF PORTAL ACCESS
+          </Text>
         </TouchableOpacity>
 
         {/* Footer */}
@@ -232,11 +269,16 @@ export default function SignInScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.iconCircle}>
-              <Ionicons name="cloud-offline-outline" size={50} color="#FF5F6D" />
+              <Ionicons
+                name="cloud-offline-outline"
+                size={50}
+                color="#FF5F6D"
+              />
             </View>
             <Text style={styles.modalTitle}>No Network 📶</Text>
             <Text style={styles.modalText}>
-              It looks like your phone is not connected to the internet. Please check your network and try again.
+              It looks like your phone is not connected to the internet. Please
+              check your network and try again.
             </Text>
             <TouchableOpacity
               style={styles.modalBtn}
@@ -253,7 +295,6 @@ export default function SignInScreen() {
         onClose={() => setIsStaffModalVisible(false)}
       />
     </LinearGradient>
-
   );
 }
 
@@ -436,4 +477,3 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
 });
-
