@@ -354,14 +354,16 @@ export const StaffPermissionEngine = {
       // Fallback 3: check raw profile data
       const rawProfile = await AsyncStorage.getItem("user_profile");
       if (rawProfile) {
-          try {
-              const parsed = JSON.parse(rawProfile);
-              const id = parsed.businessId || parsed._id || parsed.id;
-              if (id) return id;
-          } catch (e) {}
+        try {
+          const parsed = JSON.parse(rawProfile);
+          const id = parsed.businessId || parsed._id || parsed.id;
+          if (id) return id;
+        } catch (e) {}
       }
 
-      console.log(`[AUTH-SYSTEM] Business ID not found for user: ${clerkUserId || 'Unknown'}`);
+      console.log(
+        `[AUTH-SYSTEM] Business ID not found for user: ${clerkUserId || "Unknown"}`,
+      );
       return null;
     } catch (err) {
       console.error("[AUTH-SYSTEM] Error getting Business ID:", err);

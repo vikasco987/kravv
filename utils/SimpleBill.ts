@@ -2,8 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DeviceEventEmitter, Image } from "react-native";
 // @ts-ignore
 import RNBluetoothClassic from "react-native-bluetooth-classic";
-import { getRecentCompanyProfile } from "../services/companyService";
 import { StaffPermissionEngine } from "../components/staff creat/StaffPermissionEngine";
+import { getRecentCompanyProfile } from "../services/companyService";
 
 export type CartItem = {
   id: string;
@@ -66,9 +66,18 @@ function utf8Encode(str: string): Uint8Array {
     } else if (codePoint < 0x800) {
       codePoints.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
     } else if (codePoint < 0x10000) {
-      codePoints.push(0xe0 | (codePoint >> 12), 0x80 | ((codePoint >> 6) & 0x3f), 0x80 | (codePoint & 0x3f));
+      codePoints.push(
+        0xe0 | (codePoint >> 12),
+        0x80 | ((codePoint >> 6) & 0x3f),
+        0x80 | (codePoint & 0x3f),
+      );
     } else {
-      codePoints.push(0xf0 | (codePoint >> 18), 0x80 | ((codePoint >> 12) & 0x3f), 0x80 | ((codePoint >> 6) & 0x3f), 0x80 | (codePoint & 0x3f));
+      codePoints.push(
+        0xf0 | (codePoint >> 18),
+        0x80 | ((codePoint >> 12) & 0x3f),
+        0x80 | ((codePoint >> 6) & 0x3f),
+        0x80 | (codePoint & 0x3f),
+      );
     }
   }
   return new Uint8Array(codePoints);
@@ -95,13 +104,21 @@ async function printQRCode(printer: any, data: string) {
     const dataBytes = utf8Encode(data);
     const pL = (dataBytes.length + 3) % 256;
     const pH = Math.floor((dataBytes.length + 3) / 256);
-    await printer.write(new Uint8Array([0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]));
-    await printer.write(new Uint8Array([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x06]));
-    await printer.write(new Uint8Array([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x30]));
+    await printer.write(
+      new Uint8Array([0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]),
+    );
+    await printer.write(
+      new Uint8Array([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x06]),
+    );
+    await printer.write(
+      new Uint8Array([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x30]),
+    );
     const header = new Uint8Array([0x1d, 0x28, 0x6b, pL, pH, 0x31, 0x50, 0x30]);
     await printer.write(header);
     await printer.write(dataBytes);
-    await printer.write(new Uint8Array([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30]));
+    await printer.write(
+      new Uint8Array([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30]),
+    );
   } catch (err) {
     console.log("QR printing failed:", err);
   }
@@ -122,24 +139,43 @@ export async function SimpleBill(
   try {
     const sessionStr = await AsyncStorage.getItem("staff_session");
     const session = sessionStr ? JSON.parse(sessionStr) : null;
-    let finalToken: any = (token && token !== "null") ? token : (session?.token || null);
-    let finalClerkId: any = (userClerkId && userClerkId !== "null") ? userClerkId : (session?.id || session?._id || null);
-    let finalBusinessId = options?.businessId || await StaffPermissionEngine.getActiveBusinessId(finalClerkId || undefined);
+    let finalToken: any =
+      token && token !== "null" ? token : session?.token || null;
+    let finalClerkId: any =
+      userClerkId && userClerkId !== "null"
+        ? userClerkId
+        : session?.id || session?._id || null;
+    let finalBusinessId =
+      options?.businessId ||
+      (await StaffPermissionEngine.getActiveBusinessId(
+        finalClerkId || undefined,
+      ));
     if (!finalToken && session?.token) finalToken = session.token;
 
-    const companyInfo = options?.businessProfile || (await getRecentCompanyProfile(finalToken || ""));
+    const companyInfo =
+      options?.businessProfile ||
+      (await getRecentCompanyProfile(finalToken || ""));
     const date = new Date();
     const tempBillNo = `NEW-${Date.now().toString().slice(-4)}`;
 
     const settings = await AsyncStorage.multiGet([
-      "tax_enabled", "tax_rate", "per_product_tax",
-      "discount_enabled", "discount_rate",
-      "service_charge_enabled", "service_charge_rate",
-      "service_gst_enabled", "service_gst_rate",
-      "delivery_charge_enabled", "delivery_charge_amount",
-      "delivery_gst_enabled", "delivery_gst_rate",
-      "packaging_charge_enabled", "packaging_charge_amount",
-      "packaging_gst_enabled", "packaging_gst_rate"
+      "tax_enabled",
+      "tax_rate",
+      "per_product_tax",
+      "discount_enabled",
+      "discount_rate",
+      "service_charge_enabled",
+      "service_charge_rate",
+      "service_gst_enabled",
+      "service_gst_rate",
+      "delivery_charge_enabled",
+      "delivery_charge_amount",
+      "delivery_gst_enabled",
+      "delivery_gst_rate",
+      "packaging_charge_enabled",
+      "packaging_charge_amount",
+      "packaging_gst_enabled",
+      "packaging_gst_rate",
     ]);
     const sMap: Record<string, string | null> = {};
     settings.forEach(([key, val]) => (sMap[key] = val));
@@ -147,21 +183,51 @@ export async function SimpleBill(
     const tS = options?.taxSettings;
     const isTaxEnabled = tS ? tS.enabled : sMap["tax_enabled"] === "true";
     const globalTaxRate = tS ? tS.rate : parseFloat(sMap["tax_rate"] || "0.00");
-    const perProductTaxEnabled = tS ? tS.perProduct : sMap["per_product_tax"] === "true";
-    const isDiscountEnabled = tS ? tS.discountEnabled : sMap["discount_enabled"] === "true";
-    const discountRatePercent = tS ? tS.discountRate : parseFloat(sMap["discount_rate"] || "0.00");
-    const isServiceChargeEnabled = tS ? tS.serviceChargeEnabled : sMap["service_charge_enabled"] === "true";
-    const serviceChargeRate = tS ? tS.serviceChargeRate : parseFloat(sMap["service_charge_rate"] || "0.00");
-    const isServiceGstEnabled = tS ? tS.serviceGstEnabled : sMap["service_gst_enabled"] === "true";
-    const serviceGstRate = tS ? tS.serviceGstRate : parseFloat(sMap["service_gst_rate"] || "0.00");
-    const isDeliveryChargeEnabled = tS ? tS.deliveryChargeEnabled : sMap["delivery_charge_enabled"] === "true";
-    const deliveryChargeAmount = tS ? tS.deliveryChargeAmount : parseFloat(sMap["delivery_charge_amount"] || "0.00");
-    const isDeliveryGstEnabled = tS ? tS.deliveryGstEnabled : sMap["delivery_gst_enabled"] === "true";
-    const deliveryGstRate = tS ? tS.deliveryGstRate : parseFloat(sMap["delivery_gst_rate"] || "0.00");
-    const isPackagingChargeEnabled = tS ? tS.packagingChargeEnabled : sMap["packaging_charge_enabled"] === "true";
-    const packagingChargeAmount = tS ? tS.packagingChargeAmount : parseFloat(sMap["packaging_charge_amount"] || "0.00");
-    const isPackagingGstEnabled = tS ? tS.packagingGstEnabled : sMap["packaging_gst_enabled"] === "true";
-    const packagingGstRate = tS ? tS.packagingGstRate : parseFloat(sMap["packaging_gst_rate"] || "0.00");
+    const perProductTaxEnabled = tS
+      ? tS.perProduct
+      : sMap["per_product_tax"] === "true";
+    const isDiscountEnabled = tS
+      ? tS.discountEnabled
+      : sMap["discount_enabled"] === "true";
+    const discountRatePercent = tS
+      ? tS.discountRate
+      : parseFloat(sMap["discount_rate"] || "0.00");
+    const isServiceChargeEnabled = tS
+      ? tS.serviceChargeEnabled
+      : sMap["service_charge_enabled"] === "true";
+    const serviceChargeRate = tS
+      ? tS.serviceChargeRate
+      : parseFloat(sMap["service_charge_rate"] || "0.00");
+    const isServiceGstEnabled = tS
+      ? tS.serviceGstEnabled
+      : sMap["service_gst_enabled"] === "true";
+    const serviceGstRate = tS
+      ? tS.serviceGstRate
+      : parseFloat(sMap["service_gst_rate"] || "0.00");
+    const isDeliveryChargeEnabled = tS
+      ? tS.deliveryChargeEnabled
+      : sMap["delivery_charge_enabled"] === "true";
+    const deliveryChargeAmount = tS
+      ? tS.deliveryChargeAmount
+      : parseFloat(sMap["delivery_charge_amount"] || "0.00");
+    const isDeliveryGstEnabled = tS
+      ? tS.deliveryGstEnabled
+      : sMap["delivery_gst_enabled"] === "true";
+    const deliveryGstRate = tS
+      ? tS.deliveryGstRate
+      : parseFloat(sMap["delivery_gst_rate"] || "0.00");
+    const isPackagingChargeEnabled = tS
+      ? tS.packagingChargeEnabled
+      : sMap["packaging_charge_enabled"] === "true";
+    const packagingChargeAmount = tS
+      ? tS.packagingChargeAmount
+      : parseFloat(sMap["packaging_charge_amount"] || "0.00");
+    const isPackagingGstEnabled = tS
+      ? tS.packagingGstEnabled
+      : sMap["packaging_gst_enabled"] === "true";
+    const packagingGstRate = tS
+      ? tS.packagingGstRate
+      : parseFloat(sMap["packaging_gst_rate"] || "0.00");
 
     let totalTaxable = 0;
     let totalGst = 0;
@@ -178,7 +244,8 @@ export async function SimpleBill(
       else if (isTaxEnabled) itemGstRate = globalTaxRate;
       else if (perProductTaxEnabled) itemGstRate = productGst;
 
-      let taxable = 0, gst = 0;
+      let taxable = 0,
+        gst = 0;
       if (item.taxStatus === "With Tax" || item.taxType === "With Tax") {
         taxable = lineTotal / (1 + itemGstRate / 100);
         gst = lineTotal - taxable;
@@ -202,32 +269,48 @@ export async function SimpleBill(
         gstPaid: Number(gst.toFixed(2)),
         gstRate: itemGstRate,
         total: Number(lineTotal.toFixed(2)),
-        taxStatus: item.taxStatus || item.taxType || "With Tax"
+        taxStatus: item.taxStatus || item.taxType || "With Tax",
       };
     });
 
-    const discountAmount = isDiscountEnabled ? totalTaxable * (discountRatePercent / 100) : 0;
+    const discountAmount = isDiscountEnabled
+      ? totalTaxable * (discountRatePercent / 100)
+      : 0;
     const taxableAfterDiscount = totalTaxable - discountAmount;
     const avgGstRate = totalTaxable > 0 ? totalGst / totalTaxable : 0;
     const finalGstAmount = taxableAfterDiscount * avgGstRate;
 
-    let serviceCharge = 0, serviceGst = 0;
+    let serviceCharge = 0,
+      serviceGst = 0;
     if (isServiceChargeEnabled) {
       serviceCharge = serviceChargeRate;
-      if (isServiceGstEnabled) serviceGst = (serviceCharge * serviceGstRate) / 100;
+      if (isServiceGstEnabled)
+        serviceGst = (serviceCharge * serviceGstRate) / 100;
     }
-    let deliveryCharge = 0, deliveryGst = 0;
+    let deliveryCharge = 0,
+      deliveryGst = 0;
     if (isDeliveryChargeEnabled) {
       deliveryCharge = deliveryChargeAmount;
-      if (isDeliveryGstEnabled) deliveryGst = (deliveryCharge * deliveryGstRate) / 100;
+      if (isDeliveryGstEnabled)
+        deliveryGst = (deliveryCharge * deliveryGstRate) / 100;
     }
-    let packagingCharge = 0, packagingGst = 0;
+    let packagingCharge = 0,
+      packagingGst = 0;
     if (isPackagingChargeEnabled) {
       packagingCharge = packagingChargeAmount;
-      if (isPackagingGstEnabled) packagingGst = (packagingCharge * packagingGstRate) / 100;
+      if (isPackagingGstEnabled)
+        packagingGst = (packagingCharge * packagingGstRate) / 100;
     }
 
-    const finalGrandTotal = taxableAfterDiscount + finalGstAmount + serviceCharge + serviceGst + deliveryCharge + deliveryGst + packagingCharge + packagingGst;
+    const finalGrandTotal =
+      taxableAfterDiscount +
+      finalGstAmount +
+      serviceCharge +
+      serviceGst +
+      deliveryCharge +
+      deliveryGst +
+      packagingCharge +
+      packagingGst;
 
     // Printing
     const printer: any = await ensurePrinterConnected(options?.silent);
@@ -235,13 +318,19 @@ export async function SimpleBill(
       await printer.write(ALIGN_CENTER);
       await printer.write(SIZE_LARGE);
       await printer.write(BOLD_ON);
-      await printer.write(utf8Encode((companyInfo?.companyName || "KRAVY").toUpperCase() + "\n"));
+      await printer.write(
+        utf8Encode((companyInfo?.companyName || "KRAVY").toUpperCase() + "\n"),
+      );
       await printer.write(BOLD_OFF);
       await printer.write(SIZE_NORMAL);
-      if (companyInfo?.businessTagLine) await printer.write(utf8Encode(companyInfo.businessTagLine + "\n"));
+      if (companyInfo?.businessTagLine)
+        await printer.write(utf8Encode(companyInfo.businessTagLine + "\n"));
       await printer.write(utf8Encode(line("=") + "\n"));
-      await printer.write(utf8Encode((companyInfo?.companyAddress || "") + "\n"));
-      if (companyInfo?.gstNumber) await printer.write(utf8Encode(`GSTIN: ${companyInfo.gstNumber}\n`));
+      await printer.write(
+        utf8Encode((companyInfo?.companyAddress || "") + "\n"),
+      );
+      if (companyInfo?.gstNumber)
+        await printer.write(utf8Encode(`GSTIN: ${companyInfo.gstNumber}\n`));
       await printer.write(utf8Encode(line("-") + "\n"));
       await printer.write(ALIGN_LEFT);
 
@@ -256,12 +345,16 @@ export async function SimpleBill(
       });
       body += `${line("-")}\n`;
       body += `${"subtotal:".padEnd(20)}${subtotal.toFixed(2).padStart(12)}\n`;
-      if (isDiscountEnabled) body += `${`Disc (${discountRatePercent}%):`.padEnd(20)}${`-${discountAmount.toFixed(2)}`.padStart(12)}\n`;
+      if (isDiscountEnabled)
+        body += `${`Disc (${discountRatePercent}%):`.padEnd(20)}${`-${discountAmount.toFixed(2)}`.padStart(12)}\n`;
       body += `${"Taxable:".padEnd(20)}${taxableAfterDiscount.toFixed(2).padStart(12)}\n`;
       body += `${"GST:".padEnd(20)}${finalGstAmount.toFixed(2).padStart(12)}\n`;
-      if (serviceCharge > 0) body += `${"Service:".padEnd(20)}${serviceCharge.toFixed(2).padStart(12)}\n`;
-      if (deliveryCharge > 0) body += `${"Delivery:".padEnd(20)}${deliveryCharge.toFixed(2).padStart(12)}\n`;
-      if (packagingCharge > 0) body += `${"Packaging:".padEnd(20)}${packagingCharge.toFixed(2).padStart(12)}\n`;
+      if (serviceCharge > 0)
+        body += `${"Service:".padEnd(20)}${serviceCharge.toFixed(2).padStart(12)}\n`;
+      if (deliveryCharge > 0)
+        body += `${"Delivery:".padEnd(20)}${deliveryCharge.toFixed(2).padStart(12)}\n`;
+      if (packagingCharge > 0)
+        body += `${"Packaging:".padEnd(20)}${packagingCharge.toFixed(2).padStart(12)}\n`;
       body += `${line("-")}\n`;
       body += `${"TOTAL:".padEnd(20)}${finalGrandTotal.toFixed(2).padStart(12)}\n`;
       body += `${line("-")}\n`;
@@ -280,22 +373,39 @@ export async function SimpleBill(
     }
 
     // Backend Save
-    const discountFactor = totalTaxable > 0 ? (totalTaxable - discountAmount) / totalTaxable : 1;
+    const discountFactor =
+      totalTaxable > 0 ? (totalTaxable - discountAmount) / totalTaxable : 1;
     const discountedItems = productsForBackend.map((item) => {
       const dTaxable = Number((item.taxableAmount * discountFactor).toFixed(2));
       const dGst = Number((item.gstPaid * discountFactor).toFixed(2));
-      return { ...item, taxableAmount: dTaxable, gstPaid: dGst, total: Number((dTaxable + dGst).toFixed(2)) };
+      return {
+        ...item,
+        taxableAmount: dTaxable,
+        gstPaid: dGst,
+        total: Number((dTaxable + dGst).toFixed(2)),
+      };
     });
 
-    const finalItemsGst = discountedItems.reduce((sum, it) => sum + (Number(it.gstPaid) || 0), 0);
-    const finalBillTax = Number((finalItemsGst + serviceGst + deliveryGst + packagingGst).toFixed(2));
+    const finalItemsGst = discountedItems.reduce(
+      (sum, it) => sum + (Number(it.gstPaid) || 0),
+      0,
+    );
+    const finalBillTax = Number(
+      (finalItemsGst + serviceGst + deliveryGst + packagingGst).toFixed(2),
+    );
     const finalBillTotal = Number(finalGrandTotal.toFixed(2));
 
-    const url = options?.billId ? `https://billing.kravy.in/api/bill-manager/${options.billId}` : "https://billing.kravy.in/api/bill-manager";
+    const url = options?.billId
+      ? `https://billing.kravy.in/api/bill-manager/${options.billId}`
+      : "https://billing.kravy.in/api/bill-manager";
 
     const response = await fetch(url, {
       method: options?.billId ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${finalToken}` },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${finalToken}`,
+      },
       body: JSON.stringify({
         items: discountedItems,
         subtotal: Number(subtotal.toFixed(2)),
@@ -332,7 +442,7 @@ export async function SimpleBill(
       console.error("Bill Save Failed:", response.status, errorText);
       throw new Error(`Server error: ${response.status} - ${errorText}`);
     }
-    
+
     DeviceEventEmitter.emit("refresh_orders_list");
     DeviceEventEmitter.emit("REFRESH_DASHBOARD");
     return { status: "success" };

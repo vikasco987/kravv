@@ -294,7 +294,7 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
 
       // Navigate to Menu tab first
       router.push("/(tabs)/menu");
-      
+
       // Delay closing the current view slightly to ensure navigation starts
       setTimeout(() => {
         if (onBack) onBack();

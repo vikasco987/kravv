@@ -202,7 +202,7 @@ const MainDashboardView = ({ isLockedUser }) => {
 
   useEffect(() => {
     fetchStats();
-    const sub = DeviceEventEmitter.addListener('REFRESH_DASHBOARD', fetchStats);
+    const sub = DeviceEventEmitter.addListener("REFRESH_DASHBOARD", fetchStats);
     return () => sub.remove();
   }, [isLoaded, isSignedIn, isLockedUser]);
 

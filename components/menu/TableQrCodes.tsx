@@ -358,11 +358,10 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const [cachedTables, cachedBusinessName] =
-          await Promise.all([
-            AsyncStorage.getItem("@cached_tables"),
-            AsyncStorage.getItem("@cached_business_name"),
-          ]);
+        const [cachedTables, cachedBusinessName] = await Promise.all([
+          AsyncStorage.getItem("@cached_tables"),
+          AsyncStorage.getItem("@cached_business_name"),
+        ]);
 
         if (cachedTables) setTables(JSON.parse(cachedTables));
         if (cachedBusinessName) setBusinessName(cachedBusinessName);

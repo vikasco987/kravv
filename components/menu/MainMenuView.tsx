@@ -4,21 +4,21 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { useIsFocused } from "@react-navigation/native";
 import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import {
-    ActivityIndicator,
-    DeviceEventEmitter,
-    Dimensions,
-    FlatList,
-    StyleSheet,
-    Text,
-    ToastAndroid,
-    View,
+  ActivityIndicator,
+  DeviceEventEmitter,
+  Dimensions,
+  FlatList,
+  StyleSheet,
+  Text,
+  ToastAndroid,
+  View,
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
@@ -353,7 +353,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         // Process Extra Categories (empty ones)
         if (catRes && catRes.ok) {
           const catData = await catRes.json();
-          const allCats = Array.isArray(catData) ? catData : (catData.data || catData.categories || []);
+          const allCats = Array.isArray(catData)
+            ? catData
+            : catData.data || catData.categories || [];
           if (Array.isArray(allCats)) {
             allCats.forEach((c: any) => {
               const cid = String(c.id || c._id);
@@ -365,21 +367,25 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         }
 
         const finalMenus = Object.values(categoryMap)
-          .filter(cat => cat.items.length > 0 || (cat.id !== "others" && cat.id !== "none"))
+          .filter(
+            (cat) =>
+              cat.items.length > 0 ||
+              (cat.id !== "others" && cat.id !== "none"),
+          )
           .sort((a, b) => a.name.localeCompare(b.name))
           .map((cat) => ({
             ...cat,
             items: cat.items.sort((a, b) => a.name.localeCompare(b.name)),
           }));
 
-        // 🚀 RESILIENCE: If we have cached categories that are now missing (due to 504 on catRes), 
+        // 🚀 RESILIENCE: If we have cached categories that are now missing (due to 504 on catRes),
         // we should try to keep them if possible.
         if (catRes && !catRes.ok && menus.length > 0) {
-            menus.forEach(exCat => {
-                if (!categoryMap[exCat.id]) {
-                    finalMenus.push(exCat);
-                }
-            });
+          menus.forEach((exCat) => {
+            if (!categoryMap[exCat.id]) {
+              finalMenus.push(exCat);
+            }
+          });
         }
 
         if (finalMenus.length > 0) {
@@ -660,7 +666,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             await AsyncStorage.removeItem("@resume_cart");
             const id = await AsyncStorage.getItem("@resume_cart_id");
             const isEdit = await AsyncStorage.getItem("@is_bill_edit");
-            
+
             if (id) {
               setActiveOrderId(id);
               await AsyncStorage.removeItem("@resume_cart_id");
@@ -671,9 +677,12 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
               setSelectedTable(table);
               await AsyncStorage.removeItem("@resume_table");
             }
-            
+
             if (isEdit === "true") {
-              ToastAndroid.show("📝 Bill Loaded for Editing", ToastAndroid.SHORT);
+              ToastAndroid.show(
+                "📝 Bill Loaded for Editing",
+                ToastAndroid.SHORT,
+              );
               await AsyncStorage.removeItem("@is_bill_edit");
             } else {
               ToastAndroid.show(
@@ -946,7 +955,6 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       } else {
         await saveToLocalFallback(itemsSnapshot, totalValue);
       }
-
     } catch (e) {
       console.error("Hold process error:", e);
     }
@@ -1482,4 +1490,3 @@ const styles = StyleSheet.create({
 });
 
 export default MainMenuView;
-
