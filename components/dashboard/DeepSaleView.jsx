@@ -286,13 +286,19 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
       await AsyncStorage.setItem("@resume_cart", JSON.stringify(cartToResume));
       if (item._id || item.id) {
         await AsyncStorage.setItem("@resume_cart_id", item._id || item.id);
+        // Set a special flag to indicate this is a bill edit from Dashboard
+        await AsyncStorage.setItem("@is_bill_edit", "true");
       }
 
       ToastAndroid.show("🔄 Loading bill to Menu...", ToastAndroid.SHORT);
 
-      // Navigate to Menu tab
+      // Navigate to Menu tab first
       router.push("/(tabs)/menu");
-      if (onBack) onBack();
+      
+      // Delay closing the current view slightly to ensure navigation starts
+      setTimeout(() => {
+        if (onBack) onBack();
+      }, 500);
     } catch (e) {
       console.error("Edit bill error:", e);
       ToastAndroid.show("❌ Error loading bill", ToastAndroid.SHORT);

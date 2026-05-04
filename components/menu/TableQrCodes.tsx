@@ -129,34 +129,72 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
       const authToken = await getToken();
       const sessionStr = await AsyncStorage.getItem("staff_session");
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
       const finalToken = authToken || staffSession?.token;
-
-      if (bId) {
-        setBusinessId(bId);
-        await AsyncStorage.setItem("@cached_business_id", bId);
-      }
 
       if (!finalToken) {
         setLoading(false);
         return;
       }
 
-      // Standard API URL without trailing slash
-      const response = await fetch("https://billing.kravy.in/api/tables", {
-        headers: { Authorization: `Bearer ${finalToken}` },
-      });
+      // 1. The public menu URL format is: /menu/[clerkId]
+      //    The backend profile API (GET /api/profile) returns the Prisma BusinessProfile model.
+      //    Per Prisma schema: BusinessProfile.userId = owner's Clerk ID (NOT MongoDB _id)
+      //    So profile.userId IS the correct Clerk ID for the QR URL.
+      let clerkIdForQr: string | null = null;
 
-      // Base URL for Profile
+      // 2. Fetch fresh profile — response contains { userId: "clerk_xxx", businessName: ... }
+      //    getEffectiveClerkId() on backend resolves owner's clerkId even for staff tokens.
+      //    So profile.userId will ALWAYS be the owner's Clerk ID regardless of who is logged in.
       const pRes = await fetch("https://billing.kravy.in/api/profile", {
         headers: { Authorization: `Bearer ${finalToken}` },
       });
+
       if (pRes.ok) {
         const pData = await pRes.json();
-        const bName = pData.businessName || pData.companyName || "KRAVY";
+        const actualData = pData.data || pData;
+
+        // Backend BusinessProfile schema: userId = owner's Clerk ID (string, @unique)
+        // This is guaranteed to be a Clerk ID, never a MongoDB ObjectId.
+        // Also check clerkUserId as a legacy/alias field name just in case.
+        const resolvedClerkId = actualData.userId || actualData.clerkUserId;
+
+        // Validate it looks like a Clerk ID (starts with "user_") OR is the owner's Clerk user ID.
+        // Clerk IDs start with "user_". MongoDB ObjectIds are 24-char hex strings.
+        // We reject any 24-char hex strings (MongoDB ObjectIds) as they are INVALID for the QR URL.
+        const isMongoDB24HexId = /^[0-9a-f]{24}$/.test(resolvedClerkId || "");
+        if (resolvedClerkId && !isMongoDB24HexId) {
+          clerkIdForQr = resolvedClerkId;
+        }
+
+        const bName =
+          actualData.businessName || actualData.companyName || "KRAVY";
         setBusinessName(bName);
         await AsyncStorage.setItem("@cached_business_name", bName);
       }
+
+      // 3. Reliable fallback for Owners logged in directly via Clerk (no staff session).
+      //    user.id from Clerk's useUser() hook IS the owner's Clerk user ID.
+      //    This is always safe because it's coming directly from Clerk SDK, not any API/cache.
+      if (!clerkIdForQr && !staffSession && user?.id) {
+        // user.id is the Clerk user ID (e.g. "user_2abc123") — always correct for owners
+        clerkIdForQr = user.id;
+      }
+
+      // 4. Update state and ALWAYS write fresh to cache (overwrite any stale value).
+      //    If we couldn't resolve a valid Clerk ID, clear stale cache to prevent wrong QR.
+      if (clerkIdForQr) {
+        setBusinessId(clerkIdForQr);
+        await AsyncStorage.setItem("@cached_business_id", clerkIdForQr);
+      } else {
+        // No valid Clerk ID resolved — clear stale cache to prevent wrong QR generation
+        await AsyncStorage.removeItem("@cached_business_id");
+        setBusinessId(null);
+      }
+
+      // 4. Standard API URL for tables
+      const response = await fetch("https://billing.kravy.in/api/tables", {
+        headers: { Authorization: `Bearer ${finalToken}` },
+      });
 
       if (response.ok) {
         const contentType = response.headers.get("content-type");
@@ -320,16 +358,20 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const [cachedTables, cachedBusinessName, cachedBusinessId] =
+        const [cachedTables, cachedBusinessName] =
           await Promise.all([
             AsyncStorage.getItem("@cached_tables"),
             AsyncStorage.getItem("@cached_business_name"),
-            AsyncStorage.getItem("@cached_business_id"),
           ]);
 
         if (cachedTables) setTables(JSON.parse(cachedTables));
         if (cachedBusinessName) setBusinessName(cachedBusinessName);
-        if (cachedBusinessId) setBusinessId(cachedBusinessId);
+
+        // NOTE: We intentionally do NOT load @cached_business_id here.
+        // Cached business IDs can be stale (e.g. Masala House from a previous
+        // session). businessId is ONLY set by openQrModal's fresh API call.
+        // This guarantees QR always uses the correct owner's Clerk ID.
+        await AsyncStorage.removeItem("@cached_business_id");
 
         const [tEnabled, rEnabled] = await Promise.all([
           AsyncStorage.getItem("table_booking_enabled"),
@@ -338,14 +380,12 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
         setTableBookingEnabled(tEnabled === "true");
         setRoomBookingEnabled(rEnabled === "true");
 
-        // If we have cached data, we don't need to show the initial loading state
         if (cachedTables) {
           setLoading(false);
         }
       } catch (e) {
         console.error("Error loading cached table data:", e);
       }
-      // Always fetch fresh data in the background
       fetchTables();
     };
 
@@ -360,9 +400,57 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
     return tables.filter((t) => t.name.toLowerCase().startsWith("room"));
   }, [tables]);
 
-  const openQrModal = (table: Table) => {
+  const openQrModal = async (table: Table) => {
     setSelectedTable(table);
+    setBusinessId(null); // Always show spinner — never use any cached/stale ID for QR
     setIsQrModalVisible(true);
+
+    try {
+      // Get auth token (works for both Clerk and custom auth)
+      const authToken = await getToken();
+      const sessionStr = await AsyncStorage.getItem("staff_session");
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const finalToken = authToken || staffSession?.token;
+
+      if (!finalToken) {
+        // No token at all — cannot determine correct business
+        return;
+      }
+
+      // FRESH API CALL — profile.userId is ALWAYS the owner's Clerk ID.
+      // Backend getEffectiveClerkId() resolves to owner's clerkId for both
+      // owner tokens AND staff tokens. So this is guaranteed correct.
+      // ?t= prevents any HTTP-level caching from serving a stale response.
+      const pRes = await fetch(
+        `https://billing.kravy.in/api/profile?t=${Date.now()}`,
+        { headers: { Authorization: `Bearer ${finalToken}` } },
+      );
+
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        const actualData = pData.data || pData;
+
+        // profile.userId = owner's Clerk ID (from Prisma BusinessProfile schema)
+        // This is NEVER a MongoDB ObjectId — it's always a Clerk user ID string.
+        const resolvedClerkId = actualData.userId || actualData.clerkUserId;
+        const isMongoDB24HexId = /^[0-9a-f]{24}$/.test(resolvedClerkId || "");
+
+        if (resolvedClerkId && !isMongoDB24HexId) {
+          setBusinessId(resolvedClerkId);
+          // Cache the VERIFIED correct ID for other parts of the app
+          await AsyncStorage.setItem("@cached_business_id", resolvedClerkId);
+          return;
+        }
+      }
+
+      // Last resort fallback: Clerk owner's user.id (only valid for owner Clerk sessions)
+      if (!staffSession && user?.id) {
+        setBusinessId(user.id);
+        await AsyncStorage.setItem("@cached_business_id", user.id);
+      }
+    } catch (e) {
+      console.log("[QR] Business ID fetch error:", e);
+    }
   };
 
   return (
@@ -560,32 +648,48 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
 
             {selectedTable && (
               <View style={styles.qrContainer}>
-                <ViewShot
-                  ref={viewShotRef}
-                  options={{ format: "png", quality: 1.0 }}
-                >
-                  <View style={styles.qrCaptureArea}>
-                    <Text style={styles.qrBrandName}>
-                      {businessName.toUpperCase()}
-                    </Text>
-                    <View style={styles.qrWrapper}>
-                      <QRCode
-                        value={`https://billing.kravy.in/menu/${businessId || user?.id}?tableId=${selectedTable.id}`}
-                        size={s(180)}
-                        color="#000"
-                        backgroundColor="#fff"
-                        enableLinearGradient={true}
-                        linearGradient={["#000", "#333"]}
-                      />
-                    </View>
-                    <Text style={styles.qrTableName}>{selectedTable.name}</Text>
-                    <Text style={styles.qrScanPrompt}>
-                      {roomBookingEnabled && !tableBookingEnabled
-                        ? "Scan to view Room Menu"
-                        : "Scan to view Menu"}
+                {!businessId ? (
+                  <View
+                    style={[
+                      styles.qrCaptureArea,
+                      { justifyContent: "center", minHeight: s(250) },
+                    ]}
+                  >
+                    <ActivityIndicator color={COLORS.PRIMARY} size="large" />
+                    <Text style={[styles.qrScanPrompt, { marginTop: vs(10) }]}>
+                      Identifying Business Profile...
                     </Text>
                   </View>
-                </ViewShot>
+                ) : (
+                  <ViewShot
+                    ref={viewShotRef}
+                    options={{ format: "png", quality: 1.0 }}
+                  >
+                    <View style={styles.qrCaptureArea}>
+                      <Text style={styles.qrBrandName}>
+                        {businessName.toUpperCase()}
+                      </Text>
+                      <View style={styles.qrWrapper}>
+                        <QRCode
+                          value={`https://billing.kravy.in/menu/${businessId}?tableId=${selectedTable.id}`}
+                          size={s(180)}
+                          color="#000"
+                          backgroundColor="#fff"
+                          enableLinearGradient={true}
+                          linearGradient={["#000", "#333"]}
+                        />
+                      </View>
+                      <Text style={styles.qrTableName}>
+                        {selectedTable.name}
+                      </Text>
+                      <Text style={styles.qrScanPrompt}>
+                        {roomBookingEnabled && !tableBookingEnabled
+                          ? "Scan to view Room Menu"
+                          : "Scan to view Menu"}
+                      </Text>
+                    </View>
+                  </ViewShot>
+                )}
 
                 <Text style={styles.qrInstructions}>
                   {t("qr_instructions") ||

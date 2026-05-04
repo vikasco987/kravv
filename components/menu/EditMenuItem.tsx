@@ -756,30 +756,23 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                                         const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
                                         const finalToken = authToken || staffSession?.token;
 
-                                        const response = await fetch("https://billing.kravy.in/api/categories", {
-                                            method: "POST",
-                                            headers: {
-                                                "Content-Type": "application/json",
-                                                Authorization: `Bearer ${finalToken}`,
-                                            },
-                                            body: JSON.stringify({ name: newCategoryName, businessId: bId }),
-                                        });
-
-                                        if (response.ok) {
-                                            setNewCategoryName("");
-                                            setIsCreateCategoryModalVisible(false);
-                                            fetchAllCategories();
-                                            fetchMenus();
-
-                                            // Show Success Modal
-                                            setShowCategorySuccess(true);
-                                            setTimeout(() => setShowCategorySuccess(false), 2000);
-                                        } else {
-                                            const errData = await response.json();
-                                            Alert.alert("Error", errData.message || "Failed to create category.");
+                                        if (!finalToken) {
+                                            Alert.alert("Error", "Session expired.");
+                                            return;
                                         }
-                                    } catch (err) {
-                                        Alert.alert("Error", "Something went wrong.");
+
+                                        await menuService.createCategory(finalToken, newCategoryName, bId);
+                                        
+                                        setNewCategoryName("");
+                                        setIsCreateCategoryModalVisible(false);
+                                        fetchAllCategories();
+                                        fetchMenus();
+
+                                        // Show Success Modal
+                                        setShowCategorySuccess(true);
+                                        setTimeout(() => setShowCategorySuccess(false), 2000);
+                                    } catch (err: any) {
+                                        Alert.alert("Error", "Failed to create category (Server Timeout). Please try again or refresh.");
                                     } finally {
                                         setIsCreatingCategory(false);
                                     }

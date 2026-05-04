@@ -45,7 +45,9 @@ export const menuService = {
     // Categories
     getCategories: async (token: string, businessId?: string | null) => {
         const baseUrl = `${BACKEND_URL}/api/categories`;
-        const url = businessId ? `${baseUrl}?businessId=${businessId}` : baseUrl;
+        const url = businessId 
+            ? `${baseUrl}?businessId=${businessId}&t=${Date.now()}` 
+            : `${baseUrl}?t=${Date.now()}`;
         
         console.log("Fetching categories from:", url);
         const response = await fetch(url, {
@@ -69,6 +71,11 @@ export const menuService = {
         const url = `${BACKEND_URL}/api/categories`;
         console.log("Creating category at:", url, "Name:", name);
         
+        const body: any = { name };
+        if (businessId && businessId !== "null" && businessId !== "undefined") {
+            body.businessId = businessId;
+        }
+
         const response = await fetch(url, {
             method: "POST",
             headers: {
@@ -76,7 +83,7 @@ export const menuService = {
                 "Content-Type": "application/json",
                 "Accept": "application/json",
             },
-            body: JSON.stringify({ name, businessId }),
+            body: JSON.stringify(body),
         });
 
         if (!response.ok) {
@@ -177,7 +184,9 @@ export const menuService = {
 
     getMenu: async (token: string, businessId?: string | null) => {
         const baseUrl = `${BACKEND_URL}/api/menu/view`;
-        const url = businessId ? `${baseUrl}?businessId=${businessId}` : baseUrl;
+        const url = businessId 
+            ? `${baseUrl}?businessId=${businessId}&t=${Date.now()}` 
+            : `${baseUrl}?t=${Date.now()}`;
         
         const response = await fetch(url, {
             headers: {

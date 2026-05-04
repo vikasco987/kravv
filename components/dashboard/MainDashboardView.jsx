@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  DeviceEventEmitter,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -167,8 +168,8 @@ const MainDashboardView = ({ isLockedUser }) => {
       }
 
       const url = bId
-        ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}&limit=2000`
-        : `https://billing.kravy.in/api/bill-manager?limit=2000`;
+        ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}&limit=2000&t=${Date.now()}`
+        : `https://billing.kravy.in/api/bill-manager?limit=2000&t=${Date.now()}`;
       const res = await fetch(url, {
         headers: {
           "Content-Type": "application/json",
@@ -201,6 +202,8 @@ const MainDashboardView = ({ isLockedUser }) => {
 
   useEffect(() => {
     fetchStats();
+    const sub = DeviceEventEmitter.addListener('REFRESH_DASHBOARD', fetchStats);
+    return () => sub.remove();
   }, [isLoaded, isSignedIn, isLockedUser]);
 
   useFocusEffect(

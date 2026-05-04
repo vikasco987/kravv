@@ -339,7 +339,7 @@ export const StaffPermissionEngine = {
       const session = await this.getSession();
       if (session?.businessId) return session.businessId;
 
-      // Fallback for Owners: check cached profile
+      // Fallback 1: check cached profile (standard for Owners)
       const cached = await AsyncStorage.getItem("@cached_business_profile");
       if (cached) {
         const data = JSON.parse(cached);
@@ -347,8 +347,24 @@ export const StaffPermissionEngine = {
         if (id) return id;
       }
 
+      // Fallback 2: check if we have it stored elsewhere
+      const altCached = await AsyncStorage.getItem("@active_business_id");
+      if (altCached) return altCached;
+
+      // Fallback 3: check raw profile data
+      const rawProfile = await AsyncStorage.getItem("user_profile");
+      if (rawProfile) {
+          try {
+              const parsed = JSON.parse(rawProfile);
+              const id = parsed.businessId || parsed._id || parsed.id;
+              if (id) return id;
+          } catch (e) {}
+      }
+
+      console.log(`[AUTH-SYSTEM] Business ID not found for user: ${clerkUserId || 'Unknown'}`);
       return null;
-    } catch {
+    } catch (err) {
+      console.error("[AUTH-SYSTEM] Error getting Business ID:", err);
       return null;
     }
   },

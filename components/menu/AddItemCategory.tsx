@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react-native";
 import React, { useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
     Modal,
     SafeAreaView,
@@ -99,9 +100,12 @@ export const AddItemCategory = ({ onBack, categories, onRefresh, onOptimisticAdd
                     const realCategory = await menuService.createCategory(finalToken, trimmedName, bId);
                     if (onSuccess) onSuccess(realCategory);
                     if (onRefresh) onRefresh();
+                } else {
+                    Alert.alert("Error", "Authentication session expired. Please log in again.");
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Failed to save category to backend:", error);
+                Alert.alert("Sync Error", "The category was added locally but couldn't sync with the server (Timeout). Please check your internet or refresh the menu.");
             }
         })();
     };

@@ -6,17 +6,17 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  Image,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Dimensions,
+    Image,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
@@ -476,6 +476,7 @@ export default function CheckoutView({
       const result = await SimpleBill(cart, finalToken!, bId!, {
         paymentMode,
         partyId: finalPartyId,
+        billId: params.billId || undefined,
         customerName: customerName,
         phone: customerPhone,
         customerAddress: newParty.address,

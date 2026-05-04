@@ -4,21 +4,21 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { useIsFocused } from "@react-navigation/native";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  ActivityIndicator,
-  DeviceEventEmitter,
-  Dimensions,
-  FlatList,
-  StyleSheet,
-  Text,
-  ToastAndroid,
-  View,
+    ActivityIndicator,
+    DeviceEventEmitter,
+    Dimensions,
+    FlatList,
+    StyleSheet,
+    Text,
+    ToastAndroid,
+    View,
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
@@ -275,11 +275,11 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         }
 
         const itemsUrl = bId
-          ? `https://billing.kravy.in/api/menu/view?businessId=${bId}`
-          : "https://billing.kravy.in/api/menu/view";
+          ? `https://billing.kravy.in/api/menu/view?businessId=${bId}&t=${Date.now()}`
+          : `https://billing.kravy.in/api/menu/view?t=${Date.now()}`;
         const catUrl = bId
-          ? `https://billing.kravy.in/api/categories?businessId=${bId}`
-          : "https://billing.kravy.in/api/categories";
+          ? `https://billing.kravy.in/api/categories?businessId=${bId}&t=${Date.now()}`
+          : `https://billing.kravy.in/api/categories?t=${Date.now()}`;
 
         // 🚀 Parallel Fetch for ultimate speed
         const [menuRes, catRes] = await Promise.all([
@@ -352,7 +352,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
 
         // Process Extra Categories (empty ones)
         if (catRes && catRes.ok) {
-          const allCats = await catRes.json();
+          const catData = await catRes.json();
+          const allCats = Array.isArray(catData) ? catData : (catData.data || catData.categories || []);
           if (Array.isArray(allCats)) {
             allCats.forEach((c: any) => {
               const cid = String(c.id || c._id);
@@ -363,30 +364,25 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           }
         }
 
-        const sortedMenus = Object.values(categoryMap)
+        const finalMenus = Object.values(categoryMap)
+          .filter(cat => cat.items.length > 0 || (cat.id !== "others" && cat.id !== "none"))
           .sort((a, b) => a.name.localeCompare(b.name))
           .map((cat) => ({
             ...cat,
             items: cat.items.sort((a, b) => a.name.localeCompare(b.name)),
           }));
 
-        if (sortedMenus.length > 0) {
-          // MERGE STRATEGY: Ensure we don't lose categories that were already there
-          const existingMenus = menus || [];
-          const mergedMenus = [...sortedMenus];
+        // 🚀 RESILIENCE: If we have cached categories that are now missing (due to 504 on catRes), 
+        // we should try to keep them if possible.
+        if (catRes && !catRes.ok && menus.length > 0) {
+            menus.forEach(exCat => {
+                if (!categoryMap[exCat.id]) {
+                    finalMenus.push(exCat);
+                }
+            });
+        }
 
-          existingMenus.forEach((exCat) => {
-            const exists = mergedMenus.some(
-              (m) => String(m.id) === String(exCat.id),
-            );
-            if (!exists) {
-              mergedMenus.push({ ...exCat, items: [] });
-            }
-          });
-
-          const finalMenus = mergedMenus.sort((a, b) =>
-            a.name.localeCompare(b.name),
-          );
+        if (finalMenus.length > 0) {
           await AsyncStorage.setItem(
             "@cached_menu",
             JSON.stringify(finalMenus),
@@ -663,14 +659,28 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setCart(newCart);
             await AsyncStorage.removeItem("@resume_cart");
             const id = await AsyncStorage.getItem("@resume_cart_id");
+            const isEdit = await AsyncStorage.getItem("@is_bill_edit");
+            
             if (id) {
               setActiveOrderId(id);
               await AsyncStorage.removeItem("@resume_cart_id");
             }
-            ToastAndroid.show(
-              "Order Loaded from Hold List",
-              ToastAndroid.SHORT,
-            );
+
+            const table = await AsyncStorage.getItem("@resume_table");
+            if (table) {
+              setSelectedTable(table);
+              await AsyncStorage.removeItem("@resume_table");
+            }
+            
+            if (isEdit === "true") {
+              ToastAndroid.show("📝 Bill Loaded for Editing", ToastAndroid.SHORT);
+              await AsyncStorage.removeItem("@is_bill_edit");
+            } else {
+              ToastAndroid.show(
+                "Order Loaded from Hold List",
+                ToastAndroid.SHORT,
+              );
+            }
           }
         } catch (error) {
           console.log("Error loading resumed cart (local):", error);
@@ -807,6 +817,42 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     const totalValue = totalOverride || totalAmount;
     if (itemsSnapshot.length === 0) return;
 
+    const saveToLocalFallback = async (snapshot: any[], totalVal: number) => {
+      try {
+        const localData = await AsyncStorage.getItem("@held_orders");
+        let orders = localData ? JSON.parse(localData) : [];
+
+        if (activeOrderId && activeOrderId.startsWith("BILL-")) {
+          orders = orders.map((o: any) =>
+            o.id === activeOrderId
+              ? {
+                  ...o,
+                  items: snapshot,
+                  total: totalVal,
+                  customerName: cName || o.customerName || "Walk-in",
+                  customerPhone: cPhone || o.customerPhone || "",
+                  timestamp: new Date().toISOString(),
+                }
+              : o,
+          );
+        } else {
+          const id = "BILL-" + Date.now();
+          orders.push({
+            id,
+            items: snapshot,
+            total: totalVal,
+            customerName: cName || "Walk-in",
+            customerPhone: cPhone || "",
+            timestamp: new Date().toISOString(),
+          });
+        }
+        await AsyncStorage.setItem("@held_orders", JSON.stringify(orders));
+        fetchHeldCount();
+      } catch (e) {
+        console.error("Local fallback failed:", e);
+      }
+    };
+
     // 🚀 INSTANT UI FEEDBACK
     setShowHoldSuccess(true);
     setIsHoldModalVisible(false);
@@ -901,41 +947,6 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         await saveToLocalFallback(itemsSnapshot, totalValue);
       }
 
-      async function saveToLocalFallback(snapshot: any[], totalVal: number) {
-        try {
-          const localData = await AsyncStorage.getItem("@held_orders");
-          let orders = localData ? JSON.parse(localData) : [];
-
-          if (activeOrderId && activeOrderId.startsWith("BILL-")) {
-            orders = orders.map((o: any) =>
-              o.id === activeOrderId
-                ? {
-                    ...o,
-                    items: snapshot,
-                    total: totalVal,
-                    customerName: cName || o.customerName || "Walk-in",
-                    customerPhone: cPhone || o.customerPhone || "",
-                    timestamp: new Date().toISOString(),
-                  }
-                : o,
-            );
-          } else {
-            const id = "BILL-" + Date.now();
-            orders.push({
-              id,
-              items: snapshot,
-              total: totalVal,
-              customerName: cName || "Walk-in",
-              customerPhone: cPhone || "",
-              timestamp: new Date().toISOString(),
-            });
-          }
-          await AsyncStorage.setItem("@held_orders", JSON.stringify(orders));
-          fetchHeldCount();
-        } catch (e) {
-          console.error("Local fallback failed:", e);
-        }
-      }
     } catch (e) {
       console.error("Hold process error:", e);
     }
@@ -1327,6 +1338,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
               paymentMethod,
               selectedTable,
               selectedRoom,
+              billId: activeOrderId, // Crucial for updating existing records
             });
             setCurrentView("checkout");
           }}
@@ -1470,3 +1482,4 @@ const styles = StyleSheet.create({
 });
 
 export default MainMenuView;
+
