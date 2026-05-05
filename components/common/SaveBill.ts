@@ -1,5 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ToastAndroid } from "react-native";
+import { getRecentCompanyProfile } from "../../services/companyService";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 export type CartItem = {
   id: string;
@@ -297,10 +299,18 @@ export async function SaveBill(
       ).toFixed(2),
     );
 
+    let finalBusinessId = await StaffPermissionEngine.getActiveBusinessId(
+      finalUserId || undefined,
+    );
+    if (!finalBusinessId) {
+      const profile = await getRecentCompanyProfile(finalToken);
+      if (profile?.businessId) finalBusinessId = profile.businessId;
+    }
+
     const method = isValidBillId ? "PUT" : "POST";
     const url = isValidBillId
-      ? `${API_BASE}/api/bill-manager/${billId}`
-      : `${API_BASE}/api/bill-manager`;
+      ? `${API_BASE}/api/bill-manager/${billId}${finalBusinessId ? `?businessId=${finalBusinessId}` : ""}`
+      : `${API_BASE}/api/bill-manager${finalBusinessId ? `?businessId=${finalBusinessId}` : ""}`;
 
     const res = await fetch(url, {
       method: method,
@@ -320,6 +330,7 @@ export async function SaveBill(
         isHeld: false,
         clerkUserId: finalUserId,
         userClerkId: finalUserId,
+        businessId: finalBusinessId,
         customerName: options?.customerName || "Walk-in Customer",
         customerPhone: options?.customerPhone || null,
         customerAddress: options?.customerAddress || null,
@@ -391,6 +402,13 @@ export async function SaveBill(
         data,
       };
     } else {
+      const errorText = await res.text();
+      console.error("SaveBill Error:", res.status, url, errorText);
+      if (res.status === 500 && isValidBillId) {
+        throw new Error(
+          `Server error (500) during update. Ensure backend is updated to support order conversion.`,
+        );
+      }
       throw new Error(`Server error (${res.status})`);
     }
   } catch (err) {

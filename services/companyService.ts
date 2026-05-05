@@ -1,6 +1,5 @@
 const BACKEND_URL = "https://billing.kravy.in";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Alert, ToastAndroid } from "react-native";
 
 /**
  * Fetch company profile data from backend.
@@ -12,8 +11,8 @@ export async function getRecentCompanyProfile(token: string) {
     }
 
     const res = await fetch(`${BACKEND_URL}/api/profile`, {
-      headers: { 
-        Authorization: `Bearer ${token}` 
+      headers: {
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -26,12 +25,14 @@ export async function getRecentCompanyProfile(token: string) {
     if (!data) return null;
 
     const profile = {
+      businessId: data._id || data.id || "",
       companyName: (data.businessName as string) || "",
       companyAddress: (data.businessAddress as string) || "",
       companyPhone: (data.contactPersonPhone as string) || "",
       contactPerson: (data.contactPersonName as string) || "",
       gstNumber: (data.gstNumber as string) || "",
-      logoUrl: (data.profileImageUrl as string) || (data.logoUrl as string) || "",
+      logoUrl:
+        (data.logoUrl as string) || (data.profileImageUrl as string) || "",
       signatureUrl: (data.signatureUrl as string) || "",
       businessTagLine: (data.businessTagLine as string) || "",
       upi: (data.upi as string) || "",
@@ -43,10 +44,16 @@ export async function getRecentCompanyProfile(token: string) {
       googleReviewLink: (data.googleReviewLink as string) || "",
     };
 
-    await AsyncStorage.setItem('@cached_company_profile', JSON.stringify(profile));
+    if (profile.businessId) {
+      await AsyncStorage.setItem("@active_business_id", profile.businessId);
+    }
+    await AsyncStorage.setItem(
+      "@cached_company_profile",
+      JSON.stringify(profile),
+    );
     return profile;
   } catch (err: any) {
-    const cached = await AsyncStorage.getItem('@cached_company_profile');
+    const cached = await AsyncStorage.getItem("@cached_company_profile");
     if (cached) return JSON.parse(cached);
 
     if (err.message === "Network request failed") {

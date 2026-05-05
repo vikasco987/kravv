@@ -65,6 +65,7 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
     const lineTotal = qty * rate;
     subtotal += lineTotal;
 
+    // Use item's saved gstRate if available
     let itemGstRate =
       it.gstRate !== undefined
         ? Number(it.gstRate)
@@ -91,37 +92,73 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
     totalGstAmount += gst;
   });
 
-  const savedDiscount =
-    bill.discountAmount ?? bill.discount_amount ?? bill.discount ?? 0;
+  const storedDiscount =
+    bill.discountAmount ?? bill.discount_amount ?? bill.discount;
   const discountAmount =
-    savedDiscount > 0
-      ? Number(savedDiscount)
+    storedDiscount !== undefined && storedDiscount !== null
+      ? Number(storedDiscount)
       : totalTaxable * (settings.discount_rate / 100);
 
   const taxableAfterDiscount = totalTaxable - discountAmount;
-  const avgGstRate = totalTaxable > 0 ? totalGstAmount / totalTaxable : 0;
-  const gstToShow = Number(bill.gstAmount || taxableAfterDiscount * avgGstRate);
 
-  let serviceCharge = Number(bill.serviceCharge || 0);
-  let serviceGst = Number(bill.serviceGst || 0);
-  if (!serviceCharge) {
-    serviceCharge = settings.service_charge_rate;
-    serviceGst = (serviceCharge * settings.service_gst_rate) / 100;
-  }
+  const storedGst = bill.gstAmount || bill.tax;
+  const gstToShow =
+    storedGst !== undefined && storedGst !== null
+      ? Number(storedGst)
+      : totalTaxable > 0
+        ? (totalGstAmount / totalTaxable) * taxableAfterDiscount
+        : 0;
 
-  let deliveryCharge = Number(bill.deliveryCharge || 0);
-  let deliveryGst = Number(bill.deliveryGst || 0);
-  if (!deliveryCharge) {
-    deliveryCharge = settings.delivery_charge_amount;
-    deliveryGst = (deliveryCharge * settings.delivery_gst_rate) / 100;
-  }
+  // Service Charge
+  const storedSC = bill.serviceCharge;
+  let serviceCharge =
+    storedSC !== undefined && storedSC !== null
+      ? Number(storedSC)
+      : settings.service_charge_enabled
+        ? settings.service_charge_rate
+        : 0;
 
-  let packagingCharge = Number(bill.packagingCharge || 0);
-  let packagingGst = Number(bill.packagingGst || 0);
-  if (!packagingCharge) {
-    packagingCharge = settings.packaging_charge_amount;
-    packagingGst = (packagingCharge * settings.packaging_gst_rate) / 100;
-  }
+  const storedSGst = bill.serviceGst;
+  let serviceGst =
+    storedSGst !== undefined && storedSGst !== null
+      ? Number(storedSGst)
+      : serviceCharge > 0
+        ? (serviceCharge * settings.service_gst_rate) / 100
+        : 0;
+
+  // Delivery Charge
+  const storedDC = bill.deliveryCharge;
+  let deliveryCharge =
+    storedDC !== undefined && storedDC !== null
+      ? Number(storedDC)
+      : settings.delivery_charge_enabled
+        ? settings.delivery_charge_amount
+        : 0;
+
+  const storedDGst = bill.deliveryGst;
+  let deliveryGst =
+    storedDGst !== undefined && storedDGst !== null
+      ? Number(storedDGst)
+      : deliveryCharge > 0
+        ? (deliveryCharge * settings.delivery_gst_rate) / 100
+        : 0;
+
+  // Packaging Charge
+  const storedPC = bill.packagingCharge;
+  let packagingCharge =
+    storedPC !== undefined && storedPC !== null
+      ? Number(storedPC)
+      : settings.packaging_charge_enabled
+        ? settings.packaging_charge_amount
+        : 0;
+
+  const storedPGst = bill.packagingGst;
+  let packagingGst =
+    storedPGst !== undefined && storedPGst !== null
+      ? Number(storedPGst)
+      : packagingCharge > 0
+        ? (packagingCharge * settings.packaging_gst_rate) / 100
+        : 0;
 
   const displayTotal =
     taxableAfterDiscount +
@@ -132,7 +169,11 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
     deliveryGst +
     packagingCharge +
     packagingGst;
-  bill.total = displayTotal;
+
+  // Only update bill.total if it is missing or 0
+  if (!bill.total) {
+    bill.total = displayTotal;
+  }
 
   const discPercent =
     totalTaxable > 0 ? Math.round((discountAmount / totalTaxable) * 100) : 0;

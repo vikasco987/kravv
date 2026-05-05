@@ -321,14 +321,15 @@ export default function TableOrdersView({
           paymentMode: "Cash",
           tableName: item.tableName || (tableName as string) || "Table",
           businessId: item.businessId,
+          billId: item.id as string,
           source: "ONLINE",
           tokenNo: item.tokenNumber,
         });
 
         if (res.status === "success") {
-          // 🚀 Mark order as completed so it moves to sales history
-          await updateOrderStatus(item.id, "COMPLETED");
           ToastAndroid.show("Bill Finalized & Saved", ToastAndroid.SHORT);
+          // 🚀 FIX: Explicitly mark order as COMPLETED to prevent it from going to "HOLD"
+          await updateOrderStatus(item.id, "COMPLETED");
         }
       } catch (error) {
         console.log("Print/Save Error:", error);

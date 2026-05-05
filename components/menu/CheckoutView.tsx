@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -287,59 +287,74 @@ export default function CheckoutView({
   };
 
   // --- Calculation Logic (Matching SimpleBill.ts) ---
-  const totals = useMemo(() => {
+  const calcTotals = () => {
+    let subtotal = 0;
     let totalTaxable = 0;
     let totalGst = 0;
-    let subtotal = 0;
-    const usedGstRates = new Set<number>();
+    let totalDiscount = 0;
+    let perProductGstTotals: Record<number, number> = {};
+    let globalGstTotal = 0;
 
-    cart.forEach((item) => {
-      if (item.quantity <= 0) return;
+    const discountRate = taxSettings.discountEnabled
+      ? taxSettings.discountRate / 100
+      : 0;
 
-      const price = item.editedPrice ?? item.price ?? 0;
-      const lineTotal = price * item.quantity;
-      subtotal += lineTotal;
+    (cart || []).forEach((item: any) => {
+      const price = Number(item.editedPrice ?? item.price ?? 0);
+      const qty = Number(item.quantity || 1);
+      const lineTotal = price * qty;
+      const itemDiscount = lineTotal * discountRate;
+      const itemPriceAfterDiscount = lineTotal - itemDiscount;
 
-      let gstRate = 0;
-      if (taxSettings.enabled) {
-        gstRate = taxSettings.rate;
-      } else if (taxSettings.perProduct) {
-        gstRate =
-          item.gst !== null && item.gst !== undefined ? Number(item.gst) : 0;
+      let itemGstRate = 0;
+      const productGst = Number(item.gst || 0);
+      let isFallback = false;
+
+      if (taxSettings.perProduct) {
+        if (productGst > 0) {
+          itemGstRate = productGst;
+        } else if (taxSettings.enabled) {
+          itemGstRate = taxSettings.rate;
+          isFallback = true;
+        }
+      } else if (taxSettings.enabled) {
+        itemGstRate = taxSettings.rate;
+        isFallback = true;
       }
-
-      if (gstRate > 0) usedGstRates.add(gstRate);
 
       let taxable = 0;
       let gst = 0;
 
-      if (item.taxType === "With Tax") {
-        taxable = lineTotal / (1 + gstRate / 100);
-        gst = lineTotal - taxable;
+      const taxType = item.taxType || item.taxStatus || "Without Tax";
+
+      if (taxType === "With Tax") {
+        const base = isFallback ? itemPriceAfterDiscount : lineTotal;
+        const taxableBase = base / (1 + itemGstRate / 100);
+        const calcGst = base - taxableBase;
+
+        gst = calcGst;
+        taxable = itemPriceAfterDiscount - gst;
       } else {
-        taxable = lineTotal;
-        gst = (lineTotal * gstRate) / 100;
+        const base = isFallback ? itemPriceAfterDiscount : lineTotal;
+        gst = (base * itemGstRate) / 100;
+        taxable = itemPriceAfterDiscount;
       }
 
+      if (isFallback) {
+        globalGstTotal += gst;
+      } else if (itemGstRate > 0) {
+        perProductGstTotals[itemGstRate] =
+          (perProductGstTotals[itemGstRate] || 0) + gst;
+      }
+
+      subtotal += lineTotal;
       totalTaxable += taxable;
       totalGst += gst;
+      totalDiscount += itemDiscount;
     });
 
-    const discountAmount = taxSettings.discountEnabled
-      ? totalTaxable * (taxSettings.discountRate / 100)
-      : 0;
-    const taxableAfterDiscount = totalTaxable - discountAmount;
-
-    // Service Charge moved to add-on section
-    const netTaxableValue = taxableAfterDiscount;
-
-    let finalGst = totalGst;
-    if (taxSettings.enabled || taxSettings.perProduct) {
-      const avgGstRate = totalTaxable > 0 ? totalGst / totalTaxable : 0;
-      finalGst = netTaxableValue * avgGstRate;
-    }
-
-    const finalTotal = netTaxableValue + finalGst;
+    const netTaxableValue = totalTaxable;
+    const finalGst = totalGst;
 
     let serviceChargeAmount = 0;
     let serviceGstAmount = 0;
@@ -351,9 +366,6 @@ export default function CheckoutView({
       }
     }
 
-    const grandTotalBeforeDel =
-      finalTotal + serviceChargeAmount + serviceGstAmount;
-
     let deliveryChargeAmount = 0;
     let deliveryGstAmount = 0;
     if (taxSettings.deliveryChargeEnabled) {
@@ -363,9 +375,6 @@ export default function CheckoutView({
           (deliveryChargeAmount * taxSettings.deliveryGstRate) / 100;
       }
     }
-
-    const grandTotal =
-      grandTotalBeforeDel + deliveryChargeAmount + deliveryGstAmount;
 
     let packagingChargeAmount = 0;
     let packagingGstAmount = 0;
@@ -377,40 +386,39 @@ export default function CheckoutView({
       }
     }
 
-    const finalGrandTotal =
-      grandTotal + packagingChargeAmount + packagingGstAmount;
-
-    let displayGstLabel = "GST";
-    if (taxSettings.enabled) {
-      displayGstLabel = `GST (${taxSettings.rate}%)`;
-    } else if (taxSettings.perProduct) {
-      if (usedGstRates.size === 1) {
-        displayGstLabel = `GST (${Array.from(usedGstRates)[0]}%)`;
-      } else if (usedGstRates.size > 1) {
-        displayGstLabel = `GST (Mixed)`;
-      }
-    }
+    const totalDue =
+      totalTaxable +
+      totalGst +
+      serviceChargeAmount +
+      serviceGstAmount +
+      deliveryChargeAmount +
+      deliveryGstAmount +
+      packagingChargeAmount +
+      packagingGstAmount;
 
     return {
-      subtotal: subtotal,
+      subtotal,
       taxableAmount: netTaxableValue,
-      discountAmount,
+      discountAmount: totalDiscount,
       discountRate: taxSettings.discountRate,
+      gst: finalGst,
+      globalGstTotal,
+      perProductGstTotals,
+      globalGstRate: taxSettings.rate,
       serviceChargeAmount,
-      serviceChargeRate: taxSettings.serviceChargeRate,
       serviceGstAmount,
       serviceGstRate: taxSettings.serviceGstRate,
-      gst: finalGst,
       deliveryChargeAmount,
       deliveryGstAmount,
       deliveryGstRate: taxSettings.deliveryGstRate,
       packagingChargeAmount,
       packagingGstAmount,
       packagingGstRate: taxSettings.packagingGstRate,
-      totalDue: finalGrandTotal,
-      gstLabel: displayGstLabel,
+      totalDue,
     };
-  }, [cart, taxSettings]);
+  };
+
+  const totals = calcTotals();
 
   const handlePrint = async () => {
     if (cart.length === 0) return;
@@ -733,16 +741,31 @@ export default function CheckoutView({
           )}
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabelSmall}>taxable_amount</Text>
+            <Text style={styles.totalLabelSmall}>Taxable Amount</Text>
             <Text style={styles.totalValueSmall}>
               ₹{(totals.taxableAmount || totals.subtotal).toFixed(2)}
             </Text>
           </View>
 
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabelSmall}>{totals.gstLabel}</Text>
-            <Text style={styles.totalValueSmall}>₹{totals.gst.toFixed(2)}</Text>
-          </View>
+          {totals.globalGstTotal > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabelSmall}>
+                Global GST ({totals.globalGstRate}%)
+              </Text>
+              <Text style={styles.totalValueSmall}>
+                ₹{totals.globalGstTotal.toFixed(2)}
+              </Text>
+            </View>
+          )}
+
+          {Object.entries(totals.perProductGstTotals).map(([rate, amount]) => (
+            <View key={rate} style={styles.totalRow}>
+              <Text style={styles.totalLabelSmall}>Item GST ({rate}%)</Text>
+              <Text style={styles.totalValueSmall}>
+                ₹{Number(amount).toFixed(2)}
+              </Text>
+            </View>
+          ))}
 
           {taxSettings.serviceChargeEnabled && (
             <View style={styles.totalRow}>

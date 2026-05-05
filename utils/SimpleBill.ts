@@ -37,6 +37,7 @@ export type BillOptions = {
   silent?: boolean;
   orderId?: string;
   source?: string;
+  isHeld?: boolean;
 };
 
 const line = (char = "-") => char.repeat(32);
@@ -130,6 +131,92 @@ export const preCacheLogo = (url: string) => {
   }
 };
 
+/**
+ * Fetches an image from Cloudinary as a BMP, rasterizes it into a 1-bit bitmask,
+ * and returns the ESC/POS GS v 0 command bytes.
+ */
+async function fetchAndRasterizeLogo(url: string): Promise<Uint8Array | null> {
+  try {
+    // 1. Force Cloudinary to return a high-contrast grayscale BMP
+    // transformations: width 384px (standard 58mm), high contrast, grayscale, BMP format
+    const transformedUrl = url.includes("/upload/")
+      ? url.replace(
+          "/upload/",
+          "/upload/w_384,c_scale,e_grayscale,e_contrast:100,f_bmp/",
+        )
+      : url;
+
+    const response = await fetch(transformedUrl);
+    if (!response.ok) return null;
+
+    const arrayBuffer = await response.arrayBuffer();
+    const data = new Uint8Array(arrayBuffer);
+
+    // 2. Basic BMP Parser (Supports 24-bit and 8-bit uncompressed)
+    // Check 'BM' signature
+    if (data[0] !== 0x42 || data[1] !== 0x4d) return null;
+
+    const offset =
+      data[10] | (data[11] << 8) | (data[12] << 16) | (data[13] << 24);
+    const width =
+      data[18] | (data[19] << 8) | (data[20] << 16) | (data[21] << 24);
+    const height = Math.abs(
+      data[22] | (data[23] << 8) | (data[24] << 16) | (data[25] << 24),
+    );
+    const bpp = data[28] | (data[29] << 8);
+
+    if (bpp !== 24 && bpp !== 8) return null;
+
+    // ESC/POS requires width to be a multiple of 8 for GS v 0
+    const widthBytes = Math.ceil(width / 8);
+    const actualWidth = widthBytes * 8;
+
+    // Raster data
+    const rasterData = new Uint8Array(widthBytes * height);
+    const bytesPerRow = Math.ceil((width * (bpp / 8)) / 4) * 4;
+
+    for (let y = 0; y < height; y++) {
+      // BMP is bottom-to-top
+      const bmpY = height - 1 - y;
+      const rowOffset = offset + bmpY * bytesPerRow;
+
+      for (let x = 0; x < width; x++) {
+        let gray = 0;
+        if (bpp === 24) {
+          const p = rowOffset + x * 3;
+          // BMP is BGR
+          gray = (data[p] + data[p + 1] + data[p + 2]) / 3;
+        } else {
+          gray = data[rowOffset + x];
+        }
+
+        // Threshold (128) - anything darker than mid-gray is black
+        if (gray < 128) {
+          const byteIdx = y * widthBytes + Math.floor(x / 8);
+          const bitIdx = 7 - (x % 8);
+          rasterData[byteIdx] |= 1 << bitIdx;
+        }
+      }
+    }
+
+    // 3. Construct ESC/POS GS v 0 command
+    // GS v 0 m xL xH yL yH d1...dk
+    const xL = widthBytes % 256;
+    const xH = Math.floor(widthBytes / 256);
+    const yL = height % 256;
+    const yH = Math.floor(height / 256);
+
+    const command = new Uint8Array(8 + rasterData.length);
+    command.set([0x1d, 0x76, 0x30, 0, xL, xH, yL, yH], 0);
+    command.set(rasterData, 8);
+
+    return command;
+  } catch (err) {
+    console.error("Logo Rasterization Error:", err);
+    return null;
+  }
+}
+
 export async function SimpleBill(
   cartItems: CartItem[],
   token: string | null | any,
@@ -155,6 +242,11 @@ export async function SimpleBill(
     const companyInfo =
       options?.businessProfile ||
       (await getRecentCompanyProfile(finalToken || ""));
+
+    if (!finalBusinessId && companyInfo?.businessId) {
+      finalBusinessId = companyInfo.businessId;
+    }
+
     const date = new Date();
     const tempBillNo = `NEW-${Date.now().toString().slice(-4)}`;
 
@@ -203,7 +295,7 @@ export async function SimpleBill(
       : sMap["service_gst_enabled"] === "true";
     const serviceGstRate = tS
       ? tS.serviceGstRate
-      : parseFloat(sMap["service_gst_rate"] || "0.00");
+      : parseFloat(sMap["service_gst_rate"] || "0");
     const isDeliveryChargeEnabled = tS
       ? tS.deliveryChargeEnabled
       : sMap["delivery_charge_enabled"] === "true";
@@ -215,7 +307,8 @@ export async function SimpleBill(
       : sMap["delivery_gst_enabled"] === "true";
     const deliveryGstRate = tS
       ? tS.deliveryGstRate
-      : parseFloat(sMap["delivery_gst_rate"] || "0.00");
+      : parseFloat(sMap["delivery_gst_rate"] || "0");
+
     const isPackagingChargeEnabled = tS
       ? tS.packagingChargeEnabled
       : sMap["packaging_charge_enabled"] === "true";
@@ -227,35 +320,79 @@ export async function SimpleBill(
       : sMap["packaging_gst_enabled"] === "true";
     const packagingGstRate = tS
       ? tS.packagingGstRate
-      : parseFloat(sMap["packaging_gst_rate"] || "0.00");
+      : parseFloat(sMap["packaging_gst_rate"] || "0");
 
     let totalTaxable = 0;
     let totalGst = 0;
     let subtotal = 0;
+    let totalDiscount = 0;
+    let usedGlobalFallback = false;
+    let globalGstTotal = 0;
+    let perProductGstTotals: Record<number, number> = {};
+
+    const discountRate = isDiscountEnabled ? discountRatePercent / 100 : 0;
 
     const productsForBackend = cartItems.map((item) => {
       const unitPrice = item.editedPrice ?? item.price ?? 0;
       const qty = Number(item.quantity || 1);
-      const lineTotal = unitPrice * qty;
+      const itemLineTotal = unitPrice * qty;
+      const itemDiscount = itemLineTotal * discountRate;
+      const itemPriceAfterDiscount = itemLineTotal - itemDiscount;
+
       let itemGstRate = 0;
       const productGst = Number(item.gst || 0);
+      let isFallback = false;
 
-      if (perProductTaxEnabled && productGst > 0) itemGstRate = productGst;
-      else if (isTaxEnabled) itemGstRate = globalTaxRate;
-      else if (perProductTaxEnabled) itemGstRate = productGst;
+      if (perProductTaxEnabled) {
+        if (productGst > 0) {
+          itemGstRate = productGst;
+        } else if (isTaxEnabled) {
+          itemGstRate = globalTaxRate;
+          usedGlobalFallback = true;
+          isFallback = true;
+        }
+      } else if (isTaxEnabled) {
+        itemGstRate = globalTaxRate;
+        isFallback = true;
+      }
 
       let taxable = 0,
         gst = 0;
-      if (item.taxStatus === "With Tax" || item.taxType === "With Tax") {
-        taxable = lineTotal / (1 + itemGstRate / 100);
-        gst = lineTotal - taxable;
+
+      const taxType = item.taxStatus || item.taxType || "Without Tax";
+
+      console.log(
+        `[ITEM-LOG] Name: ${item.name}, Mode: ${isFallback ? "Global" : "Per-Product"}, Rate: ${itemGstRate}%, TaxType: ${taxType}, Original: ${itemLineTotal}, Discounted: ${itemPriceAfterDiscount}`,
+      );
+
+      if (taxType === "With Tax") {
+        const base = isFallback ? itemPriceAfterDiscount : itemLineTotal;
+        const taxableBase = base / (1 + itemGstRate / 100);
+        const calcGst = base - taxableBase;
+
+        gst = calcGst;
+        taxable = itemPriceAfterDiscount - gst;
       } else {
-        taxable = lineTotal;
-        gst = (lineTotal * itemGstRate) / 100;
+        const base = isFallback ? itemPriceAfterDiscount : itemLineTotal;
+        gst = (base * itemGstRate) / 100;
+        taxable = itemPriceAfterDiscount;
       }
+
+      if (isFallback) {
+        globalGstTotal += gst;
+      } else if (itemGstRate > 0) {
+        perProductGstTotals[itemGstRate] =
+          (perProductGstTotals[itemGstRate] || 0) + gst;
+      }
+
+      console.log(
+        `[ITEM-RESULT] ${item.name}: Taxable=${taxable.toFixed(2)}, GST=${gst.toFixed(2)}`,
+      );
+
       totalTaxable += taxable;
       totalGst += gst;
-      subtotal += lineTotal;
+      subtotal += itemLineTotal;
+      totalDiscount += itemDiscount;
 
       return {
         id: item.id || item._id,
@@ -268,17 +405,17 @@ export async function SimpleBill(
         taxableAmount: Number(taxable.toFixed(2)),
         gstPaid: Number(gst.toFixed(2)),
         gstRate: itemGstRate,
-        total: Number(lineTotal.toFixed(2)),
+        total: Number(itemLineTotal.toFixed(2)),
         taxStatus: item.taxStatus || item.taxType || "With Tax",
       };
     });
 
-    const discountAmount = isDiscountEnabled
-      ? totalTaxable * (discountRatePercent / 100)
-      : 0;
-    const taxableAfterDiscount = totalTaxable - discountAmount;
-    const avgGstRate = totalTaxable > 0 ? totalGst / totalTaxable : 0;
-    const finalGstAmount = taxableAfterDiscount * avgGstRate;
+    const taxableAfterDiscount = totalTaxable - totalTaxable * discountRate;
+    const finalGstAmount = totalGst;
+
+    console.log(
+      `[BILL-DEBUG] TotalTaxable=${totalTaxable.toFixed(2)}, TotalDisc=${totalDiscount.toFixed(2)}, TotalGST=${totalGst.toFixed(2)}, Subtotal=${subtotal.toFixed(2)}`,
+    );
 
     let serviceCharge = 0,
       serviceGst = 0;
@@ -303,8 +440,8 @@ export async function SimpleBill(
     }
 
     const finalGrandTotal =
-      taxableAfterDiscount +
-      finalGstAmount +
+      totalTaxable +
+      totalGst +
       serviceCharge +
       serviceGst +
       deliveryCharge +
@@ -315,22 +452,48 @@ export async function SimpleBill(
     // Printing
     const printer: any = await ensurePrinterConnected(options?.silent);
     if (printer) {
+      const businessName = (
+        companyInfo?.businessName ||
+        companyInfo?.companyName ||
+        "KRAVY"
+      ).toUpperCase();
+      const businessAddress =
+        companyInfo?.businessAddress || companyInfo?.companyAddress || "";
+      const businessTagLine =
+        companyInfo?.businessTagline || companyInfo?.businessTagLine || "";
+      const gstNumber = companyInfo?.gstNumber || "";
+
       await printer.write(ALIGN_CENTER);
-      await printer.write(SIZE_LARGE);
+
+      // Print Logo if available
+      const logoUrl = companyInfo?.logoUrl || companyInfo?.logo;
+      if (logoUrl) {
+        const logoBytes = await fetchAndRasterizeLogo(logoUrl);
+        if (logoBytes) {
+          await printer.write(logoBytes);
+          await printer.write(utf8Encode("\n"));
+        }
+      }
+
+      // Restaurant Logo/Name Header
+      await printer.write(new Uint8Array([0x1b, 0x21, 0x30])); // Double Height + Double Width
       await printer.write(BOLD_ON);
-      await printer.write(
-        utf8Encode((companyInfo?.companyName || "KRAVY").toUpperCase() + "\n"),
-      );
+      await printer.write(utf8Encode(businessName + "\n"));
       await printer.write(BOLD_OFF);
       await printer.write(SIZE_NORMAL);
-      if (companyInfo?.businessTagLine)
-        await printer.write(utf8Encode(companyInfo.businessTagLine + "\n"));
+
+      if (businessTagLine) {
+        await printer.write(utf8Encode(businessTagLine + "\n"));
+      }
+
       await printer.write(utf8Encode(line("=") + "\n"));
-      await printer.write(
-        utf8Encode((companyInfo?.companyAddress || "") + "\n"),
-      );
-      if (companyInfo?.gstNumber)
-        await printer.write(utf8Encode(`GSTIN: ${companyInfo.gstNumber}\n`));
+
+      if (businessAddress) {
+        await printer.write(utf8Encode(businessAddress + "\n"));
+      }
+      if (gstNumber) {
+        await printer.write(utf8Encode(`GSTIN: ${gstNumber}\n`));
+      }
       await printer.write(utf8Encode(line("-") + "\n"));
       await printer.write(ALIGN_LEFT);
 
@@ -341,52 +504,72 @@ export async function SimpleBill(
 
       body = `${line("-")}\nItem         Qty  Price   Total\n${line("-")}\n`;
       productsForBackend.forEach((i) => {
-        body += `${i.name.slice(0, 12).padEnd(12)} ${String(i.qty).padStart(3)} ${i.rate.toFixed(2).padStart(6)} ${i.total.toFixed(2).padStart(8)}\n`;
+        const displayName =
+          i.gstRate > 0
+            ? `${i.name.slice(0, 7)}(${i.gstRate}%)`
+            : i.name.slice(0, 12);
+        body += `${displayName.padEnd(12)} ${String(i.qty).padStart(3)} ${i.rate.toFixed(2).padStart(6)} ${i.total.toFixed(2).padStart(8)}\n`;
       });
       body += `${line("-")}\n`;
       body += `${"subtotal:".padEnd(20)}${subtotal.toFixed(2).padStart(12)}\n`;
       if (isDiscountEnabled)
-        body += `${`Disc (${discountRatePercent}%):`.padEnd(20)}${`-${discountAmount.toFixed(2)}`.padStart(12)}\n`;
+        body += `${`Disc (${discountRatePercent}%):`.padEnd(20)}${`-${totalDiscount.toFixed(2)}`.padStart(12)}\n`;
       body += `${"Taxable:".padEnd(20)}${taxableAfterDiscount.toFixed(2).padStart(12)}\n`;
-      body += `${"GST:".padEnd(20)}${finalGstAmount.toFixed(2).padStart(12)}\n`;
-      if (serviceCharge > 0)
+      if (globalGstTotal > 0) {
+        body += `${`Global GST(${globalTaxRate}%):`.padEnd(20)}${globalGstTotal.toFixed(2).padStart(12)}\n`;
+      }
+
+      Object.entries(perProductGstTotals).forEach(([rate, amount]) => {
+        if (amount > 0) {
+          body += `${`Item GST(${rate}%):`.padEnd(20)}${amount.toFixed(2).padStart(12)}\n`;
+        }
+      });
+      if (serviceCharge > 0) {
         body += `${"Service:".padEnd(20)}${serviceCharge.toFixed(2).padStart(12)}\n`;
-      if (deliveryCharge > 0)
+        if (serviceGst > 0)
+          body += `${`Serv GST(${serviceGstRate}%):`.padEnd(20)}${serviceGst.toFixed(2).padStart(12)}\n`;
+      }
+      if (deliveryCharge > 0) {
         body += `${"Delivery:".padEnd(20)}${deliveryCharge.toFixed(2).padStart(12)}\n`;
-      if (packagingCharge > 0)
+        if (deliveryGst > 0)
+          body += `${`Del GST(${deliveryGstRate}%):`.padEnd(20)}${deliveryGst.toFixed(2).padStart(12)}\n`;
+      }
+      if (packagingCharge > 0) {
         body += `${"Packaging:".padEnd(20)}${packagingCharge.toFixed(2).padStart(12)}\n`;
+        if (packagingGst > 0)
+          body += `${`Pkg GST(${packagingGstRate}%):`.padEnd(20)}${packagingGst.toFixed(2).padStart(12)}\n`;
+      }
       body += `${line("-")}\n`;
       body += `${"TOTAL:".padEnd(20)}${finalGrandTotal.toFixed(2).padStart(12)}\n`;
       body += `${line("-")}\n`;
+      if (usedGlobalFallback) {
+        body += `Note: 0% GST items taxed\nat Global Rate (${globalTaxRate}%)\n`;
+        body += `${line("-")}\n`;
+      }
       await printer.write(utf8Encode(body));
 
-      const upiId = companyInfo?.upiId || companyInfo?.upi;
-      if (upiId) {
-        const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(companyInfo?.companyName || "KRAVY")}&am=${finalGrandTotal.toFixed(2)}&cu=INR`;
-        await printer.write(ALIGN_CENTER);
-        await printQRCode(printer, upiUri);
-      }
       await printer.write(ALIGN_CENTER);
       await printer.write(utf8Encode("Thank You! Visit Again\n"));
+
+      // Payment Branding (Bottom)
+      const upiId = companyInfo?.upi || companyInfo?.upiId;
+      if (upiId) {
+        await printer.write(utf8Encode(line("-") + "\n"));
+        await printer.write(BOLD_ON);
+        await printer.write(utf8Encode("SCAN TO PAY\n"));
+        await printer.write(BOLD_OFF);
+        await printer.write(utf8Encode(`UPI ID: ${upiId}\n`));
+        const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalGrandTotal.toFixed(2)}&cu=INR`;
+        await printQRCode(printer, upiUri);
+        await printer.write(utf8Encode("\n"));
+      }
+
       await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
       await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
     }
 
     // Backend Save
-    const discountFactor =
-      totalTaxable > 0 ? (totalTaxable - discountAmount) / totalTaxable : 1;
-    const discountedItems = productsForBackend.map((item) => {
-      const dTaxable = Number((item.taxableAmount * discountFactor).toFixed(2));
-      const dGst = Number((item.gstPaid * discountFactor).toFixed(2));
-      return {
-        ...item,
-        taxableAmount: dTaxable,
-        gstPaid: dGst,
-        total: Number((dTaxable + dGst).toFixed(2)),
-      };
-    });
-
-    const finalItemsGst = discountedItems.reduce(
+    const finalItemsGst = productsForBackend.reduce(
       (sum, it) => sum + (Number(it.gstPaid) || 0),
       0,
     );
@@ -395,43 +578,50 @@ export async function SimpleBill(
     );
     const finalBillTotal = Number(finalGrandTotal.toFixed(2));
 
-    const url = options?.billId
-      ? `https://billing.kravy.in/api/bill-manager/${options.billId}`
-      : "https://billing.kravy.in/api/bill-manager";
+    const isValidBillId =
+      options?.billId &&
+      options.billId !== "null" &&
+      options.billId !== "undefined";
+    const url = isValidBillId
+      ? `https://billing.kravy.in/api/bill-manager/${options.billId}${finalBusinessId ? `?businessId=${finalBusinessId}` : ""}`
+      : `https://billing.kravy.in/api/bill-manager${finalBusinessId ? `?businessId=${finalBusinessId}` : ""}`;
 
     const response = await fetch(url, {
-      method: options?.billId ? "PUT" : "POST",
+      method: isValidBillId ? "PUT" : "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
         Authorization: `Bearer ${finalToken}`,
       },
       body: JSON.stringify({
-        items: discountedItems,
+        items: productsForBackend,
         subtotal: Number(subtotal.toFixed(2)),
         tax: finalBillTax,
         gstAmount: Number(finalItemsGst.toFixed(2)),
         total: finalBillTotal,
         paymentMode: options?.paymentMode || "Cash",
         paymentStatus: "Paid",
-        isHeld: false,
+        isHeld: options?.isHeld ?? false,
         clerkUserId: finalClerkId || finalBusinessId,
-        userClerkId: finalClerkId || finalBusinessId,
         businessId: finalBusinessId,
-        orderId: options?.orderId || null,
+        orderId: options?.orderId || "",
         customerName: options?.customerName || "Walk-in",
-        customerPhone: options?.phone || null,
+        customerPhone: options?.phone || "",
         tableName: options?.tableName || "POS",
-        roomName: options?.roomName || null,
-        tokenNumber: options?.tokenNo ? Number(options.tokenNo) : null,
+        roomName: options?.roomName || "",
+        tokenNumber: options?.tokenNo ? Number(options.tokenNo) : 0,
         source: options?.source || "POS",
-        discountAmount: Number(discountAmount.toFixed(2)),
+        discountAmount: Number(totalDiscount.toFixed(2)),
+        discountRate: discountRatePercent,
         serviceCharge: Number(serviceCharge.toFixed(2)),
         serviceGst: Number(serviceGst.toFixed(2)),
+        serviceGstRate: serviceGstRate,
         deliveryCharge: Number(deliveryCharge.toFixed(2)),
         deliveryGst: Number(deliveryGst.toFixed(2)),
+        deliveryGstRate: deliveryGstRate,
         packagingCharge: Number(packagingCharge.toFixed(2)),
         packagingGst: Number(packagingGst.toFixed(2)),
+        packagingGstRate: packagingGstRate,
         isKotPrinted: true,
         auditNote: options?.notes || "App Order",
       }),
@@ -439,11 +629,21 @@ export async function SimpleBill(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Bill Save Failed:", response.status, errorText);
-      throw new Error(`Server error: ${response.status} - ${errorText}`);
+      console.error("Bill Save Failed:", response.status, url, errorText);
+
+      // If it's a 500 error on a PUT, it might be an unhandled order conversion.
+      // With the new backend fix, this shouldn't happen, but we'll log it clearly.
+      if (response.status === 500 && isValidBillId) {
+        throw new Error(
+          `Server error (500) during update. Ensure backend is updated to support order conversion.`,
+        );
+      }
+
+      throw new Error(`Server error: ${response.status} - ${url}`);
     }
 
     DeviceEventEmitter.emit("refresh_orders_list");
+    DeviceEventEmitter.emit("REFRESH_ORDERS");
     DeviceEventEmitter.emit("REFRESH_DASHBOARD");
     return { status: "success" };
   } catch (e: any) {

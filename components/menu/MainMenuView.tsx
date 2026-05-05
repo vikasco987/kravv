@@ -466,7 +466,10 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         const uniqueIds = new Set();
         let count = 0;
 
-        const process = (id: any) => {
+        const process = (item: any) => {
+          if (!item) return;
+          if (item.isHeld === false) return;
+          const id = item.id || item._id || item.billNumber;
           if (!id) return;
           const cleanId = id.toString();
           if (!hiddenIds.includes(cleanId) && !uniqueIds.has(cleanId)) {
@@ -475,8 +478,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           }
         };
 
-        backend.forEach((b) => process(b.id || b._id || b.billNumber));
-        local.forEach((l) => process(l.id));
+        backend.forEach((b) => process(b));
+        local.forEach((l) => process(l));
         return count;
       };
 
@@ -1095,6 +1098,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             tableName: tableToPrint || undefined,
             roomName: roomToPrint || undefined,
             taxSettings: taxSettings,
+            businessId: bId!,
           });
           fetchHeldCount();
         } catch (e) {

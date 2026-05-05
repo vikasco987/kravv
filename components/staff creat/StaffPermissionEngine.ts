@@ -361,12 +361,11 @@ export const StaffPermissionEngine = {
         } catch (e) {}
       }
 
-      console.log(
-        `[AUTH-SYSTEM] Business ID not found for user: ${clerkUserId || "Unknown"}`,
-      );
+      // console.log(
+      //   `[AUTH-SYSTEM] Business ID not found for user: ${clerkUserId || "Unknown"}`,
+      // );
       return null;
     } catch (err) {
-      console.error("[AUTH-SYSTEM] Error getting Business ID:", err);
       return null;
     }
   },
