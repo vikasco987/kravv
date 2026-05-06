@@ -65,3 +65,32 @@ export async function getRecentCompanyProfile(token: string) {
     return null;
   }
 }
+
+/**
+ * Update business settings in the backend.
+ */
+export async function updateBusinessSettings(token: string, settings: any) {
+  try {
+    if (!token) return null;
+
+    const res = await fetch(`${BACKEND_URL}/api/profile`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(settings),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      console.error("❌ updateBusinessSettings Failed:", res.status, errData);
+      return null;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error("❌ updateBusinessSettings Error:", err);
+    return null;
+  }
+}

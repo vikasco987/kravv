@@ -1,5 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+/**
+ * Ensures that bill totals and components (tax, discount, charges) are correctly
+ * calculated for display in analytics and reports.
+ *
+ * CRITICAL: It prioritizes stored values from the bill object to ensure that
+ * changing settings doesn't affect old data.
+ */
 export const applyTrueBillTotals = async (bills) => {
   if (!bills || !bills.length) return;
 
@@ -46,28 +53,25 @@ export const applyTrueBillTotals = async (bills) => {
   };
 
   bills.forEach((bill) => {
-    // If total already exists and is not zero, we should ideally trust it.
-    // However, we still need to calculate sub-components if they are missing for UI display.
-
+    // 1. Item Level Calculations
     let totalItemsTaxable = 0;
     let totalItemsGstAtBase = 0;
+    let itemsSubtotal = 0;
 
     (bill.items || []).forEach((it) => {
       const qty = Number(it.qty || it.quantity || 1);
       const rate = Number(it.rate || it.price || 0);
       const lineTotal = qty * rate;
+      itemsSubtotal += lineTotal;
 
-      // Use item's saved gstRate if available
-      let itemGstRate =
-        it.gstRate !== undefined
-          ? Number(it.gstRate)
-          : settings.tax_enabled
-            ? settings.tax_rate
-            : settings.per_product_tax
-              ? it.gst !== undefined && it.gst !== null
-                ? Number(it.gst)
-                : 0
-              : 0;
+      // Use item's saved gstRate if available, otherwise fallback to settings
+      let itemGstRate = it.gstRate !== undefined ? Number(it.gstRate) : 0;
+
+      // Fallback only if we really don't have it (usually for very old bills)
+      if (it.gstRate === undefined) {
+        if (settings.tax_enabled) itemGstRate = settings.tax_rate;
+        else if (settings.per_product_tax) itemGstRate = Number(it.gst || 0);
+      }
 
       let taxable = 0;
       let gst = 0;
@@ -84,7 +88,8 @@ export const applyTrueBillTotals = async (bills) => {
       totalItemsGstAtBase += gst;
     });
 
-    // Use stored discount if available (even if 0, check for undefined)
+    // 2. Discount
+    // Prioritize stored discountAmount
     const storedDiscount =
       bill.discountAmount ?? bill.discount_amount ?? bill.discount;
     const discountAmount =
@@ -94,7 +99,8 @@ export const applyTrueBillTotals = async (bills) => {
 
     const taxableAfterDiscount = totalItemsTaxable - discountAmount;
 
-    // Use stored GST if available
+    // 3. Main GST
+    // Prioritize stored gstAmount
     const storedGst = bill.gstAmount ?? bill.tax;
     const finalGstAmount =
       storedGst !== undefined && storedGst !== null
@@ -103,60 +109,54 @@ export const applyTrueBillTotals = async (bills) => {
           ? taxableAfterDiscount * (totalItemsGstAtBase / totalItemsTaxable)
           : 0;
 
-    // Service Charge
-    const storedSC = bill.serviceCharge;
-    let serviceCharge =
-      storedSC !== undefined && storedSC !== null
-        ? Number(storedSC)
+    // 4. Service Charge & GST
+    const serviceCharge =
+      bill.serviceCharge !== undefined && bill.serviceCharge !== null
+        ? Number(bill.serviceCharge)
         : settings.service_charge_enabled
           ? settings.service_charge_rate
           : 0;
 
-    const storedSGst = bill.serviceGst;
-    let serviceGst =
-      storedSGst !== undefined && storedSGst !== null
-        ? Number(storedSGst)
+    const serviceGst =
+      bill.serviceGst !== undefined && bill.serviceGst !== null
+        ? Number(bill.serviceGst)
         : serviceCharge > 0
           ? (serviceCharge * settings.service_gst_rate) / 100
           : 0;
 
-    // Delivery Charge
-    const storedDC = bill.deliveryCharge;
-    let deliveryCharge =
-      storedDC !== undefined && storedDC !== null
-        ? Number(storedDC)
+    // 5. Delivery Charge & GST
+    const deliveryCharge =
+      bill.deliveryCharge !== undefined && bill.deliveryCharge !== null
+        ? Number(bill.deliveryCharge)
         : settings.delivery_charge_enabled
           ? settings.delivery_charge_amount
           : 0;
 
-    const storedDGst = bill.deliveryGst;
-    let deliveryGst =
-      storedDGst !== undefined && storedDGst !== null
-        ? Number(storedDGst)
+    const deliveryGst =
+      bill.deliveryGst !== undefined && bill.deliveryGst !== null
+        ? Number(bill.deliveryGst)
         : deliveryCharge > 0
           ? (deliveryCharge * settings.delivery_gst_rate) / 100
           : 0;
 
-    // Packaging Charge
-    const storedPC = bill.packagingCharge;
-    let packagingCharge =
-      storedPC !== undefined && storedPC !== null
-        ? Number(storedPC)
+    // 6. Packaging Charge & GST
+    const packagingCharge =
+      bill.packagingCharge !== undefined && bill.packagingCharge !== null
+        ? Number(bill.packagingCharge)
         : settings.packaging_charge_enabled
           ? settings.packaging_charge_amount
           : 0;
 
-    const storedPGst = bill.packagingGst;
-    let packagingGst =
-      storedPGst !== undefined && storedPGst !== null
-        ? Number(storedPGst)
+    const packagingGst =
+      bill.packagingGst !== undefined && bill.packagingGst !== null
+        ? Number(bill.packagingGst)
         : packagingCharge > 0
           ? (packagingCharge * settings.packaging_gst_rate) / 100
           : 0;
 
-    // Final Total
-    if (bill.total === undefined || bill.total === null || bill.total === 0) {
-      bill.total =
+    // 7. Final Total Consistency - ALWAYS Recalculate to ensure "Real Data" matches components
+    bill.total = Number(
+      (
         taxableAfterDiscount +
         finalGstAmount +
         serviceCharge +
@@ -164,14 +164,20 @@ export const applyTrueBillTotals = async (bills) => {
         deliveryCharge +
         deliveryGst +
         packagingCharge +
-        packagingGst;
-    }
+        packagingGst
+      ).toFixed(2),
+    );
 
-    // Also update sub-fields for UI consistency if they were calculated
-    bill.calculatedDiscount = discountAmount;
-    bill.calculatedGst = finalGstAmount;
-    bill.calculatedServiceCharge = serviceCharge;
-    bill.calculatedDeliveryCharge = deliveryCharge;
-    bill.calculatedPackagingCharge = packagingCharge;
+    // Attach all calculated/stored sub-fields for UI binding (Daily/Weekly/Monthly reports)
+    bill.itemsSubtotal = Number(itemsSubtotal.toFixed(2));
+    bill.calculatedTaxable = Number(taxableAfterDiscount.toFixed(2));
+    bill.calculatedDiscount = Number(discountAmount.toFixed(2));
+    bill.calculatedGst = Number(finalGstAmount.toFixed(2));
+    bill.calculatedServiceCharge = Number(serviceCharge.toFixed(2));
+    bill.calculatedServiceGst = Number(serviceGst.toFixed(2));
+    bill.calculatedDeliveryCharge = Number(deliveryCharge.toFixed(2));
+    bill.calculatedDeliveryGst = Number(deliveryGst.toFixed(2));
+    bill.calculatedPackagingCharge = Number(packagingCharge.toFixed(2));
+    bill.calculatedPackagingGst = Number(packagingGst.toFixed(2));
   });
 };

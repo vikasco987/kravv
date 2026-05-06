@@ -308,18 +308,24 @@ export default function CheckoutView({
 
       let itemGstRate = 0;
       const productGst = Number(item.gst || 0);
-      let isFallback = false;
 
-      if (taxSettings.perProduct) {
+      // --- ALAG ALAG CASES KA LOGIC ---
+
+      // CASE 1: Global GST ON aur Per-Product GST OFF
+      if (taxSettings.enabled && !taxSettings.perProduct) {
+        itemGstRate = taxSettings.rate;
+      }
+      // CASE 2: Global GST OFF aur Per-Product GST ON
+      else if (!taxSettings.enabled && taxSettings.perProduct) {
+        itemGstRate = productGst;
+      }
+      // CASE 3: Global GST ON aur Per-Product GST ON
+      else if (taxSettings.enabled && taxSettings.perProduct) {
         if (productGst > 0) {
           itemGstRate = productGst;
-        } else if (taxSettings.enabled) {
+        } else {
           itemGstRate = taxSettings.rate;
-          isFallback = true;
         }
-      } else if (taxSettings.enabled) {
-        itemGstRate = taxSettings.rate;
-        isFallback = true;
       }
 
       let taxable = 0;
@@ -328,21 +334,31 @@ export default function CheckoutView({
       const taxType = item.taxType || item.taxStatus || "Without Tax";
 
       if (taxType === "With Tax") {
-        const base = isFallback ? itemPriceAfterDiscount : lineTotal;
-        const taxableBase = base / (1 + itemGstRate / 100);
-        const calcGst = base - taxableBase;
-
-        gst = calcGst;
-        taxable = itemPriceAfterDiscount - gst;
+        taxable = itemPriceAfterDiscount / (1 + itemGstRate / 100);
+        gst = itemPriceAfterDiscount - taxable;
       } else {
-        const base = isFallback ? itemPriceAfterDiscount : lineTotal;
-        gst = (base * itemGstRate) / 100;
         taxable = itemPriceAfterDiscount;
+        // --- DIFFERENTIATED CALCULATION BY CASE ---
+        if (taxSettings.enabled && !taxSettings.perProduct) {
+          // CASE 1: Global Only -> Calculate on Taxable Amount (After Discount)
+          gst = (itemPriceAfterDiscount * itemGstRate) / 100;
+        } else {
+          // CASE 2 & 3: Calculate on Gross Rate (Before Discount)
+          gst = (lineTotal * itemGstRate) / 100;
+        }
       }
 
-      if (isFallback) {
+      // --- COUNTERS LOGIC ---
+      if (taxSettings.enabled && taxSettings.perProduct) {
+        if (productGst > 0) {
+          perProductGstTotals[itemGstRate] =
+            (perProductGstTotals[itemGstRate] || 0) + gst;
+        } else {
+          globalGstTotal += gst;
+        }
+      } else if (taxSettings.enabled && !taxSettings.perProduct) {
         globalGstTotal += gst;
-      } else if (itemGstRate > 0) {
+      } else if (!taxSettings.enabled && taxSettings.perProduct) {
         perProductGstTotals[itemGstRate] =
           (perProductGstTotals[itemGstRate] || 0) + gst;
       }
@@ -354,7 +370,6 @@ export default function CheckoutView({
     });
 
     const netTaxableValue = totalTaxable;
-    const finalGst = totalGst;
 
     let serviceChargeAmount = 0;
     let serviceGstAmount = 0;
@@ -401,7 +416,7 @@ export default function CheckoutView({
       taxableAmount: netTaxableValue,
       discountAmount: totalDiscount,
       discountRate: taxSettings.discountRate,
-      gst: finalGst,
+      gst: totalGst,
       globalGstTotal,
       perProductGstTotals,
       globalGstRate: taxSettings.rate,
@@ -1001,82 +1016,80 @@ const styles = StyleSheet.create({
     marginLeft: s(10),
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
     borderRadius: s(12),
-    padding: s(14),
-    marginBottom: vs(12),
-    backgroundColor: "#F9FAFB",
+    padding: s(12),
     fontSize: rf(14),
-    color: "#111",
+    color: "#1F2937",
+    marginBottom: vs(12),
   },
   dropdown: {
+    backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#E5E7EB",
     borderRadius: s(12),
-    maxHeight: vs(150),
-    backgroundColor: "#fff",
+    marginTop: vs(-10),
     marginBottom: vs(10),
-    overflow: "hidden",
+    padding: s(10),
+    maxHeight: vs(150),
   },
   dropdownItem: {
-    padding: s(12),
+    paddingVertical: vs(10),
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
-
   summaryItemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: vs(15),
   },
-  summaryItemName: { fontSize: rf(15), fontWeight: "bold", color: "#1F2937" },
-  summaryItemPrice: { fontSize: rf(13), color: "#6B7280" },
-  summaryQtyControls: { flexDirection: "row", alignItems: "center" },
+  summaryItemName: { fontSize: rf(15), fontWeight: "600", color: "#1F2937" },
+  summaryItemPrice: { fontSize: rf(13), color: "#64748B", marginTop: vs(2) },
+  summaryQtyControls: { flexDirection: "row", alignItems: "center", gap: s(8) },
   circleBtn: {
-    width: s(26),
-    height: s(26),
-    borderRadius: s(13),
-    borderWidth: 1,
-    borderColor: "#10B981",
+    width: s(28),
+    height: s(28),
+    borderRadius: s(14),
+    backgroundColor: "#F0FDF4",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#DCFCE7",
   },
-  summaryQtyText: {
-    marginHorizontal: s(10),
-    fontSize: rf(15),
-    fontWeight: "bold",
-  },
+  summaryQtyText: { fontSize: rf(14), fontWeight: "bold", color: "#1F2937" },
   summaryItemTotal: {
-    marginLeft: s(10),
-    fontSize: rf(15),
+    fontSize: rf(14),
     fontWeight: "bold",
-    color: "#EF4444",
+    color: "#1F2937",
+    marginLeft: s(5),
     width: s(60),
     textAlign: "right",
   },
-  deleteBtn: { marginLeft: s(10), padding: s(4) },
-
-  divider: { height: 1, backgroundColor: "#F3F4F6", marginVertical: vs(15) },
+  deleteBtn: { padding: s(5) },
+  divider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: vs(15),
+  },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginVertical: vs(3),
+    marginBottom: vs(8),
   },
-  totalLabelSmall: { fontSize: rf(15), color: "#6B7280" },
-  totalValueSmall: { fontSize: rf(15), fontWeight: "bold", color: "#111" },
-  grandTotalLabel: { fontSize: rf(18), fontWeight: "bold", color: "#111" },
-  grandTotalValue: { fontSize: rf(18), fontWeight: "bold", color: "#EF4444" },
-
+  totalLabelSmall: { fontSize: rf(13), color: "#64748B" },
+  totalValueSmall: { fontSize: rf(13), fontWeight: "600", color: "#1F2937" },
+  grandTotalLabel: { fontSize: rf(18), fontWeight: "bold", color: "#1E293B" },
+  grandTotalValue: { fontSize: rf(22), fontWeight: "900", color: "#2563EB" },
   printSaveBtn: {
-    backgroundColor: "#10B981",
-    borderRadius: s(14),
-    padding: vs(16),
+    marginTop: vs(20),
+    backgroundColor: "#2563EB",
+    borderRadius: s(15),
+    paddingVertical: vs(15),
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: vs(20),
+    elevation: 4,
   },
   printSaveBtnText: { color: "#fff", fontSize: rf(16), fontWeight: "bold" },
   clearCartBtn: {
@@ -1084,40 +1097,35 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    gap: s(5),
   },
-  clearCartText: {
-    marginLeft: s(8),
-    color: "#94A3B8",
-    fontSize: rf(14),
-    fontWeight: "600",
-  },
-
+  clearCartText: { color: "#94A3B8", fontSize: rf(13), fontWeight: "600" },
   modalOverlayCentered: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
   },
   modalContentCentered: {
+    width: SCREEN_WIDTH * 0.8,
     backgroundColor: "#fff",
-    borderRadius: s(32),
-    padding: s(24),
-    width: "80%",
+    borderRadius: s(24),
+    padding: s(30),
     alignItems: "center",
   },
   successTitleText: {
-    fontSize: rf(24),
+    fontSize: rf(22),
     fontWeight: "bold",
-    color: "#10B981",
-    marginTop: 10,
-    textAlign: "center",
+    color: "#1F2937",
+    marginTop: vs(20),
+    marginBottom: vs(10),
   },
   modalBtn: {
-    backgroundColor: "#10b981",
-    paddingVertical: vs(12),
-    paddingHorizontal: s(30),
-    borderRadius: s(12),
     marginTop: vs(20),
+    backgroundColor: "#2563EB",
+    paddingHorizontal: s(40),
+    paddingVertical: vs(12),
+    borderRadius: s(12),
   },
-  modalBtnText: { color: "#fff", fontSize: rf(16), fontWeight: "bold" },
+  modalBtnText: { color: "#fff", fontWeight: "bold", fontSize: rf(16) },
 });

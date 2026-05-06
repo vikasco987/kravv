@@ -1,16 +1,20 @@
-import { useUser } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
+import {
+  getRecentCompanyProfile,
+  updateBusinessSettings,
+} from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
@@ -52,6 +56,7 @@ const MainSettingsView = ({
     setLanguage: setCurrentLanguage,
     t,
   } = useLanguage();
+  const { getToken } = useAuth();
 
   const [loginModalVisible, setLoginModalVisible] = React.useState(false);
   const [taxEnabled, setTaxEnabled] = React.useState(false);
@@ -144,6 +149,79 @@ const MainSettingsView = ({
       return;
     }
     try {
+      // 1. First load from Backend to keep in sync
+      const token = await getToken();
+      const sessionStr = await AsyncStorage.getItem("staff_session");
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const finalToken = token || staffSession?.token;
+
+      if (finalToken) {
+        const profile: any = await getRecentCompanyProfile(finalToken);
+        if (profile) {
+          // Map backend fields back to app keys and save to AsyncStorage
+          const syncTasks = [];
+          if (profile.taxEnabled !== undefined) {
+            setTaxEnabled(profile.taxEnabled);
+            syncTasks.push(
+              AsyncStorage.setItem("tax_enabled", String(profile.taxEnabled)),
+            );
+          }
+          if (profile.perProductTaxEnabled !== undefined) {
+            setPerProductTax(profile.perProductTaxEnabled);
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "per_product_tax",
+                String(profile.perProductTaxEnabled),
+              ),
+            );
+          }
+          if (profile.taxRate !== undefined) {
+            setTaxRate(String(profile.taxRate));
+            syncTasks.push(
+              AsyncStorage.setItem("tax_rate", String(profile.taxRate)),
+            );
+          }
+          if (profile.enableDeliveryCharges !== undefined) {
+            setDeliveryChargeEnabled(profile.enableDeliveryCharges);
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "delivery_charge_enabled",
+                String(profile.enableDeliveryCharges),
+              ),
+            );
+          }
+          if (profile.deliveryChargeAmount !== undefined) {
+            setDeliveryChargeAmount(String(profile.deliveryChargeAmount));
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "delivery_charge_amount",
+                String(profile.deliveryChargeAmount),
+              ),
+            );
+          }
+          if (profile.enablePackagingCharges !== undefined) {
+            setPackagingChargeEnabled(profile.enablePackagingCharges);
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "packaging_charge_enabled",
+                String(profile.enablePackagingCharges),
+              ),
+            );
+          }
+          if (profile.packagingChargeAmount !== undefined) {
+            setPackagingChargeAmount(String(profile.packagingChargeAmount));
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "packaging_charge_amount",
+                String(profile.packagingChargeAmount),
+              ),
+            );
+          }
+          await Promise.all(syncTasks);
+        }
+      }
+
+      // 2. Load the rest from AsyncStorage
       const settings = await AsyncStorage.multiGet([
         "tax_enabled",
         "per_product_tax",
@@ -248,7 +326,50 @@ const MainSettingsView = ({
     label: string,
   ) => {
     try {
+      // 1. Update Local Storage
       await AsyncStorage.setItem(key, String(value));
+
+      // 2. Sync to Backend if it's a shared setting
+      const token = await getToken();
+      const sessionStr = await AsyncStorage.getItem("staff_session");
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const finalToken = token || staffSession?.token;
+
+      if (finalToken) {
+        const payload: any = {};
+        let shouldSync = true;
+
+        switch (key) {
+          case "tax_enabled":
+            payload.taxEnabled = value;
+            break;
+          case "per_product_tax":
+            payload.perProductTaxEnabled = value;
+            break;
+          case "tax_rate":
+            payload.taxRate = parseFloat(String(value));
+            break;
+          case "delivery_charge_enabled":
+            payload.enableDeliveryCharges = value;
+            break;
+          case "delivery_charge_amount":
+            payload.deliveryChargeAmount = parseFloat(String(value));
+            break;
+          case "packaging_charge_enabled":
+            payload.enablePackagingCharges = value;
+            break;
+          case "packaging_charge_amount":
+            payload.packagingChargeAmount = parseFloat(String(value));
+            break;
+          default:
+            shouldSync = false;
+        }
+
+        if (shouldSync) {
+          await updateBusinessSettings(finalToken, payload);
+        }
+      }
+
       const message =
         typeof value === "boolean" && !value
           ? `${label} disabled successfully!`
