@@ -70,6 +70,8 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
     bill.calculatedTaxable !== undefined
       ? bill.calculatedTaxable
       : itemsSubtotal;
+  const globalGst = bill.calculatedGlobalGst !== undefined ? bill.calculatedGlobalGst : 0;
+  const itemGst = bill.calculatedItemGst !== undefined ? bill.calculatedItemGst : 0;
   const gstToShow = bill.calculatedGst !== undefined ? bill.calculatedGst : 0;
   const serviceCharge =
     bill.calculatedServiceCharge !== undefined
@@ -90,7 +92,7 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
   const packagingGst =
     bill.calculatedPackagingGst !== undefined ? bill.calculatedPackagingGst : 0;
 
-  const displayTotal =
+  const calculatedTotal =
     taxableAfterDiscount +
     gstToShow +
     serviceCharge +
@@ -100,14 +102,20 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
     packagingCharge +
     packagingGst;
 
-  // Only update bill.total if it is missing or 0
-  if (!bill.total) {
-    bill.total = displayTotal;
-  }
+  // We should prioritize bill.total ONLY if it already includes the calculated components.
+  // Otherwise use the calculated total (for dynamic discount handling).
+  const displayTotal = (bill.discountAmount !== undefined || bill.discount_amount !== undefined || bill.discount !== undefined)
+    ? (bill.total || calculatedTotal)
+    : calculatedTotal;
 
-  const discPercent = bill.discountRate || 0;
-  const avgGstPercent =
-    bill.items && bill.items[0] ? bill.items[0].gstRate || 0 : 0;
+  // Only update bill.total if it is missing or different from displayTotal
+  bill.total = displayTotal;
+
+  const discPercent = bill.calculatedDiscountRate || 0;
+  const avgGstPercent = bill.calculatedGstRate || 0;
+  const servGstPercent = bill.calculatedServiceGstRate || 0;
+  const delGstPercent = bill.calculatedDeliveryGstRate || 0;
+  const pkgGstPercent = bill.calculatedPackagingGstRate || 0;
 
   // Format time
   const billTime = formatTime(bill.createdAt);
@@ -209,7 +217,7 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
                 {Number(itemsSubtotal || 0).toFixed(2)}
               </Text>
             </View>
-
+            
             {discountAmount > 0 && (
               <View style={styles.printRow}>
                 <Text style={styles.printLabel}>Disc ({discPercent}%):</Text>
@@ -226,24 +234,44 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
               </Text>
             </View>
 
-            <View style={styles.printRow}>
-              <Text style={styles.printLabel}>GST ({avgGstPercent}%):</Text>
-              <Text style={styles.printValue}>
-                {Number(gstToShow || 0).toFixed(2)}
-              </Text>
-            </View>
+            {globalGst > 0 && (
+              <View style={styles.printRow}>
+                <Text style={styles.printLabel}>Global GST ({avgGstPercent}%):</Text>
+                <Text style={styles.printValue}>
+                  {Number(globalGst).toFixed(2)}
+                </Text>
+              </View>
+            )}
+
+            {itemGst > 0 && (
+              <View style={styles.printRow}>
+                <Text style={styles.printLabel}>Item GST:</Text>
+                <Text style={styles.printValue}>
+                  {Number(itemGst).toFixed(2)}
+                </Text>
+              </View>
+            )}
+
+            {globalGst === 0 && itemGst === 0 && gstToShow > 0 && (
+              <View style={styles.printRow}>
+                <Text style={styles.printLabel}>GST ({avgGstPercent}%):</Text>
+                <Text style={styles.printValue}>
+                  {Number(gstToShow).toFixed(2)}
+                </Text>
+              </View>
+            )}
 
             {serviceCharge > 0 && (
               <>
                 <View style={styles.printRow}>
-                  <Text style={styles.printLabel}>Service Charge:</Text>
+                  <Text style={styles.printLabel}>Service:</Text>
                   <Text style={styles.printValue}>
                     {Number(serviceCharge).toFixed(2)}
                   </Text>
                 </View>
                 {serviceGst > 0 && (
                   <View style={styles.printRow}>
-                    <Text style={styles.printLabel}>GST on Serv:</Text>
+                    <Text style={styles.printLabel}>Serv GST ({servGstPercent}%):</Text>
                     <Text style={styles.printValue}>
                       {Number(serviceGst).toFixed(2)}
                     </Text>
@@ -255,14 +283,14 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
             {deliveryCharge > 0 && (
               <>
                 <View style={styles.printRow}>
-                  <Text style={styles.printLabel}>Delivery Charge:</Text>
+                  <Text style={styles.printLabel}>Delivery:</Text>
                   <Text style={styles.printValue}>
                     {Number(deliveryCharge).toFixed(2)}
                   </Text>
                 </View>
                 {deliveryGst > 0 && (
                   <View style={styles.printRow}>
-                    <Text style={styles.printLabel}>GST on Del:</Text>
+                    <Text style={styles.printLabel}>Del GST ({delGstPercent}%):</Text>
                     <Text style={styles.printValue}>
                       {Number(deliveryGst).toFixed(2)}
                     </Text>
@@ -274,14 +302,14 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
             {packagingCharge > 0 && (
               <>
                 <View style={styles.printRow}>
-                  <Text style={styles.printLabel}>Packaging Charge:</Text>
+                  <Text style={styles.printLabel}>Packaging:</Text>
                   <Text style={styles.printValue}>
                     {Number(packagingCharge).toFixed(2)}
                   </Text>
                 </View>
                 {packagingGst > 0 && (
                   <View style={styles.printRow}>
-                    <Text style={styles.printLabel}>GST on Pack:</Text>
+                    <Text style={styles.printLabel}>Pkg GST ({pkgGstPercent}%):</Text>
                     <Text style={styles.printValue}>
                       {Number(packagingGst).toFixed(2)}
                     </Text>

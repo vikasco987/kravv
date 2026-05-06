@@ -309,6 +309,8 @@ const ItemWiseSalesDetail = ({
 
   // If we are in "Bill Photo" mode (Preview)
   if (previewBill) {
+    let globalGstSum = 0;
+    let itemGstSum = 0;
     let totalItemsTaxable = 0;
     let totalItemsGstAtBase = 0;
     const ratesInCart = new Set<number>();
@@ -316,9 +318,8 @@ const ItemWiseSalesDetail = ({
     (previewBill.items || []).forEach((it: any) => {
       const qty = Number(it.qty || it.quantity || 1);
       const rate = Number(it.rate || it.price || 0);
-      const lineTotal = qty * rate;
+      const itemLineTotal = qty * rate;
 
-      // Use the GST rate saved in the item record, or global setting if applicable
       let itemGstRate =
         it.gstRate !== undefined
           ? Number(it.gstRate)
@@ -334,17 +335,37 @@ const ItemWiseSalesDetail = ({
 
       let taxable = 0;
       let gst = 0;
+      const taxType = it.taxStatus || it.taxType || "Without Tax";
+      
+      const itemDiscount = itemLineTotal * (settings.discount_enabled ? (settings.discount_rate / 100) : 0);
+      const itemPriceAfterDiscount = itemLineTotal - itemDiscount;
 
-      if (it.taxType === "With Tax" || it.taxStatus === "With Tax") {
-        taxable = lineTotal / (1 + itemGstRate / 100);
-        gst = lineTotal - taxable;
+      if (taxType === "With Tax") {
+        taxable = itemPriceAfterDiscount / (1 + itemGstRate / 100);
+        gst = itemPriceAfterDiscount - taxable;
       } else {
-        taxable = lineTotal;
-        gst = (lineTotal * itemGstRate) / 100;
+        taxable = itemPriceAfterDiscount;
+        if (settings.tax_enabled && !settings.per_product_tax) {
+          gst = (itemPriceAfterDiscount * itemGstRate) / 100;
+        } else {
+          gst = (itemLineTotal * itemGstRate) / 100;
+        }
       }
 
       totalItemsTaxable += taxable;
       totalItemsGstAtBase += gst;
+
+      // Track source
+      if (settings.tax_enabled && !settings.per_product_tax) {
+        globalGstSum += gst;
+      } else if (settings.per_product_tax) {
+        const productGst = Number(it.gst || 0);
+        if (productGst > 0 || !settings.tax_enabled) {
+          itemGstSum += gst;
+        } else {
+          globalGstSum += gst;
+        }
+      }
     });
 
     // 1. Subtotal (Sum of items)
@@ -365,12 +386,14 @@ const ItemWiseSalesDetail = ({
     const discountAmount =
       storedDiscount !== undefined && storedDiscount !== null
         ? Number(storedDiscount)
-        : totalItemsTaxable * (settings.discount_rate / 100);
+        : (previewBill.id || previewBill._id)
+          ? 0
+          : (settings.discount_enabled ? totalItemsTaxable * (settings.discount_rate / 100) : 0);
 
     const taxableAfterDiscount = totalItemsTaxable - discountAmount;
 
     // 3. Main GST (on items)
-    const storedGst = previewBill.gstAmount ?? previewBill.tax;
+    const storedGst = previewBill.tax ?? previewBill.gstAmount;
     const finalGstAmount =
       storedGst !== undefined && storedGst !== null
         ? Number(storedGst)
@@ -383,56 +406,70 @@ const ItemWiseSalesDetail = ({
     let serviceCharge =
       storedSC !== undefined && storedSC !== null
         ? Number(storedSC)
-        : settings.service_charge_enabled
-          ? settings.service_charge_rate
-          : 0;
+        : (previewBill.id || previewBill._id)
+          ? 0
+          : settings.service_charge_enabled
+            ? settings.service_charge_rate
+            : 0;
 
     const storedSGst = previewBill.serviceGst;
     let serviceGst =
       storedSGst !== undefined && storedSGst !== null
         ? Number(storedSGst)
-        : serviceCharge > 0
-          ? (serviceCharge * settings.service_gst_rate) / 100
-          : 0;
+        : (previewBill.id || previewBill._id)
+          ? 0
+          : serviceCharge > 0
+            ? (serviceCharge * settings.service_gst_rate) / 100
+            : 0;
 
     // 5. Delivery Charge
-    const storedDC = previewBill.deliveryCharge;
+    // Note: SimpleBill saves it as deliveryCharges (plural)
+    const storedDC = previewBill.deliveryCharges ?? previewBill.deliveryCharge;
     let deliveryCharge =
       storedDC !== undefined && storedDC !== null
         ? Number(storedDC)
-        : settings.delivery_charge_enabled
-          ? settings.delivery_charge_amount
-          : 0;
+        : (previewBill.id || previewBill._id)
+          ? 0
+          : settings.delivery_charge_enabled
+            ? settings.delivery_charge_amount
+            : 0;
 
     const storedDGst = previewBill.deliveryGst;
     let deliveryGst =
       storedDGst !== undefined && storedDGst !== null
         ? Number(storedDGst)
-        : deliveryCharge > 0
-          ? (deliveryCharge * settings.delivery_gst_rate) / 100
-          : 0;
+        : (previewBill.id || previewBill._id)
+          ? 0
+          : deliveryCharge > 0
+            ? (deliveryCharge * settings.delivery_gst_rate) / 100
+            : 0;
 
     // 6. Packaging Charge
-    const storedPC = previewBill.packagingCharge;
+    // Note: SimpleBill saves it as packagingCharges (plural)
+    const storedPC = previewBill.packagingCharges ?? previewBill.packagingCharge;
     let packagingCharge =
       storedPC !== undefined && storedPC !== null
         ? Number(storedPC)
-        : settings.packaging_charge_enabled
-          ? settings.packaging_charge_amount
-          : 0;
+        : (previewBill.id || previewBill._id)
+          ? 0
+          : settings.packaging_charge_enabled
+            ? settings.packaging_charge_amount
+            : 0;
 
     const storedPGst = previewBill.packagingGst;
     let packagingGst =
       storedPGst !== undefined && storedPGst !== null
         ? Number(storedPGst)
-        : packagingCharge > 0
-          ? (packagingCharge * settings.packaging_gst_rate) / 100
-          : 0;
+        : (previewBill.id || previewBill._id)
+          ? 0
+          : packagingCharge > 0
+            ? (packagingCharge * settings.packaging_gst_rate) / 100
+            : 0;
 
     // 7. Grand Total
-    const displayTotal =
-      previewBill.total ||
-      taxableAfterDiscount +
+    // If we are using a dynamic discount (storedDiscount was missing), 
+    // we should also use a dynamic total to ensure the math adds up.
+    const calculatedTotal = taxableAfterDiscount +
         finalGstAmount +
         serviceCharge +
         serviceGst +
@@ -441,9 +478,21 @@ const ItemWiseSalesDetail = ({
         packagingCharge +
         packagingGst;
 
+    const displayTotal =
+      (storedDiscount === undefined || storedDiscount === null)
+        ? calculatedTotal
+        : (previewBill.total || previewBill.grandTotal || calculatedTotal);
+
+    // Rates for display
+    const uniqueRates = Array.from(ratesInCart);
+    const discPercent = previewBill.discountRate ?? settings.discount_rate;
+    const avgGstPercent = previewBill.gstRate ?? (uniqueRates.length === 1 ? uniqueRates[0] : "Multi");
+    const servGstPercent = previewBill.serviceGstRate ?? settings.service_gst_rate;
+    const delGstPercent = previewBill.deliveryGstRate ?? settings.delivery_gst_rate;
+    const pkgGstPercent = previewBill.packagingGstRate ?? settings.packaging_gst_rate;
+
     // GST Label
     let gstLabel = "(0%)";
-    const uniqueRates = Array.from(ratesInCart);
     if (uniqueRates.length === 1) {
       gstLabel = `(${uniqueRates[0]}%)`;
     } else if (uniqueRates.length > 1) {
@@ -911,52 +960,72 @@ const ItemWiseSalesDetail = ({
             {/* Totals */}
             <View style={styles.billTotals}>
               <View style={styles.totalLine}>
-                <Text style={styles.totalLineLabel}>Subtotal:</Text>
+                <Text style={styles.totalLineLabel}>subtotal:</Text>
                 <Text style={styles.totalLineValue}>
-                  ₹{subtotalValue.toFixed(2)}
+                  {subtotalValue.toFixed(2)}
                 </Text>
               </View>
 
               {discountAmount > 0 && (
                 <View style={styles.totalLine}>
                   <Text style={styles.totalLineLabel}>
-                    Discount ({settings.discount_rate}%):
+                    Disc ({discPercent}%):
                   </Text>
                   <Text style={styles.totalLineValue}>
-                    -₹{discountAmount.toFixed(2)}
+                    -{discountAmount.toFixed(2)}
                   </Text>
                 </View>
               )}
 
               <View style={styles.totalLine}>
-                <Text style={styles.totalLineLabel}>Taxable Amount:</Text>
+                <Text style={styles.totalLineLabel}>taxable_amount:</Text>
                 <Text style={styles.totalLineValue}>
-                  ₹{taxableAfterDiscount.toFixed(2)}
+                  {taxableAfterDiscount.toFixed(2)}
                 </Text>
               </View>
 
-              <View style={styles.totalLine}>
-                <Text style={styles.totalLineLabel}>GST {gstLabel}:</Text>
-                <Text style={styles.totalLineValue}>
-                  ₹{finalGstAmount.toFixed(2)}
-                </Text>
-              </View>
+              {globalGstSum > 0 && (
+                <View style={styles.totalLine}>
+                  <Text style={styles.totalLineLabel}>Global GST ({avgGstPercent}%):</Text>
+                  <Text style={styles.totalLineValue}>
+                    {globalGstSum.toFixed(2)}
+                  </Text>
+                </View>
+              )}
+
+              {itemGstSum > 0 && (
+                <View style={styles.totalLine}>
+                  <Text style={styles.totalLineLabel}>Item GST:</Text>
+                  <Text style={styles.totalLineValue}>
+                    {itemGstSum.toFixed(2)}
+                  </Text>
+                </View>
+              )}
+
+              {globalGstSum === 0 && itemGstSum === 0 && finalGstAmount > 0 && (
+                <View style={styles.totalLine}>
+                  <Text style={styles.totalLineLabel}>GST ({avgGstPercent}%):</Text>
+                  <Text style={styles.totalLineValue}>
+                    {finalGstAmount.toFixed(2)}
+                  </Text>
+                </View>
+              )}
 
               {serviceCharge > 0 && (
                 <>
                   <View style={styles.totalLine}>
-                    <Text style={styles.totalLineLabel}>Service Charge:</Text>
+                    <Text style={styles.totalLineLabel}>Service:</Text>
                     <Text style={styles.totalLineValue}>
-                      ₹{serviceCharge.toFixed(2)}
+                      {serviceCharge.toFixed(2)}
                     </Text>
                   </View>
                   {serviceGst > 0 && (
                     <View style={styles.totalLine}>
                       <Text style={styles.totalLineLabel}>
-                        GST on Serv ({settings.service_gst_rate}%):
+                        Serv GST ({servGstPercent}%):
                       </Text>
                       <Text style={styles.totalLineValue}>
-                        ₹{serviceGst.toFixed(2)}
+                        {serviceGst.toFixed(2)}
                       </Text>
                     </View>
                   )}
@@ -966,18 +1035,18 @@ const ItemWiseSalesDetail = ({
               {deliveryCharge > 0 && (
                 <>
                   <View style={styles.totalLine}>
-                    <Text style={styles.totalLineLabel}>Delivery Charge:</Text>
+                    <Text style={styles.totalLineLabel}>Delivery:</Text>
                     <Text style={styles.totalLineValue}>
-                      ₹{deliveryCharge.toFixed(2)}
+                      {deliveryCharge.toFixed(2)}
                     </Text>
                   </View>
                   {deliveryGst > 0 && (
                     <View style={styles.totalLine}>
                       <Text style={styles.totalLineLabel}>
-                        GST on Del ({settings.delivery_gst_rate}%):
+                        Del GST ({delGstPercent}%):
                       </Text>
                       <Text style={styles.totalLineValue}>
-                        ₹{deliveryGst.toFixed(2)}
+                        {deliveryGst.toFixed(2)}
                       </Text>
                     </View>
                   )}
@@ -987,18 +1056,18 @@ const ItemWiseSalesDetail = ({
               {packagingCharge > 0 && (
                 <>
                   <View style={styles.totalLine}>
-                    <Text style={styles.totalLineLabel}>Packaging Charge:</Text>
+                    <Text style={styles.totalLineLabel}>Packaging:</Text>
                     <Text style={styles.totalLineValue}>
-                      ₹{packagingCharge.toFixed(2)}
+                      {packagingCharge.toFixed(2)}
                     </Text>
                   </View>
                   {packagingGst > 0 && (
                     <View style={styles.totalLine}>
                       <Text style={styles.totalLineLabel}>
-                        GST on Pack ({settings.packaging_gst_rate}%):
+                        Pkg GST ({pkgGstPercent}%):
                       </Text>
                       <Text style={styles.totalLineValue}>
-                        ₹{packagingGst.toFixed(2)}
+                        {packagingGst.toFixed(2)}
                       </Text>
                     </View>
                   )}
@@ -1011,7 +1080,7 @@ const ItemWiseSalesDetail = ({
                   TOTAL:
                 </Text>
                 <Text style={[styles.totalLineValue, { fontWeight: "bold" }]}>
-                  ₹{displayTotal.toFixed(2)}
+                  {displayTotal.toFixed(2)}
                 </Text>
               </View>
             </View>
@@ -1118,7 +1187,7 @@ const ItemWiseSalesDetail = ({
             const billDiscount =
               storedBillDiscount !== undefined && storedBillDiscount !== null
                 ? Number(storedBillDiscount)
-                : billItemsTaxable * (settings.discount_rate / 100);
+                : (settings.discount_enabled ? billItemsTaxable * (settings.discount_rate / 100) : 0);
 
             const billTaxableAfterDiscount = billItemsTaxable - billDiscount;
 
@@ -1183,8 +1252,7 @@ const ItemWiseSalesDetail = ({
                   ? (billPackagingCharge * settings.packaging_gst_rate) / 100
                   : 0;
 
-            const billGrandTotal =
-              sale.fullBill?.total ||
+            const billCalculatedTotal =
               billTaxableAfterDiscount +
                 billGstAmount +
                 billServiceCharge +
@@ -1193,6 +1261,11 @@ const ItemWiseSalesDetail = ({
                 billDeliveryGst +
                 billPackagingCharge +
                 billPackagingGst;
+
+            const billGrandTotal =
+              (storedBillDiscount === undefined || storedBillDiscount === null)
+                ? billCalculatedTotal
+                : (sale.fullBill?.total || billCalculatedTotal);
 
             return (
               <View key={index} style={styles.saleCard}>

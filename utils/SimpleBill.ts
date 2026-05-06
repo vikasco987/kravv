@@ -481,8 +481,8 @@ export async function SimpleBill(
       /^[a-f\d]{24}$/i.test(options.billId);
 
     const url = isValidBillId
-      ? `https://billing.kravy.in/api/bill-manager/${options.billId}`
-      : `https://billing.kravy.in/api/bill-manager`;
+      ? `https://billing.kravy.in/api/bill-manager/${options.billId}${finalBusinessId ? `?businessId=${finalBusinessId}` : ""}`
+      : `https://billing.kravy.in/api/bill-manager${finalBusinessId ? `?businessId=${finalBusinessId}` : ""}`;
 
     // 🖨️ & 🌐 2. Background Process (Save + Print) - Fire and Forget for Zero UI Latency
     (async () => {
@@ -618,8 +618,10 @@ export async function SimpleBill(
           while (attempt < maxRetries && !success) {
             try {
               attempt++;
+              const method = isValidBillId ? "PUT" : "POST";
+              console.log(`[BILL-SYNC] Attempt ${attempt}: ${method} to ${url}`);
               const response = await fetch(url, {
-                method: isValidBillId ? "PUT" : "POST",
+                method: method,
                 headers: {
                   "Content-Type": "application/json",
                   Accept: "application/json",
@@ -628,6 +630,7 @@ export async function SimpleBill(
                 body: JSON.stringify({
                   items: productsForBackend,
                   subtotal: Number(totalTaxable.toFixed(2)),
+                  itemsSubtotal: Number(subtotal.toFixed(2)),
                   tax: Number(totalGst.toFixed(2)),
                   total: finalBillTotal,
                   paymentMode: options?.paymentMode || "Cash",
@@ -644,6 +647,7 @@ export async function SimpleBill(
                   source: options?.source || "POS",
                   discountAmount: Number(totalDiscount.toFixed(2)),
                   discountRate: discountRatePercent,
+                  calculatedTaxable: Number(totalTaxable.toFixed(2)), // Taxable amount after discount
                   serviceCharge: Number(serviceCharge.toFixed(2)),
                   serviceGst: Number(serviceGst.toFixed(2)),
                   serviceGstRate: serviceGstRate,
