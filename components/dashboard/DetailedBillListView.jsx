@@ -64,33 +64,112 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
             acc + Number(it.qty || 1) * Number(it.rate || it.price || 0),
           0,
         );
+  const discPercent =
+    bill.calculatedDiscountRate !== undefined
+      ? bill.calculatedDiscountRate
+      : (bill.discountRate ?? settings.discount_rate ?? 0);
+
   const discountAmount =
-    bill.calculatedDiscount !== undefined ? bill.calculatedDiscount : 0;
+    bill.calculatedDiscount !== undefined && bill.calculatedDiscount > 0
+      ? bill.calculatedDiscount
+      : bill.discountAmount ||
+        bill.discount_amount ||
+        bill.discount ||
+        (settings.discount_enabled ? itemsSubtotal * (discPercent / 100) : 0);
+
   const taxableAfterDiscount =
-    bill.calculatedTaxable !== undefined
+    bill.calculatedTaxable !== undefined &&
+    bill.calculatedTaxable !== itemsSubtotal
       ? bill.calculatedTaxable
-      : itemsSubtotal;
-  const globalGst = bill.calculatedGlobalGst !== undefined ? bill.calculatedGlobalGst : 0;
-  const itemGst = bill.calculatedItemGst !== undefined ? bill.calculatedItemGst : 0;
-  const gstToShow = bill.calculatedGst !== undefined ? bill.calculatedGst : 0;
+      : itemsSubtotal - discountAmount;
+  // Logic for Detailed GST Breakdown (Global + Per-Product by Rate)
+  const globalTaxMap = {};
+  const itemTaxMap = {};
+
+  (bill.items || []).forEach((it) => {
+    const qty = Number(it.qty || it.quantity || 1);
+    const rate = Number(it.rate || it.price || 0);
+    const itemGross = qty * rate;
+    const itemDiscount =
+      itemsSubtotal > 0 ? (itemGross / itemsSubtotal) * discountAmount : 0;
+    const itemTaxable = itemGross - itemDiscount;
+    const pGst = Number(it.gst || it.gstRate || it.gst_rate || 0);
+
+    if (settings.tax_enabled && settings.per_product_tax) {
+      if (pGst > 0) {
+        itemTaxMap[pGst] = (itemTaxMap[pGst] || 0) + itemGross * (pGst / 100);
+      } else if (settings.tax_rate > 0) {
+        globalTaxMap[settings.tax_rate] =
+          (globalTaxMap[settings.tax_rate] || 0) +
+          itemGross * (settings.tax_rate / 100);
+      }
+    } else if (settings.tax_enabled && settings.tax_rate > 0) {
+      globalTaxMap[settings.tax_rate] =
+        (globalTaxMap[settings.tax_rate] || 0) +
+        itemGross * (settings.tax_rate / 100);
+    } else if (settings.per_product_tax && pGst > 0) {
+      itemTaxMap[pGst] = (itemTaxMap[pGst] || 0) + itemGross * (pGst / 100);
+    }
+  });
+
+  const totalGlobalGst = Object.values(globalTaxMap).reduce((a, b) => a + b, 0);
+  const totalItemGst = Object.values(itemTaxMap).reduce((a, b) => a + b, 0);
+
+  const isExistingBill = !!(bill.id || bill._id);
+
+  const globalGst =
+    bill.calculatedGlobalGst !== undefined
+      ? bill.calculatedGlobalGst
+      : settings.tax_enabled || settings.per_product_tax
+        ? totalGlobalGst
+        : 0;
+
+  const itemGst =
+    bill.calculatedItemGst !== undefined
+      ? bill.calculatedItemGst
+      : settings.tax_enabled || settings.per_product_tax
+        ? totalItemGst
+        : 0;
+
+  const gstToShow = globalGst + itemGst;
   const serviceCharge =
-    bill.calculatedServiceCharge !== undefined
+    bill.calculatedServiceCharge !== undefined &&
+    bill.calculatedServiceCharge > 0
       ? bill.calculatedServiceCharge
-      : 0;
+      : bill.serviceCharge || 0;
+
   const serviceGst =
-    bill.calculatedServiceGst !== undefined ? bill.calculatedServiceGst : 0;
+    bill.calculatedServiceGst !== undefined && bill.calculatedServiceGst > 0
+      ? bill.calculatedServiceGst
+      : settings.service_gst_enabled && serviceCharge > 0
+        ? (serviceCharge * settings.service_gst_rate) / 100
+        : 0;
+
   const deliveryCharge =
-    bill.calculatedDeliveryCharge !== undefined
+    bill.calculatedDeliveryCharge !== undefined &&
+    bill.calculatedDeliveryCharge > 0
       ? bill.calculatedDeliveryCharge
-      : 0;
+      : bill.deliveryCharge || bill.deliveryCharges || 0;
+
   const deliveryGst =
-    bill.calculatedDeliveryGst !== undefined ? bill.calculatedDeliveryGst : 0;
+    bill.calculatedDeliveryGst !== undefined && bill.calculatedDeliveryGst > 0
+      ? bill.calculatedDeliveryGst
+      : settings.delivery_gst_enabled && deliveryCharge > 0
+        ? (deliveryCharge * settings.delivery_gst_rate) / 100
+        : 0;
+
   const packagingCharge =
-    bill.calculatedPackagingCharge !== undefined
+    bill.calculatedPackagingCharge !== undefined &&
+    bill.calculatedPackagingCharge > 0
       ? bill.calculatedPackagingCharge
-      : 0;
+      : bill.packagingCharge || bill.packagingCharges || 0;
+
   const packagingGst =
-    bill.calculatedPackagingGst !== undefined ? bill.calculatedPackagingGst : 0;
+    bill.calculatedPackagingGst !== undefined && bill.calculatedPackagingGst > 0
+      ? bill.calculatedPackagingGst
+      : settings.packaging_gst_enabled && packagingCharge > 0
+        ? (packagingCharge * settings.packaging_gst_rate) / 100
+        : 0;
 
   const calculatedTotal =
     taxableAfterDiscount +
@@ -102,20 +181,35 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
     packagingCharge +
     packagingGst;
 
-  // We should prioritize bill.total ONLY if it already includes the calculated components.
+  // We should prioritize bill.total ONLY if it already includes the calculated components and has a stored discount.
   // Otherwise use the calculated total (for dynamic discount handling).
-  const displayTotal = (bill.discountAmount !== undefined || bill.discount_amount !== undefined || bill.discount !== undefined)
-    ? (bill.total || calculatedTotal)
+  const hasStoredDiscount =
+    bill.calculatedDiscount > 0 ||
+    bill.discountAmount > 0 ||
+    bill.discount_amount > 0 ||
+    bill.discount > 0;
+  const displayTotal = hasStoredDiscount
+    ? bill.total || calculatedTotal
     : calculatedTotal;
 
   // Only update bill.total if it is missing or different from displayTotal
   bill.total = displayTotal;
 
-  const discPercent = bill.calculatedDiscountRate || 0;
-  const avgGstPercent = bill.calculatedGstRate || 0;
-  const servGstPercent = bill.calculatedServiceGstRate || 0;
-  const delGstPercent = bill.calculatedDeliveryGstRate || 0;
-  const pkgGstPercent = bill.calculatedPackagingGstRate || 0;
+  const avgGstPercent =
+    bill.calculatedGstRate !== undefined
+      ? bill.calculatedGstRate
+      : settings.tax_enabled && !settings.per_product_tax
+        ? settings.tax_rate
+        : 0;
+  const servGstPercent =
+    bill.calculatedServiceGstRate || settings.service_gst_rate || 0;
+  const delGstPercent =
+    bill.calculatedDeliveryGstRate || settings.delivery_gst_rate || 0;
+  const pkgGstPercent =
+    bill.calculatedPackagingGstRate || settings.packaging_gst_rate || 0;
+
+  const avgItemGstPercent =
+    (bill.items || []).find((it) => Number(it.gst || 0) > 0)?.gst || 0;
 
   // Format time
   const billTime = formatTime(bill.createdAt);
@@ -190,22 +284,28 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
       {expanded && (
         <View style={styles.expandedContent}>
           {/* Items List */}
-          {(bill.items || []).map((item, idx) => (
-            <View key={idx} style={styles.expandedItemRow}>
-              <Text style={styles.expandedItemName}>
-                {item.name} x{item.qty || item.quantity || 1}
-              </Text>
-              <Text style={styles.expandedItemPrice}>
-                ₹
-                {Number(
-                  (item.qty || item.quantity || 1) *
-                    (item.rate || item.price || 0),
-                )
-                  .toFixed(2)
-                  .replace(/\.00$/, "")}
-              </Text>
-            </View>
-          ))}
+          {(bill.items || []).map((item, idx) => {
+            return (
+              <View key={idx} style={styles.expandedItemContainer}>
+                <View style={styles.expandedItemRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.expandedItemName}>
+                      {item.name} x{item.qty || item.quantity || 1}
+                    </Text>
+                  </View>
+                  <Text style={styles.expandedItemPrice}>
+                    ₹
+                    {Number(
+                      (item.qty || item.quantity || 1) *
+                        (item.rate || item.price || 0),
+                    )
+                      .toFixed(2)
+                      .replace(/\.00$/, "")}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
 
           <View style={styles.verticalMargin} />
 
@@ -217,8 +317,8 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
                 {Number(itemsSubtotal || 0).toFixed(2)}
               </Text>
             </View>
-            
-            {discountAmount > 0 && (
+
+            {settings.discount_enabled && (
               <View style={styles.printRow}>
                 <Text style={styles.printLabel}>Disc ({discPercent}%):</Text>
                 <Text style={styles.printValue}>
@@ -228,38 +328,36 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
             )}
 
             <View style={styles.printRow}>
-              <Text style={styles.printLabel}>taxable_amount:</Text>
+              <Text style={styles.printLabel}>Taxable:</Text>
               <Text style={styles.printValue}>
                 {Number(taxableAfterDiscount || 0).toFixed(2)}
               </Text>
             </View>
 
-            {globalGst > 0 && (
-              <View style={styles.printRow}>
-                <Text style={styles.printLabel}>Global GST ({avgGstPercent}%):</Text>
-                <Text style={styles.printValue}>
-                  {Number(globalGst).toFixed(2)}
-                </Text>
+            {Object.entries(globalTaxMap).map(([rate, amount]) => (
+              <View style={styles.printRow} key={`global-${rate}`}>
+                <Text style={styles.printLabel}>Global GST({rate}%):</Text>
+                <Text style={styles.printValue}>{amount.toFixed(2)}</Text>
               </View>
-            )}
+            ))}
 
-            {itemGst > 0 && (
-              <View style={styles.printRow}>
-                <Text style={styles.printLabel}>Item GST:</Text>
-                <Text style={styles.printValue}>
-                  {Number(itemGst).toFixed(2)}
-                </Text>
+            {Object.entries(itemTaxMap).map(([rate, amount]) => (
+              <View style={styles.printRow} key={`item-${rate}`}>
+                <Text style={styles.printLabel}>Item GST({rate}%):</Text>
+                <Text style={styles.printValue}>{amount.toFixed(2)}</Text>
               </View>
-            )}
+            ))}
 
-            {globalGst === 0 && itemGst === 0 && gstToShow > 0 && (
-              <View style={styles.printRow}>
-                <Text style={styles.printLabel}>GST ({avgGstPercent}%):</Text>
-                <Text style={styles.printValue}>
-                  {Number(gstToShow).toFixed(2)}
-                </Text>
-              </View>
-            )}
+            {Object.keys(globalTaxMap).length === 0 &&
+              Object.keys(itemTaxMap).length === 0 &&
+              gstToShow > 0 && (
+                <View style={styles.printRow}>
+                  <Text style={styles.printLabel}>GST({avgGstPercent}%):</Text>
+                  <Text style={styles.printValue}>
+                    {Number(gstToShow).toFixed(2)}
+                  </Text>
+                </View>
+              )}
 
             {serviceCharge > 0 && (
               <>
@@ -271,7 +369,9 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
                 </View>
                 {serviceGst > 0 && (
                   <View style={styles.printRow}>
-                    <Text style={styles.printLabel}>Serv GST ({servGstPercent}%):</Text>
+                    <Text style={styles.printLabel}>
+                      Serv GST({servGstPercent}%):
+                    </Text>
                     <Text style={styles.printValue}>
                       {Number(serviceGst).toFixed(2)}
                     </Text>
@@ -290,7 +390,9 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
                 </View>
                 {deliveryGst > 0 && (
                   <View style={styles.printRow}>
-                    <Text style={styles.printLabel}>Del GST ({delGstPercent}%):</Text>
+                    <Text style={styles.printLabel}>
+                      Del GST({delGstPercent}%):
+                    </Text>
                     <Text style={styles.printValue}>
                       {Number(deliveryGst).toFixed(2)}
                     </Text>
@@ -309,7 +411,9 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
                 </View>
                 {packagingGst > 0 && (
                   <View style={styles.printRow}>
-                    <Text style={styles.printLabel}>Pkg GST ({pkgGstPercent}%):</Text>
+                    <Text style={styles.printLabel}>
+                      Pkg GST({pkgGstPercent}%):
+                    </Text>
                     <Text style={styles.printValue}>
                       {Number(packagingGst).toFixed(2)}
                     </Text>
@@ -363,9 +467,10 @@ const DetailedBillListView = ({
   });
 
   useEffect(() => {
+    let isMounted = true;
     const loadSettings = async () => {
       try {
-        const s = await AsyncStorage.multiGet([
+        const keys = [
           "tax_enabled",
           "tax_rate",
           "per_product_tax",
@@ -383,7 +488,10 @@ const DetailedBillListView = ({
           "packaging_charge_amount",
           "packaging_gst_enabled",
           "packaging_gst_rate",
-        ]);
+        ];
+        const s = await AsyncStorage.multiGet(keys);
+        if (!isMounted) return;
+
         const sMap = {};
         s.forEach(([k, v]) => (sMap[k] = v));
 
@@ -413,6 +521,9 @@ const DetailedBillListView = ({
       } catch (e) {}
     };
     loadSettings();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const getWeekNumber = (date) => {
@@ -518,6 +629,10 @@ const DetailedBillListView = ({
         data={filteredBills}
         keyExtractor={(item, index) => item._id || item.id || String(index)}
         contentContainerStyle={{ paddingBottom: vs(50) }}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS === "android"}
         renderItem={({ item, index }) => (
           <BillCard
             bill={item}
@@ -725,19 +840,30 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.border,
     paddingTop: vs(15),
   },
+  expandedItemContainer: {
+    marginBottom: vs(12),
+  },
   expandedItemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: vs(8),
+    alignItems: "flex-start",
   },
   expandedItemName: {
     fontSize: rf(14),
     color: "#FFFFFF",
+    fontWeight: "500",
+  },
+  taxTypeLabel: {
+    fontSize: rf(11),
+    color: "#34C759",
+    marginTop: vs(2),
+    fontStyle: "italic",
   },
   expandedItemPrice: {
     fontSize: rf(14),
     color: "#FFFFFF",
-    fontWeight: "500",
+    fontWeight: "600",
+    marginLeft: s(10),
   },
   verticalMargin: {
     height: vs(10),

@@ -556,7 +556,7 @@ const CustomerHistory = ({
                 <Text style={styles.emptyTitle}>New Customer Detected</Text>
                 <Text style={styles.emptyText}>
                   Either this is a first-time customer or their registered phone
-                  number doesn't match past bills.
+                  number doesn&apos;t match past bills.
                 </Text>
               </View>
             ) : (

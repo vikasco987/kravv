@@ -70,19 +70,21 @@ export const applyTrueBillTotals = async (bills) => {
         it.gstRate !== undefined
           ? Number(it.gstRate)
           : settings.tax_enabled
-          ? settings.tax_rate
-          : settings.per_product_tax
-          ? it.gst !== undefined && it.gst !== null
-            ? Number(it.gst)
-            : 0
-          : 0;
+            ? settings.tax_rate
+            : settings.per_product_tax
+              ? it.gst !== undefined && it.gst !== null
+                ? Number(it.gst)
+                : 0
+              : 0;
 
       // Logic from SimpleBill.ts
       let taxable = 0;
       let gst = 0;
       const taxType = it.taxStatus || it.taxType || "Without Tax";
-      
-      const itemDiscount = itemLineTotal * (settings.discount_enabled ? (settings.discount_rate / 100) : 0);
+
+      const itemDiscount =
+        itemLineTotal *
+        (settings.discount_enabled ? settings.discount_rate / 100 : 0);
       const itemPriceAfterDiscount = itemLineTotal - itemDiscount;
 
       if (taxType === "With Tax") {
@@ -90,13 +92,8 @@ export const applyTrueBillTotals = async (bills) => {
         gst = itemPriceAfterDiscount - taxable;
       } else {
         taxable = itemPriceAfterDiscount;
-        if (settings.tax_enabled && !settings.per_product_tax) {
-          // Case 1: Global Only -> GST on after discount
-          gst = (itemPriceAfterDiscount * itemGstRate) / 100;
-        } else {
-          // Case 2 & 3: Per-Product or Hybrid -> GST on Gross before discount
-          gst = (itemLineTotal * itemGstRate) / 100;
-        }
+        // Logic: Always calculate GST on Gross Price (before discount) as per user request
+        gst = (itemLineTotal * itemGstRate) / 100;
       }
 
       totalItemsTaxable += taxable;
@@ -124,9 +121,11 @@ export const applyTrueBillTotals = async (bills) => {
     const discountAmount =
       storedDiscount !== undefined && storedDiscount !== null
         ? Number(storedDiscount)
-        : (bill.id || bill._id) 
+        : bill.id || bill._id
           ? 0 // Saved bills stay as they were
-          : (settings.discount_enabled ? grossSubtotal * (settings.discount_rate / 100) : 0);
+          : settings.discount_enabled
+            ? grossSubtotal * (settings.discount_rate / 100)
+            : 0;
 
     const taxableAfterDiscount = totalItemsTaxable;
 
@@ -141,7 +140,7 @@ export const applyTrueBillTotals = async (bills) => {
     const serviceCharge =
       bill.serviceCharge !== undefined && bill.serviceCharge !== null
         ? Number(bill.serviceCharge)
-        : (bill.id || bill._id)
+        : bill.id || bill._id
           ? 0
           : settings.service_charge_enabled
             ? settings.service_charge_rate
@@ -150,7 +149,7 @@ export const applyTrueBillTotals = async (bills) => {
     const serviceGst =
       bill.serviceGst !== undefined && bill.serviceGst !== null
         ? Number(bill.serviceGst)
-        : (bill.id || bill._id)
+        : bill.id || bill._id
           ? 0
           : serviceCharge > 0
             ? (serviceCharge * settings.service_gst_rate) / 100
@@ -162,7 +161,7 @@ export const applyTrueBillTotals = async (bills) => {
         ? Number(bill.deliveryCharges)
         : bill.deliveryCharge !== undefined && bill.deliveryCharge !== null
           ? Number(bill.deliveryCharge)
-          : (bill.id || bill._id)
+          : bill.id || bill._id
             ? 0
             : settings.delivery_charge_enabled
               ? settings.delivery_charge_amount
@@ -171,7 +170,7 @@ export const applyTrueBillTotals = async (bills) => {
     const deliveryGst =
       bill.deliveryGst !== undefined && bill.deliveryGst !== null
         ? Number(bill.deliveryGst)
-        : (bill.id || bill._id)
+        : bill.id || bill._id
           ? 0
           : deliveryCharge > 0
             ? (deliveryCharge * settings.delivery_gst_rate) / 100
@@ -183,7 +182,7 @@ export const applyTrueBillTotals = async (bills) => {
         ? Number(bill.packagingCharges)
         : bill.packagingCharge !== undefined && bill.packagingCharge !== null
           ? Number(bill.packagingCharge)
-          : (bill.id || bill._id)
+          : bill.id || bill._id
             ? 0
             : settings.packaging_charge_enabled
               ? settings.packaging_charge_amount
@@ -192,24 +191,31 @@ export const applyTrueBillTotals = async (bills) => {
     const packagingGst =
       bill.packagingGst !== undefined && bill.packagingGst !== null
         ? Number(bill.packagingGst)
-        : (bill.id || bill._id)
+        : bill.id || bill._id
           ? 0
           : packagingCharge > 0
             ? (packagingCharge * settings.packaging_gst_rate) / 100
             : 0;
 
     // 7. Final Total Consistency
-    const calculatedTotal = taxableAfterDiscount +
-          finalGstAmount +
-          serviceCharge +
-          serviceGst +
-          deliveryCharge +
-          deliveryGst +
-          packagingCharge +
-          packagingGst;
+    const calculatedTotal =
+      taxableAfterDiscount +
+      finalGstAmount +
+      serviceCharge +
+      serviceGst +
+      deliveryCharge +
+      deliveryGst +
+      packagingCharge +
+      packagingGst;
 
     const storedTotal = bill.total || bill.grandTotal;
-    if (storedTotal !== undefined && storedTotal !== null && Number(storedTotal) > 0 && storedDiscount !== undefined && storedDiscount !== null) {
+    if (
+      storedTotal !== undefined &&
+      storedTotal !== null &&
+      Number(storedTotal) > 0 &&
+      storedDiscount !== undefined &&
+      storedDiscount !== null
+    ) {
       bill.total = Number(Number(storedTotal).toFixed(2));
     } else {
       bill.total = Number(calculatedTotal.toFixed(2));
@@ -217,21 +223,27 @@ export const applyTrueBillTotals = async (bills) => {
 
     // Attach all calculated/stored sub-fields for UI binding (Daily/Weekly/Monthly reports)
     bill.calculatedSubtotal = Number(subtotalValue.toFixed(2));
-    bill.calculatedTaxable = bill.calculatedTaxable ?? Number(taxableAfterDiscount.toFixed(2));
+    bill.calculatedTaxable =
+      bill.calculatedTaxable ?? Number(taxableAfterDiscount.toFixed(2));
     bill.calculatedDiscount = Number(discountAmount.toFixed(2));
     bill.calculatedGst = Number(finalGstAmount.toFixed(2));
     bill.calculatedGlobalGst = Number(globalGstSum.toFixed(2));
     bill.calculatedItemGst = Number(perProductGstSum.toFixed(2));
     bill.calculatedDiscountRate = bill.discountRate ?? settings.discount_rate;
-    bill.calculatedGstRate = bill.gstRate ?? (bill.items && bill.items[0] ? bill.items[0].gstRate : settings.tax_rate);
+    bill.calculatedGstRate =
+      bill.gstRate ??
+      (bill.items && bill.items[0] ? bill.items[0].gstRate : settings.tax_rate);
     bill.calculatedServiceCharge = Number(serviceCharge.toFixed(2));
     bill.calculatedServiceGst = Number(serviceGst.toFixed(2));
-    bill.calculatedServiceGstRate = bill.serviceGstRate ?? settings.service_gst_rate;
+    bill.calculatedServiceGstRate =
+      bill.serviceGstRate ?? settings.service_gst_rate;
     bill.calculatedDeliveryCharge = Number(deliveryCharge.toFixed(2));
     bill.calculatedDeliveryGst = Number(deliveryGst.toFixed(2));
-    bill.calculatedDeliveryGstRate = bill.deliveryGstRate ?? settings.delivery_gst_rate;
+    bill.calculatedDeliveryGstRate =
+      bill.deliveryGstRate ?? settings.delivery_gst_rate;
     bill.calculatedPackagingCharge = Number(packagingCharge.toFixed(2));
     bill.calculatedPackagingGst = Number(packagingGst.toFixed(2));
-    bill.calculatedPackagingGstRate = bill.packagingGstRate ?? settings.packaging_gst_rate;
+    bill.calculatedPackagingGstRate =
+      bill.packagingGstRate ?? settings.packaging_gst_rate;
   });
 };

@@ -150,6 +150,7 @@ export default function AddItemView({ onBack, categories: initialCategories, onR
             <Text style={[styles.categorySelectText, isSelected && styles.categorySelectedText]}>{item.name}</Text>
         </TouchableOpacity>
     ));
+    CategoryItem.displayName = "CategoryItem";
 
     const renderCategoryItem = useCallback(({ item }: { item: any }) => (
         <CategoryItem
@@ -201,6 +202,7 @@ export default function AddItemView({ onBack, categories: initialCategories, onR
             </Modal>
         );
     });
+    CategorySelectionSheet.displayName = "CategorySelectionSheet";
 
     const pickImage = async () => {
         const staffSession = await StaffPermissionEngine.getSession();

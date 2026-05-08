@@ -1,9 +1,9 @@
-
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
+  DeviceEventEmitter,
   Modal,
   NativeModules,
   SafeAreaView,
@@ -17,10 +17,12 @@ import {
   View,
 } from "react-native";
 // @ts-ignore
-import Voice from '@react-native-voice/voice';
-import { rf, s, vs } from "../../utils/responsive";
-import { PERMISSION_GROUPS, StaffMember } from "./StaffPermissionsData";
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import Voice from "@react-native-voice/voice";
 import { useRefresh } from "../../context/RefreshContext";
+import { rf, s, vs } from "../../utils/responsive";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+import { PERMISSION_GROUPS, StaffMember } from "./StaffPermissionsData";
 
 const COLORS = {
   primary: "#0066FF", // More vibrant blue to match screenshot
@@ -59,6 +61,8 @@ const StaffAddEditModal = ({
   const [showPassword, setShowPassword] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+  const { getToken } = useAuth();
+  const { user } = useUser();
   const { triggerRefresh } = useRefresh();
 
   const [successVisible, setSuccessVisible] = useState(false);
@@ -98,38 +102,45 @@ const StaffAddEditModal = ({
   useEffect(() => {
     if (!visible) return;
 
-    // Use DeviceEventEmitter for direct bridge communication
-    const { DeviceEventEmitter } = require('react-native');
+    if (!visible) return;
 
     const subscriptions = [
-      DeviceEventEmitter.addListener('onSpeechStart', () => setIsListening(true)),
-      DeviceEventEmitter.addListener('onSpeechEnd', () => setIsListening(false)),
-      DeviceEventEmitter.addListener('onSpeechResults', (e: any) => {
+      DeviceEventEmitter.addListener("onSpeechStart", () =>
+        setIsListening(true),
+      ),
+      DeviceEventEmitter.addListener("onSpeechEnd", () =>
+        setIsListening(false),
+      ),
+      DeviceEventEmitter.addListener("onSpeechResults", (e: any) => {
         if (e.value && e.value.length > 0) {
           setName(e.value[0]);
           setIsListening(false);
           Vibration.vibrate(100);
         }
       }),
-      DeviceEventEmitter.addListener('onSpeechPartialResults', (e: any) => {
+      DeviceEventEmitter.addListener("onSpeechPartialResults", (e: any) => {
         if (e.value && e.value.length > 0) {
           setName(e.value[0]);
         }
       }),
-      DeviceEventEmitter.addListener('onSpeechError', (e: any) => {
+      DeviceEventEmitter.addListener("onSpeechError", (e: any) => {
         // Silence terminal logs for non-fatal codes like 5, 7, 11
         const code = e.error?.code || "";
-        if (!code.includes('5') && !code.includes('7') && !code.includes('11')) {
+        if (
+          !code.includes("5") &&
+          !code.includes("7") &&
+          !code.includes("11")
+        ) {
           console.log("Staff Voice Note:", e.error?.message);
         }
         setIsListening(false);
-      })
+      }),
     ];
 
     return () => {
-      subscriptions.forEach(sub => sub.remove());
-      if (Voice && typeof Voice.destroy === 'function') {
-        Voice.destroy().catch(() => { });
+      subscriptions.forEach((sub) => sub.remove());
+      if (Voice && typeof Voice.destroy === "function") {
+        Voice.destroy().catch(() => {});
       }
     };
   }, [visible]);
@@ -140,22 +151,22 @@ const StaffAddEditModal = ({
       if (!nativeBridge) return;
 
       // Safety: Try to cancel any existing session before starting
-      if (typeof nativeBridge.cancelSpeech === 'function') {
+      if (typeof nativeBridge.cancelSpeech === "function") {
         try {
-          await nativeBridge.cancelSpeech(() => { });
-        } catch (e) { }
+          await nativeBridge.cancelSpeech(() => {});
+        } catch (e) {}
       }
 
-      if (typeof nativeBridge.startSpeech === 'function') {
+      if (typeof nativeBridge.startSpeech === "function") {
         const options = {
-          EXTRA_LANGUAGE_MODEL: 'LANGUAGE_MODEL_FREE_FORM',
+          EXTRA_LANGUAGE_MODEL: "LANGUAGE_MODEL_FREE_FORM",
           EXTRA_MAX_RESULTS: 1,
           EXTRA_PARTIAL_RESULTS: true,
-          REQUEST_PERMISSIONS_AUTO: true
+          REQUEST_PERMISSIONS_AUTO: true,
         };
-        await nativeBridge.startSpeech('en-IN', options, () => { });
+        await nativeBridge.startSpeech("en-IN", options, () => {});
       } else {
-        await Voice.start('en-IN');
+        await Voice.start("en-IN");
       }
       setIsListening(true);
       Vibration.vibrate(50);
@@ -168,8 +179,8 @@ const StaffAddEditModal = ({
   const stopListening = async () => {
     try {
       const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
-      if (nativeBridge && typeof nativeBridge.stopSpeech === 'function') {
-        await nativeBridge.stopSpeech(() => { });
+      if (nativeBridge && typeof nativeBridge.stopSpeech === "function") {
+        await nativeBridge.stopSpeech(() => {});
       } else {
         await Voice.stop();
       }
@@ -197,8 +208,8 @@ const StaffAddEditModal = ({
 
   const setAllPermissions = () => {
     const all: string[] = [];
-    PERMISSION_GROUPS.forEach(g => {
-      g.permissions.forEach(p => {
+    PERMISSION_GROUPS.forEach((g) => {
+      g.permissions.forEach((p) => {
         all.push(`${g.title} - ${p}`);
       });
     });
@@ -207,15 +218,19 @@ const StaffAddEditModal = ({
 
   const isGroupEnabled = (group: any) => {
     if (!group.permissions || group.permissions.length === 0) return false;
-    return group.permissions.every((p: string) => permissions.includes(`${group.title} - ${p}`));
+    return group.permissions.every((p: string) =>
+      permissions.includes(`${group.title} - ${p}`),
+    );
   };
 
   const toggleGroupPermissions = (group: any) => {
-    const groupPerms = group.permissions.map((p: string) => `${group.title} - ${p}`);
+    const groupPerms = group.permissions.map(
+      (p: string) => `${group.title} - ${p}`,
+    );
     const alreadyEnabled = isGroupEnabled(group);
 
     if (alreadyEnabled) {
-      setPermissions(permissions.filter(p => !groupPerms.includes(p)));
+      setPermissions(permissions.filter((p) => !groupPerms.includes(p)));
     } else {
       const newPerms = [...permissions];
       groupPerms.forEach((p: string) => {
@@ -226,36 +241,70 @@ const StaffAddEditModal = ({
   };
 
   const getGroupDisplayInfo = (title: string) => {
-    const mappings: Record<string, { displayTitle: string, displaySubtitle: string }> = {
-      "Dashboard Permissions": { displayTitle: "Dashboard", displaySubtitle: "Dashboard Permissions" },
-      "Order & Billing Permissions": { displayTitle: "Order & Tables", displaySubtitle: "Order & Billing Permissions" },
-      "Invoices & Receipts": { displayTitle: "Invoices & Records", displaySubtitle: "Invoices & Receipts" },
-      "Customer Permissions": { displayTitle: "Clients", displaySubtitle: "Customer Permissions" },
-      "Menu & Items Permissions": { displayTitle: "Menu", displaySubtitle: "Menu & Items Permissions" },
-      "AI Intelligence Tools": { displayTitle: "AI Intelligence Tools", displaySubtitle: "AI Intelligence Tools" },
-      "Report Permissions": { displayTitle: "Sales Reports", displaySubtitle: "Report Permissions" },
-      "Settings Permissions": { displayTitle: "General App Settings", displaySubtitle: "Settings Permissions" },
+    const mappings: Record<
+      string,
+      { displayTitle: string; displaySubtitle: string }
+    > = {
+      "Dashboard Permissions": {
+        displayTitle: "Dashboard",
+        displaySubtitle: "Dashboard Permissions",
+      },
+      "Order & Billing Permissions": {
+        displayTitle: "Order & Tables",
+        displaySubtitle: "Order & Billing Permissions",
+      },
+      "Invoices & Receipts": {
+        displayTitle: "Invoices & Records",
+        displaySubtitle: "Invoices & Receipts",
+      },
+      "Customer Permissions": {
+        displayTitle: "Clients",
+        displaySubtitle: "Customer Permissions",
+      },
+      "Menu & Items Permissions": {
+        displayTitle: "Menu",
+        displaySubtitle: "Menu & Items Permissions",
+      },
+      "AI Intelligence Tools": {
+        displayTitle: "AI Intelligence Tools",
+        displaySubtitle: "AI Intelligence Tools",
+      },
+      "Report Permissions": {
+        displayTitle: "Sales Reports",
+        displaySubtitle: "Report Permissions",
+      },
+      "Settings Permissions": {
+        displayTitle: "General App Settings",
+        displaySubtitle: "Settings Permissions",
+      },
     };
     return mappings[title] || { displayTitle: title, displaySubtitle: title };
   };
 
-  const { getToken } = require("@clerk/clerk-expo").useAuth();
   const [businessSlug, setBusinessSlug] = useState("kravypos");
 
   useEffect(() => {
     const fetchBusinessProfile = async () => {
       try {
-        const token = await getToken();
+        const clerkToken = await getToken();
+        const staffToken = await AsyncStorage.getItem("staff_token");
+        const token = clerkToken || staffToken;
         if (!token) return;
-        const res = await fetch("https://billing.kravy.in/api/profile", {
+
+        const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+        const url = bId
+          ? `https://billing.kravy.in/api/profile?businessId=${bId}`
+          : "https://billing.kravy.in/api/profile";
+
+        const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
-          const data = await res.json();
+          const resData = await res.json();
+          const data = resData?.data || resData;
           if (data && (data.businessName || data.companyName)) {
             const bizName = data.businessName || data.companyName;
-            // Slugify: "My Bakery" -> "mybakery"
-            const slug = bizName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const slug = bizName.toLowerCase().replace(/[^a-z0-9]/g, "");
             if (slug) setBusinessSlug(slug);
           }
         }
@@ -272,18 +321,25 @@ const StaffAddEditModal = ({
     if (type === "Full Access") {
       setAllPermissions();
     } else if (type === "Sales Access") {
-      setPermissions(["Order & Billing Permissions - Create New Bill", "Invoices & Receipts - View Bill Records", "Invoices & Receipts - Reprint Bill"]);
+      setPermissions([
+        "Order & Billing Permissions - Create New Bill",
+        "Invoices & Receipts - View Bill Records",
+        "Invoices & Receipts - Reprint Bill",
+      ]);
     }
   };
 
-  const handleAutoGenerate = (type: 'email' | 'password') => {
+  const handleAutoGenerate = (type: "email" | "password") => {
     if (!name.trim()) {
-      Alert.alert("Input Required", `Please enter the staff member's full name first to generate ${type}.`);
+      Alert.alert(
+        "Input Required",
+        `Please enter the staff member's full name first to generate ${type}.`,
+      );
       return;
     }
 
-    if (type === 'email') {
-      const namePart = name.toLowerCase().trim().replace(/\s+/g, '.');
+    if (type === "email") {
+      const namePart = name.toLowerCase().trim().replace(/\s+/g, ".");
       // Use business slug for the domain
       const autoEmail = namePart ? `${namePart}@${businessSlug}.com` : "";
       console.log("Generating Email:", autoEmail);
@@ -314,7 +370,7 @@ const StaffAddEditModal = ({
       email: trimmedEmail,
       password: password || undefined,
       accessType,
-      permissions
+      permissions,
     };
 
     // 🛡️ REAL-TIME PERMISSION SYNC
@@ -325,17 +381,19 @@ const StaffAddEditModal = ({
           const session = JSON.parse(sessionStr);
           // If the email matches, update the local session permissions immediately
           if (session.email === trimmedEmail) {
-            const updatedSession = { 
-              ...session, 
-              permissions: payload.permissions, 
+            const updatedSession = {
+              ...session,
+              permissions: payload.permissions,
               accessType: payload.accessType,
-              name: payload.name 
+              name: payload.name,
             };
-            await AsyncStorage.setItem("staff_session", JSON.stringify(updatedSession));
+            await AsyncStorage.setItem(
+              "staff_session",
+              JSON.stringify(updatedSession),
+            );
             // Signal a global refresh
             triggerRefresh();
-            const { DeviceEventEmitter } = require('react-native');
-            DeviceEventEmitter.emit('PERMISSIONS_UPDATED');
+            DeviceEventEmitter.emit("PERMISSIONS_UPDATED");
           }
         }
       } catch (e) {
@@ -346,7 +404,9 @@ const StaffAddEditModal = ({
 
     onSave(payload);
     setSuccessVisible(true);
-    setTimeout(() => { setSuccessVisible(false); }, 2000);
+    setTimeout(() => {
+      setSuccessVisible(false);
+    }, 2000);
   };
 
   const confirmDelete = async () => {
@@ -358,11 +418,10 @@ const StaffAddEditModal = ({
           if (session.email === staff.email) {
             await AsyncStorage.removeItem("staff_session");
             triggerRefresh();
-            const { DeviceEventEmitter } = require('react-native');
-            DeviceEventEmitter.emit('PERMISSIONS_UPDATED');
+            DeviceEventEmitter.emit("PERMISSIONS_UPDATED");
           }
         }
-      } catch (e) { }
+      } catch (e) {}
 
       onDelete(staff.id);
     }
@@ -375,24 +434,43 @@ const StaffAddEditModal = ({
           <TouchableOpacity onPress={onClose} style={styles.backButton}>
             <Ionicons name="arrow-back" size={rf(24)} color={COLORS.white} />
           </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: s(10), flexDirection: "row", alignItems: "center", gap: s(12) }}>
+          <View
+            style={{
+              flex: 1,
+              marginLeft: s(10),
+              flexDirection: "row",
+              alignItems: "center",
+              gap: s(12),
+            }}
+          >
             <View style={styles.headerIconCircle}>
               <Ionicons name="person" size={rf(20)} color={COLORS.primary} />
             </View>
             <View>
-              <Text style={styles.title} numberOfLines={1}>{staff ? staff.name : "Add New Staff Member"}</Text>
-              <Text style={styles.headerInfo}>Staff Details & Full Permissions Control</Text>
+              <Text style={styles.title} numberOfLines={1}>
+                {staff ? staff.name : "Add New Staff Member"}
+              </Text>
+              <Text style={styles.headerInfo}>
+                Staff Details & Full Permissions Control
+              </Text>
             </View>
           </View>
           {staff && (
-            <TouchableOpacity onPress={confirmDelete} style={styles.deleteButton}>
-              <Ionicons name="trash-outline" size={rf(24)} color={COLORS.white} />
+            <TouchableOpacity
+              onPress={confirmDelete}
+              style={styles.deleteButton}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={rf(24)}
+                color={COLORS.white}
+              />
             </TouchableOpacity>
           )}
         </View>
 
         <ScrollView
-          key={staff?.id || 'new'}
+          key={staff?.id || "new"}
           style={styles.content}
           showsVerticalScrollIndicator={false}
         >
@@ -409,7 +487,10 @@ const StaffAddEditModal = ({
                     setName(text);
                     // Auto-format email for NEW staff members only
                     if (!staff) {
-                      const namePart = text.toLowerCase().trim().replace(/\s+/g, '.');
+                      const namePart = text
+                        .toLowerCase()
+                        .trim()
+                        .replace(/\s+/g, ".");
                       if (namePart) {
                         setEmail(`${namePart}@${businessSlug}.com`);
                       } else {
@@ -440,7 +521,10 @@ const StaffAddEditModal = ({
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
-                <TouchableOpacity style={styles.autoGenBtn} onPress={() => handleAutoGenerate('email')}>
+                <TouchableOpacity
+                  style={styles.autoGenBtn}
+                  onPress={() => handleAutoGenerate("email")}
+                >
                   <Text style={styles.autoGenText}>Auto-Generate</Text>
                 </TouchableOpacity>
               </View>
@@ -457,10 +541,20 @@ const StaffAddEditModal = ({
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ marginRight: s(10) }}>
-                  <Ionicons name={showPassword ? "eye-off" : "eye"} size={rf(20)} color={COLORS.textLight} />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={{ marginRight: s(10) }}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={rf(20)}
+                    color={COLORS.textLight}
+                  />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.autoGenBtn} onPress={() => handleAutoGenerate('password')}>
+                <TouchableOpacity
+                  style={styles.autoGenBtn}
+                  onPress={() => handleAutoGenerate("password")}
+                >
                   <Text style={styles.autoGenText}>Auto-Generate</Text>
                 </TouchableOpacity>
               </View>
@@ -474,20 +568,26 @@ const StaffAddEditModal = ({
                 onPress={() => setShowDropdown(!showDropdown)}
               >
                 <Text style={styles.dropdownText}>{accessType}</Text>
-                <Ionicons name={showDropdown ? "caret-up" : "caret-down"} size={rf(14)} color={COLORS.textLight} />
+                <Ionicons
+                  name={showDropdown ? "caret-up" : "caret-down"}
+                  size={rf(14)}
+                  color={COLORS.textLight}
+                />
               </TouchableOpacity>
 
               {showDropdown && (
                 <View style={styles.dropdownMenu}>
-                  {["Sales Access", "Full Access", "Custom Access"].map((type) => (
-                    <TouchableOpacity
-                      key={type}
-                      style={styles.dropdownItem}
-                      onPress={() => handleAccessTypeSelect(type)}
-                    >
-                      <Text style={styles.dropdownItemText}>{type}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {["Sales Access", "Full Access", "Custom Access"].map(
+                    (type) => (
+                      <TouchableOpacity
+                        key={type}
+                        style={styles.dropdownItem}
+                        onPress={() => handleAccessTypeSelect(type)}
+                      >
+                        <Text style={styles.dropdownItemText}>{type}</Text>
+                      </TouchableOpacity>
+                    ),
+                  )}
                 </View>
               )}
             </View>
@@ -495,21 +595,30 @@ const StaffAddEditModal = ({
 
           <View style={styles.managePermissionsHeader}>
             <Text style={styles.managePermissionsHeaderText}>
-              <Ionicons name="shield-checkmark" size={rf(16)} color={COLORS.primary} /> MANAGE STAFF ACCESS & PERMISSIONS
+              <Ionicons
+                name="shield-checkmark"
+                size={rf(16)}
+                color={COLORS.primary}
+              />{" "}
+              MANAGE STAFF ACCESS & PERMISSIONS
             </Text>
           </View>
 
           {/* Permissions Sections */}
           <View style={styles.permissionsList}>
             {PERMISSION_GROUPS.map((group, gIdx) => {
-              const { displayTitle, displaySubtitle } = getGroupDisplayInfo(group.title);
+              const { displayTitle, displaySubtitle } = getGroupDisplayInfo(
+                group.title,
+              );
               const isEnabled = isGroupEnabled(group);
 
               return (
                 <View key={gIdx} style={styles.permissionItem}>
                   <View style={styles.permissionInfo}>
                     <Text style={styles.permissionTitle}>{displayTitle}</Text>
-                    <Text style={styles.permissionSubtitle}>{displaySubtitle}</Text>
+                    <Text style={styles.permissionSubtitle}>
+                      {displaySubtitle}
+                    </Text>
                   </View>
                   <Switch
                     value={isEnabled}
@@ -526,7 +635,9 @@ const StaffAddEditModal = ({
 
         <View style={styles.footer}>
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-            <Text style={styles.saveBtnText}>{staff ? "UPDATE STAFF DETAILS" : "ADD STAFF TO RESTAURANT"}</Text>
+            <Text style={styles.saveBtnText}>
+              {staff ? "UPDATE STAFF DETAILS" : "ADD STAFF TO RESTAURANT"}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -537,7 +648,9 @@ const StaffAddEditModal = ({
                 <Ionicons name="checkmark" size={rf(40)} color={COLORS.white} />
               </View>
               <Text style={styles.popupTitle}>Saved Successfully!</Text>
-              <Text style={styles.popupText}>Staff details and permissions updated.</Text>
+              <Text style={styles.popupText}>
+                Staff details and permissions updated.
+              </Text>
             </View>
           </View>
         </Modal>
@@ -566,21 +679,35 @@ const StaffAddEditModal = ({
             <View style={styles.voiceContainer}>
               <View style={styles.voiceHeader}>
                 <Text style={styles.voiceTitle}>Voice Full Name Input</Text>
-                <TouchableOpacity onPress={() => setVoiceModalVisible(false)} style={{ padding: s(5) }}>
-                  <Ionicons name="close" size={rf(24)} color={COLORS.textLight} />
+                <TouchableOpacity
+                  onPress={() => setVoiceModalVisible(false)}
+                  style={{ padding: s(5) }}
+                >
+                  <Ionicons
+                    name="close"
+                    size={rf(24)}
+                    color={COLORS.textLight}
+                  />
                 </TouchableOpacity>
               </View>
 
               <View style={styles.voiceContent}>
                 <View style={styles.micCircleWrapper}>
-                  <View style={[styles.micCircle, isListening && styles.micCircleActive]}>
+                  <View
+                    style={[
+                      styles.micCircle,
+                      isListening && styles.micCircleActive,
+                    ]}
+                  >
                     <Ionicons name="mic" size={rf(40)} color={COLORS.white} />
                   </View>
                   {isListening && <View style={styles.pulse} />}
                 </View>
 
                 <Text style={styles.voiceInstruction}>
-                  {isListening ? "Listening... Speak your name clearly" : "Tap the Mic to Start"}
+                  {isListening
+                    ? "Listening... Speak your name clearly"
+                    : "Tap the Mic to Start"}
                 </Text>
 
                 <View style={styles.resultBox}>
@@ -593,7 +720,9 @@ const StaffAddEditModal = ({
                   style={styles.voiceDoneBtn}
                   onPress={() => setVoiceModalVisible(false)}
                 >
-                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>DONE</Text>
+                  <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                    DONE
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -628,7 +757,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: s(15),
     paddingVertical: vs(8),
     marginBottom: vs(5),
-    backgroundColor: "#F9FAFB"
+    backgroundColor: "#F9FAFB",
   },
   input: { flex: 1, fontSize: rf(16), color: "#000", minHeight: vs(45) },
   dropdownContainer: {
@@ -642,7 +771,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: s(5),
     zIndex: 1,
     fontSize: rf(12),
-    color: COLORS.textLight
+    color: COLORS.textLight,
   },
   inputLabel: {
     fontSize: rf(11),
@@ -658,7 +787,7 @@ const styles = StyleSheet.create({
     borderRadius: s(8),
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    elevation: 1
+    elevation: 1,
   },
   autoGenText: { color: "#000", fontSize: rf(12), fontWeight: "600" },
   dropdownHeader: {
@@ -688,7 +817,12 @@ const styles = StyleSheet.create({
   dropdownItemText: { fontSize: rf(16), color: COLORS.text },
 
   permissionGroup: { marginTop: vs(20), paddingHorizontal: s(20) },
-  groupTitle: { fontSize: rf(15), fontWeight: "bold", color: COLORS.primary, marginBottom: vs(10) },
+  groupTitle: {
+    fontSize: rf(15),
+    fontWeight: "bold",
+    color: COLORS.primary,
+    marginBottom: vs(10),
+  },
   chipsContainer: { flexDirection: "row", flexWrap: "wrap", gap: s(8) },
   chip: {
     backgroundColor: "#fff",
@@ -698,7 +832,10 @@ const styles = StyleSheet.create({
     paddingVertical: vs(6),
     borderRadius: s(20),
   },
-  chipSelected: { backgroundColor: "rgba(79, 70, 229, 0.4)", borderColor: COLORS.primary },
+  chipSelected: {
+    backgroundColor: "rgba(79, 70, 229, 0.4)",
+    borderColor: COLORS.primary,
+  },
   chipText: { fontSize: rf(13), color: COLORS.text },
   chipTextSelected: { fontWeight: "bold" },
 
@@ -709,7 +846,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: s(20),
     paddingTop: vs(20),
     paddingBottom: vs(50),
-    backgroundColor: "rgba(255,255,255,0.9)"
+    backgroundColor: "rgba(255,255,255,0.9)",
   },
   saveBtn: {
     backgroundColor: COLORS.primary,
@@ -722,7 +859,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
   },
-  saveBtnText: { color: COLORS.white, fontWeight: "800", fontSize: rf(17), letterSpacing: 0.5 },
+  saveBtnText: {
+    color: COLORS.white,
+    fontWeight: "800",
+    fontSize: rf(17),
+    letterSpacing: 0.5,
+  },
 
   // New Redesigned Styles
   headerIconCircle: {
@@ -776,8 +918,19 @@ const styles = StyleSheet.create({
   },
 
   // Popup Styles
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
-  popupContent: { backgroundColor: "#fff", padding: s(30), borderRadius: s(20), alignItems: "center", width: "80%" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  popupContent: {
+    backgroundColor: "#fff",
+    padding: s(30),
+    borderRadius: s(20),
+    alignItems: "center",
+    width: "80%",
+  },
   successCircle: {
     width: s(80),
     height: s(80),
@@ -797,24 +950,98 @@ const styles = StyleSheet.create({
     marginBottom: vs(20),
   },
   popupTitle: { fontSize: rf(22), fontWeight: "bold", color: COLORS.text },
-  popupText: { fontSize: rf(14), color: COLORS.textLight, textAlign: "center", marginTop: vs(10) },
+  popupText: {
+    fontSize: rf(14),
+    color: COLORS.textLight,
+    textAlign: "center",
+    marginTop: vs(10),
+  },
   closePopupBtn: { marginTop: vs(30) },
-  closePopupText: { color: COLORS.primary, fontWeight: "bold", fontSize: rf(16) },
+  closePopupText: {
+    color: COLORS.primary,
+    fontWeight: "bold",
+    fontSize: rf(16),
+  },
 
   // Voice Modal Styles
-  voiceOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  voiceContainer: { backgroundColor: '#fff', borderTopLeftRadius: s(30), borderTopRightRadius: s(30), paddingBottom: vs(40) },
-  voiceHeader: { flexDirection: 'row', justifyContent: 'space-between', padding: s(20), borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  voiceTitle: { fontSize: rf(18), fontWeight: 'bold', color: COLORS.text },
-  voiceContent: { alignItems: 'center', padding: s(30) },
-  micCircleWrapper: { width: s(100), height: s(100), justifyContent: 'center', alignItems: 'center', marginBottom: vs(20) },
-  micCircle: { width: s(70), height: s(70), borderRadius: s(35), backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', elevation: 5 },
+  voiceOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  voiceContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: s(30),
+    borderTopRightRadius: s(30),
+    paddingBottom: vs(40),
+  },
+  voiceHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: s(20),
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  voiceTitle: { fontSize: rf(18), fontWeight: "bold", color: COLORS.text },
+  voiceContent: { alignItems: "center", padding: s(30) },
+  micCircleWrapper: {
+    width: s(100),
+    height: s(100),
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: vs(20),
+  },
+  micCircle: {
+    width: s(70),
+    height: s(70),
+    borderRadius: s(35),
+    backgroundColor: COLORS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 5,
+  },
   micCircleActive: { backgroundColor: COLORS.danger },
-  pulse: { position: 'absolute', width: s(90), height: s(90), borderRadius: s(45), borderWidth: 2, borderColor: COLORS.danger, opacity: 0.5 },
-  voiceInstruction: { fontSize: rf(14), color: COLORS.textLight, marginBottom: vs(20) },
-  resultBox: { minHeight: vs(60), alignItems: 'center', justifyContent: 'center', width: '100%', backgroundColor: '#f9f9f9', borderRadius: s(12), padding: s(10), marginBottom: vs(20), borderStyle: 'dashed', borderWidth: 1, borderColor: '#d1d5db' },
-  resultText: { fontSize: rf(18), color: COLORS.text, fontStyle: 'italic', textAlign: 'center' },
-  voiceDoneBtn: { backgroundColor: COLORS.text, paddingHorizontal: s(60), paddingVertical: vs(15), borderRadius: s(30), elevation: 3, marginBottom: vs(20) }
+  pulse: {
+    position: "absolute",
+    width: s(90),
+    height: s(90),
+    borderRadius: s(45),
+    borderWidth: 2,
+    borderColor: COLORS.danger,
+    opacity: 0.5,
+  },
+  voiceInstruction: {
+    fontSize: rf(14),
+    color: COLORS.textLight,
+    marginBottom: vs(20),
+  },
+  resultBox: {
+    minHeight: vs(60),
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    backgroundColor: "#f9f9f9",
+    borderRadius: s(12),
+    padding: s(10),
+    marginBottom: vs(20),
+    borderStyle: "dashed",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+  },
+  resultText: {
+    fontSize: rf(18),
+    color: COLORS.text,
+    fontStyle: "italic",
+    textAlign: "center",
+  },
+  voiceDoneBtn: {
+    backgroundColor: COLORS.text,
+    paddingHorizontal: s(60),
+    paddingVertical: vs(15),
+    borderRadius: s(30),
+    elevation: 3,
+    marginBottom: vs(20),
+  },
 });
 
 export default StaffAddEditModal;

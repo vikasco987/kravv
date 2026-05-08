@@ -382,14 +382,8 @@ export async function SimpleBill(
         gst = itemPriceAfterDiscount - taxable;
       } else {
         taxable = itemPriceAfterDiscount;
-        // --- DIFFERENTIATED CALCULATION BY CASE ---
-        if (isTaxEnabled && !perProductTaxEnabled) {
-          // CASE 1: Global Only -> Calculate on Taxable Amount (After Discount)
-          gst = (itemPriceAfterDiscount * itemGstRate) / 100;
-        } else {
-          // CASE 2 & 3: Calculate on Gross Rate (Before Discount)
-          gst = (itemLineTotal * itemGstRate) / 100;
-        }
+        // Logic: Always calculate GST on Gross Price (before discount) as per user request
+        gst = (itemLineTotal * itemGstRate) / 100;
       }
 
       // --- COUNTERS LOGIC ---
@@ -433,6 +427,10 @@ export async function SimpleBill(
 
     const taxableAfterDiscount = totalTaxable;
     const finalGstAmount = totalGst;
+    const totalItemGstCalculated = Object.values(perProductGstTotals).reduce(
+      (a, b) => a + b,
+      0,
+    );
 
     console.log(
       `[BILL-DEBUG] TotalTaxable=${totalTaxable.toFixed(2)}, TotalDisc=${totalDiscount.toFixed(2)}, TotalGST=${totalGst.toFixed(2)}, Subtotal=${subtotal.toFixed(2)}`,
@@ -619,7 +617,9 @@ export async function SimpleBill(
             try {
               attempt++;
               const method = isValidBillId ? "PUT" : "POST";
-              console.log(`[BILL-SYNC] Attempt ${attempt}: ${method} to ${url}`);
+              console.log(
+                `[BILL-SYNC] Attempt ${attempt}: ${method} to ${url}`,
+              );
               const response = await fetch(url, {
                 method: method,
                 headers: {
@@ -647,7 +647,9 @@ export async function SimpleBill(
                   source: options?.source || "POS",
                   discountAmount: Number(totalDiscount.toFixed(2)),
                   discountRate: discountRatePercent,
-                  calculatedTaxable: Number(totalTaxable.toFixed(2)), // Taxable amount after discount
+                  calculatedTaxable: Number(totalTaxable.toFixed(2)),
+                  calculatedGlobalGst: Number(globalGstTotal.toFixed(2)),
+                  calculatedItemGst: Number(totalItemGstCalculated.toFixed(2)),
                   serviceCharge: Number(serviceCharge.toFixed(2)),
                   serviceGst: Number(serviceGst.toFixed(2)),
                   serviceGstRate: serviceGstRate,

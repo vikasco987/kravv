@@ -55,11 +55,9 @@ const ItemSalesReport = ({
     try {
       setLoadingData(true);
       const authToken = await getToken();
-      const sessionStr = await AsyncStorage.getItem("staff_session");
-      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-      const finalToken = authToken || staffSession?.token;
+      const staffToken = await AsyncStorage.getItem("staff_token");
+      const finalToken = authToken || staffToken;
 
       if (!finalToken && !bId) {
         setLoadingData(false);
@@ -84,6 +82,13 @@ const ItemSalesReport = ({
 
       let cats = [];
       let mapping: Record<string, string> = {};
+      const token =
+        (await getToken()) || (await AsyncStorage.getItem("staff_token"));
+      if (token) {
+        // Assuming getRecentCompanyProfile exists in scope or is imported
+        // const profile = await getRecentCompanyProfile(token);
+        // setCompanyProfile(profile);
+      }
       let bills = [];
 
       if (catRes.ok) {
@@ -141,9 +146,11 @@ const ItemSalesReport = ({
 
   useEffect(() => {
     const checkAccess = async () => {
-      if (isSignedIn) return;
-      const sessionStr = await AsyncStorage.getItem("staff_session");
-      if (sessionStr) {
+      const authToken = await getToken();
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const staffToken = await AsyncStorage.getItem("staff_token");
+      const finalToken = authToken || staffToken;
+      if (finalToken) {
         const access = await StaffPermissionEngine.hasCategoryAccess(
           "Reports",
           false,
@@ -234,8 +241,8 @@ const ItemSalesReport = ({
             lineHeight: vs(20),
           }}
         >
-          You don't have permission to view Sales Reports. Please contact your
-          manager.
+          You don&apos;t have permission to view Sales Reports. Please contact
+          your manager.
         </Text>
         <TouchableOpacity
           onPress={onBack}

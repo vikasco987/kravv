@@ -35,7 +35,7 @@ export const NoAccessView = () => {
                 <View style={styles.textContainer}>
                     <Text style={styles.title}>Access Restricted</Text>
                     <Text style={styles.description}>
-                        Your staff account currently has no active permissions. You won't be able to access any restaurant modules until they are granted.
+                        Your staff account currently has no active permissions. You won&apos;t be able to access any restaurant modules until they are granted.
                     </Text>
 
                     <View style={styles.infoBox}>

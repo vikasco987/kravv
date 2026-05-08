@@ -195,6 +195,8 @@ export interface StaffSession {
   permissions: string[];
   businessId: string;
   token: string;
+  role?: string;
+  clerkId?: string;
 }
 
 export const StaffPermissionEngine = {
@@ -234,15 +236,32 @@ export const StaffPermissionEngine = {
     let status: "GRANTED" | "DENIED" = "DENIED";
     let userType: "OWNER" | "STAFF" = isOwner ? "OWNER" : "STAFF";
 
-    // Owner check
+    // 1. Clerk Owner check
     if (isOwner) {
-      status = "GRANTED";
-      const token = this.generateAccessToken(permission, status, userType);
-      console.log(`[AUTH-SYSTEM] OWNER ACCESS: ${permission} -> GRANTED`);
+      console.log(
+        `[AUTH-SYSTEM] OWNER ACCESS (Clerk): ${permission} -> GRANTED`,
+      );
       return true;
     }
 
     const session = await this.getSession();
+
+    if (session) {
+      console.log("DEBUG: Current session role:", session.role);
+    }
+
+    // 2. Role-based Owner check (for OTP Login)
+    const normalizedRole = session?.role?.toUpperCase();
+    if (
+      normalizedRole === "USER" ||
+      normalizedRole === "ADMIN" ||
+      normalizedRole === "SELLER"
+    ) {
+      console.log(
+        `[AUTH-SYSTEM] ROLE ACCESS (${normalizedRole}): ${permission} -> GRANTED`,
+      );
+      return true;
+    }
 
     // If no session found
     if (!session) {
@@ -258,9 +277,9 @@ export const StaffPermissionEngine = {
     const rawPerms = session.permissions || [];
     const accessType = session.accessType || "None";
 
-    console.log("---------------- STAFF AUTH DEBUG ----------------");
+    console.log("---------------- AUTH DEBUG ----------------");
     console.log(`CHECKING FOR : "${permission}"`);
-    console.log(`STAFF NAME   : ${session.name}`);
+    console.log(`USER NAME   : ${session.name}`);
     console.log(`ACCESS TYPE  : ${accessType}`);
     console.log(`ALL PERMS    :`, JSON.stringify(rawPerms));
     console.log("--------------------------------------------------");
@@ -338,6 +357,8 @@ export const StaffPermissionEngine = {
     try {
       const session = await this.getSession();
       if (session?.businessId) return session.businessId;
+      if (session?.clerkId) return session.clerkId;
+      if (session?.id) return session.id;
 
       // Fallback 1: check cached profile (standard for Owners)
       const cached = await AsyncStorage.getItem("@cached_business_profile");

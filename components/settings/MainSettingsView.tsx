@@ -441,7 +441,7 @@ const MainSettingsView = ({
             lineHeight: vs(20),
           }}
         >
-          You don't have permission to modify app settings. Please contact your
+          You don&apos;t have permission to modify app settings. Please contact your
           manager.
         </Text>
       </View>

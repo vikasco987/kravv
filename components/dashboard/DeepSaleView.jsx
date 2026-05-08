@@ -10,6 +10,7 @@ import {
   Animated,
   Easing,
   FlatList,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -104,42 +105,63 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
   });
 
   useEffect(() => {
-    if (allBills && allBills.length > 0) {
-      const onlySales = allBills.filter((b) => b.isHeld !== true);
-      setBills(onlySales);
-      setFilteredBills(onlySales);
-      setLoading(false);
-    } else {
-      fetchBills();
-    }
+    const loadData = async () => {
+      // 1. TRY LOADING FROM CACHE FIRST (FOR INSTANT UI)
+      try {
+        const cached = await AsyncStorage.getItem("@cached_dash_stats");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          const cachedBills = parsed.bills || [];
+          if (cachedBills.length > 0) {
+            const onlySales = cachedBills.filter((b) => b.isHeld !== true);
+            setBills(onlySales);
+            setFilteredBills(onlySales);
+            setLoading(false); // Stop loading early if we have cache
+          }
+        }
+      } catch (e) {
+        console.log("DeepSale cache error:", e);
+      }
+
+      // 2. ALWAYS FETCH FRESH DATA IN BACKGROUND
+      if (allBills && allBills.length > 0) {
+        const onlySales = allBills.filter((b) => b.isHeld !== true);
+        setBills(onlySales);
+        setFilteredBills(onlySales);
+        setLoading(false);
+      } else {
+        fetchBills(true); // Fetch silently in background
+      }
+    };
+
+    loadData();
   }, [allBills, isLoaded, isSignedIn, user]);
 
   const fetchBills = async (silent = false) => {
     if (!isLoaded) return;
-    if (allBills) return;
 
-    if (!silent) setLoading(true);
-    else setRefreshing(true);
+    // If not silent and we have no bills yet, show loader
+    if (!silent && bills.length === 0) setLoading(true);
+    else if (silent) setRefreshing(true);
 
     try {
       const authToken = await getToken();
-      const sessionStr = await AsyncStorage.getItem("staff_session");
-      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const staffToken = await AsyncStorage.getItem("staff_token");
+      const finalToken = authToken || staffToken;
 
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-      const finalToken = authToken || staffSession?.token;
 
-      if (!finalToken && !bId) {
-        setBills([]);
-        setFilteredBills([]);
+      if (!finalToken) {
+        // If still no token, we can't fetch fresh but we can still show cached
         setLoading(false);
         setRefreshing(false);
         return;
       }
 
       const url = bId
-        ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}&limit=2000`
-        : `https://billing.kravy.in/api/bill-manager?limit=2000`;
+        ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}&limit=1000`
+        : `https://billing.kravy.in/api/bill-manager?limit=1000`;
+
       const res = await fetch(url, {
         headers: {
           "Content-Type": "application/json",
@@ -155,8 +177,15 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
 
         setBills(onlySales);
         setFilteredBills(onlySales);
+
+        // Update cache for next time
+        AsyncStorage.setItem(
+          "@cached_dash_stats",
+          JSON.stringify({ bills: onlySales }),
+        );
       }
-    } catch {
+    } catch (e) {
+      console.log("DeepSale fetch error:", e);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -478,8 +507,12 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
 
       <FlatList
         data={paginatedData}
-        keyExtractor={(i) => i.id}
+        keyExtractor={(i) => i.id || i._id || Math.random().toString()}
         contentContainerStyle={{ paddingBottom: vs(120) }}
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={3}
+        removeClippedSubviews={Platform.OS === "android"}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

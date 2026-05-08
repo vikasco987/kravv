@@ -31,18 +31,10 @@
 //   };
 // };
 
-
-
-
-
-
-
-
-
-import { useUser } from '@clerk/clerk-expo';
-import { useEffect, useState } from 'react';
-import { DeviceEventEmitter } from 'react-native';
-import { StaffPermissionEngine, StaffSession } from './StaffPermissionEngine';
+import { useUser } from "@clerk/clerk-expo";
+import { useEffect, useState } from "react";
+import { DeviceEventEmitter } from "react-native";
+import { StaffPermissionEngine, StaffSession } from "./StaffPermissionEngine";
 
 export const useStaffPermissions = () => {
   const { isSignedIn, isLoaded, user } = useUser();
@@ -62,9 +54,9 @@ export const useStaffPermissions = () => {
       loadSession();
     }
 
-    const sub = DeviceEventEmitter.addListener('PERMISSIONS_UPDATED', () => {
+    const sub = DeviceEventEmitter.addListener("PERMISSIONS_UPDATED", () => {
       console.log("[useStaffPermissions] PERMISSIONS_UPDATED signal received");
-      setRefreshTrigger(prev => prev + 1);
+      setRefreshTrigger((prev) => prev + 1);
     });
 
     return () => sub.remove();
@@ -76,13 +68,23 @@ export const useStaffPermissions = () => {
     }
   }, [refreshTrigger]);
 
-  const isOwner = isLoaded && !!isSignedIn;
+  const isOwner =
+    (isLoaded && !!isSignedIn) ||
+    session?.role === "USER" ||
+    session?.role === "ADMIN" ||
+    session?.role === "SELLER";
 
   // ✅ SYNC CHECK (FOR UI)
   const canAccessSync = (category: string): boolean => {
     if (!isLoaded) return false;
-    if (isOwner) return true;
-    
+    if (
+      isOwner ||
+      session?.role === "USER" ||
+      session?.role === "ADMIN" ||
+      session?.role === "SELLER"
+    )
+      return true;
+
     if (!session) {
       // If we are not owner and have no session, we can't access anything
       return false;
@@ -94,27 +96,28 @@ export const useStaffPermissions = () => {
     // Handle common naming variations (Order/Orders, Setting/Settings, Report/Reports)
     const variations = [
       searchTerm,
-      searchTerm.endsWith('s') ? searchTerm.slice(0, -1) : searchTerm,
-      searchTerm.endsWith('s') ? searchTerm : searchTerm + 's',
-      searchTerm === 'order' ? 'billing' : '',
-      searchTerm === 'billing' ? 'order' : '',
-      searchTerm === 'reports' ? 'report' : '',
-      searchTerm === 'customer' ? 'client' : '',
-      searchTerm === 'client' ? 'customer' : '',
-    ].filter(v => v !== '');
+      searchTerm.endsWith("s") ? searchTerm.slice(0, -1) : searchTerm,
+      searchTerm.endsWith("s") ? searchTerm : searchTerm + "s",
+      searchTerm === "order" ? "billing" : "",
+      searchTerm === "billing" ? "order" : "",
+      searchTerm === "reports" ? "report" : "",
+      searchTerm === "customer" ? "client" : "",
+      searchTerm === "client" ? "customer" : "",
+    ].filter((v) => v !== "");
 
     const perms = session.permissions || [];
-    return perms.some(p => {
-      if (typeof p !== 'string') return false;
+    return perms.some((p) => {
+      if (typeof p !== "string") return false;
       const pLower = p.toLowerCase().trim();
-      
+
       // 1. Match variations
-      if (variations.some(v => pLower === v || pLower.includes(v))) return true;
-      
+      if (variations.some((v) => pLower === v || pLower.includes(v)))
+        return true;
+
       // 2. Normalization
-      const normalizedP = pLower.replace(/[^a-z0-9]/g, '');
-      return variations.some(v => {
-        const normalizedV = v.replace(/[^a-z0-9]/g, '');
+      const normalizedP = pLower.replace(/[^a-z0-9]/g, "");
+      return variations.some((v) => {
+        const normalizedV = v.replace(/[^a-z0-9]/g, "");
         return normalizedP.includes(normalizedV);
       });
     });
@@ -122,10 +125,11 @@ export const useStaffPermissions = () => {
 
   return {
     isOwner,
-    canAccessCategory: async (cat: string) => await StaffPermissionEngine.hasPermission(cat, isOwner),
+    canAccessCategory: async (cat: string) =>
+      await StaffPermissionEngine.hasPermission(cat, isOwner),
     canAccessSync,
     session,
     loading: !isLoaded || loading,
-    refreshSession: loadSession
+    refreshSession: loadSession,
   };
 };

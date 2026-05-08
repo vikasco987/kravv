@@ -127,25 +127,24 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
       if (!hasTables) setLoading(true);
 
       const authToken = await getToken();
-      const sessionStr = await AsyncStorage.getItem("staff_session");
-      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-      const finalToken = authToken || staffSession?.token;
+      const staffToken = await AsyncStorage.getItem("staff_token");
+      const finalToken = authToken || staffToken;
+
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      if (bId) setBusinessId(bId);
 
       if (!finalToken) {
         setLoading(false);
         return;
       }
 
-      // 1. The public menu URL format is: /menu/[clerkId]
-      //    The backend profile API (GET /api/profile) returns the Prisma BusinessProfile model.
-      //    Per Prisma schema: BusinessProfile.userId = owner's Clerk ID (NOT MongoDB _id)
-      //    So profile.userId IS the correct Clerk ID for the QR URL.
-      let clerkIdForQr: string | null = null;
+      let clerkIdForQr = bId;
 
-      // 2. Fetch fresh profile — response contains { userId: "clerk_xxx", businessName: ... }
-      //    getEffectiveClerkId() on backend resolves owner's clerkId even for staff tokens.
-      //    So profile.userId will ALWAYS be the owner's Clerk ID regardless of who is logged in.
-      const pRes = await fetch("https://billing.kravy.in/api/profile", {
+      // 2. Fetch fresh profile for Business Name
+      const profileUrl = bId
+        ? `https://billing.kravy.in/api/profile?businessId=${bId}`
+        : "https://billing.kravy.in/api/profile";
+      const pRes = await fetch(profileUrl, {
         headers: { Authorization: `Bearer ${finalToken}` },
       });
 
@@ -153,17 +152,12 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
         const pData = await pRes.json();
         const actualData = pData.data || pData;
 
-        // Backend BusinessProfile schema: userId = owner's Clerk ID (string, @unique)
-        // This is guaranteed to be a Clerk ID, never a MongoDB ObjectId.
-        // Also check clerkUserId as a legacy/alias field name just in case.
-        const resolvedClerkId = actualData.userId || actualData.clerkUserId;
-
-        // Validate it looks like a Clerk ID (starts with "user_") OR is the owner's Clerk user ID.
-        // Clerk IDs start with "user_". MongoDB ObjectIds are 24-char hex strings.
-        // We reject any 24-char hex strings (MongoDB ObjectIds) as they are INVALID for the QR URL.
-        const isMongoDB24HexId = /^[0-9a-f]{24}$/.test(resolvedClerkId || "");
-        if (resolvedClerkId && !isMongoDB24HexId) {
-          clerkIdForQr = resolvedClerkId;
+        if (!clerkIdForQr) {
+          clerkIdForQr =
+            actualData.userId ||
+            actualData.clerkUserId ||
+            actualData.id ||
+            actualData._id;
         }
 
         const bName =
@@ -172,28 +166,20 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
         await AsyncStorage.setItem("@cached_business_name", bName);
       }
 
-      // 3. Reliable fallback for Owners logged in directly via Clerk (no staff session).
-      //    user.id from Clerk's useUser() hook IS the owner's Clerk user ID.
-      //    This is always safe because it's coming directly from Clerk SDK, not any API/cache.
-      if (!clerkIdForQr && !staffSession && user?.id) {
-        // user.id is the Clerk user ID (e.g. "user_2abc123") — always correct for owners
-        clerkIdForQr = user.id;
-      }
-
-      // 4. Update state and ALWAYS write fresh to cache (overwrite any stale value).
-      //    If we couldn't resolve a valid Clerk ID, clear stale cache to prevent wrong QR.
       if (clerkIdForQr) {
         setBusinessId(clerkIdForQr);
         await AsyncStorage.setItem("@cached_business_id", clerkIdForQr);
-      } else {
-        // No valid Clerk ID resolved — clear stale cache to prevent wrong QR generation
-        await AsyncStorage.removeItem("@cached_business_id");
-        setBusinessId(null);
       }
 
       // 4. Standard API URL for tables
-      const response = await fetch("https://billing.kravy.in/api/tables", {
-        headers: { Authorization: `Bearer ${finalToken}` },
+      const tablesUrl = bId
+        ? `https://billing.kravy.in/api/tables?businessId=${bId}`
+        : "https://billing.kravy.in/api/tables";
+      const response = await fetch(tablesUrl, {
+        headers: {
+          Authorization: `Bearer ${finalToken}`,
+          Cookie: `staff_token=${finalToken}`,
+        },
       });
 
       if (response.ok) {
@@ -255,10 +241,9 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
     try {
       // background API call
       const authToken = await getToken();
-      const sessionStr = await AsyncStorage.getItem("staff_session");
-      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const staffToken = await AsyncStorage.getItem("staff_token");
+      const finalToken = authToken || staffToken;
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-      const finalToken = authToken || staffSession?.token;
 
       const response = await fetch("https://billing.kravy.in/api/tables", {
         method: "POST",
@@ -305,10 +290,9 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
 
     try {
       const authToken = await getToken();
-      const sessionStr = await AsyncStorage.getItem("staff_session");
-      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const staffToken = await AsyncStorage.getItem("staff_token");
+      const finalToken = authToken || staffToken;
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-      const finalToken = authToken || staffSession?.token;
 
       // Use simplified URL if possible, or keep query for DELETE if required by backend
       const url = bId
@@ -401,51 +385,48 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
 
   const openQrModal = async (table: Table) => {
     setSelectedTable(table);
-    setBusinessId(null); // Always show spinner — never use any cached/stale ID for QR
+
+    // 1. Try to get ID immediately from session (fastest)
+    const fastBId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+    if (fastBId) {
+      setBusinessId(fastBId);
+    } else {
+      setBusinessId(null); // Show spinner if no ID found yet
+    }
+
     setIsQrModalVisible(true);
 
     try {
-      // Get auth token (works for both Clerk and custom auth)
       const authToken = await getToken();
-      const sessionStr = await AsyncStorage.getItem("staff_session");
-      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-      const finalToken = authToken || staffSession?.token;
+      const staffToken = await AsyncStorage.getItem("staff_token");
+      const finalToken = authToken || staffToken;
 
-      if (!finalToken) {
-        // No token at all — cannot determine correct business
-        return;
-      }
+      if (!finalToken) return;
 
-      // FRESH API CALL — profile.userId is ALWAYS the owner's Clerk ID.
-      // Backend getEffectiveClerkId() resolves to owner's clerkId for both
-      // owner tokens AND staff tokens. So this is guaranteed correct.
-      // ?t= prevents any HTTP-level caching from serving a stale response.
-      const pRes = await fetch(
-        `https://billing.kravy.in/api/profile?t=${Date.now()}`,
-        { headers: { Authorization: `Bearer ${finalToken}` } },
-      );
+      // 2. Fetch fresh profile for verification/updates
+      const bId =
+        fastBId || (await StaffPermissionEngine.getActiveBusinessId(user?.id));
+      const url = bId
+        ? `https://billing.kravy.in/api/profile?businessId=${bId}&t=${Date.now()}`
+        : `https://billing.kravy.in/api/profile?t=${Date.now()}`;
+
+      const pRes = await fetch(url, {
+        headers: { Authorization: `Bearer ${finalToken}` },
+      });
 
       if (pRes.ok) {
         const pData = await pRes.json();
         const actualData = pData.data || pData;
-
-        // profile.userId = owner's Clerk ID (from Prisma BusinessProfile schema)
-        // This is NEVER a MongoDB ObjectId — it's always a Clerk user ID string.
         const resolvedClerkId = actualData.userId || actualData.clerkUserId;
-        const isMongoDB24HexId = /^[0-9a-f]{24}$/.test(resolvedClerkId || "");
 
-        if (resolvedClerkId && !isMongoDB24HexId) {
+        if (resolvedClerkId) {
           setBusinessId(resolvedClerkId);
-          // Cache the VERIFIED correct ID for other parts of the app
           await AsyncStorage.setItem("@cached_business_id", resolvedClerkId);
-          return;
-        }
-      }
 
-      // Last resort fallback: Clerk owner's user.id (only valid for owner Clerk sessions)
-      if (!staffSession && user?.id) {
-        setBusinessId(user.id);
-        await AsyncStorage.setItem("@cached_business_id", user.id);
+          if (actualData.businessName || actualData.companyName) {
+            setBusinessName(actualData.businessName || actualData.companyName);
+          }
+        }
       }
     } catch (e) {
       console.log("[QR] Business ID fetch error:", e);

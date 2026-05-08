@@ -61,7 +61,8 @@ const ItemWiseSalesDetail = ({
 
   React.useEffect(() => {
     const fetchInfo = async () => {
-      const token = await getToken();
+      const token =
+        (await getToken()) || (await AsyncStorage.getItem("staff_token"));
       if (token) {
         const profile = await getRecentCompanyProfile(token);
         setCompanyProfile(profile);
@@ -154,7 +155,8 @@ const ItemWiseSalesDetail = ({
         {
           text: "Print",
           onPress: async () => {
-            const token = await getToken();
+            const token =
+              (await getToken()) || (await AsyncStorage.getItem("staff_token"));
             if (!token) return;
 
             // Map items to CartItem format for SimpleBill
@@ -309,195 +311,164 @@ const ItemWiseSalesDetail = ({
 
   // If we are in "Bill Photo" mode (Preview)
   if (previewBill) {
-    let globalGstSum = 0;
-    let itemGstSum = 0;
-    let totalItemsTaxable = 0;
-    let totalItemsGstAtBase = 0;
-    const ratesInCart = new Set<number>();
+    const b = previewBill;
 
-    (previewBill.items || []).forEach((it: any) => {
+    // 1. Subtotal (Sum of items)
+    const itemsSubtotal =
+      b.itemsSubtotal !== undefined
+        ? b.itemsSubtotal
+        : (b.items || []).reduce(
+            (acc: number, it: any) =>
+              acc +
+              Number(it.qty || it.quantity || 1) *
+                Number(it.rate || it.price || 0),
+            0,
+          );
+
+    // 2. Discount
+    const discPercent =
+      b.calculatedDiscountRate !== undefined
+        ? b.calculatedDiscountRate
+        : (b.discountRate ?? settings.discount_rate ?? 0);
+
+    const discountAmount =
+      b.calculatedDiscount !== undefined && b.calculatedDiscount > 0
+        ? b.calculatedDiscount
+        : b.discountAmount ||
+          b.discount_amount ||
+          b.discount ||
+          (settings.discount_enabled ? itemsSubtotal * (discPercent / 100) : 0);
+
+    const taxableAfterDiscount =
+      b.calculatedTaxable !== undefined && b.calculatedTaxable !== itemsSubtotal
+        ? b.calculatedTaxable
+        : itemsSubtotal - discountAmount;
+
+    // 3. GST Breakdown
+    const globalTaxMap: Record<number, number> = {};
+    const itemTaxMap: Record<number, number> = {};
+
+    (b.items || []).forEach((it: any) => {
       const qty = Number(it.qty || it.quantity || 1);
       const rate = Number(it.rate || it.price || 0);
-      const itemLineTotal = qty * rate;
+      const itemGross = qty * rate;
+      const itemDiscount =
+        itemsSubtotal > 0 ? (itemGross / itemsSubtotal) * discountAmount : 0;
+      const itemTaxable = itemGross - itemDiscount;
+      const pGst = Number(it.gst || it.gstRate || it.gst_rate || 0);
 
-      let itemGstRate =
-        it.gstRate !== undefined
-          ? Number(it.gstRate)
-          : settings.tax_enabled
-            ? settings.tax_rate
-            : settings.per_product_tax
-              ? it.gst !== undefined && it.gst !== null
-                ? Number(it.gst)
-                : 0
-              : 0;
-
-      ratesInCart.add(itemGstRate);
-
-      let taxable = 0;
-      let gst = 0;
-      const taxType = it.taxStatus || it.taxType || "Without Tax";
-      
-      const itemDiscount = itemLineTotal * (settings.discount_enabled ? (settings.discount_rate / 100) : 0);
-      const itemPriceAfterDiscount = itemLineTotal - itemDiscount;
-
-      if (taxType === "With Tax") {
-        taxable = itemPriceAfterDiscount / (1 + itemGstRate / 100);
-        gst = itemPriceAfterDiscount - taxable;
-      } else {
-        taxable = itemPriceAfterDiscount;
-        if (settings.tax_enabled && !settings.per_product_tax) {
-          gst = (itemPriceAfterDiscount * itemGstRate) / 100;
-        } else {
-          gst = (itemLineTotal * itemGstRate) / 100;
+      if (settings.tax_enabled && settings.per_product_tax) {
+        if (pGst > 0) {
+          itemTaxMap[pGst] =
+            (itemTaxMap[pGst] || 0) + itemTaxable * (pGst / 100);
+        } else if (settings.tax_rate > 0) {
+          globalTaxMap[settings.tax_rate] =
+            (globalTaxMap[settings.tax_rate] || 0) +
+            itemTaxable * (settings.tax_rate / 100);
         }
-      }
-
-      totalItemsTaxable += taxable;
-      totalItemsGstAtBase += gst;
-
-      // Track source
-      if (settings.tax_enabled && !settings.per_product_tax) {
-        globalGstSum += gst;
-      } else if (settings.per_product_tax) {
-        const productGst = Number(it.gst || 0);
-        if (productGst > 0 || !settings.tax_enabled) {
-          itemGstSum += gst;
-        } else {
-          globalGstSum += gst;
-        }
+      } else if (settings.tax_enabled && settings.tax_rate > 0) {
+        globalTaxMap[settings.tax_rate] =
+          (globalTaxMap[settings.tax_rate] || 0) +
+          itemTaxable * (settings.tax_rate / 100);
+      } else if (settings.per_product_tax && pGst > 0) {
+        itemTaxMap[pGst] = (itemTaxMap[pGst] || 0) + itemTaxable * (pGst / 100);
       }
     });
 
-    // 1. Subtotal (Sum of items)
-    const subtotalValue = (previewBill.items || []).reduce(
-      (acc: number, it: any) => {
-        const itQty = Number(it.qty || it.quantity || 1);
-        const itRate = Number(it.rate || it.price || 0);
-        return acc + itQty * itRate;
-      },
+    const totalGlobalGst = Object.values(globalTaxMap).reduce(
+      (a, b) => a + b,
       0,
     );
+    const totalItemGst = Object.values(itemTaxMap).reduce((a, b) => a + b, 0);
 
-    // 2. Discount
-    const storedDiscount =
-      previewBill.discountAmount ??
-      previewBill.discount_amount ??
-      previewBill.discount;
-    const discountAmount =
-      storedDiscount !== undefined && storedDiscount !== null
-        ? Number(storedDiscount)
-        : (previewBill.id || previewBill._id)
-          ? 0
-          : (settings.discount_enabled ? totalItemsTaxable * (settings.discount_rate / 100) : 0);
-
-    const taxableAfterDiscount = totalItemsTaxable - discountAmount;
-
-    // 3. Main GST (on items)
-    const storedGst = previewBill.tax ?? previewBill.gstAmount;
-    const finalGstAmount =
-      storedGst !== undefined && storedGst !== null
-        ? Number(storedGst)
-        : totalItemsTaxable > 0
-          ? taxableAfterDiscount * (totalItemsGstAtBase / totalItemsTaxable)
-          : 0;
+    const globalGst =
+      b.calculatedGlobalGst !== undefined
+        ? b.calculatedGlobalGst
+        : totalGlobalGst;
+    const itemGst =
+      b.calculatedItemGst !== undefined ? b.calculatedItemGst : totalItemGst;
+    const finalGstAmount = globalGst + itemGst;
 
     // 4. Service Charge
-    const storedSC = previewBill.serviceCharge;
-    let serviceCharge =
-      storedSC !== undefined && storedSC !== null
-        ? Number(storedSC)
-        : (previewBill.id || previewBill._id)
-          ? 0
+    const serviceCharge =
+      b.calculatedServiceCharge !== undefined && b.calculatedServiceCharge > 0
+        ? b.calculatedServiceCharge
+        : b.serviceCharge !== undefined
+          ? b.serviceCharge
           : settings.service_charge_enabled
             ? settings.service_charge_rate
             : 0;
 
-    const storedSGst = previewBill.serviceGst;
-    let serviceGst =
-      storedSGst !== undefined && storedSGst !== null
-        ? Number(storedSGst)
-        : (previewBill.id || previewBill._id)
-          ? 0
-          : serviceCharge > 0
-            ? (serviceCharge * settings.service_gst_rate) / 100
-            : 0;
+    const serviceGst =
+      b.calculatedServiceGst !== undefined && b.calculatedServiceGst > 0
+        ? b.calculatedServiceGst
+        : settings.service_gst_enabled && serviceCharge > 0
+          ? (serviceCharge * settings.service_gst_rate) / 100
+          : 0;
 
     // 5. Delivery Charge
-    // Note: SimpleBill saves it as deliveryCharges (plural)
-    const storedDC = previewBill.deliveryCharges ?? previewBill.deliveryCharge;
-    let deliveryCharge =
-      storedDC !== undefined && storedDC !== null
-        ? Number(storedDC)
-        : (previewBill.id || previewBill._id)
-          ? 0
-          : settings.delivery_charge_enabled
-            ? settings.delivery_charge_amount
-            : 0;
+    const deliveryCharge =
+      b.calculatedDeliveryCharge !== undefined && b.calculatedDeliveryCharge > 0
+        ? b.calculatedDeliveryCharge
+        : b.deliveryCharge !== undefined
+          ? b.deliveryCharge
+          : b.deliveryCharges !== undefined
+            ? b.deliveryCharges
+            : settings.delivery_charge_enabled
+              ? settings.delivery_charge_amount
+              : 0;
 
-    const storedDGst = previewBill.deliveryGst;
-    let deliveryGst =
-      storedDGst !== undefined && storedDGst !== null
-        ? Number(storedDGst)
-        : (previewBill.id || previewBill._id)
-          ? 0
-          : deliveryCharge > 0
-            ? (deliveryCharge * settings.delivery_gst_rate) / 100
-            : 0;
+    const deliveryGst =
+      b.calculatedDeliveryGst !== undefined && b.calculatedDeliveryGst > 0
+        ? b.calculatedDeliveryGst
+        : settings.delivery_gst_enabled && deliveryCharge > 0
+          ? (deliveryCharge * settings.delivery_gst_rate) / 100
+          : 0;
 
     // 6. Packaging Charge
-    // Note: SimpleBill saves it as packagingCharges (plural)
-    const storedPC = previewBill.packagingCharges ?? previewBill.packagingCharge;
-    let packagingCharge =
-      storedPC !== undefined && storedPC !== null
-        ? Number(storedPC)
-        : (previewBill.id || previewBill._id)
-          ? 0
-          : settings.packaging_charge_enabled
-            ? settings.packaging_charge_amount
-            : 0;
+    const packagingCharge =
+      b.calculatedPackagingCharge !== undefined &&
+      b.calculatedPackagingCharge > 0
+        ? b.calculatedPackagingCharge
+        : b.packagingCharge !== undefined
+          ? b.packagingCharge
+          : b.packagingCharges !== undefined
+            ? b.packagingCharges
+            : settings.packaging_charge_enabled
+              ? settings.packaging_charge_amount
+              : 0;
 
-    const storedPGst = previewBill.packagingGst;
-    let packagingGst =
-      storedPGst !== undefined && storedPGst !== null
-        ? Number(storedPGst)
-        : (previewBill.id || previewBill._id)
-          ? 0
-          : packagingCharge > 0
-            ? (packagingCharge * settings.packaging_gst_rate) / 100
-            : 0;
+    const packagingGst =
+      b.calculatedPackagingGst !== undefined && b.calculatedPackagingGst > 0
+        ? b.calculatedPackagingGst
+        : settings.packaging_gst_enabled && packagingCharge > 0
+          ? (packagingCharge * settings.packaging_gst_rate) / 100
+          : 0;
 
-    // 7. Grand Total
-    // If we are using a dynamic discount (storedDiscount was missing), 
-    // we should also use a dynamic total to ensure the math adds up.
-    const calculatedTotal = taxableAfterDiscount +
-        finalGstAmount +
-        serviceCharge +
-        serviceGst +
-        deliveryCharge +
-        deliveryGst +
-        packagingCharge +
-        packagingGst;
-
+    // 7. Grand Total (Sum of all components for mathematical accuracy)
     const displayTotal =
-      (storedDiscount === undefined || storedDiscount === null)
-        ? calculatedTotal
-        : (previewBill.total || previewBill.grandTotal || calculatedTotal);
+      taxableAfterDiscount +
+      finalGstAmount +
+      serviceCharge +
+      serviceGst +
+      deliveryCharge +
+      deliveryGst +
+      packagingCharge +
+      packagingGst;
 
-    // Rates for display
-    const uniqueRates = Array.from(ratesInCart);
-    const discPercent = previewBill.discountRate ?? settings.discount_rate;
-    const avgGstPercent = previewBill.gstRate ?? (uniqueRates.length === 1 ? uniqueRates[0] : "Multi");
-    const servGstPercent = previewBill.serviceGstRate ?? settings.service_gst_rate;
-    const delGstPercent = previewBill.deliveryGstRate ?? settings.delivery_gst_rate;
-    const pkgGstPercent = previewBill.packagingGstRate ?? settings.packaging_gst_rate;
-
-    // GST Label
-    let gstLabel = "(0%)";
-    if (uniqueRates.length === 1) {
-      gstLabel = `(${uniqueRates[0]}%)`;
-    } else if (uniqueRates.length > 1) {
-      gstLabel = "(Multi)";
-    }
+    // Metadata for display
+    const avgGstPercent =
+      b.calculatedGstRate !== undefined
+        ? b.calculatedGstRate
+        : settings.tax_enabled
+          ? settings.tax_rate
+          : 0;
+    const servGstPercent =
+      b.calculatedServiceGstRate || settings.service_gst_rate || 0;
+    const delGstPercent =
+      b.calculatedDeliveryGstRate || settings.delivery_gst_rate || 0;
+    const pkgGstPercent =
+      b.calculatedPackagingGstRate || settings.packaging_gst_rate || 0;
 
     return (
       <View style={{ flex: 1, backgroundColor: "#f0f0f0" }}>
@@ -911,22 +882,16 @@ const ItemWiseSalesDetail = ({
             <View style={[styles.receiptDivider, { borderBottomWidth: 0.5 }]} />
 
             {(previewBill.items || []).map((it: any, idx: number) => {
-              let effGst =
-                it.gstRate !== undefined
-                  ? Number(it.gstRate)
-                  : settings.tax_enabled
-                    ? settings.tax_rate
-                    : settings.per_product_tax
-                      ? it.gst !== undefined && it.gst !== null
-                        ? Number(it.gst)
-                        : 0
-                      : 0;
+              const itemGstRate =
+                it.gst !== undefined ? it.gst : it.gstRate || 0;
+              const itemQty = Number(it.qty || it.quantity || 1);
+              const itemRate = Number(it.rate || it.price || 0);
 
               return (
                 <View key={idx} style={styles.tableRow}>
                   <View style={{ flex: 2 }}>
                     <Text style={styles.tableCol}>{it.name}</Text>
-                    {effGst > 0 ? (
+                    {itemGstRate > 0 ? (
                       <Text
                         style={[
                           styles.receiptMeta,
@@ -937,19 +902,19 @@ const ItemWiseSalesDetail = ({
                           },
                         ]}
                       >
-                        GST: {effGst}%
+                        GST: {itemGstRate}%
                       </Text>
                     ) : null}
                   </View>
                   <Text
                     style={[styles.tableCol, { flex: 1, textAlign: "center" }]}
                   >
-                    {it.qty}
+                    {itemQty}
                   </Text>
                   <Text
                     style={[styles.tableCol, { flex: 1, textAlign: "right" }]}
                   >
-                    ₹{((it.qty || 1) * (it.rate || it.price || 0)).toFixed(2)}
+                    ₹{(itemQty * itemRate).toFixed(2)}
                   </Text>
                 </View>
               );
@@ -962,7 +927,7 @@ const ItemWiseSalesDetail = ({
               <View style={styles.totalLine}>
                 <Text style={styles.totalLineLabel}>subtotal:</Text>
                 <Text style={styles.totalLineValue}>
-                  {subtotalValue.toFixed(2)}
+                  {itemsSubtotal.toFixed(2)}
                 </Text>
               </View>
 
@@ -984,27 +949,31 @@ const ItemWiseSalesDetail = ({
                 </Text>
               </View>
 
-              {globalGstSum > 0 && (
+              {globalGst > 0 && (
                 <View style={styles.totalLine}>
-                  <Text style={styles.totalLineLabel}>Global GST ({avgGstPercent}%):</Text>
+                  <Text style={styles.totalLineLabel}>
+                    Global GST ({avgGstPercent}%):
+                  </Text>
                   <Text style={styles.totalLineValue}>
-                    {globalGstSum.toFixed(2)}
+                    {globalGst.toFixed(2)}
                   </Text>
                 </View>
               )}
 
-              {itemGstSum > 0 && (
+              {itemGst > 0 && (
                 <View style={styles.totalLine}>
                   <Text style={styles.totalLineLabel}>Item GST:</Text>
                   <Text style={styles.totalLineValue}>
-                    {itemGstSum.toFixed(2)}
+                    {itemGst.toFixed(2)}
                   </Text>
                 </View>
               )}
 
-              {globalGstSum === 0 && itemGstSum === 0 && finalGstAmount > 0 && (
+              {globalGst === 0 && itemGst === 0 && finalGstAmount > 0 && (
                 <View style={styles.totalLine}>
-                  <Text style={styles.totalLineLabel}>GST ({avgGstPercent}%):</Text>
+                  <Text style={styles.totalLineLabel}>
+                    GST ({avgGstPercent}%):
+                  </Text>
                   <Text style={styles.totalLineValue}>
                     {finalGstAmount.toFixed(2)}
                   </Text>
@@ -1019,16 +988,14 @@ const ItemWiseSalesDetail = ({
                       {serviceCharge.toFixed(2)}
                     </Text>
                   </View>
-                  {serviceGst > 0 && (
-                    <View style={styles.totalLine}>
-                      <Text style={styles.totalLineLabel}>
-                        Serv GST ({servGstPercent}%):
-                      </Text>
-                      <Text style={styles.totalLineValue}>
-                        {serviceGst.toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
+                  <View style={styles.totalLine}>
+                    <Text style={styles.totalLineLabel}>
+                      serv gst ({servGstPercent}%) :
+                    </Text>
+                    <Text style={styles.totalLineValue}>
+                      {serviceGst.toFixed(2)}
+                    </Text>
+                  </View>
                 </>
               )}
 
@@ -1040,16 +1007,14 @@ const ItemWiseSalesDetail = ({
                       {deliveryCharge.toFixed(2)}
                     </Text>
                   </View>
-                  {deliveryGst > 0 && (
-                    <View style={styles.totalLine}>
-                      <Text style={styles.totalLineLabel}>
-                        Del GST ({delGstPercent}%):
-                      </Text>
-                      <Text style={styles.totalLineValue}>
-                        {deliveryGst.toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
+                  <View style={styles.totalLine}>
+                    <Text style={styles.totalLineLabel}>
+                      del gst ({delGstPercent}%) :
+                    </Text>
+                    <Text style={styles.totalLineValue}>
+                      {deliveryGst.toFixed(2)}
+                    </Text>
+                  </View>
                 </>
               )}
 
@@ -1061,16 +1026,14 @@ const ItemWiseSalesDetail = ({
                       {packagingCharge.toFixed(2)}
                     </Text>
                   </View>
-                  {packagingGst > 0 && (
-                    <View style={styles.totalLine}>
-                      <Text style={styles.totalLineLabel}>
-                        Pkg GST ({pkgGstPercent}%):
-                      </Text>
-                      <Text style={styles.totalLineValue}>
-                        {packagingGst.toFixed(2)}
-                      </Text>
-                    </View>
-                  )}
+                  <View style={styles.totalLine}>
+                    <Text style={styles.totalLineLabel}>
+                      pak gst ({pkgGstPercent}%) :
+                    </Text>
+                    <Text style={styles.totalLineValue}>
+                      {packagingGst.toFixed(2)}
+                    </Text>
+                  </View>
                 </>
               )}
 
@@ -1133,147 +1096,164 @@ const ItemWiseSalesDetail = ({
               minute: "2-digit",
             });
 
+            const b = sale.fullBill || {};
             const qty = Number(sale.qty || sale.quantity || 0);
             const price = Number(sale.rate || sale.price || 0);
-            const lineTotal = qty * price;
 
-            let billItemsTaxable = 0;
-            let billItemsGstAtBase = 0;
+            // Use exactly the same robust calculation for cards as in Bill Photo
+            const billSubtotal =
+              b.itemsSubtotal !== undefined
+                ? b.itemsSubtotal
+                : (b.items || []).reduce(
+                    (acc: number, it: any) =>
+                      acc +
+                      Number(it.qty || 1) * Number(it.rate || it.price || 0),
+                    0,
+                  );
+            const billDiscPercent =
+              b.calculatedDiscountRate !== undefined
+                ? b.calculatedDiscountRate
+                : (b.discountRate ?? settings.discount_rate ?? 0);
+            const billDiscount =
+              b.calculatedDiscount !== undefined && b.calculatedDiscount > 0
+                ? b.calculatedDiscount
+                : b.discountAmount ||
+                  b.discount_amount ||
+                  b.discount ||
+                  (settings.discount_enabled
+                    ? billSubtotal * (billDiscPercent / 100)
+                    : 0);
+            const billTaxableAfterDiscount =
+              b.calculatedTaxable !== undefined
+                ? b.calculatedTaxable
+                : billSubtotal - billDiscount;
 
-            (sale.fullBill?.items || []).forEach((it: any) => {
-              const itQty = Number(it.qty || it.quantity || 1);
-              const itRate = Number(it.rate || it.price || 0);
-              const itLTotal = itQty * itRate;
-
-              let itGstRate =
-                it.gstRate !== undefined
-                  ? Number(it.gstRate)
-                  : settings.tax_enabled
-                    ? settings.tax_rate
-                    : settings.per_product_tax
-                      ? it.gst !== undefined && it.gst !== null
-                        ? Number(it.gst)
-                        : 0
-                      : 0;
-
-              let itTaxable = 0;
-              let itGst = 0;
-
-              if (it.taxType === "With Tax" || it.taxStatus === "With Tax") {
-                itTaxable = itLTotal / (1 + itGstRate / 100);
-                itGst = itLTotal - itTaxable;
-              } else {
-                itTaxable = itLTotal;
-                itGst = (itLTotal * itGstRate) / 100;
+            // GST Fallbacks logic (Matched with Bill Photo)
+            const gTaxMap: Record<number, number> = {};
+            const iTaxMap: Record<number, number> = {};
+            (b.items || []).forEach((it: any) => {
+              const iQty = Number(it.qty || it.quantity || 1);
+              const iRate = Number(it.rate || it.price || 0);
+              const iGross = iQty * iRate;
+              const iDisc =
+                billSubtotal > 0 ? (iGross / billSubtotal) * billDiscount : 0;
+              const iTaxable = iGross - iDisc;
+              const pGst = Number(it.gst || it.gstRate || it.gst_rate || 0);
+              if (settings.tax_enabled && settings.per_product_tax) {
+                if (pGst > 0)
+                  iTaxMap[pGst] =
+                    (iTaxMap[pGst] || 0) + iTaxable * (pGst / 100);
+                else if (settings.tax_rate > 0)
+                  gTaxMap[settings.tax_rate] =
+                    (gTaxMap[settings.tax_rate] || 0) +
+                    iTaxable * (settings.tax_rate / 100);
+              } else if (settings.tax_enabled && settings.tax_rate > 0) {
+                gTaxMap[settings.tax_rate] =
+                  (gTaxMap[settings.tax_rate] || 0) +
+                  iTaxable * (settings.tax_rate / 100);
+              } else if (settings.per_product_tax && pGst > 0) {
+                iTaxMap[pGst] = (iTaxMap[pGst] || 0) + iTaxable * (pGst / 100);
               }
-
-              billItemsTaxable += itTaxable;
-              billItemsGstAtBase += itGst;
             });
 
-            const billSubtotal = (sale.fullBill?.items || []).reduce(
-              (acc: number, it: any) => {
-                const itQty = Number(it.qty || it.quantity || 1);
-                const itRate = Number(it.rate || it.price || 0);
-                return acc + itQty * itRate;
-              },
-              0,
-            );
+            const bGlobalGst =
+              b.calculatedGlobalGst !== undefined && b.calculatedGlobalGst > 0
+                ? b.calculatedGlobalGst
+                : Object.values(gTaxMap).reduce((a, b) => a + b, 0);
+            const bItemGst =
+              b.calculatedItemGst !== undefined && b.calculatedItemGst > 0
+                ? b.calculatedItemGst
+                : Object.values(iTaxMap).reduce((a, b) => a + b, 0);
 
-            const storedBillDiscount =
-              sale.fullBill?.discountAmount ??
-              sale.fullBill?.discount_amount ??
-              sale.fullBill?.discount;
-            const billDiscount =
-              storedBillDiscount !== undefined && storedBillDiscount !== null
-                ? Number(storedBillDiscount)
-                : (settings.discount_enabled ? billItemsTaxable * (settings.discount_rate / 100) : 0);
-
-            const billTaxableAfterDiscount = billItemsTaxable - billDiscount;
-
-            const storedBillGst =
-              sale.fullBill?.gstAmount ?? sale.fullBill?.tax;
-            const billGstAmount =
-              storedBillGst !== undefined && storedBillGst !== null
-                ? Number(storedBillGst)
-                : billItemsTaxable > 0
-                  ? billTaxableAfterDiscount *
-                    (billItemsGstAtBase / billItemsTaxable)
-                  : 0;
-
-            // Service Charge
-            const storedBillSC = sale.fullBill?.serviceCharge;
-            let billServiceCharge =
-              storedBillSC !== undefined && storedBillSC !== null
-                ? Number(storedBillSC)
-                : settings.service_charge_enabled
-                  ? settings.service_charge_rate
-                  : 0;
-
-            const storedBillSGst = sale.fullBill?.serviceGst;
-            let billServiceGst =
-              storedBillSGst !== undefined && storedBillSGst !== null
-                ? Number(storedBillSGst)
-                : billServiceCharge > 0
+            const billServiceCharge =
+              b.calculatedServiceCharge !== undefined &&
+              b.calculatedServiceCharge > 0
+                ? b.calculatedServiceCharge
+                : b.serviceCharge ||
+                  (settings.service_charge_enabled
+                    ? settings.service_charge_rate
+                    : 0);
+            const bServiceGst =
+              b.calculatedServiceGst !== undefined && b.calculatedServiceGst > 0
+                ? b.calculatedServiceGst
+                : settings.service_gst_enabled && billServiceCharge > 0
                   ? (billServiceCharge * settings.service_gst_rate) / 100
                   : 0;
-
-            // Delivery Charge
-            const storedBillDC = sale.fullBill?.deliveryCharge;
-            let billDeliveryCharge =
-              storedBillDC !== undefined && storedBillDC !== null
-                ? Number(storedBillDC)
-                : settings.delivery_charge_enabled
-                  ? settings.delivery_charge_amount
+            const bDeliveryCharge =
+              b.calculatedDeliveryCharge !== undefined &&
+              b.calculatedDeliveryCharge > 0
+                ? b.calculatedDeliveryCharge
+                : b.deliveryCharge ||
+                  b.deliveryCharges ||
+                  (settings.delivery_charge_enabled
+                    ? settings.delivery_charge_amount
+                    : 0);
+            const bDeliveryGst =
+              b.calculatedDeliveryGst !== undefined &&
+              b.calculatedDeliveryGst > 0
+                ? b.calculatedDeliveryGst
+                : settings.delivery_gst_enabled && bDeliveryCharge > 0
+                  ? (bDeliveryCharge * settings.delivery_gst_rate) / 100
+                  : 0;
+            const bPackagingCharge =
+              b.calculatedPackagingCharge !== undefined &&
+              b.calculatedPackagingCharge > 0
+                ? b.calculatedPackagingCharge
+                : b.packagingCharge ||
+                  b.packagingCharges ||
+                  (settings.packaging_charge_enabled
+                    ? settings.packaging_charge_amount
+                    : 0);
+            const bPackagingGst =
+              b.calculatedPackagingGst !== undefined &&
+              b.calculatedPackagingGst > 0
+                ? b.calculatedPackagingGst
+                : settings.packaging_gst_enabled && bPackagingCharge > 0
+                  ? (bPackagingCharge * settings.packaging_gst_rate) / 100
                   : 0;
 
-            const storedBillDGst = sale.fullBill?.deliveryGst;
-            let billDeliveryGst =
-              storedBillDGst !== undefined && storedBillDGst !== null
-                ? Number(storedBillDGst)
-                : billDeliveryCharge > 0
-                  ? (billDeliveryCharge * settings.delivery_gst_rate) / 100
-                  : 0;
-
-            // Packaging Charge
-            const storedBillPC = sale.fullBill?.packagingCharge;
-            let billPackagingCharge =
-              storedBillPC !== undefined && storedBillPC !== null
-                ? Number(storedBillPC)
-                : settings.packaging_charge_enabled
-                  ? settings.packaging_charge_amount
-                  : 0;
-
-            const storedBillPGst = sale.fullBill?.packagingGst;
-            let billPackagingGst =
-              storedBillPGst !== undefined && storedBillPGst !== null
-                ? Number(storedBillPGst)
-                : billPackagingCharge > 0
-                  ? (billPackagingCharge * settings.packaging_gst_rate) / 100
-                  : 0;
-
-            const billCalculatedTotal =
-              billTaxableAfterDiscount +
-                billGstAmount +
-                billServiceCharge +
-                billServiceGst +
-                billDeliveryCharge +
-                billDeliveryGst +
-                billPackagingCharge +
-                billPackagingGst;
-
+            const billGstAmount =
+              bGlobalGst +
+              bItemGst +
+              bServiceGst +
+              bDeliveryGst +
+              bPackagingGst;
             const billGrandTotal =
-              (storedBillDiscount === undefined || storedBillDiscount === null)
-                ? billCalculatedTotal
-                : (sale.fullBill?.total || billCalculatedTotal);
+              billTaxableAfterDiscount +
+              billGstAmount +
+              billServiceCharge +
+              bDeliveryCharge +
+              bPackagingCharge;
 
             return (
               <View key={index} style={styles.saleCard}>
                 <View style={styles.cardHeader}>
-                  <Text style={styles.billIdText}>Bill ID: {sale.billId}</Text>
-                  <Text style={styles.timeText}>
-                    {formattedTime} | {formattedDate}
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.billIdText}>
+                      Bill ID: {sale.billId}
+                    </Text>
+                    <Text style={styles.timeText}>
+                      {formattedTime} | {formattedDate}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text
+                      style={[
+                        styles.totalLabel,
+                        { fontSize: rf(11), color: "#666" },
+                      ]}
+                    >
+                      Total Price
+                    </Text>
+                    <Text
+                      style={[
+                        styles.totalValue,
+                        { fontSize: rf(18), color: "#3B82F6" },
+                      ]}
+                    >
+                      ₹{billGrandTotal.toFixed(2)}
+                    </Text>
+                  </View>
                 </View>
 
                 <View style={styles.divider} />
@@ -1355,29 +1335,39 @@ const ItemWiseSalesDetail = ({
                       ₹{billGstAmount.toFixed(2)}
                     </Text>
                   </View>
-                </View>
-
-                <View
-                  style={[
-                    styles.totalRow,
-                    {
-                      backgroundColor: "transparent",
-                      paddingVertical: 0,
-                      marginBottom: vs(5),
-                    },
-                  ]}
-                >
-                  <Text style={styles.detailLabel}>Taxable Amount</Text>
-                  <Text style={[styles.detailValue, { fontSize: rf(13) }]}>
-                    ₹{billTaxableAfterDiscount.toFixed(2)}
-                  </Text>
-                </View>
-
-                <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Total Price</Text>
-                  <Text style={styles.totalValue}>
-                    ₹{billGrandTotal.toFixed(2)}
-                  </Text>
+                  <View
+                    style={[
+                      styles.detailItem,
+                      { width: "33%", marginBottom: vs(10) },
+                    ]}
+                  >
+                    <Text style={styles.detailLabel}>Del. Charge</Text>
+                    <Text style={styles.detailValue}>
+                      ₹{bDeliveryCharge.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.detailItem,
+                      { width: "33%", marginBottom: vs(10) },
+                    ]}
+                  >
+                    <Text style={styles.detailLabel}>Pkg. Charge</Text>
+                    <Text style={styles.detailValue}>
+                      ₹{bPackagingCharge.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.detailItem,
+                      { width: "33%", marginBottom: vs(10) },
+                    ]}
+                  >
+                    <Text style={styles.detailLabel}>Taxable</Text>
+                    <Text style={styles.detailValue}>
+                      ₹{billTaxableAfterDiscount.toFixed(2)}
+                    </Text>
+                  </View>
                 </View>
 
                 {/* Preview Button */}

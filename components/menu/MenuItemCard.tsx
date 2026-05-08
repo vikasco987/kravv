@@ -70,6 +70,7 @@ export const MenuItemCard = React.memo(({
         </View>
     );
 });
+MenuItemCard.displayName = "MenuItemCard";
 
 const styles = StyleSheet.create({
     gridItem: {

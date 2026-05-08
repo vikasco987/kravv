@@ -123,8 +123,8 @@ const MainDashboardView = ({ isLockedUser }) => {
 
     try {
       const token = await getToken();
-      const session = await StaffPermissionEngine.getSession();
-      const finalToken = token || session?.token;
+      const staffToken = await AsyncStorage.getItem("staff_token");
+      const finalToken = token || staffToken;
 
       let bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
 

@@ -57,6 +57,7 @@ export const TableCard = React.memo(({
         </TouchableOpacity>
     );
 });
+TableCard.displayName = "TableCard";
 
 const styles = StyleSheet.create({
     tableCard: {

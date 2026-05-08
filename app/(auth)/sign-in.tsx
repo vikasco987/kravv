@@ -194,6 +194,30 @@ export default function SignInScreen() {
           Smart billing. Simplified workflow. Sign in to continue 🚀
         </Text>
 
+        {/* Phone/Email Button */}
+        <TouchableOpacity
+          style={[
+            styles.googleBtn,
+            {
+              backgroundColor: "rgba(255, 255, 255, 0.2)",
+              borderWidth: 1,
+              borderColor: "rgba(255, 255, 255, 0.3)",
+              marginBottom: 15,
+            },
+          ]}
+          onPress={() => router.push("/(auth)/custom-login")}
+        >
+          <Ionicons
+            name="mail-outline"
+            size={24}
+            color="#fff"
+            style={{ marginRight: 15 }}
+          />
+          <Text style={[styles.googleText, { color: "#fff" }]}>
+            Login with Phone / Email
+          </Text>
+        </TouchableOpacity>
+
         {/* Google Button */}
         <TouchableOpacity
           style={[

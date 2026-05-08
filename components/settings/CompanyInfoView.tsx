@@ -42,7 +42,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
 
   useEffect(() => {
     const checkStaff = async () => {
-      const session = await AsyncStorage.getItem('staff_session');
+      const session = await AsyncStorage.getItem("staff_session");
       if (session) {
         setIsStaffSignedIn(true);
       }
@@ -52,7 +52,9 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
 
   // Modal State
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalType, setModalType] = useState<"success" | "error" | "warning">("success");
+  const [modalType, setModalType] = useState<"success" | "error" | "warning">(
+    "success",
+  );
   const [modalTitle, setModalTitle] = useState("");
   const [modalMessage, setModalMessage] = useState("");
 
@@ -84,61 +86,79 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
 
   const loadProfile = async () => {
     try {
-      // 🚀 STEP 1: Quick Load from Cache for local UI
-      const cached = await AsyncStorage.getItem('@cached_business_profile');
+      setIsInitialLoading(true);
+
+      // 🚀 STEP 1: Quick Load from Cache for immediate UI
+      const cached = await AsyncStorage.getItem("@cached_business_profile");
+      let foundCache = false;
       if (cached) {
         try {
           const data = JSON.parse(cached);
-          if (data && (data.businessName || data.companyName || data.business_name)) {
+          if (
+            data &&
+            (data.businessName || data.companyName || data.business_name)
+          ) {
             updateFormWithData(data);
             setHasProfile(true);
             setStep(-1);
+            foundCache = true;
+            // If we found cache, we can show the UI immediately while network refreshes in background
+            setIsInitialLoading(false);
           }
         } catch (e) {
           console.error("Cache Parse Error:", e);
         }
       }
-      
-      // Stop blocking UI immediately after cache read
-      setIsInitialLoading(false);
 
-      // 🚀 STEP 2: Background Refresh from Network
-      const token = await getToken();
-      const bId = await StaffPermissionEngine.getActiveBusinessId(isSignedIn ? user?.id : undefined);
+      // 🚀 STEP 2: Network Refresh from Network
+      const clerkToken = await getToken();
+      const staffToken = await AsyncStorage.getItem("staff_token");
+      const token = clerkToken || staffToken;
 
-      if (!token && !bId) return;
+      const bId = await StaffPermissionEngine.getActiveBusinessId(
+        isSignedIn ? user?.id : undefined,
+      );
 
-      const url = bId ? `https://billing.kravy.in/api/profile?businessId=${bId}` : "https://billing.kravy.in/api/profile";
-
-      const response = await fetch(url, {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
-      });
-
-      if (!response.ok) {
-        // If unauthorized or error, don't reset to step 0 if we have cached data
+      if (!token && !bId) {
+        if (!foundCache) setIsInitialLoading(false);
         return;
       }
 
-      const resData = await response.json();
-      const data = resData.data || resData;
+      const url = bId
+        ? `https://billing.kravy.in/api/profile?businessId=${bId}`
+        : "https://billing.kravy.in/api/profile";
 
-      if (data && (data.businessName || data.companyName || data.business_name)) {
-        updateFormWithData(data);
-        await AsyncStorage.setItem('@cached_business_profile', JSON.stringify(data));
-        setHasProfile(true);
-        // Only jump to summary if we aren't already in an editing step
-        if (step === 0 || step === -1) setStep(-1);
-      } else {
-        // If network explicitly returns empty or not found
-        // but only if we don't already have profile from cache
-        if (!hasProfile) {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (response.ok) {
+        const resData = await response.json();
+        const data = resData?.data || resData;
+
+        if (
+          data &&
+          (data.businessName || data.companyName || data.business_name)
+        ) {
+          updateFormWithData(data);
+          await AsyncStorage.setItem(
+            "@cached_business_profile",
+            JSON.stringify(data),
+          );
+          setHasProfile(true);
+          setStep(-1);
+        } else if (!foundCache) {
+          // No profile on server and no cache — show landing page
           setHasProfile(false);
-          if (step === -1) setStep(0);
+          setStep(0);
         }
+      } else if (!foundCache) {
+        // API failed and no cache — show landing page as fallback
+        setStep(0);
       }
     } catch (e) {
       console.error("Load Profile Error:", e);
@@ -149,22 +169,46 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
 
   const updateFormWithData = (data: any) => {
     // Handle potential nesting
-    const d = data.data || data;
-    
+    const d = data?.data || data;
+    if (!d) return;
+
     setForm({
       businessType: d.businessType || d.business_type || "",
-      businessName: d.businessName || d.companyName || d.business_name || d.company_name || "",
+      businessName:
+        d.businessName ||
+        d.companyName ||
+        d.business_name ||
+        d.company_name ||
+        "",
       tagline: d.businessTagLine || d.tagline || d.business_tagline || "",
-      contactPerson: d.contactPersonName || d.contactPerson || d.contact_person || d.name || "",
-      phone: d.contactPersonPhone || d.companyPhone || d.phone || d.mobile || "",
+      contactPerson:
+        d.contactPersonName ||
+        d.contactPerson ||
+        d.contact_person ||
+        d.name ||
+        "",
+      phone:
+        d.contactPersonPhone || d.companyPhone || d.phone || d.mobile || "",
       email: d.email || d.contactPersonEmail || d.contact_person_email || "",
       gstNumber: d.gstNumber || d.gst_number || d.gstin || "",
-      businessAddress: d.businessAddress || d.companyAddress || d.address || d.business_address || "",
+      businessAddress:
+        d.businessAddress ||
+        d.companyAddress ||
+        d.address ||
+        d.business_address ||
+        "",
       state: d.state || "",
       pinCode: d.pinCode || d.pincode || d.zip || d.zip_code || "",
       upiId: d.upiId || d.upi || d.upi_id || "",
-      googleReviewLink: d.googleReviewLink || d.google_review_link || d.review_link || "",
-      profileImage: d.profileImageUrl || d.logoUrl || d.logo_url || d.image || d.profile_image || "",
+      googleReviewLink:
+        d.googleReviewLink || d.google_review_link || d.review_link || "",
+      profileImage:
+        d.profileImageUrl ||
+        d.logoUrl ||
+        d.logo_url ||
+        d.image ||
+        d.profile_image ||
+        "",
       signatureUrl: d.signatureUrl || d.signature_url || d.signature || "",
       businessEmail: d.businessEmail || d.business_email || "",
     });
@@ -184,7 +228,11 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
     }
   };
 
-  const showAlert = (type: "success" | "error" | "warning", title: string, message: string) => {
+  const showAlert = (
+    type: "success" | "error" | "warning",
+    title: string,
+    message: string,
+  ) => {
     setModalType(type);
     setModalTitle(title);
     setModalMessage(message);
@@ -200,7 +248,8 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       if (!form.phone.trim()) return "Phone Number is required";
       if (!form.email.trim()) return "Email is required";
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(form.email.trim())) return "Please enter a valid email";
+      if (!emailRegex.test(form.email.trim()))
+        return "Please enter a valid email";
     } else if (step === 3) {
       if (!form.businessAddress.trim()) return "Business Address is required";
       if (!form.state.trim()) return "State is required";
@@ -218,18 +267,23 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
     setStep(step + 1);
   };
 
-  const pickImage = async (field: 'profileImage' | 'signatureUrl') => {
+  const pickImage = async (field: "profileImage" | "signatureUrl") => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        showAlert("error", "Permission Denied", "We need permission to access your gallery.");
+        showAlert(
+          "error",
+          "Permission Denied",
+          "We need permission to access your gallery.",
+        );
         return;
       }
 
       let result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: field === 'profileImage' ? [1, 1] : [2, 1],
+        aspect: field === "profileImage" ? [1, 1] : [2, 1],
         quality: 0.8,
       });
 
@@ -241,7 +295,10 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
     }
   };
 
-  const uploadToCloudinary = async (uri: string, field: 'profileImage' | 'signatureUrl') => {
+  const uploadToCloudinary = async (
+    uri: string,
+    field: "profileImage" | "signatureUrl",
+  ) => {
     setUploadingImage(true);
     try {
       const cloudName = "digpvlfup";
@@ -254,25 +311,32 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       // Create blob or use simpler approach for RN
       // @ts-ignore
       formData.append("file", {
-        uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+        uri: Platform.OS === "android" ? uri : uri.replace("file://", ""),
         type: fileType,
         name: fileName,
       });
       formData.append("upload_preset", uploadPreset);
       formData.append("cloud_name", cloudName);
 
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.message || "Upload failed");
 
-      setForm(prev => ({ ...prev, [field]: data.secure_url }));
+      setForm((prev) => ({ ...prev, [field]: data.secure_url }));
     } catch (e) {
       console.error("Cloudinary Upload Error:", e);
-      showAlert("error", "Upload Failed", "Could not upload image to Cloudinary.");
+      showAlert(
+        "error",
+        "Upload Failed",
+        "Could not upload image to Cloudinary.",
+      );
     } finally {
       setUploadingImage(false);
     }
@@ -311,10 +375,10 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
 
       const res = await fetch("https://billing.kravy.in/api/profile", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json", 
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}` 
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -322,11 +386,18 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       if (res.ok) {
         setHasProfile(true);
         // Update cache immediately with the latest form data
-        await AsyncStorage.setItem('@cached_business_profile', JSON.stringify(payload));
+        await AsyncStorage.setItem(
+          "@cached_business_profile",
+          JSON.stringify(payload),
+        );
         showAlert("success", "Success!", "Profile saved successfully!");
       } else {
         const errorData = await res.json();
-        showAlert("error", "Save Failed", errorData.message || "Something went wrong.");
+        showAlert(
+          "error",
+          "Save Failed",
+          errorData.message || "Something went wrong.",
+        );
       }
     } catch (e) {
       showAlert("error", "Connection Error", "Check your internet connection.");
@@ -341,10 +412,23 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       <View style={styles.stepIndicatorContainer}>
         {[1, 2, 3, 4].map((i) => (
           <React.Fragment key={i}>
-            <View style={[styles.stepCircle, step >= i && styles.stepCircleActive]}>
-              <Text style={[styles.stepCircleText, step >= i && styles.stepCircleTextActive]}>{i}</Text>
+            <View
+              style={[styles.stepCircle, step >= i && styles.stepCircleActive]}
+            >
+              <Text
+                style={[
+                  styles.stepCircleText,
+                  step >= i && styles.stepCircleTextActive,
+                ]}
+              >
+                {i}
+              </Text>
             </View>
-            {i < 4 && <View style={[styles.stepLine, step > i && styles.stepLineActive]} />}
+            {i < 4 && (
+              <View
+                style={[styles.stepLine, step > i && styles.stepLineActive]}
+              />
+            )}
           </React.Fragment>
         ))}
       </View>
@@ -362,7 +446,10 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
   // --- Step -1: Summary/View Mode ---
   if (step === -1) {
     return (
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={rf(20)} color="#1E293B" />
         </TouchableOpacity>
@@ -375,42 +462,67 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
         <View style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
             {form.profileImage ? (
-              <Image source={{ uri: form.profileImage }} style={styles.summaryLogo} />
+              <Image
+                source={{ uri: form.profileImage }}
+                style={styles.summaryLogo}
+              />
             ) : (
               <View style={styles.summaryLogoPlaceholder}>
-                <MaterialCommunityIcons name="office-building" size={rf(30)} color={THEME_COLOR} />
+                <MaterialCommunityIcons
+                  name="office-building"
+                  size={rf(30)}
+                  color={THEME_COLOR}
+                />
               </View>
             )}
             <View style={{ flex: 1, marginLeft: s(15) }}>
               <Text style={styles.summaryBizName}>{form.businessName}</Text>
-              <Text style={styles.summaryTagline}>{form.tagline || "Smart Billing Solutions"}</Text>
+              <Text style={styles.summaryTagline}>
+                {form.tagline || "Smart Billing Solutions"}
+              </Text>
             </View>
           </View>
 
           <View style={styles.divider} />
 
-          {renderSummarySection("Identity", [
-            { label: "Type", value: form.businessType },
-            { label: "GSTIN", value: form.gstNumber || "N/A" }
-          ], "office-building")}
+          {renderSummarySection(
+            "Identity",
+            [
+              { label: "Type", value: form.businessType },
+              { label: "GSTIN", value: form.gstNumber || "N/A" },
+            ],
+            "office-building",
+          )}
 
-          {renderSummarySection("Contact", [
-            { label: "Person", value: form.contactPerson },
-            { label: "Phone", value: form.phone },
-            { label: "Contact Email", value: form.email },
-            { label: "Business Email", value: form.businessEmail }
-          ], "person")}
+          {renderSummarySection(
+            "Contact",
+            [
+              { label: "Person", value: form.contactPerson },
+              { label: "Phone", value: form.phone },
+              { label: "Contact Email", value: form.email },
+              { label: "Business Email", value: form.businessEmail },
+            ],
+            "person",
+          )}
 
-          {renderSummarySection("Address", [
-            { label: "Address", value: form.businessAddress },
-            { label: "State", value: form.state },
-            { label: "PIN", value: form.pinCode }
-          ], "location")}
+          {renderSummarySection(
+            "Address",
+            [
+              { label: "Address", value: form.businessAddress },
+              { label: "State", value: form.state },
+              { label: "PIN", value: form.pinCode },
+            ],
+            "location",
+          )}
 
-          {renderSummarySection("Payments", [
-            { label: "UPI", value: form.upiId || "N/A" },
-            { label: "Review Link", value: form.googleReviewLink || "N/A" }
-          ], "credit-card-outline")}
+          {renderSummarySection(
+            "Payments",
+            [
+              { label: "UPI", value: form.upiId || "N/A" },
+              { label: "Review Link", value: form.googleReviewLink || "N/A" },
+            ],
+            "credit-card-outline",
+          )}
 
           {form.signatureUrl ? (
             <View style={styles.summarySection}>
@@ -418,15 +530,21 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
                 <Ionicons name="pencil" size={rf(18)} color={THEME_COLOR} />
                 <Text style={styles.summarySectionTitle}>Signature</Text>
               </View>
-              <Image 
-                source={{ uri: form.signatureUrl }} 
-                style={{ width: s(150), height: vs(70), borderRadius: s(8), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#F1F5F9' }} 
-                resizeMode="contain" 
+              <Image
+                source={{ uri: form.signatureUrl }}
+                style={{
+                  width: s(150),
+                  height: vs(70),
+                  borderRadius: s(8),
+                  backgroundColor: "#F8FAFC",
+                  borderWidth: 1,
+                  borderColor: "#F1F5F9",
+                }}
+                resizeMode="contain"
               />
             </View>
           ) : null}
         </View>
-
 
         <TouchableOpacity style={styles.editButton} onPress={() => setStep(1)}>
           <Feather name="edit-3" size={rf(20)} color="#fff" />
@@ -440,20 +558,33 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
   if (step === 0) {
     return (
       <View style={styles.landingContainer}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButtonAbsolute}>
+        <TouchableOpacity
+          onPress={handleBack}
+          style={styles.backButtonAbsolute}
+        >
           <Ionicons name="arrow-back" size={rf(20)} color="#1E293B" />
         </TouchableOpacity>
 
         <View style={styles.landingCard}>
           <View style={styles.iconCircle}>
-            <MaterialCommunityIcons name="office-building" size={rf(48)} color="#6366F1" />
+            <MaterialCommunityIcons
+              name="office-building"
+              size={rf(48)}
+              color="#6366F1"
+            />
           </View>
           <Text style={styles.landingTitle}>Boost Your Sales!</Text>
           <Text style={styles.landingSubtitle}>
-            Set up your professional business profile to add branding to your bills and QR codes.
+            Set up your professional business profile to add branding to your
+            bills and QR codes.
           </Text>
-          <TouchableOpacity style={styles.landingButton} onPress={() => setStep(1)}>
-            <Text style={styles.primaryButtonText}>Create Business Profile</Text>
+          <TouchableOpacity
+            style={styles.landingButton}
+            onPress={() => setStep(1)}
+          >
+            <Text style={styles.primaryButtonText}>
+              Create Business Profile
+            </Text>
             <Feather name="arrow-right" size={rf(18)} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -466,14 +597,21 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1, backgroundColor: "#F8FAFC" }}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={rf(20)} color="#1E293B" />
         </TouchableOpacity>
 
         <View style={styles.header}>
-          <Text style={styles.title}>{hasProfile ? "Edit Profile" : "Setup Profile"}</Text>
-          <Text style={styles.subtitle}>Let's build your professional presence</Text>
+          <Text style={styles.title}>
+            {hasProfile ? "Edit Profile" : "Setup Profile"}
+          </Text>
+          <Text style={styles.subtitle}>
+            Let&apos;s build your professional presence
+          </Text>
         </View>
 
         {renderStepIndicator()}
@@ -482,12 +620,31 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
           {step === 1 && (
             <View>
               <View style={styles.sectionHeader}>
-                <MaterialCommunityIcons name="office-building" size={rf(22)} color="#111827" />
+                <MaterialCommunityIcons
+                  name="office-building"
+                  size={rf(22)}
+                  color="#111827"
+                />
                 <Text style={styles.sectionTitle}>Business Identity</Text>
               </View>
-              {renderInput("Business Type*", form.businessType, (t) => setForm({ ...form, businessType: t }), "Business Type*")}
-              {renderInput("Business Name*", form.businessName, (t) => setForm({ ...form, businessName: t }), "Business Name*")}
-              {renderInput("Tagline", form.tagline, (t) => setForm({ ...form, tagline: t }), "Tagline")}
+              {renderInput(
+                "Business Type*",
+                form.businessType,
+                (t) => setForm({ ...form, businessType: t }),
+                "Business Type*",
+              )}
+              {renderInput(
+                "Business Name*",
+                form.businessName,
+                (t) => setForm({ ...form, businessName: t }),
+                "Business Name*",
+              )}
+              {renderInput(
+                "Tagline",
+                form.tagline,
+                (t) => setForm({ ...form, tagline: t }),
+                "Tagline",
+              )}
             </View>
           )}
 
@@ -497,10 +654,33 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
                 <Ionicons name="person" size={rf(22)} color={THEME_COLOR} />
                 <Text style={styles.sectionTitle}>Contact Details</Text>
               </View>
-              { renderInput("Contact Person*", form.contactPerson, (t) => setForm({ ...form, contactPerson: t }), "Contact Person*")}
-              { renderInput("Phone*", form.phone, (t) => setForm({ ...form, phone: t }), "Phone*", "phone-pad")}
-              { renderInput("Contact Email*", form.email, (t) => setForm({ ...form, email: t }), "Contact Email*", "email-address")}
-              { renderInput("Business Email", form.businessEmail, (t) => setForm({ ...form, businessEmail: t }), "Business Email", "email-address")}
+              {renderInput(
+                "Contact Person*",
+                form.contactPerson,
+                (t) => setForm({ ...form, contactPerson: t }),
+                "Contact Person*",
+              )}
+              {renderInput(
+                "Phone*",
+                form.phone,
+                (t) => setForm({ ...form, phone: t }),
+                "Phone*",
+                "phone-pad",
+              )}
+              {renderInput(
+                "Contact Email*",
+                form.email,
+                (t) => setForm({ ...form, email: t }),
+                "Contact Email*",
+                "email-address",
+              )}
+              {renderInput(
+                "Business Email",
+                form.businessEmail,
+                (t) => setForm({ ...form, businessEmail: t }),
+                "Business Email",
+                "email-address",
+              )}
             </View>
           )}
 
@@ -510,14 +690,35 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
                 <Ionicons name="location" size={rf(22)} color={ERROR_COLOR} />
                 <Text style={styles.sectionTitle}>Address & Tax</Text>
               </View>
-              {renderInput("GST Number", form.gstNumber, (t) => setForm({ ...form, gstNumber: t }), "GST Number")}
-              {renderInput("Business Address*", form.businessAddress, (t) => setForm({ ...form, businessAddress: t }), "Business Address*")}
+              {renderInput(
+                "GST Number",
+                form.gstNumber,
+                (t) => setForm({ ...form, gstNumber: t }),
+                "GST Number",
+              )}
+              {renderInput(
+                "Business Address*",
+                form.businessAddress,
+                (t) => setForm({ ...form, businessAddress: t }),
+                "Business Address*",
+              )}
               <View style={styles.row}>
                 <View style={{ flex: 1, marginRight: s(10) }}>
-                  {renderInput("State*", form.state, (t) => setForm({ ...form, state: t }), "State*")}
+                  {renderInput(
+                    "State*",
+                    form.state,
+                    (t) => setForm({ ...form, state: t }),
+                    "State*",
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  {renderInput("PIN Code*", form.pinCode, (t) => setForm({ ...form, pinCode: t }), "PIN Code*", "number-pad")}
+                  {renderInput(
+                    "PIN Code*",
+                    form.pinCode,
+                    (t) => setForm({ ...form, pinCode: t }),
+                    "PIN Code*",
+                    "number-pad",
+                  )}
                 </View>
               </View>
             </View>
@@ -526,48 +727,90 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
           {step === 4 && (
             <View>
               <View style={styles.sectionHeader}>
-                <MaterialCommunityIcons name="image-area" size={rf(22)} color={WARNING_COLOR} />
+                <MaterialCommunityIcons
+                  name="image-area"
+                  size={rf(22)}
+                  color={WARNING_COLOR}
+                />
                 <Text style={styles.sectionTitle}>Branding & Payments</Text>
               </View>
-              {renderInput("UPI ID", form.upiId, (t) => setForm({ ...form, upiId: t }), "UPI ID")}
-              {renderInput("Google Review Link", form.googleReviewLink, (t) => setForm({ ...form, googleReviewLink: t }), "Google Review Link")}
+              {renderInput(
+                "UPI ID",
+                form.upiId,
+                (t) => setForm({ ...form, upiId: t }),
+                "UPI ID",
+              )}
+              {renderInput(
+                "Google Review Link",
+                form.googleReviewLink,
+                (t) => setForm({ ...form, googleReviewLink: t }),
+                "Google Review Link",
+              )}
 
               <Text style={styles.label}>Profile Image / Logo</Text>
-              <TouchableOpacity style={styles.uploadBox} onPress={() => pickImage('profileImage')}>
+              <TouchableOpacity
+                style={styles.uploadBox}
+                onPress={() => pickImage("profileImage")}
+              >
                 {uploadingImage ? (
                   <ActivityIndicator color={THEME_COLOR} />
                 ) : form.profileImage ? (
-                  <Image source={{ uri: form.profileImage }} style={styles.logoPreview} />
+                  <Image
+                    source={{ uri: form.profileImage }}
+                    style={styles.logoPreview}
+                  />
                 ) : (
                   <>
-                    <Ionicons name="camera-outline" size={rf(30)} color="#94A3B8" />
+                    <Ionicons
+                      name="camera-outline"
+                      size={rf(30)}
+                      color="#94A3B8"
+                    />
                     <Text style={styles.uploadText}>Upload Photo</Text>
                   </>
                 )}
               </TouchableOpacity>
 
               <Text style={styles.label}>Business Signature</Text>
-              <TouchableOpacity style={styles.uploadBox} onPress={() => pickImage('signatureUrl')}>
+              <TouchableOpacity
+                style={styles.uploadBox}
+                onPress={() => pickImage("signatureUrl")}
+              >
                 {uploadingImage ? (
                   <ActivityIndicator color={THEME_COLOR} />
                 ) : form.signatureUrl ? (
-                  <Image source={{ uri: form.signatureUrl }} style={styles.logoPreview} resizeMode="contain" />
+                  <Image
+                    source={{ uri: form.signatureUrl }}
+                    style={styles.logoPreview}
+                    resizeMode="contain"
+                  />
                 ) : (
                   <>
-                    <Ionicons name="pencil-outline" size={rf(30)} color="#94A3B8" />
+                    <Ionicons
+                      name="pencil-outline"
+                      size={rf(30)}
+                      color="#94A3B8"
+                    />
                     <Text style={styles.uploadText}>Upload Signature</Text>
                   </>
                 )}
               </TouchableOpacity>
-              {renderInput("Signature URL (Manual)", form.signatureUrl, (t) => setForm({ ...form, signatureUrl: t }), "Paste Link or Upload above")}
-
+              {renderInput(
+                "Signature URL (Manual)",
+                form.signatureUrl,
+                (t) => setForm({ ...form, signatureUrl: t }),
+                "Paste Link or Upload above",
+              )}
             </View>
           )}
         </View>
 
         <View style={styles.footerButtons}>
           {step > 1 && (
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => setStep(step - 1)}>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => setStep(step - 1)}
+            >
               <Text style={styles.secondaryButtonText}>Back</Text>
             </TouchableOpacity>
           )}
@@ -576,7 +819,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
             style={[
               styles.primaryButton,
               { flex: step === 4 ? 1.5 : 1 },
-              step === 4 && { backgroundColor: SUCCESS_COLOR }
+              step === 4 && { backgroundColor: SUCCESS_COLOR },
             ]}
             onPress={step === 4 ? handleSave : handleContinue}
             disabled={loading}
@@ -585,8 +828,12 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <Text style={styles.primaryButtonText}>{step === 4 ? "Save Profile" : "Continue"}</Text>
-                {step < 4 && <Feather name="arrow-right" size={rf(18)} color="#fff" />}
+                <Text style={styles.primaryButtonText}>
+                  {step === 4 ? "Save Profile" : "Continue"}
+                </Text>
+                {step < 4 && (
+                  <Feather name="arrow-right" size={rf(18)} color="#fff" />
+                )}
               </>
             )}
           </TouchableOpacity>
@@ -597,14 +844,35 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={[
-              styles.modalIconCircle,
-              { backgroundColor: modalType === 'success' ? "#E6F6F1" : modalType === 'error' ? ERROR_COLOR + '20' : WARNING_COLOR + '20' }
-            ]}>
+            <View
+              style={[
+                styles.modalIconCircle,
+                {
+                  backgroundColor:
+                    modalType === "success"
+                      ? "#E6F6F1"
+                      : modalType === "error"
+                        ? ERROR_COLOR + "20"
+                        : WARNING_COLOR + "20",
+                },
+              ]}
+            >
               <Ionicons
-                name={modalType === 'success' ? 'checkmark-circle' : modalType === 'error' ? 'close-circle' : 'alert-circle'}
+                name={
+                  modalType === "success"
+                    ? "checkmark-circle"
+                    : modalType === "error"
+                      ? "close-circle"
+                      : "alert-circle"
+                }
                 size={rf(52)}
-                color={modalType === 'success' ? SUCCESS_COLOR : modalType === 'error' ? ERROR_COLOR : WARNING_COLOR}
+                color={
+                  modalType === "success"
+                    ? SUCCESS_COLOR
+                    : modalType === "error"
+                      ? ERROR_COLOR
+                      : WARNING_COLOR
+                }
               />
             </View>
             <Text style={styles.modalTitle}>{modalTitle}</Text>
@@ -612,14 +880,23 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
             <TouchableOpacity
               style={[
                 styles.modalBtn,
-                { backgroundColor: modalType === 'success' ? SUCCESS_COLOR : modalType === 'error' ? ERROR_COLOR : WARNING_COLOR }
+                {
+                  backgroundColor:
+                    modalType === "success"
+                      ? SUCCESS_COLOR
+                      : modalType === "error"
+                        ? ERROR_COLOR
+                        : WARNING_COLOR,
+                },
               ]}
               onPress={() => {
                 setModalVisible(false);
-                if (modalType === 'success' && step === 4) setStep(-1); // Go back to summary on success
+                if (modalType === "success" && step === 4) setStep(-1); // Go back to summary on success
               }}
             >
-              <Text style={styles.modalBtnText}>{modalType === 'success' ? "Okay, Got it" : "OK"}</Text>
+              <Text style={styles.modalBtnText}>
+                {modalType === "success" ? "Okay, Got it" : "OK"}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -628,7 +905,13 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
   );
 }
 
-function renderInput(label: string, value: string, onChange: (t: string) => void, placeholder: string, keyboard: any = "default") {
+function renderInput(
+  label: string,
+  value: string,
+  onChange: (t: string) => void,
+  placeholder: string,
+  keyboard: any = "default",
+) {
   return (
     <View style={styles.inputContainer}>
       <Text style={styles.label}>{label}</Text>
@@ -644,7 +927,11 @@ function renderInput(label: string, value: string, onChange: (t: string) => void
   );
 }
 
-function renderSummarySection(title: string, items: { label: string, value: string }[], icon: any) {
+function renderSummarySection(
+  title: string,
+  items: { label: string; value: string }[],
+  icon: any,
+) {
   return (
     <View style={styles.summarySection}>
       <View style={styles.summarySectionHeader}>
@@ -655,7 +942,9 @@ function renderSummarySection(title: string, items: { label: string, value: stri
         {items.map((item, idx) => (
           <View key={idx} style={styles.summaryItem}>
             <Text style={styles.summaryItemLabel}>{item.label}</Text>
-            <Text style={styles.summaryItemValue} numberOfLines={2}>{item.value || "Not Set"}</Text>
+            <Text style={styles.summaryItemValue} numberOfLines={2}>
+              {item.value || "Not Set"}
+            </Text>
           </View>
         ))}
       </View>
@@ -663,71 +952,305 @@ function renderSummarySection(title: string, items: { label: string, value: stri
   );
 }
 const styles = StyleSheet.create({
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
-  landingContainer: { flex: 1, backgroundColor: "#fff", justifyContent: "center", alignItems: "center", padding: s(30) },
-  landingCard: { width: "100%", backgroundColor: "#fff", padding: s(30), borderRadius: s(30), alignItems: "center", elevation: 8, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  landingTitle: { fontSize: rf(24), fontWeight: "800", color: "#1E293B", marginTop: vs(20) },
-  landingSubtitle: { fontSize: rf(14), color: "#64748B", textAlign: "center", marginVertical: vs(20), lineHeight: rf(22) },
-  iconCircle: { width: s(80), height: s(80), borderRadius: s(40), backgroundColor: "#EEF2FF", justifyContent: "center", alignItems: "center" },
-  backButtonAbsolute: { position: "absolute", top: vs(60), left: s(20), width: s(40), height: s(40), borderRadius: s(20), backgroundColor: "#fff", justifyContent: "center", alignItems: "center", elevation: 2 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  landingContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: s(30),
+  },
+  landingCard: {
+    width: "100%",
+    backgroundColor: "#fff",
+    padding: s(30),
+    borderRadius: s(30),
+    alignItems: "center",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  landingTitle: {
+    fontSize: rf(24),
+    fontWeight: "800",
+    color: "#1E293B",
+    marginTop: vs(20),
+  },
+  landingSubtitle: {
+    fontSize: rf(14),
+    color: "#64748B",
+    textAlign: "center",
+    marginVertical: vs(20),
+    lineHeight: rf(22),
+  },
+  iconCircle: {
+    width: s(80),
+    height: s(80),
+    borderRadius: s(40),
+    backgroundColor: "#EEF2FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  backButtonAbsolute: {
+    position: "absolute",
+    top: vs(60),
+    left: s(20),
+    width: s(40),
+    height: s(40),
+    borderRadius: s(20),
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 2,
+  },
 
   scrollContainer: { padding: s(20), paddingBottom: vs(50) },
-  backButton: { width: s(40), height: s(40), borderRadius: s(20), backgroundColor: "#fff", justifyContent: "center", alignItems: "center", marginTop: vs(35), elevation: 2 },
+  backButton: {
+    width: s(40),
+    height: s(40),
+    borderRadius: s(20),
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: vs(35),
+    elevation: 2,
+  },
   header: { marginTop: vs(25), marginBottom: vs(25) },
   title: { fontSize: rf(28), fontWeight: "800", color: "#0F172A" },
   subtitle: { fontSize: rf(14), color: "#64748B", marginTop: vs(5) },
 
-  stepIndicatorContainer: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: vs(30) },
-  stepCircle: { width: s(32), height: s(32), borderRadius: s(16), backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E8F0", justifyContent: "center", alignItems: "center" },
+  stepIndicatorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: vs(30),
+  },
+  stepCircle: {
+    width: s(32),
+    height: s(32),
+    borderRadius: s(16),
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   stepCircleActive: { backgroundColor: THEME_COLOR, borderColor: THEME_COLOR },
   stepCircleText: { fontSize: rf(12), color: "#64748B", fontWeight: "700" },
   stepCircleTextActive: { color: "#fff" },
-  stepLine: { height: 2, width: s(40), backgroundColor: "#E2E8F0", marginHorizontal: s(5) },
+  stepLine: {
+    height: 2,
+    width: s(40),
+    backgroundColor: "#E2E8F0",
+    marginHorizontal: s(5),
+  },
   stepLineActive: { backgroundColor: THEME_COLOR },
 
-  card: { backgroundColor: "#fff", borderRadius: s(24), padding: s(24), elevation: 4, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, marginBottom: vs(25) },
-  sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: vs(20), gap: s(10) },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: s(24),
+    padding: s(24),
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    marginBottom: vs(25),
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: vs(20),
+    gap: s(10),
+  },
   sectionTitle: { fontSize: rf(18), fontWeight: "700", color: "#1E293B" },
 
   inputContainer: { marginBottom: vs(18) },
-  label: { fontSize: rf(14), fontWeight: "700", color: "#1E293B", marginBottom: vs(8) },
-  input: { height: vs(52), borderWidth: 1, borderColor: "#E2E8F0", borderRadius: s(12), paddingHorizontal: s(15), fontSize: rf(15), color: "#1E293B", backgroundColor: "#fff" },
+  label: {
+    fontSize: rf(14),
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: vs(8),
+  },
+  input: {
+    height: vs(52),
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: s(12),
+    paddingHorizontal: s(15),
+    fontSize: rf(15),
+    color: "#1E293B",
+    backgroundColor: "#fff",
+  },
   row: { flexDirection: "row" },
 
-  uploadBox: { height: vs(120), borderWidth: 1, borderColor: "#E2E8F0", borderStyle: "dashed", borderRadius: s(16), justifyContent: "center", alignItems: "center", backgroundColor: "#F8FAFC", marginBottom: vs(18) },
-  uploadText: { fontSize: rf(14), color: "#64748B", marginTop: vs(5), fontWeight: "600" },
+  uploadBox: {
+    height: vs(120),
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderStyle: "dashed",
+    borderRadius: s(16),
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    marginBottom: vs(18),
+  },
+  uploadText: {
+    fontSize: rf(14),
+    color: "#64748B",
+    marginTop: vs(5),
+    fontWeight: "600",
+  },
   logoPreview: { width: "100%", height: "100%", borderRadius: s(16) },
 
   footerButtons: { flexDirection: "row", gap: s(15) },
-  primaryButton: { height: vs(56), borderRadius: s(16), backgroundColor: THEME_COLOR, justifyContent: "center", alignItems: "center", flexDirection: "row", gap: s(10) },
-  landingButton: { height: vs(56), borderRadius: s(28), backgroundColor: "#4F46E5", justifyContent: "center", alignItems: "center", flexDirection: "row", gap: s(10), width: "100%" },
+  primaryButton: {
+    height: vs(56),
+    borderRadius: s(16),
+    backgroundColor: THEME_COLOR,
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: s(10),
+  },
+  landingButton: {
+    height: vs(56),
+    borderRadius: s(28),
+    backgroundColor: "#4F46E5",
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: s(10),
+    width: "100%",
+  },
   primaryButtonText: { color: "#fff", fontSize: rf(16), fontWeight: "700" },
-  secondaryButton: { height: vs(56), borderRadius: s(16), backgroundColor: "#fff", borderWidth: 1, borderColor: "#E2E8F0", justifyContent: "center", alignItems: "center", flex: 0.6 },
-  secondaryButtonText: { color: "#64748B", fontSize: rf(16), fontWeight: "600" },
+  secondaryButton: {
+    height: vs(56),
+    borderRadius: s(16),
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    justifyContent: "center",
+    alignItems: "center",
+    flex: 0.6,
+  },
+  secondaryButtonText: {
+    color: "#64748B",
+    fontSize: rf(16),
+    fontWeight: "600",
+  },
 
-  modalOverlay: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.6)", justifyContent: "center", alignItems: "center", padding: s(20) },
-  modalContent: { width: "100%", backgroundColor: "#fff", borderRadius: s(32), padding: s(30), alignItems: "center" },
-  modalIconCircle: { width: s(90), height: s(90), borderRadius: s(45), justifyContent: "center", alignItems: "center", marginBottom: vs(20) },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: s(20),
+  },
+  modalContent: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: s(32),
+    padding: s(30),
+    alignItems: "center",
+  },
+  modalIconCircle: {
+    width: s(90),
+    height: s(90),
+    borderRadius: s(45),
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: vs(20),
+  },
   modalTitle: { fontSize: rf(22), fontWeight: "800", color: "#1E293B" },
-  modalMessage: { fontSize: rf(15), color: "#64748B", textAlign: "center", marginVertical: vs(20), lineHeight: rf(22) },
-  modalBtn: { width: "100%", height: vs(54), borderRadius: s(18), justifyContent: "center", alignItems: "center" },
+  modalMessage: {
+    fontSize: rf(15),
+    color: "#64748B",
+    textAlign: "center",
+    marginVertical: vs(20),
+    lineHeight: rf(22),
+  },
+  modalBtn: {
+    width: "100%",
+    height: vs(54),
+    borderRadius: s(18),
+    justifyContent: "center",
+    alignItems: "center",
+  },
   modalBtnText: { color: "#fff", fontWeight: "700", fontSize: rf(16) },
 
   // Summary Styles
-  summaryCard: { backgroundColor: "#fff", borderRadius: s(24), padding: s(24), elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  summaryHeader: { flexDirection: "row", alignItems: "center", marginBottom: vs(20) },
-  summaryLogo: { width: s(60), height: s(60), borderRadius: s(12), backgroundColor: "#F1F5F9" },
-  summaryLogoPlaceholder: { width: s(60), height: s(60), borderRadius: s(12), backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center" },
+  summaryCard: {
+    backgroundColor: "#fff",
+    borderRadius: s(24),
+    padding: s(24),
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  summaryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: vs(20),
+  },
+  summaryLogo: {
+    width: s(60),
+    height: s(60),
+    borderRadius: s(12),
+    backgroundColor: "#F1F5F9",
+  },
+  summaryLogoPlaceholder: {
+    width: s(60),
+    height: s(60),
+    borderRadius: s(12),
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   summaryBizName: { fontSize: rf(20), fontWeight: "800", color: "#1E293B" },
   summaryTagline: { fontSize: rf(13), color: "#64748B", marginTop: vs(2) },
   divider: { height: 1, backgroundColor: "#F1F5F9", marginBottom: vs(20) },
   summarySection: { marginBottom: vs(20) },
-  summarySectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: vs(12), gap: s(8) },
-  summarySectionTitle: { fontSize: rf(15), fontWeight: "700", color: "#64748B", textTransform: "uppercase", letterSpacing: 0.5 },
+  summarySectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: vs(12),
+    gap: s(8),
+  },
+  summarySectionTitle: {
+    fontSize: rf(15),
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   summaryItemsGrid: { flexDirection: "row", flexWrap: "wrap", gap: s(15) },
   summaryItem: { width: "45%", marginBottom: vs(5) },
   summaryItemLabel: { fontSize: rf(12), color: "#94A3B8", fontWeight: "600" },
-  summaryItemValue: { fontSize: rf(14), color: "#1E293B", fontWeight: "600", marginTop: vs(2) },
-  editButton: { height: vs(56), borderRadius: s(18), backgroundColor: THEME_COLOR, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: s(10), marginTop: vs(30) },
+  summaryItemValue: {
+    fontSize: rf(14),
+    color: "#1E293B",
+    fontWeight: "600",
+    marginTop: vs(2),
+  },
+  editButton: {
+    height: vs(56),
+    borderRadius: s(18),
+    backgroundColor: THEME_COLOR,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: s(10),
+    marginTop: vs(30),
+  },
   editButtonText: { color: "#fff", fontSize: rf(16), fontWeight: "700" },
 });

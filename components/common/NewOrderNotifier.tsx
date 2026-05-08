@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { SimpleKOT } from "./SimpleKOT";
 
 const { width } = Dimensions.get("window");
@@ -85,14 +86,15 @@ const NewOrderNotifier = () => {
 
   // Check for Staff Session
   useEffect(() => {
-    const checkStaff = async () => {
+    const checkAuth = async () => {
       try {
-        const session = await AsyncStorage.getItem("staff_session");
-        if (session) {
-          const parsed = JSON.parse(session);
+        const staffToken = await AsyncStorage.getItem("staff_token");
+        const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+
+        if (staffToken) {
           setStaffData({
-            token: parsed.token,
-            id: parsed.id || parsed._id || "staff",
+            token: staffToken,
+            id: bId || "staff",
           });
         } else {
           setStaffData(null);
@@ -101,7 +103,7 @@ const NewOrderNotifier = () => {
         setStaffData(null);
       }
     };
-    checkStaff();
+    checkAuth();
   }, [refreshSignal, isSignedIn]);
 
   const startRingtone = async () => {
@@ -317,22 +319,20 @@ const NewOrderNotifier = () => {
     if ((!isSignedIn && !staffData) || fetchInProgress.current) return;
     try {
       fetchInProgress.current = true;
-      let token = null;
-
-      if (isSignedIn) {
-        token = await getToken();
-      } else if (staffData) {
-        token = staffData.token;
-      }
+      const authToken = await getToken();
+      const staffToken = await AsyncStorage.getItem("staff_token");
+      const token = authToken || staffToken;
 
       if (!token) return;
 
-      const response = await fetch(
-        `https://billing.kravy.in/api/orders?t=${Date.now()}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      const url = bId
+        ? `https://billing.kravy.in/api/orders?businessId=${bId}&t=${Date.now()}`
+        : `https://billing.kravy.in/api/orders?t=${Date.now()}`;
+
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (response.ok) {
         const oData = await response.json();

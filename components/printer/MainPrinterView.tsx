@@ -308,7 +308,7 @@ Thank You\n\n\n`;
                         </View>
                         <View style={styles.iconCircleWarning}><Ionicons name="bluetooth" size={rf(40)} color="#D97706" /></View>
                         <Text style={[styles.modalTitle, { color: '#D97706' }]}>Bluetooth is Off</Text>
-                        <Text style={styles.modalDetail}>Please turn on your phone's Bluetooth to scan and connect to a printer.</Text>
+                        <Text style={styles.modalDetail}>Please turn on your phone&apos;s Bluetooth to scan and connect to a printer.</Text>
                         <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#D97706' }]} onPress={() => setIsBtOffModalVisible(false)}>
                             <Text style={styles.modalBtnText}>OK</Text>
                         </TouchableOpacity>
@@ -326,7 +326,7 @@ Thank You\n\n\n`;
                         </View>
                         <View style={styles.iconCircleInfo}><Ionicons name="search" size={rf(40)} color="#4F46E5" /></View>
                         <Text style={[styles.modalTitle, { color: '#4F46E5' }]}>No Devices Found</Text>
-                        <Text style={styles.modalDetail}>Ensure your thermal printer is turned on and paired in your phones Bluetooth settings.</Text>
+                        <Text style={styles.modalDetail}>Ensure your thermal printer is turned on and paired in your phone&apos;s Bluetooth settings.</Text>
                         <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4F46E5' }]} onPress={() => setIsNoDevicesModalVisible(false)}>
                             <Text style={styles.modalBtnText}>OK</Text>
                         </TouchableOpacity>
