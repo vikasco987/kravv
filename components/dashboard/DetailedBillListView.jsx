@@ -1,7 +1,9 @@
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   FlatList,
   LayoutAnimation,
   Platform,
@@ -12,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 if (Platform.OS === "android") {
   if (UIManager.setLayoutAnimationEnabledExperimental) {
@@ -51,7 +54,14 @@ const getStatusStyle = (status) => {
   return { bg: COLORS.statusPaid, text: COLORS.statusPaidText };
 };
 
-const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
+const BillCard = ({
+  bill,
+  index,
+  expanded,
+  toggleExpand,
+  settings,
+  onDelete,
+}) => {
   const statusStyle = getStatusStyle(bill.status);
 
   // Use pre-calculated fields if available (added by billCalculator.js / applyTrueBillTotals)
@@ -231,6 +241,12 @@ const BillCard = ({ bill, index, expanded, toggleExpand, settings }) => {
             .toFixed(2)
             .replace(/\.00$/, "")}
         </Text>
+        <TouchableOpacity
+          onPress={() => onDelete && onDelete(bill)}
+          style={{ padding: s(5), marginLeft: s(10) }}
+        >
+          <Ionicons name="trash-outline" size={rf(20)} color={COLORS.danger} />
+        </TouchableOpacity>
       </View>
 
       {/* Row 2: Time & Token & Status */}
@@ -445,6 +461,8 @@ const DetailedBillListView = ({
   title,
   onRefresh,
 }) => {
+  const { getToken } = useAuth();
+  const { user } = useUser();
   const [expandedRow, setExpandedRow] = useState(null);
   const [taxSettings, setTaxSettings] = useState({
     tax_enabled: false,
@@ -585,6 +603,57 @@ const DetailedBillListView = ({
     setExpandedRow(expandedRow === id ? null : id);
   };
 
+  const handleDeleteBill = async (bill) => {
+    if (!bill) return;
+
+    Alert.alert("Delete Bill", "Are you sure you want to delete this bill?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const authToken = await getToken();
+            const staffToken = await AsyncStorage.getItem("staff_token");
+            const finalToken = authToken || staffToken;
+
+            if (!finalToken) {
+              Alert.alert("Error", "Authentication required.");
+              return;
+            }
+
+            const bId = await StaffPermissionEngine.getActiveBusinessId(
+              user?.id,
+            );
+            const billId = bill._id || bill.id;
+
+            const url = bId
+              ? `https://billing.kravy.in/api/bill-manager/${billId}?businessId=${bId}`
+              : `https://billing.kravy.in/api/bill-manager/${billId}`;
+
+            const res = await fetch(url, {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${finalToken}`,
+                "Content-Type": "application/json",
+              },
+            });
+
+            if (res.ok) {
+              Alert.alert("Success", "Bill deleted successfully.");
+              if (onRefresh) onRefresh();
+            } else {
+              Alert.alert("Error", "Failed to delete bill.");
+            }
+          } catch (e) {
+            console.error("Delete error:", e);
+            Alert.alert("Error", "Something went wrong.");
+          }
+        },
+      },
+    ]);
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -640,6 +709,7 @@ const DetailedBillListView = ({
             expanded={expandedRow === (item._id || item.id || String(index))}
             toggleExpand={() => toggleRow(item._id || item.id || String(index))}
             settings={taxSettings}
+            onDelete={handleDeleteBill}
           />
         )}
         ListEmptyComponent={() => (

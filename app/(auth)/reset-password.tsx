@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import StatusModal from "../../components/common/StatusModal";
 import { authService } from "../../services/authService";
 
 export default function ResetPasswordScreen() {
@@ -24,29 +24,56 @@ export default function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState<{
+    type: "success" | "error" | "info";
+    title: string;
+    message: string;
+    onClose?: () => void;
+  }>({
+    type: "info",
+    title: "",
+    message: "",
+  });
+
+  const showStatus = (
+    type: "success" | "error" | "info",
+    title: string,
+    message: string,
+    onClose?: () => void,
+  ) => {
+    setModalConfig({ type, title, message, onClose });
+    setModalVisible(true);
+  };
+
   const handleResetPassword = async () => {
     if (!otp || !newPassword || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all fields");
+      showStatus("error", "Error", "Please fill in all fields");
       return;
     }
 
     if (otp.length !== 6) {
-      Alert.alert("Error", "OTP must be 6 digits");
+      showStatus("error", "Error", "OTP must be 6 digits");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
+      showStatus("error", "Error", "Passwords do not match");
       return;
     }
 
     setLoading(true);
     try {
       await authService.resetPassword(email, otp, newPassword);
-      Alert.alert("Success", "Password reset successfully! Please login now.");
-      router.replace("/(auth)/custom-login");
+      showStatus(
+        "success",
+        "Success",
+        "Password reset successfully! Please login now.",
+        () => router.replace("/(auth)/custom-login"),
+      );
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to reset password");
+      showStatus("error", "Error", error.message || "Failed to reset password");
     } finally {
       setLoading(false);
     }
@@ -156,6 +183,17 @@ export default function ResetPasswordScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <StatusModal
+        visible={modalVisible}
+        onClose={() => {
+          setModalVisible(false);
+          if (modalConfig.onClose) modalConfig.onClose();
+        }}
+        type={modalConfig.type}
+        title={modalConfig.title}
+        message={modalConfig.message}
+      />
     </LinearGradient>
   );
 }

@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   DeviceEventEmitter,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import StatusModal from "../../components/common/StatusModal";
 import { useRefresh } from "../../context/RefreshContext";
 import { authService } from "../../services/authService";
 
@@ -31,10 +31,28 @@ export default function CustomLoginScreen() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState<{
+    type: "success" | "error" | "info";
+    title: string;
+    message: string;
+  }>({
+    type: "info",
+    title: "",
+    message: "",
+  });
+
+  const showError = (title: string, message: string) => {
+    setModalConfig({ type: "error", title, message });
+    setModalVisible(true);
+  };
 
   const handleAction = async () => {
     if (!email || !password || (!isLogin && (!name || !phone))) {
-      Alert.alert("Error", "Please fill in all fields");
+      showError("Validation Error", "Please fill in all fields to continue");
       return;
     }
 
@@ -76,7 +94,7 @@ export default function CustomLoginScreen() {
         });
       }
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Something went wrong");
+      showError("Login Failed", error.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -171,9 +189,19 @@ export default function CustomLoginScreen() {
                     placeholder="Enter password"
                     value={password}
                     onChangeText={setPassword}
-                    secureTextEntry
+                    secureTextEntry={!showPassword}
                     placeholderTextColor="#999"
                   />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeIcon}
+                  >
+                    <Ionicons
+                      name={showPassword ? "eye-outline" : "eye-off-outline"}
+                      size={20}
+                      color="#666"
+                    />
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -217,6 +245,14 @@ export default function CustomLoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <StatusModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        type={modalConfig.type}
+        title={modalConfig.title}
+        message={modalConfig.message}
+      />
     </LinearGradient>
   );
 }
@@ -299,6 +335,9 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     fontSize: 16,
     color: "#333",
+  },
+  eyeIcon: {
+    padding: 10,
   },
   forgotContainer: {
     alignSelf: "flex-end",

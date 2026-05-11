@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import StatusModal from "../../components/common/StatusModal";
 import { authService } from "../../services/authService";
 
 export default function ForgotPasswordScreen() {
@@ -21,22 +21,46 @@ export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState<{
+    type: "success" | "error" | "info";
+    title: string;
+    message: string;
+    onClose?: () => void;
+  }>({
+    type: "info",
+    title: "",
+    message: "",
+  });
+
+  const showStatus = (
+    type: "success" | "error" | "info",
+    title: string,
+    message: string,
+    onClose?: () => void,
+  ) => {
+    setModalConfig({ type, title, message, onClose });
+    setModalVisible(true);
+  };
+
   const handleSendOTP = async () => {
     if (!email) {
-      Alert.alert("Error", "Please enter your email address");
+      showStatus("error", "Error", "Please enter your email address");
       return;
     }
 
     setLoading(true);
     try {
       await authService.forgotPassword(email);
-      Alert.alert("Success", "Reset code sent to your email!");
-      router.push({
-        pathname: "/(auth)/reset-password",
-        params: { email },
+      showStatus("success", "Success", "Reset code sent to your email!", () => {
+        router.push({
+          pathname: "/(auth)/reset-password",
+          params: { email },
+        });
       });
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to send reset code");
+      showStatus("error", "Error", error.message || "Failed to send reset code");
     } finally {
       setLoading(false);
     }
@@ -112,6 +136,17 @@ export default function ForgotPasswordScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <StatusModal
+        visible={modalVisible}
+        onClose={() => {
+          setModalVisible(false);
+          if (modalConfig.onClose) modalConfig.onClose();
+        }}
+        type={modalConfig.type}
+        title={modalConfig.title}
+        message={modalConfig.message}
+      />
     </LinearGradient>
   );
 }

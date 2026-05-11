@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import StatusModal from "../../components/common/StatusModal";
 import { useRefresh } from "../../context/RefreshContext";
 import { authService } from "../../services/authService";
 
@@ -25,20 +25,44 @@ export default function OTPVerifyScreen() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
 
+  // Modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState<{
+    type: "success" | "error" | "info";
+    title: string;
+    message: string;
+    onClose?: () => void;
+  }>({
+    type: "info",
+    title: "",
+    message: "",
+  });
+
+  const showStatus = (
+    type: "success" | "error" | "info",
+    title: string,
+    message: string,
+    onClose?: () => void,
+  ) => {
+    setModalConfig({ type, title, message, onClose });
+    setModalVisible(true);
+  };
+
   const handleVerify = async () => {
     console.log("🔍 Attempting to verify OTP for:", email);
 
     if (!email) {
-      Alert.alert(
+      showStatus(
+        "error",
         "Error",
         "Identifier (Email/Phone) is missing. Please try logging in again.",
+        () => router.replace("/(auth)/custom-login"),
       );
-      router.replace("/(auth)/custom-login");
       return;
     }
 
     if (otp.length !== 6) {
-      Alert.alert("Error", "Please enter a valid 6-digit OTP");
+      showStatus("error", "Error", "Please enter a valid 6-digit OTP");
       return;
     }
 
@@ -46,14 +70,15 @@ export default function OTPVerifyScreen() {
     try {
       const res = await authService.verifyOTP(email, otp);
       console.log("✅ OTP Verified successfully:", res);
-      Alert.alert(
+      showStatus(
+        "success",
         "Success",
         "Account verified successfully! Please login now.",
+        () => router.replace("/(auth)/custom-login"),
       );
-      router.replace("/(auth)/custom-login");
     } catch (error: any) {
-      console.error("❌ OTP Verification failed:", error);
-      Alert.alert("Error", error.message || "Invalid OTP");
+      // console.error("❌ OTP Verification failed:", error);
+      showStatus("error", "Error", error.message || "Invalid OTP");
     } finally {
       setLoading(false);
     }
@@ -63,9 +88,9 @@ export default function OTPVerifyScreen() {
     setResending(true);
     try {
       await authService.resendOTP(email);
-      Alert.alert("Success", "OTP has been resent to your email");
+      showStatus("success", "Success", "OTP has been resent to your email");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to resend OTP");
+      showStatus("error", "Error", error.message || "Failed to resend OTP");
     } finally {
       setResending(false);
     }
@@ -148,6 +173,17 @@ export default function OTPVerifyScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <StatusModal
+        visible={modalVisible}
+        onClose={() => {
+          setModalVisible(false);
+          if (modalConfig.onClose) modalConfig.onClose();
+        }}
+        type={modalConfig.type}
+        title={modalConfig.title}
+        message={modalConfig.message}
+      />
     </LinearGradient>
   );
 }

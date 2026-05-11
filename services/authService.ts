@@ -33,7 +33,7 @@ export const authService = {
       }
       return data;
     } catch (error: any) {
-      console.error("Login error:", error);
+      // console.error("Login error:", error);
       throw error;
     }
   },
@@ -62,7 +62,7 @@ export const authService = {
       }
       return data;
     } catch (error: any) {
-      console.error("Resend OTP error:", error);
+      // console.error("Resend OTP error:", error);
       throw error;
     }
   },
@@ -107,7 +107,7 @@ export const authService = {
       }
       return data;
     } catch (error: any) {
-      console.error("Verify OTP error detail:", error);
+      // console.error("Verify OTP error detail:", error);
       throw error;
     }
   },
@@ -138,7 +138,7 @@ export const authService = {
       }
       return data;
     } catch (error: any) {
-      console.error("Registration error detail:", error);
+      // console.error("Registration error detail:", error);
       throw error;
     }
   },
@@ -169,7 +169,7 @@ export const authService = {
       }
       return data;
     } catch (error: any) {
-      console.error("Forgot password error:", error);
+      // console.error("Forgot password error:", error);
       throw error;
     }
   },
@@ -216,7 +216,7 @@ export const authService = {
       }
       return data;
     } catch (error: any) {
-      console.error("Reset password error detail:", error);
+      // console.error("Reset password error detail:", error);
       throw error;
     }
   },

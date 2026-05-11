@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   DeviceEventEmitter,
   RefreshControl,
   ScrollView,
@@ -25,6 +26,7 @@ import ProfitEngine from "../AI intelligence tools/ProfitEngine";
 import DailySalesScreen from "./DailySalesScreen";
 import DashboardMenuItem from "./DashboardMenuItem";
 import DeepSaleView from "./DeepSaleView";
+import DeleteHistoryView from "./DeleteHistoryView";
 import MonthlySalesScreen from "./MonthlySalesScreen";
 import SalesSummaryCard from "./SalesSummaryCard";
 import WeeklySalesScreen from "./WeeklySalesScreen";
@@ -45,7 +47,7 @@ const MainDashboardView = ({ isLockedUser }) => {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   const { t } = useLanguage();
-  const { canAccessSync } = useStaffPermissions();
+  const { canAccessSync, isOwner } = useStaffPermissions();
 
   const [stats, setStats] = useState({ daily: 0, weekly: 0, monthly: 0 });
   const [loading, setLoading] = useState(true);
@@ -236,6 +238,73 @@ const MainDashboardView = ({ isLockedUser }) => {
     setCurrentView(viewName);
   };
 
+  const handleDeleteAllBills = async () => {
+    if (isLockedUser) {
+      setIsLoginModalVisible(true);
+      return;
+    }
+
+    Alert.alert(
+      "Clear All Bills?",
+      "Are you sure you want to delete ALL bill history? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete All",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const token = await getToken();
+              const staffToken = await AsyncStorage.getItem("staff_token");
+              const finalToken = token || staffToken;
+
+              if (!finalToken) {
+                Alert.alert("Error", "Authentication required.");
+                setLoading(false);
+                return;
+              }
+
+              const res = await fetch(
+                "https://billing.kravy.in/api/bill-manager",
+                {
+                  method: "DELETE",
+                  headers: {
+                    Authorization: `Bearer ${finalToken}`,
+                  },
+                },
+              );
+
+              if (res.ok) {
+                Alert.alert("Success", "All bills deleted successfully.");
+                fetchStats(); // Refresh dashboard
+              } else {
+                Alert.alert("Error", "Failed to clear bill history.");
+              }
+            } catch (e) {
+              console.error("Delete all error:", e);
+              Alert.alert("Error", "Something went wrong.");
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleOpenDeleteHistory = () => {
+    if (isLockedUser) {
+      setIsLoginModalVisible(true);
+      return;
+    }
+    if (!isOwner) {
+      Alert.alert("Access Denied", "Only the owner can delete bill history.");
+      return;
+    }
+    setCurrentView("deleteHistory");
+  };
+
   if (currentView === "daily")
     return (
       <DailySalesScreen
@@ -260,6 +329,14 @@ const MainDashboardView = ({ isLockedUser }) => {
   if (currentView === "deepsale")
     return (
       <DeepSaleView onBack={() => setCurrentView("main")} allBills={allBills} />
+    );
+  if (currentView === "deleteHistory")
+    return (
+      <DeleteHistoryView
+        onBack={() => setCurrentView("main")}
+        bills={allBills}
+        onRefresh={fetchStats}
+      />
     );
 
   return (
@@ -357,6 +434,14 @@ const MainDashboardView = ({ isLockedUser }) => {
             subtitle="Optimize your menu items"
             onPress={() => handleProtectedAction("insight")}
             isLocked={isLockedUser || !canAccessSync("AI Intelligence Tools")}
+          />
+          <DashboardMenuItem
+            title="Delete Bills History"
+            iconName="trash"
+            color="#EF4444"
+            subtitle="Clear all transaction history"
+            onPress={handleOpenDeleteHistory}
+            isLocked={isLockedUser || !isOwner}
           />
         </View>
       </View>

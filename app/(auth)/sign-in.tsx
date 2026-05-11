@@ -9,7 +9,6 @@ import * as WebBrowser from "expo-web-browser";
 import React from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   StatusBar,
@@ -18,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import StatusModal from "../../components/common/StatusModal";
 import { StaffLogin } from "../../components/staff creat/StaffLogin";
 import { useRefresh } from "../../context/RefreshContext";
 
@@ -33,6 +33,27 @@ export default function SignInScreen() {
     React.useState(false);
   const [isStaffModalVisible, setIsStaffModalVisible] = React.useState(false);
   const [isLoggingIn, setIsLoggingIn] = React.useState(false);
+
+  // Modal state
+  const [modalVisible, setModalVisible] = React.useState(false);
+  const [modalConfig, setModalConfig] = React.useState<{
+    type: "success" | "error" | "info";
+    title: string;
+    message: string;
+  }>({
+    type: "info",
+    title: "",
+    message: "",
+  });
+
+  const showStatus = (
+    type: "success" | "error" | "info",
+    title: string,
+    message: string,
+  ) => {
+    setModalConfig({ type, title, message });
+    setModalVisible(true);
+  };
 
   const { isSignedIn } = useClerk();
 
@@ -136,7 +157,8 @@ export default function SignInScreen() {
       ) {
         setIsNoNetworkModalVisible(true);
       } else {
-        Alert.alert(
+        showStatus(
+          "error",
           "Sign-in Failed",
           "Could not complete Google sign-in. Please try again.",
         );
@@ -317,6 +339,14 @@ export default function SignInScreen() {
       <StaffLogin
         visible={isStaffModalVisible}
         onClose={() => setIsStaffModalVisible(false)}
+      />
+
+      <StatusModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        type={modalConfig.type}
+        title={modalConfig.title}
+        message={modalConfig.message}
       />
     </LinearGradient>
   );

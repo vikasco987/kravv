@@ -44,6 +44,7 @@ export default function CustomDrawerContent(props: any) {
     voice: false,
     history: false,
     billHistory: false,
+    inventoryMain: false,
   });
 
   // Data for AI features
@@ -107,34 +108,53 @@ export default function CustomDrawerContent(props: any) {
         break;
       case "qr":
         props.navigation.closeDrawer();
-        setModals({ ...modals, qr: true });
+        setModals((prev) => ({ ...prev, qr: true }));
         break;
       case "editMenu":
         props.navigation.closeDrawer();
-        setTimeout(() => setModals({ ...modals, editMenu: true }), 400);
+        setTimeout(
+          () => setModals((prev) => ({ ...prev, editMenu: true })),
+          400,
+        );
         break;
       case "inventory":
         props.navigation.closeDrawer();
-        setTimeout(() => setModals({ ...modals, inventory: true }), 400);
+        setTimeout(
+          () => setModals((prev) => ({ ...prev, inventory: true })),
+          400,
+        );
         break;
       case "profit":
         fetchAIData();
         props.navigation.closeDrawer();
-        setTimeout(() => setModals({ ...modals, profit: true }), 400);
+        setTimeout(() => setModals((prev) => ({ ...prev, profit: true })), 400);
         break;
       case "voice":
         fetchAIData();
         props.navigation.closeDrawer();
-        setTimeout(() => setModals({ ...modals, voice: true }), 400);
+        setTimeout(() => setModals((prev) => ({ ...prev, voice: true })), 400);
         break;
       case "history":
         fetchAIData();
         props.navigation.closeDrawer();
-        setTimeout(() => setModals({ ...modals, history: true }), 400);
+        setTimeout(
+          () => setModals((prev) => ({ ...prev, history: true })),
+          400,
+        );
         break;
       case "billHistory":
         props.navigation.closeDrawer();
-        setTimeout(() => setModals({ ...modals, billHistory: true }), 400);
+        setTimeout(
+          () => setModals((prev) => ({ ...prev, billHistory: true })),
+          400,
+        );
+        break;
+      case "inventoryMain":
+        props.navigation.closeDrawer();
+        setTimeout(
+          () => setModals((prev) => ({ ...prev, inventoryMain: true })),
+          400,
+        );
         break;
       case "signIn":
         router.push("/(auth)/sign-in");

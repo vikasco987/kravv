@@ -16,9 +16,10 @@ import QRCode from "react-native-qrcode-svg";
 import { captureRef } from "react-native-view-shot";
 import { rf, s, vs } from "../../utils/responsive";
 
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { getRecentCompanyProfile } from "../../services/companyService";
 import { SimpleBill } from "../../utils/SimpleBill";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 interface ItemWiseSalesDetailProps {
   itemName: string;
@@ -32,6 +33,7 @@ const ItemWiseSalesDetail = ({
   onBack,
 }: ItemWiseSalesDetailProps) => {
   const { getToken } = useAuth();
+  const { user } = useUser();
   const [previewBill, setPreviewBill] = React.useState<any | null>(null);
   const [companyProfile, setCompanyProfile] = React.useState<any>(null);
   const [settings, setSettings] = React.useState({
@@ -295,6 +297,120 @@ const ItemWiseSalesDetail = ({
     }
   };
 
+  const handleDeleteBill = async () => {
+    if (!previewBill) return;
+
+    Alert.alert(
+      "Delete Bill",
+      "Are you sure you want to delete this bill? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const authToken = await getToken();
+              const staffToken = await AsyncStorage.getItem("staff_token");
+              const finalToken = authToken || staffToken;
+
+              if (!finalToken) {
+                Alert.alert("Error", "Authentication required.");
+                return;
+              }
+
+              const bId = await StaffPermissionEngine.getActiveBusinessId(
+                user?.id,
+              );
+              const billId = previewBill._id || previewBill.id;
+
+              const url = bId
+                ? `https://billing.kravy.in/api/bill-manager/${billId}?businessId=${bId}`
+                : `https://billing.kravy.in/api/bill-manager/${billId}`;
+
+              const res = await fetch(url, {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${finalToken}`,
+                  "Content-Type": "application/json",
+                },
+              });
+
+              if (res.ok) {
+                Alert.alert("Success", "Bill deleted successfully.");
+                setPreviewBill(null);
+                // Go back to list as the bill is gone
+                onBack();
+              } else {
+                const text = await res.text();
+                let errMsg = "Failed to delete bill.";
+                try {
+                  const data = JSON.parse(text);
+                  errMsg = data.message || data.error || errMsg;
+                } catch (e) {}
+                Alert.alert("Error", errMsg);
+              }
+            } catch (e) {
+              console.error("Delete error:", e);
+              Alert.alert("Error", "Something went wrong while deleting.");
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleDeleteSingleBill = async (bill: any) => {
+    if (!bill) return;
+
+    Alert.alert("Delete Bill", "Are you sure you want to delete this bill?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const authToken = await getToken();
+            const staffToken = await AsyncStorage.getItem("staff_token");
+            const finalToken = authToken || staffToken;
+
+            if (!finalToken) {
+              Alert.alert("Error", "Authentication required.");
+              return;
+            }
+
+            const bId = await StaffPermissionEngine.getActiveBusinessId(
+              user?.id,
+            );
+            const billId = bill._id || bill.id;
+
+            const url = bId
+              ? `https://billing.kravy.in/api/bill-manager/${billId}?businessId=${bId}`
+              : `https://billing.kravy.in/api/bill-manager/${billId}`;
+
+            const res = await fetch(url, {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${finalToken}`,
+                "Content-Type": "application/json",
+              },
+            });
+
+            if (res.ok) {
+              Alert.alert("Success", "Bill deleted successfully.");
+              onBack();
+            } else {
+              Alert.alert("Error", "Failed to delete bill.");
+            }
+          } catch (e) {
+            console.error("Delete error:", e);
+            Alert.alert("Error", "Something went wrong.");
+          }
+        },
+      },
+    ]);
+  };
+
   // Find all instances of this item in today's bills
   const itemSalesList = bills.flatMap((bill) => {
     const foundItems = (bill.items || []).filter(
@@ -502,6 +618,13 @@ const ItemWiseSalesDetail = ({
               style={styles.iconActionBtn}
             >
               <Ionicons name="create-outline" size={rf(22)} color="#fff" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleDeleteBill}
+              style={[styles.iconActionBtn, { backgroundColor: "#EF4444" }]}
+            >
+              <Ionicons name="trash-outline" size={rf(22)} color="#fff" />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.pdfBtn} onPress={downloadBill}>
@@ -1229,9 +1352,27 @@ const ItemWiseSalesDetail = ({
               <View key={index} style={styles.saleCard}>
                 <View style={styles.cardHeader}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.billIdText}>
-                      Bill ID: {sale.billId}
-                    </Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={styles.billIdText}>
+                        Bill ID: {sale.billId}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteSingleBill(sale.fullBill)}
+                        style={{ padding: s(5) }}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={rf(20)}
+                          color="#EF4444"
+                        />
+                      </TouchableOpacity>
+                    </View>
                     <Text style={styles.timeText}>
                       {formattedTime} | {formattedDate}
                     </Text>

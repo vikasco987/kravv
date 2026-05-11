@@ -5,6 +5,7 @@ import ProfitEngine from "../AI intelligence tools/ProfitEngine";
 import VoiceOrder from "../AI intelligence tools/VoiceOrder";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import DeepSaleView from "../dashboard/DeepSaleView";
+import MainInventoryView from "../inventory/MainInventoryView";
 import ItemSalesReport from "../item-sales-report/item-sales-report";
 import { EditMenuItem } from "../menu/EditMenuItem";
 import { TableQrCodes } from "../menu/TableQrCodes";
@@ -19,6 +20,7 @@ interface SidebarModalsProps {
     voice: boolean;
     history: boolean;
     billHistory: boolean;
+    inventoryMain: boolean;
   };
   setModals: (modals: any) => void;
   data: {
@@ -39,47 +41,73 @@ const SidebarModals = ({
     <>
       <LoginRequiredModal
         visible={modals.login}
-        onClose={() => setModals({ ...modals, login: false })}
+        onClose={() => setModals((prev: any) => ({ ...prev, login: false }))}
         onSignIn={onSignIn}
       />
 
       <Modal
         visible={modals.qr}
         animationType="slide"
-        onRequestClose={() => setModals({ ...modals, qr: false })}
+        onRequestClose={() =>
+          setModals((prev: any) => ({ ...prev, qr: false }))
+        }
       >
-        <TableQrCodes onBack={() => setModals({ ...modals, qr: false })} />
+        <TableQrCodes
+          onBack={() => setModals((prev: any) => ({ ...prev, qr: false }))}
+        />
       </Modal>
 
       <Modal
         visible={modals.editMenu}
         animationType="slide"
-        onRequestClose={() => setModals({ ...modals, editMenu: false })}
+        onRequestClose={() =>
+          setModals((prev: any) => ({ ...prev, editMenu: false }))
+        }
       >
         <EditMenuItem
-          onBack={() => setModals({ ...modals, editMenu: false })}
+          onBack={() =>
+            setModals((prev: any) => ({ ...prev, editMenu: false }))
+          }
         />
       </Modal>
 
       <Modal
         visible={modals.inventory}
         animationType="slide"
-        onRequestClose={() => setModals({ ...modals, inventory: false })}
+        onRequestClose={() =>
+          setModals((prev: any) => ({ ...prev, inventory: false }))
+        }
       >
         <ItemSalesReport
-          onBack={() => setModals({ ...modals, inventory: false })}
+          onBack={() =>
+            setModals((prev: any) => ({ ...prev, inventory: false }))
+          }
+        />
+      </Modal>
+
+      <Modal
+        visible={modals.inventoryMain}
+        animationType="slide"
+        onRequestClose={() =>
+          setModals((prev: any) => ({ ...prev, inventoryMain: false }))
+        }
+      >
+        <MainInventoryView
+          onBack={() =>
+            setModals((prev: any) => ({ ...prev, inventoryMain: false }))
+          }
         />
       </Modal>
 
       <ProfitEngine
         visible={modals.profit}
-        onClose={() => setModals({ ...modals, profit: false })}
+        onClose={() => setModals((prev: any) => ({ ...prev, profit: false }))}
         bills={data.allBills}
       />
 
       <VoiceOrder
         visible={modals.voice}
-        onClose={() => setModals({ ...modals, voice: false })}
+        onClose={() => setModals((prev: any) => ({ ...prev, voice: false }))}
         menus={data.menus}
         onItemMatched={(item: any, qty: number) => {
           alert(
@@ -90,7 +118,7 @@ const SidebarModals = ({
 
       <CustomerHistory
         visible={modals.history}
-        onClose={() => setModals({ ...modals, history: false })}
+        onClose={() => setModals((prev: any) => ({ ...prev, history: false }))}
         party={null}
         bills={data.allBills}
         allParties={data.parties}
@@ -99,10 +127,14 @@ const SidebarModals = ({
       <Modal
         visible={modals.billHistory}
         animationType="slide"
-        onRequestClose={() => setModals({ ...modals, billHistory: false })}
+        onRequestClose={() =>
+          setModals((prev: any) => ({ ...prev, billHistory: false }))
+        }
       >
         <DeepSaleView
-          onBack={() => setModals({ ...modals, billHistory: false })}
+          onBack={() =>
+            setModals((prev: any) => ({ ...prev, billHistory: false }))
+          }
           isSidebar={true}
           allBills={data.allBills}
         />
