@@ -285,7 +285,7 @@ export async function SimpleBill(
 
     const tS = options?.taxSettings;
     const isTaxEnabled = tS ? tS.enabled : sMap["tax_enabled"] === "true";
-    const globalTaxRate = tS ? tS.rate : parseFloat(sMap["tax_rate"] || "0.00");
+    const globalTaxRate = tS ? tS.rate : parseFloat(sMap["tax_rate"] || "0");
     const perProductTaxEnabled = tS
       ? tS.perProduct
       : sMap["per_product_tax"] === "true";
@@ -671,13 +671,23 @@ export async function SimpleBill(
                 DeviceEventEmitter.emit("REFRESH_ORDERS");
                 DeviceEventEmitter.emit("REFRESH_DASHBOARD");
 
-                const data = await response.json().catch(() => ({}));
-                const finalBillId = data._id || data.id || options?.billId;
-                console.log("✅ Bill Saved Successfully. ID:", finalBillId);
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                  const data = await response.json().catch(() => ({}));
+                  const finalBillId = data._id || data.id || options?.billId;
+                  console.log("✅ Bill Saved Successfully. ID:", finalBillId);
+                } else {
+                  console.log("✅ Bill Saved (but response was not JSON)");
+                }
               } else {
-                const errText = await response.text();
+                if (response.status === 401 || response.status === 403 || response.status === 405) {
+                  console.error(`[BILL-SYNC] Auth/Method Error (${response.status}). Potential session expiry.`);
+                  // Don't retry indefinitely for auth errors
+                  attempt = maxRetries;
+                }
+                const errText = await response.text().catch(() => "Unknown error");
                 console.error(
-                  `[BILL-SYNC] Attempt ${attempt} Failed (${response.status}): ${errText}`,
+                  `[BILL-SYNC] Attempt ${attempt} Failed (${response.status}): ${errText.slice(0, 100)}`,
                 );
                 if (attempt < maxRetries) {
                   await new Promise((resolve) =>

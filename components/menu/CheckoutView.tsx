@@ -227,15 +227,26 @@ export default function CheckoutView({
         headers: { Authorization: `Bearer ${finalToken}` },
       });
       if (res.ok) {
-        const data = await res.json();
-        const partiesList = data.parties || data; // Handle both response formats
-        if (Array.isArray(partiesList)) {
-          setParties(partiesList);
-          await AsyncStorage.setItem(
-            "@cached_parties",
-            JSON.stringify(partiesList),
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          const partiesList = data.parties || data;
+          if (Array.isArray(partiesList)) {
+            setParties(partiesList);
+            await AsyncStorage.setItem(
+              "@cached_parties",
+              JSON.stringify(partiesList),
+            );
+          }
+        } else {
+          console.log(
+            "⚠️ Parties API returned non-JSON response (likely a redirect or error page)",
           );
         }
+      } else if (res.status === 401 || res.status === 403) {
+        console.log(
+          "🚫 Parties API: Authentication failed (401/403). Please re-login.",
+        );
       }
     } catch (e) {
       if (!cacheFound) {

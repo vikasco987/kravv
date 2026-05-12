@@ -176,7 +176,7 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                             <View style={styles.rateSection}>
                                 <Text style={styles.miniLabel}>{t('quick_select_rate') || 'QUICK SELECT RATE'}</Text>
                                 <View style={styles.quickSelectGrid}>
-                                    {[5, 12, 18, 28].map((rate) => (
+                                    {[0, 5, 12, 18, 28].map((rate) => (
                                         <TouchableOpacity
                                             key={rate}
                                             style={[

@@ -829,28 +829,51 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     const totalValue = totalOverride || totalAmount;
     if (itemsSnapshot.length === 0) return;
 
-    const saveToLocalFallback = async (snapshot: any[], totalVal: number) => {
+    // 🚀 STEP 1: Remove from Hidden IDs if re-holding (resumed items are hidden)
+    if (activeOrderId) {
+      try {
+        const hiddenIdsStr = await AsyncStorage.getItem("@hidden_bill_ids");
+        if (hiddenIdsStr) {
+          let hiddenIds = JSON.parse(hiddenIdsStr);
+          if (hiddenIds.includes(activeOrderId)) {
+            hiddenIds = hiddenIds.filter((id: string) => id !== activeOrderId);
+            await AsyncStorage.setItem(
+              "@hidden_bill_ids",
+              JSON.stringify(hiddenIds),
+            );
+          }
+        }
+      } catch (e) {
+        console.log("Error cleaning hidden IDs:", e);
+      }
+    }
+
+    const originalActiveId = activeOrderId;
+    // 🚀 Consistent ID for this transaction
+    const finalIdToUse = originalActiveId || "BILL-" + Date.now();
+
+    const saveToLocalFallback = async (
+      snapshot: any[],
+      totalVal: number,
+      idToUse: string,
+    ) => {
       try {
         const localData = await AsyncStorage.getItem("@held_orders");
         let orders = localData ? JSON.parse(localData) : [];
 
-        if (activeOrderId && activeOrderId.startsWith("BILL-")) {
-          orders = orders.map((o: any) =>
-            o.id === activeOrderId
-              ? {
-                  ...o,
-                  items: snapshot,
-                  total: totalVal,
-                  customerName: cName || o.customerName || "Walk-in",
-                  customerPhone: cPhone || o.customerPhone || "",
-                  timestamp: new Date().toISOString(),
-                }
-              : o,
-          );
+        const index = orders.findIndex((o: any) => o.id === idToUse);
+        if (index !== -1) {
+          orders[index] = {
+            ...orders[index],
+            items: snapshot,
+            total: totalVal,
+            customerName: cName || orders[index].customerName || "Walk-in",
+            customerPhone: cPhone || orders[index].customerPhone || "",
+            timestamp: new Date().toISOString(),
+          };
         } else {
-          const id = "BILL-" + Date.now();
           orders.push({
-            id,
+            id: idToUse,
             items: snapshot,
             total: totalVal,
             customerName: cName || "Walk-in",
@@ -858,17 +881,23 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             timestamp: new Date().toISOString(),
           });
         }
+
         await AsyncStorage.setItem("@held_orders", JSON.stringify(orders));
         fetchHeldCount();
+        triggerRefresh(); // 🚀 Notify HeldOrdersView to refresh
       } catch (e) {
         console.error("Local fallback failed:", e);
       }
     };
 
+    // 🚀 INSTANT LOCAL SAVE (fixes the 4-5s delay)
+    await saveToLocalFallback(itemsSnapshot, totalValue, finalIdToUse);
+
     // 🚀 INSTANT UI FEEDBACK
     setShowHoldSuccess(true);
     setIsHoldModalVisible(false);
     setCart({});
+    const orderIdToSync = originalActiveId; // Capture before clearing
     setActiveOrderId(null);
     setSelectedTable(null);
     setSelectedRoom(null);
@@ -886,10 +915,52 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
 
       if (finalToken && bId) {
-        const method = activeOrderId ? "PUT" : "POST";
-        const url = activeOrderId
-          ? `https://billing.kravy.in/api/bill-manager/${activeOrderId}`
+        const method = orderIdToSync ? "PUT" : "POST";
+        const url = orderIdToSync
+          ? `https://billing.kravy.in/api/bill-manager/${orderIdToSync}`
           : "https://billing.kravy.in/api/bill-manager";
+
+        // --- CALCULATE PROPER TOTALS (Fixes 220 -> 246 issue) ---
+        let totalTaxable = 0;
+        let totalGst = 0;
+        const productsPayload = itemsSnapshot.map((i) => {
+          const rate = i.editedPrice ?? i.price ?? 0;
+          const qty = Number(i.quantity || 1);
+          const lineTotal = rate * qty;
+
+          // Use proper GST rate based on settings
+          let itemGstRate = 0;
+          if (taxSettings.enabled) {
+            itemGstRate = taxSettings.perProduct
+              ? Number(i.gst || 0)
+              : Number(taxSettings.rate || 0);
+          }
+
+          // Assume prices are INCLUSIVE ("With Tax") for hold to preserve the 220 total
+          const taxable = lineTotal / (1 + itemGstRate / 100);
+          const gstAmount = lineTotal - taxable;
+
+          totalTaxable += taxable;
+          totalGst += gstAmount;
+
+          return {
+            itemId: i.id || Math.random().toString(16).padEnd(24, "0"),
+            productId: i.id,
+            name: i.name,
+            qty: qty,
+            quantity: qty,
+            rate: rate,
+            price: rate,
+            gst: itemGstRate,
+            gstRate: itemGstRate,
+            taxableAmount: Number(taxable.toFixed(2)),
+            gstPaid: Number(gstAmount.toFixed(2)),
+            total: Number(lineTotal.toFixed(2)),
+            taxStatus: "With Tax",
+            hsnCode: i.hsnCode || "",
+            businessId: bId,
+          };
+        });
 
         // Background fetch (don't await for UI)
         fetch(url, {
@@ -899,46 +970,19 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             Authorization: `Bearer ${finalToken}`,
           },
           body: JSON.stringify({
-            items: itemsSnapshot.map((i) => {
-              const rate = i.editedPrice ?? i.price ?? 0;
-              const qty = Number(i.quantity || 1);
-              const lineTotal = rate * qty;
-              const gstRate = Number(i.gst || 0);
-              const taxable =
-                i.taxStatus === "With Tax" || i.taxType === "With Tax"
-                  ? lineTotal / (1 + gstRate / 100)
-                  : lineTotal;
-              const gstAmount = lineTotal - taxable;
-
-              return {
-                itemId: i.id || Math.random().toString(16).padEnd(24, "0"),
-                productId: i.id,
-                name: i.name,
-                qty: qty,
-                quantity: qty,
-                rate: rate,
-                price: rate,
-                gst: gstRate,
-                gstRate: gstRate,
-                taxableAmount: Number(taxable.toFixed(2)),
-                gstPaid: Number(gstAmount.toFixed(2)),
-                total: Number(lineTotal.toFixed(2)),
-                taxStatus: (i as any).taxStatus || i.taxType || "Without Tax",
-                hsnCode: i.hsnCode || "",
-                businessId: bId,
-              };
-            }),
-            subtotal: Number((totalValue / 1.05).toFixed(2)), // Default 5% tax assumption for quick hold
-            tax: Number((totalValue - totalValue / 1.05).toFixed(2)),
+            items: productsPayload,
+            subtotal: Number(totalTaxable.toFixed(2)),
+            tax: Number(totalGst.toFixed(2)),
             total: Number(totalValue.toFixed(2)),
             paymentMode: "Cash",
             paymentStatus: "HELD",
             isHeld: true,
             clerkUserId: bId,
             userClerkId: bId,
+            orderId: finalIdToUse, // 🚀 Link local ID to backend for deduping
             customerName: cName || "Walk-in Customer",
             customerPhone: cPhone || "",
-            customerAddress: null, // Address not yet passed to confirmPauseOrder in current UI flow but adding for schema
+            customerAddress: null,
             tableName: selectedTable || selectedRoom || "POS",
             roomName: selectedRoom || null,
             tokenNumber: null,
@@ -949,14 +993,30 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           }),
         })
           .then(async (res) => {
-            if (!res.ok) await saveToLocalFallback(itemsSnapshot, totalValue);
-            fetchHeldCount(); // Refresh real count
+            if (res.ok) {
+              // 🚀 SUCCESS! Now remove the local temporary order to prevent duplicates
+              try {
+                const localData = await AsyncStorage.getItem("@held_orders");
+                if (localData) {
+                  let orders = JSON.parse(localData);
+                  // Remove the synced item from local storage
+                  const filtered = orders.filter(
+                    (o: any) => o.id.toString() !== finalIdToUse.toString(),
+                  );
+                  await AsyncStorage.setItem(
+                    "@held_orders",
+                    JSON.stringify(filtered),
+                  );
+                  // Refresh count and UI immediately after cleanup
+                  fetchHeldCount();
+                  triggerRefresh();
+                }
+              } catch (e) {}
+            }
           })
           .catch(async () => {
-            await saveToLocalFallback(itemsSnapshot, totalValue);
+            // Keep local on error
           });
-      } else {
-        await saveToLocalFallback(itemsSnapshot, totalValue);
       }
     } catch (e) {
       console.error("Hold process error:", e);

@@ -94,21 +94,53 @@ export default function HeldOrdersView({
 
       // Load cached backend orders if they exist
       const cachedBackend = await AsyncStorage.getItem("@cached_held_orders");
+      const orderMap = new Map<string, any>();
+
+      // 1. Add Backend (Cached) First
       if (cachedBackend) {
         const parsedCached = JSON.parse(cachedBackend);
-        parsedCached.forEach((bo: HeldOrder) => {
-          if (
-            !initialOrders.find((o) => o.id === bo.id) &&
-            !hiddenIds.includes(bo.id)
-          ) {
-            initialOrders.push(bo);
+        parsedCached.forEach((bo: any) => {
+          orderMap.set(bo.id.toString(), bo);
+        });
+
+        // 2. Add Local (Live) only if not in backend
+        initialOrders.forEach((lo: any) => {
+          const lid = lo.id.toString();
+          const isAlreadyInBackend = parsedCached.some((bo: any) => {
+            const sameId =
+              bo.id.toString() === lid ||
+              (bo.orderId && bo.orderId.toString() === lid);
+            if (sameId) return true;
+
+            const sameTotal = Math.abs(bo.total - lo.total) < 0.1;
+            const sameItemsCount = bo.items?.length === lo.items?.length;
+            const sameFirstItem = bo.items?.[0]?.name === lo.items?.[0]?.name;
+            const isRecent =
+              new Date().getTime() - new Date(lo.timestamp).getTime() < 60000;
+
+            return sameTotal && sameItemsCount && sameFirstItem && isRecent;
+          });
+
+          if (!isAlreadyInBackend && !hiddenIds.includes(lid)) {
+            orderMap.set(lid, lo);
+          }
+        });
+      } else {
+        // No cache, just add local
+        initialOrders.forEach((lo: any) => {
+          const lid = lo.id.toString();
+          if (!hiddenIds.includes(lid)) {
+            orderMap.set(lid, lo);
           }
         });
       }
 
+      // 3. Final list
+      const combinedInitial = Array.from(orderMap.values());
+
       // Immediately show what we have
       setHeldOrders(
-        initialOrders.sort(
+        combinedInitial.sort(
           (a, b) =>
             new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
         ),
@@ -161,6 +193,7 @@ export default function HeldOrdersView({
               timestamp: b.createdAt || new Date().toISOString(),
               customerName: b.customerName,
               customerPhone: b.customerPhone,
+              orderId: b.orderId, // 🚀 Capture the linked local ID
             }));
 
           // Cachefresh backend fresh result
@@ -169,23 +202,44 @@ export default function HeldOrdersView({
             JSON.stringify(backendHeld),
           );
 
-          // Combine with local orders again for final state
-          const finalOrders = [
-            ...initialOrders.filter(
-              (o) => !o.id.toString().includes("backend"),
-            ),
-          ];
-          // Actually cleaner to just rebuild:
-          const freshCombined: HeldOrder[] = [...backendHeld];
+          // --- ROBUST MERGE LOGIC (Eliminates all duplicates) ---
           const freshLocal = localData ? JSON.parse(localData) : [];
-          freshLocal.forEach((lo: HeldOrder) => {
-            if (
-              !freshCombined.find((co) => co.id === lo.id) &&
-              !hiddenIds.includes(lo.id)
-            ) {
-              freshCombined.push(lo);
+          const orderMap = new Map<string, any>();
+
+          // 1. Add Backend Orders First (Source of Truth)
+          backendHeld.forEach((bo: any) => {
+            orderMap.set(bo.id.toString(), bo);
+          });
+
+          // 2. Add Local Orders only if they don't overlap with backend
+          freshLocal.forEach((lo: any) => {
+            const lid = lo.id.toString();
+            // Check if this local order is already in backend
+            const isAlreadyInBackend = backendHeld.some((bo: any) => {
+              const sameId =
+                bo.id.toString() === lid ||
+                (bo.orderId && bo.orderId.toString() === lid);
+              if (sameId) return true;
+
+              // Fallback: Check Total + Items Count + First Item Name (99% unique for recent orders)
+              const sameTotal = Math.abs(bo.total - lo.total) < 0.1;
+              const sameItemsCount = bo.items?.length === lo.items?.length;
+              const sameFirstItem =
+                bo.items?.[0]?.name === lo.items?.[0]?.name;
+
+              // If it's a very recent local order (less than 1 min old), be more aggressive
+              const isRecent =
+                new Date().getTime() - new Date(lo.timestamp).getTime() < 60000;
+
+              return sameTotal && sameItemsCount && sameFirstItem && isRecent;
+            });
+
+            if (!isAlreadyInBackend && !hiddenIds.includes(lid)) {
+              orderMap.set(lid, lo);
             }
           });
+
+          const freshCombined = Array.from(orderMap.values());
 
           setHeldOrders(
             freshCombined.sort(

@@ -61,7 +61,7 @@ const MainSettingsView = ({
   const [loginModalVisible, setLoginModalVisible] = React.useState(false);
   const [taxEnabled, setTaxEnabled] = React.useState(false);
   const [perProductTax, setPerProductTax] = React.useState(false);
-  const [taxRate, setTaxRate] = React.useState("0.00");
+  const [taxRate, setTaxRate] = React.useState("0");
   const [discountEnabled, setDiscountEnabled] = React.useState(false);
   const [discountRate, setDiscountRate] = React.useState("0.00");
   const [serviceChargeEnabled, setServiceChargeEnabled] = React.useState(false);
@@ -137,7 +137,7 @@ const MainSettingsView = ({
     if (isLockedUser) {
       setTaxEnabled(false);
       setPerProductTax(false);
-      setTaxRate("0.00");
+      setTaxRate("0");
       setDiscountEnabled(false);
       setDiscountRate("0.00");
       setServiceChargeEnabled(false);
