@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.vikas9095.kravy",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "versionCode": 8,
@@ -71,8 +75,12 @@
         {
           "android": {
             "newArchEnabled": true,
-            "queries": ["android.speech.RecognitionService"],
-            "unstable_interopModules": ["RCTVoice"]
+            "queries": [
+              "android.speech.RecognitionService"
+            ],
+            "unstable_interopModules": [
+              "RCTVoice"
+            ]
           }
         }
       ]

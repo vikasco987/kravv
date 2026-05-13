@@ -4,21 +4,21 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { useIsFocused } from "@react-navigation/native";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  ActivityIndicator,
-  DeviceEventEmitter,
-  Dimensions,
-  FlatList,
-  StyleSheet,
-  Text,
-  ToastAndroid,
-  View,
+    ActivityIndicator,
+    DeviceEventEmitter,
+    Dimensions,
+    FlatList,
+    StyleSheet,
+    Text,
+    ToastAndroid,
+    View,
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 

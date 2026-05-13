@@ -4,16 +4,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Modal,
-    RefreshControl,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    ToastAndroid,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  RefreshControl,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  ToastAndroid,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
@@ -214,24 +214,30 @@ export default function HeldOrdersView({
           // 2. Add Local Orders only if they don't overlap with backend
           freshLocal.forEach((lo: any) => {
             const lid = lo.id.toString();
+
             // Check if this local order is already in backend
             const isAlreadyInBackend = backendHeld.some((bo: any) => {
-              const sameId =
-                bo.id.toString() === lid ||
-                (bo.orderId && bo.orderId.toString() === lid);
-              if (sameId) return true;
+              const bid = bo.id.toString();
+              const bOrderId = bo.orderId ? bo.orderId.toString() : null;
 
-              // Fallback: Check Total + Items Count + First Item Name (99% unique for recent orders)
+              // Direct ID Match
+              if (bid === lid || bOrderId === lid) return true;
+
+              // Conservative Fuzzy Match (for orders synced but ID not perfectly linked)
               const sameTotal = Math.abs(bo.total - lo.total) < 0.1;
               const sameItemsCount = bo.items?.length === lo.items?.length;
-              const sameFirstItem =
-                bo.items?.[0]?.name === lo.items?.[0]?.name;
+              if (sameTotal && sameItemsCount) {
+                const sameFirstItem =
+                  bo.items?.[0]?.name === lo.items?.[0]?.name;
+                const isRecent =
+                  Math.abs(
+                    new Date(bo.timestamp).getTime() -
+                      new Date(lo.timestamp).getTime(),
+                  ) < 300000; // 5 mins
+                if (sameFirstItem && isRecent) return true;
+              }
 
-              // If it's a very recent local order (less than 1 min old), be more aggressive
-              const isRecent =
-                new Date().getTime() - new Date(lo.timestamp).getTime() < 60000;
-
-              return sameTotal && sameItemsCount && sameFirstItem && isRecent;
+              return false;
             });
 
             if (!isAlreadyInBackend && !hiddenIds.includes(lid)) {
@@ -275,7 +281,7 @@ export default function HeldOrdersView({
     const finalToken = authToken || staffSession?.token;
 
     for (const id of idsToDelete) {
-      await hideOrderLocally(id);
+      await cleanupOrderData(id);
       if (finalToken) {
         fetch(`https://billing.kravy.in/api/bill-manager/${id}`, {
           method: "DELETE",
@@ -304,31 +310,76 @@ export default function HeldOrdersView({
     }
   };
 
+  const cleanupOrderData = async (id: string) => {
+    try {
+      // 1. Remove from local held orders
+      const localData = await AsyncStorage.getItem("@held_orders");
+      if (localData) {
+        const orders = JSON.parse(localData);
+        const filtered = orders.filter(
+          (o: any) => o.id.toString() !== id.toString(),
+        );
+        await AsyncStorage.setItem("@held_orders", JSON.stringify(filtered));
+      }
+
+      // 2. Remove from cached backend orders
+      const cachedData = await AsyncStorage.getItem("@cached_held_orders");
+      if (cachedData) {
+        const cached = JSON.parse(cachedData);
+        const filtered = cached.filter(
+          (o: any) => o.id.toString() !== id.toString(),
+        );
+        await AsyncStorage.setItem(
+          "@cached_held_orders",
+          JSON.stringify(filtered),
+        );
+      }
+
+      // 3. Add to hidden IDs (as a safeguard)
+      const hiddenIdsStr = await AsyncStorage.getItem("@hidden_bill_ids");
+      const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
+      if (!hiddenIds.includes(id)) {
+        hiddenIds.push(id);
+        await AsyncStorage.setItem(
+          "@hidden_bill_ids",
+          JSON.stringify(hiddenIds),
+        );
+      }
+    } catch (e) {
+      console.log("Cleanup error:", e);
+    }
+  };
+
   const confirmDeleteOrder = async () => {
     if (!orderToDelete) return;
     const id = orderToDelete.id;
+
+    // 🚀 INSTANT UI UPDATE
     setHeldOrders((prev) => prev.filter((o) => o.id !== id));
-    setSuccessType("delete");
-    await hideOrderLocally(id);
-    setShowSuccess(true);
+    setIsDeleteModalVisible(false);
+
+    // 🚀 BACKGROUND CLEANUP
+    await cleanupOrderData(id);
+
     triggerRefresh();
     if (onRefreshCount) onRefreshCount();
+
     try {
       const authToken = await getToken();
       const sessionStr = await AsyncStorage.getItem("staff_session");
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
       const finalToken = authToken || staffSession?.token;
 
-      await fetch(`https://billing.kravy.in/api/bill-manager/${id}`, {
-        method: "DELETE",
-        headers: finalToken ? { Authorization: `Bearer ${finalToken}` } : {},
-      });
+      if (finalToken) {
+        await fetch(`https://billing.kravy.in/api/bill-manager/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${finalToken}` },
+        });
+      }
     } catch (e) {}
-    setTimeout(() => {
-      setIsDeleteModalVisible(false);
-      setShowSuccess(false);
-      setOrderToDelete(null);
-    }, 2000);
+
+    ToastAndroid.show("Order Deleted", ToastAndroid.SHORT);
+    setOrderToDelete(null);
   };
 
   const confirmResumeOrder = async () => {
@@ -340,20 +391,24 @@ export default function HeldOrdersView({
         quantity: i.quantity,
         price: i.price,
       }));
+
+      // 🚀 Prepare for MainMenuView
       await AsyncStorage.setItem("@resume_cart", JSON.stringify(cleanItems));
       await AsyncStorage.setItem("@resume_cart_id", orderToResume.id);
+
+      // 🚀 INSTANT UI UPDATE
       setHeldOrders((prev) => prev.filter((o) => o.id !== orderToResume.id));
-      await hideOrderLocally(orderToResume.id);
+      setIsResumeModalVisible(false);
+
+      // 🚀 BACKGROUND CLEANUP (Crucial for preventing duplicates)
+      await cleanupOrderData(orderToResume.id);
+
       triggerRefresh();
       if (onRefreshCount) onRefreshCount();
-      setSuccessType("resume");
-      setShowSuccess(true);
-      setTimeout(() => {
-        setIsResumeModalVisible(false);
-        setShowSuccess(false);
-        setOrderToResume(null);
-        handleBack();
-      }, 2000);
+
+      ToastAndroid.show("Order Resumed", ToastAndroid.SHORT);
+      setOrderToResume(null);
+      handleBack();
     } catch (error) {
       ToastAndroid.show("Failed to resume order", ToastAndroid.SHORT);
     }
