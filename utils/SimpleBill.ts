@@ -24,6 +24,7 @@ export type BillOptions = {
   paymentMode?: string;
   notes?: string;
   billId?: string;
+  billNumber?: string;
   partyId?: string;
   customerName?: string;
   phone?: string;
@@ -230,8 +231,8 @@ async function fetchAndRasterizeLogo(url: string): Promise<Uint8Array | null> {
 
 export async function SimpleBill(
   cartItems: CartItem[],
-  token: string | null | any,
-  userClerkId: string | null | any,
+  token: any,
+  userClerkId: any,
   options?: BillOptions,
 ): Promise<{ status: string; error?: string }> {
   try {
@@ -260,6 +261,19 @@ export async function SimpleBill(
 
     const date = new Date();
     const tempBillNo = `NEW-${Date.now().toString().slice(-4)}`;
+
+    // --- AUTO-GENERATE TOKEN IF NOT PROVIDED ---
+    let finalTokenNo = options?.tokenNo;
+    if (!finalTokenNo) {
+      try {
+        const currentToken = await AsyncStorage.getItem("@token_counter");
+        const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
+        await AsyncStorage.setItem("@token_counter", String(nextToken));
+        finalTokenNo = String(nextToken);
+      } catch (e) {
+        finalTokenNo = String(Math.floor(100 + Math.random() * 900));
+      }
+    }
 
     const settings = await AsyncStorage.multiGet([
       "tax_enabled",
@@ -382,8 +396,8 @@ export async function SimpleBill(
         gst = itemPriceAfterDiscount - taxable;
       } else {
         taxable = itemPriceAfterDiscount;
-        // Logic: Always calculate GST on Gross Price (before discount) as per user request
-        gst = (itemLineTotal * itemGstRate) / 100;
+        // Always calculate GST on Discounted Price (Transaction Value)
+        gst = (itemPriceAfterDiscount * itemGstRate) / 100;
       }
 
       // --- COUNTERS LOGIC ---
@@ -459,8 +473,7 @@ export async function SimpleBill(
     }
 
     const finalGrandTotal =
-      subtotal -
-      totalDiscount +
+      totalTaxable +
       totalGst +
       serviceCharge +
       serviceGst +
@@ -482,248 +495,266 @@ export async function SimpleBill(
       ? `https://billing.kravy.in/api/bill-manager/${options.billId}${finalBusinessId ? `?businessId=${finalBusinessId}` : ""}`
       : `https://billing.kravy.in/api/bill-manager${finalBusinessId ? `?businessId=${finalBusinessId}` : ""}`;
 
-    // 🖨️ & 🌐 2. Background Process (Save + Print) - Fire and Forget for Zero UI Latency
+    // 🖨️ & 🌐 2. Combined Sync & Print Process
     (async () => {
-      // --- A. PRINTING (Parallel - Starts Immediately) ---
-      const printingProcess = (async () => {
+      let finalBillNoToPrint = options?.billNumber || tempBillNo;
+      let syncSuccess = false;
+
+      // 🛡️ STEP A: IF NEW BILL, WE MUST SAVE FIRST TO GET MONGODB BILL NUMBER
+      if (!options?.billNumber) {
         try {
-          const printer: any = await ensurePrinterConnected(options?.silent);
-          if (printer) {
-            const businessName = (
-              companyInfo?.businessName ||
-              companyInfo?.businessProfile?.companyName ||
-              companyInfo?.companyName ||
-              "KRAVY"
-            ).toUpperCase();
-            const businessAddress =
-              companyInfo?.businessAddress || companyInfo?.companyAddress || "";
-            const businessTagLine =
-              companyInfo?.businessTagline ||
-              companyInfo?.businessTagLine ||
-              "";
-            const gstNumber = companyInfo?.gstNumber || "";
+          const method = isValidBillId ? "PUT" : "POST";
+          const response = await fetch(url, {
+            method: method,
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              Authorization: `Bearer ${finalToken}`,
+            },
+            body: JSON.stringify({
+              items: productsForBackend,
+              subtotal: Number(totalTaxable.toFixed(2)),
+              taxableAmount: Number(totalTaxable.toFixed(2)),
+              itemsSubtotal: Number(subtotal.toFixed(2)),
+              tax: Number(totalGst.toFixed(2)),
+              total: finalBillTotal,
+              paymentMode: options?.paymentMode || "Cash",
+              paymentStatus: "Paid",
+              isHeld: options?.isHeld ?? false,
+              clerkUserId: finalClerkId || finalBusinessId,
+              businessId: finalBusinessId,
+              orderId: options?.orderId || "",
+              customerName: options?.customerName || "Walk-in",
+              customerPhone: options?.phone || "",
+              customerAddress: options?.customerAddress || "",
+              tableName: options?.tableName || "POS",
+              roomName: options?.roomName || "",
+              tokenNumber: finalTokenNo ? Number(finalTokenNo) : 0,
+              source: options?.source || "POS",
+              discountAmount: Number(totalDiscount.toFixed(2)),
+              discountRate: discountRatePercent,
+              calculatedTaxable: Number(totalTaxable.toFixed(2)),
+              calculatedGlobalGst: Number(globalGstTotal.toFixed(2)),
+              calculatedItemGst: Number(totalItemGstCalculated.toFixed(2)),
+              serviceCharge: Number(serviceCharge.toFixed(2)),
+              serviceGst: Number(serviceGst.toFixed(2)),
+              serviceGstRate: serviceGstRate,
+              deliveryCharges: Number(deliveryCharge.toFixed(2)),
+              deliveryGst: Number(deliveryGst.toFixed(2)),
+              deliveryGstRate: deliveryGstRate,
+              packagingCharges: Number(packagingCharge.toFixed(2)),
+              packagingGst: Number(packagingGst.toFixed(2)),
+              packagingGstRate: packagingGstRate,
+              isKotPrinted: true,
+              auditNote: options?.notes || "App Order",
+            }),
+          });
 
-            await printer.write(ALIGN_CENTER);
-
-            // Print Logo if available (Cached)
-            const logoUrl = companyInfo?.logoUrl || companyInfo?.logo;
-            if (logoUrl) {
-              const logoBytes = await fetchAndRasterizeLogo(logoUrl);
-              if (logoBytes) {
-                await printer.write(logoBytes);
-                await printer.write(utf8Encode("\n"));
-              }
+          if (response.ok) {
+            syncSuccess = true;
+            const data = await response.json().catch(() => ({}));
+            const serverBillNo = data.bill?.billNumber || data.billNumber;
+            if (serverBillNo) {
+              finalBillNoToPrint = serverBillNo;
             }
+            DeviceEventEmitter.emit("refresh_orders_list");
+            DeviceEventEmitter.emit("REFRESH_ORDERS");
+            DeviceEventEmitter.emit("REFRESH_DASHBOARD");
+          }
+        } catch (e) {
+          console.log(
+            "Saving failed before print (using fallback bill number):",
+            e,
+          );
+        }
+      }
 
-            // Restaurant Logo/Name Header
-            await printer.write(new Uint8Array([0x1b, 0x21, 0x30]));
-            await printer.write(BOLD_ON);
-            await printer.write(utf8Encode(businessName + "\n"));
-            await printer.write(BOLD_OFF);
-            await printer.write(SIZE_NORMAL);
+      // 🖨️ STEP B: PRINTING PROCESS
+      try {
+        const printer: any = await ensurePrinterConnected(options?.silent);
+        if (printer) {
+          const businessName = (
+            companyInfo?.businessName ||
+            companyInfo?.businessProfile?.companyName ||
+            companyInfo?.companyName ||
+            "KRAVY"
+          ).toUpperCase();
+          const businessAddress =
+            companyInfo?.businessAddress || companyInfo?.companyAddress || "";
+          const businessTagLine =
+            companyInfo?.businessTagline || companyInfo?.businessTagLine || "";
+          const gstNumber = companyInfo?.gstNumber || "";
 
-            if (businessTagLine)
-              await printer.write(utf8Encode(businessTagLine + "\n"));
+          await printer.write(ALIGN_CENTER);
 
-            await printer.write(utf8Encode(line("=") + "\n"));
-            if (businessAddress)
-              await printer.write(utf8Encode(businessAddress + "\n"));
-            if (gstNumber)
-              await printer.write(utf8Encode(`GSTIN: ${gstNumber}\n`));
-            await printer.write(utf8Encode(line("-") + "\n"));
-            await printer.write(ALIGN_LEFT);
-
-            let printBody = `Bill No: ${tempBillNo}\nDate: ${date.toLocaleString()}\n`;
-            if (options?.tableName)
-              printBody += `Table: ${options.tableName}\n`;
-            if (options?.customerName)
-              printBody += `Cust: ${options.customerName}\n`;
-            await printer.write(utf8Encode(printBody));
-
-            printBody = `${line("-")}\nItem         Qty  Price   Total\n${line("-")}\n`;
-            productsForBackend.forEach((i) => {
-              const displayName =
-                i.gstRate > 0
-                  ? `${i.name.slice(0, 7)}(${i.gstRate}%)`
-                  : i.name.slice(0, 12);
-              printBody += `${displayName.padEnd(12)} ${String(i.qty).padStart(3)} ${i.rate.toFixed(2).padStart(6)} ${i.total.toFixed(2).padStart(8)}\n`;
-            });
-            printBody += `${line("-")}\n`;
-            printBody += `${"subtotal:".padEnd(20)}${subtotal.toFixed(2).padStart(12)}\n`;
-            if (isDiscountEnabled)
-              printBody += `${`Disc (${discountRatePercent}%):`.padEnd(20)}${`-${totalDiscount.toFixed(2)}`.padStart(12)}\n`;
-            printBody += `${"Taxable:".padEnd(20)}${taxableAfterDiscount.toFixed(2).padStart(12)}\n`;
-            if (globalGstTotal > 0)
-              printBody += `${`Global GST(${globalTaxRate}%):`.padEnd(20)}${globalGstTotal.toFixed(2).padStart(12)}\n`;
-
-            Object.entries(perProductGstTotals).forEach(([rate, amount]) => {
-              if (amount > 0)
-                printBody += `${`Item GST(${rate}%):`.padEnd(20)}${amount.toFixed(2).padStart(12)}\n`;
-            });
-            if (serviceCharge > 0) {
-              printBody += `${"Service:".padEnd(20)}${serviceCharge.toFixed(2).padStart(12)}\n`;
-              if (serviceGst > 0)
-                printBody += `${`Serv GST(${serviceGstRate}%):`.padEnd(20)}${serviceGst.toFixed(2).padStart(12)}\n`;
-            }
-            if (deliveryCharge > 0) {
-              printBody += `${"Delivery:".padEnd(20)}${deliveryCharge.toFixed(2).padStart(12)}\n`;
-              if (deliveryGst > 0)
-                printBody += `${`Del GST(${deliveryGstRate}%):`.padEnd(20)}${deliveryGst.toFixed(2).padStart(12)}\n`;
-            }
-            if (packagingCharge > 0) {
-              printBody += `${"Packaging:".padEnd(20)}${packagingCharge.toFixed(2).padStart(12)}\n`;
-              if (packagingGst > 0)
-                printBody += `${`Pkg GST(${packagingGstRate}%):`.padEnd(20)}${packagingGst.toFixed(2).padStart(12)}\n`;
-            }
-            printBody += `${line("-")}\n`;
-            printBody += `${"TOTAL:".padEnd(20)}${finalGrandTotal.toFixed(2).padStart(12)}\n`;
-            printBody += `${line("-")}\n`;
-            if (usedGlobalFallback) {
-              printBody += `Note: 0% GST items taxed\nat Global Rate (${globalTaxRate}%)\n`;
-              printBody += `${line("-")}\n`;
-            }
-            await printer.write(utf8Encode(printBody));
-
-            await printer.write(ALIGN_CENTER);
-            await printer.write(utf8Encode("Thank You! Visit Again\n"));
-
-            const upiId = companyInfo?.upi || companyInfo?.upiId;
-            if (upiId) {
-              await printer.write(utf8Encode(line("-") + "\n"));
-              await printer.write(BOLD_ON);
-              await printer.write(utf8Encode("SCAN TO PAY\n"));
-              await printer.write(BOLD_OFF);
-              await printer.write(utf8Encode(`UPI ID: ${upiId}\n`));
-              const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalGrandTotal.toFixed(2)}&cu=INR`;
-              await printQRCode(printer, upiUri);
+          // Print Logo
+          const logoUrl = companyInfo?.logoUrl || companyInfo?.logo;
+          if (logoUrl) {
+            const logoBytes = await fetchAndRasterizeLogo(logoUrl);
+            if (logoBytes) {
+              await printer.write(logoBytes);
               await printer.write(utf8Encode("\n"));
             }
-            await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
-            await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
           }
-        } catch (err) {
-          console.error("❌ Printer Error:", err);
+
+          // Header
+          await printer.write(new Uint8Array([0x1b, 0x21, 0x30]));
+          await printer.write(BOLD_ON);
+          await printer.write(utf8Encode(businessName + "\n"));
+          await printer.write(BOLD_OFF);
+          await printer.write(SIZE_NORMAL);
+
+          if (businessTagLine)
+            await printer.write(utf8Encode(businessTagLine + "\n"));
+          await printer.write(utf8Encode(line("=") + "\n"));
+          if (businessAddress)
+            await printer.write(utf8Encode(businessAddress + "\n"));
+          if (gstNumber)
+            await printer.write(utf8Encode(`GSTIN: ${gstNumber}\n`));
+          await printer.write(utf8Encode(line("-") + "\n"));
+          await printer.write(ALIGN_LEFT);
+
+          let printBody = `Bill No: ${finalBillNoToPrint}\nDate: ${date.toLocaleString()}\n`;
+          if (finalTokenNo) printBody += `Token No: #${finalTokenNo}\n`;
+          if (options?.tableName) printBody += `Table: ${options.tableName}\n`;
+          if (options?.customerName)
+            printBody += `Cust: ${options.customerName}\n`;
+          if (options?.phone) printBody += `Phone: ${options.phone}\n`;
+          if (options?.customerAddress)
+            printBody += `Addr: ${options.customerAddress}\n`;
+          await printer.write(utf8Encode(printBody));
+
+          printBody = `${line("-")}\nItem         Qty  Price   Total\n${line("-")}\n`;
+          productsForBackend.forEach((i) => {
+            const displayName =
+              i.gstRate > 0
+                ? `${i.name.slice(0, 7)}(${i.gstRate}%)`
+                : i.name.slice(0, 12);
+            printBody += `${displayName.padEnd(12)} ${String(i.qty).padStart(3)} ${i.rate.toFixed(2).padStart(6)} ${i.total.toFixed(2).padStart(8)}\n`;
+          });
+          printBody += `${line("-")}\n`;
+          printBody += `${"subtotal:".padEnd(20)}${subtotal.toFixed(2).padStart(12)}\n`;
+          if (isDiscountEnabled)
+            printBody += `${`Disc (${discountRatePercent}%):`.padEnd(20)}${`-${totalDiscount.toFixed(2)}`.padStart(12)}\n`;
+          printBody += `${"Taxable:".padEnd(20)}${taxableAfterDiscount.toFixed(2).padStart(12)}\n`;
+          if (globalGstTotal > 0)
+            printBody += `${`Global GST(${globalTaxRate}%):`.padEnd(20)}${globalGstTotal.toFixed(2).padStart(12)}\n`;
+
+          Object.entries(perProductGstTotals).forEach(([rate, amount]) => {
+            if (amount > 0)
+              printBody += `${`Item GST(${rate}%):`.padEnd(20)}${amount.toFixed(2).padStart(12)}\n`;
+          });
+          if (serviceCharge > 0) {
+            printBody += `${"Service:".padEnd(20)}${serviceCharge.toFixed(2).padStart(12)}\n`;
+            if (serviceGst > 0)
+              printBody += `${`Serv GST(${serviceGstRate}%):`.padEnd(20)}${serviceGst.toFixed(2).padStart(12)}\n`;
+          }
+          if (deliveryCharge > 0) {
+            printBody += `${"Delivery:".padEnd(20)}${deliveryCharge.toFixed(2).padStart(12)}\n`;
+            if (deliveryGst > 0)
+              printBody += `${`Del GST(${deliveryGstRate}%):`.padEnd(20)}${deliveryGst.toFixed(2).padStart(12)}\n`;
+          }
+          if (packagingCharge > 0) {
+            printBody += `${"Packaging:".padEnd(20)}${packagingCharge.toFixed(2).padStart(12)}\n`;
+            if (packagingGst > 0)
+              printBody += `${`Pkg GST(${packagingGstRate}%):`.padEnd(20)}${packagingGst.toFixed(2).padStart(12)}\n`;
+          }
+          printBody += `${line("-")}\n`;
+          printBody += `${"TOTAL:".padEnd(20)}${finalGrandTotal.toFixed(2).padStart(12)}\n`;
+          printBody += `${line("-")}\n`;
+          await printer.write(utf8Encode(printBody));
+
+          await printer.write(ALIGN_CENTER);
+          await printer.write(utf8Encode("Thank You! Visit Again\n"));
+
+          const upiId = companyInfo?.upi || companyInfo?.upiId;
+          if (upiId) {
+            await printer.write(utf8Encode(line("-") + "\n"));
+            await printer.write(BOLD_ON);
+            await printer.write(utf8Encode("SCAN TO PAY\n"));
+            await printer.write(BOLD_OFF);
+            await printer.write(utf8Encode(`UPI ID: ${upiId}\n`));
+            const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalGrandTotal.toFixed(2)}&cu=INR`;
+            await printQRCode(printer, upiUri);
+            await printer.write(utf8Encode("\n"));
+          }
+          await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
+          await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
         }
-      })();
+      } catch (err) {
+        console.error("❌ Printer Error:", err);
+      }
 
-      // --- B. SAVING (Parallel - Retries handled here) ---
-      const savingProcess = (async () => {
+      // 🌐 STEP C: RETRY SYNC IF IT FAILED IN STEP A
+      if (!syncSuccess) {
         try {
-          const maxRetries = 3;
+          const maxRetries = 2;
           let attempt = 0;
-          let success = false;
-
-          while (attempt < maxRetries && !success) {
-            try {
-              attempt++;
-              const method = isValidBillId ? "PUT" : "POST";
-              console.log(
-                `[BILL-SYNC] Attempt ${attempt}: ${method} to ${url}`,
-              );
-              const response = await fetch(url, {
-                method: method,
-                headers: {
-                  "Content-Type": "application/json",
-                  Accept: "application/json",
-                  Authorization: `Bearer ${finalToken}`,
-                },
-                body: JSON.stringify({
-                  items: productsForBackend,
-                  subtotal: Number(totalTaxable.toFixed(2)),
-                  itemsSubtotal: Number(subtotal.toFixed(2)),
-                  tax: Number(totalGst.toFixed(2)),
-                  total: finalBillTotal,
-                  paymentMode: options?.paymentMode || "Cash",
-                  paymentStatus: "Paid",
-                  isHeld: options?.isHeld ?? false,
-                  clerkUserId: finalClerkId || finalBusinessId,
-                  businessId: finalBusinessId,
-                  orderId: options?.orderId || "",
-                  customerName: options?.customerName || "Walk-in",
-                  customerPhone: options?.phone || "",
-                  tableName: options?.tableName || "POS",
-                  roomName: options?.roomName || "",
-                  tokenNumber: options?.tokenNo ? Number(options.tokenNo) : 0,
-                  source: options?.source || "POS",
-                  discountAmount: Number(totalDiscount.toFixed(2)),
-                  discountRate: discountRatePercent,
-                  calculatedTaxable: Number(totalTaxable.toFixed(2)),
-                  calculatedGlobalGst: Number(globalGstTotal.toFixed(2)),
-                  calculatedItemGst: Number(totalItemGstCalculated.toFixed(2)),
-                  serviceCharge: Number(serviceCharge.toFixed(2)),
-                  serviceGst: Number(serviceGst.toFixed(2)),
-                  serviceGstRate: serviceGstRate,
-                  deliveryCharges: Number(deliveryCharge.toFixed(2)),
-                  deliveryGst: Number(deliveryGst.toFixed(2)),
-                  deliveryGstRate: deliveryGstRate,
-                  packagingCharges: Number(packagingCharge.toFixed(2)),
-                  packagingGst: Number(packagingGst.toFixed(2)),
-                  packagingGstRate: packagingGstRate,
-                  isKotPrinted: true,
-                  auditNote: options?.notes || "App Order",
-                }),
-              });
-
-              if (response.ok) {
-                success = true;
-                console.log(`[BILL-SYNC] Success on attempt ${attempt}`);
-                DeviceEventEmitter.emit("refresh_orders_list");
-                DeviceEventEmitter.emit("REFRESH_ORDERS");
-                DeviceEventEmitter.emit("REFRESH_DASHBOARD");
-
-                const contentType = response.headers.get("content-type");
-                if (contentType && contentType.includes("application/json")) {
-                  const data = await response.json().catch(() => ({}));
-                  const finalBillId = data._id || data.id || options?.billId;
-                  console.log("✅ Bill Saved Successfully. ID:", finalBillId);
-                } else {
-                  console.log("✅ Bill Saved (but response was not JSON)");
-                }
-              } else {
-                if (response.status === 401 || response.status === 403 || response.status === 405) {
-                  console.error(`[BILL-SYNC] Auth/Method Error (${response.status}). Potential session expiry.`);
-                  // Don't retry indefinitely for auth errors
-                  attempt = maxRetries;
-                }
-                const errText = await response.text().catch(() => "Unknown error");
-                console.error(
-                  `[BILL-SYNC] Attempt ${attempt} Failed (${response.status}): ${errText.slice(0, 100)}`,
-                );
-                if (attempt < maxRetries) {
-                  await new Promise((resolve) =>
-                    setTimeout(resolve, 1000 * attempt),
-                  );
-                }
-              }
-            } catch (err: any) {
-              console.error(
-                `[BILL-SYNC] Network Error on attempt ${attempt}:`,
-                err.message,
-              );
-              if (attempt < maxRetries) {
-                await new Promise((resolve) =>
-                  setTimeout(resolve, 1000 * attempt),
-                );
-              }
+          while (attempt < maxRetries && !syncSuccess) {
+            attempt++;
+            const response = await fetch(url, {
+              method: isValidBillId ? "PUT" : "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                Authorization: `Bearer ${finalToken}`,
+              },
+              body: JSON.stringify({
+                items: productsForBackend,
+                subtotal: Number(totalTaxable.toFixed(2)),
+                taxableAmount: Number(totalTaxable.toFixed(2)),
+                itemsSubtotal: Number(subtotal.toFixed(2)),
+                tax: Number(totalGst.toFixed(2)),
+                total: finalBillTotal,
+                paymentMode: options?.paymentMode || "Cash",
+                paymentStatus: "Paid",
+                isHeld: options?.isHeld ?? false,
+                clerkUserId: finalClerkId || finalBusinessId,
+                businessId: finalBusinessId,
+                orderId: options?.orderId || "",
+                customerName: options?.customerName || "Walk-in",
+                customerPhone: options?.phone || "",
+                customerAddress: options?.customerAddress || "",
+                tableName: options?.tableName || "POS",
+                roomName: options?.roomName || "",
+                tokenNumber: finalTokenNo ? Number(finalTokenNo) : 0,
+                source: options?.source || "POS",
+                discountAmount: Number(totalDiscount.toFixed(2)),
+                discountRate: discountRatePercent,
+                calculatedTaxable: Number(totalTaxable.toFixed(2)),
+                calculatedGlobalGst: Number(globalGstTotal.toFixed(2)),
+                calculatedItemGst: Number(totalItemGstCalculated.toFixed(2)),
+                serviceCharge: Number(serviceCharge.toFixed(2)),
+                serviceGst: Number(serviceGst.toFixed(2)),
+                serviceGstRate: serviceGstRate,
+                deliveryCharges: Number(deliveryCharge.toFixed(2)),
+                deliveryGst: Number(deliveryGst.toFixed(2)),
+                deliveryGstRate: deliveryGstRate,
+                packagingCharges: Number(packagingCharge.toFixed(2)),
+                packagingGst: Number(packagingGst.toFixed(2)),
+                packagingGstRate: packagingGstRate,
+                isKotPrinted: true,
+                auditNote: options?.notes || "App Order",
+              }),
+            });
+            if (response.ok) {
+              syncSuccess = true;
+              DeviceEventEmitter.emit("refresh_orders_list");
+              DeviceEventEmitter.emit("REFRESH_ORDERS");
+              DeviceEventEmitter.emit("REFRESH_DASHBOARD");
+            } else {
+              await new Promise((r) => setTimeout(r, 1000));
             }
           }
-
-          if (!success) {
-            console.error(
-              `[BILL-SYNC] Failed to save bill after ${maxRetries} attempts.`,
-            );
-          }
-        } catch (err) {
-          console.error("❌ Save Process Error:", err);
+        } catch (e) {
+          console.log("Background sync retry failed:", e);
         }
-      })();
-
-      // We don't await them here so the parent function returns immediately
+      }
     })();
 
     return { status: "success" };
   } catch (e: any) {
     console.log("Bill saving error:", e);
-    return { status: "error", error: e.message };
+    return { status: "error", error: e.message || "Unknown error" };
   }
 }

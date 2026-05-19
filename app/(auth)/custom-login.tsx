@@ -73,7 +73,14 @@ export default function CustomLoginScreen() {
             "DEBUG: Login successful, user object:",
             JSON.stringify(res.user),
           );
-          await AsyncStorage.setItem("staff_session", JSON.stringify(res.user));
+          const sessionData = {
+            ...res.user,
+            token: res.token,
+          };
+          await AsyncStorage.setItem(
+            "staff_session",
+            JSON.stringify(sessionData),
+          );
           await AsyncStorage.setItem("staff_token", res.token);
           DeviceEventEmitter.emit("PERMISSIONS_UPDATED");
           triggerRefresh();

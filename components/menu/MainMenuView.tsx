@@ -4,21 +4,21 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { useIsFocused } from "@react-navigation/native";
 import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import {
-    ActivityIndicator,
-    DeviceEventEmitter,
-    Dimensions,
-    FlatList,
-    StyleSheet,
-    Text,
-    ToastAndroid,
-    View,
+  ActivityIndicator,
+  DeviceEventEmitter,
+  Dimensions,
+  FlatList,
+  StyleSheet,
+  Text,
+  ToastAndroid,
+  View,
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
@@ -607,8 +607,146 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           const session = await StaffPermissionEngine.getSession();
           const finalToken = authToken || session?.token;
           const profile = await getRecentCompanyProfile(finalToken || "");
-          if (profile && profile.logoUrl) {
-            preCacheLogo(profile.logoUrl);
+          if (profile) {
+            if (profile.logoUrl) {
+              preCacheLogo(profile.logoUrl);
+            }
+            // Real-time synchronization of tax settings on screen focus
+            const syncTasks = [];
+            if (profile.taxEnabled !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem("tax_enabled", String(profile.taxEnabled)),
+              );
+            }
+            if (profile.perProductTaxEnabled !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "per_product_tax",
+                  String(profile.perProductTaxEnabled),
+                ),
+              );
+            }
+            if (profile.taxRate !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem("tax_rate", String(profile.taxRate)),
+              );
+            }
+            if (profile.enableDeliveryCharges !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "delivery_charge_enabled",
+                  String(profile.enableDeliveryCharges),
+                ),
+              );
+            }
+            if (profile.deliveryChargeAmount !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "delivery_charge_amount",
+                  String(profile.deliveryChargeAmount),
+                ),
+              );
+            }
+            if (profile.deliveryGstEnabled !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "delivery_gst_enabled",
+                  String(profile.deliveryGstEnabled),
+                ),
+              );
+            }
+            if (profile.deliveryGstRate !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "delivery_gst_rate",
+                  String(profile.deliveryGstRate),
+                ),
+              );
+            }
+            if (profile.enablePackagingCharges !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "packaging_charge_enabled",
+                  String(profile.enablePackagingCharges),
+                ),
+              );
+            }
+            if (profile.packagingChargeAmount !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "packaging_charge_amount",
+                  String(profile.packagingChargeAmount),
+                ),
+              );
+            }
+            if (profile.packagingGstEnabled !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "packaging_gst_enabled",
+                  String(profile.packagingGstEnabled),
+                ),
+              );
+            }
+            if (profile.packagingGstRate !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "packaging_gst_rate",
+                  String(profile.packagingGstRate),
+                ),
+              );
+            }
+            if (profile.enableServiceCharges !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "service_charge_enabled",
+                  String(profile.enableServiceCharges),
+                ),
+              );
+            }
+            if (profile.serviceChargeAmount !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "service_charge_rate",
+                  String(profile.serviceChargeAmount),
+                ),
+              );
+            }
+            if (profile.serviceGstEnabled !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "service_gst_enabled",
+                  String(profile.serviceGstEnabled),
+                ),
+              );
+            }
+            if (profile.serviceGstRate !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "service_gst_rate",
+                  String(profile.serviceGstRate),
+                ),
+              );
+            }
+            if (profile.discountEnabled !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "discount_enabled",
+                  String(profile.discountEnabled),
+                ),
+              );
+            }
+            if (profile.discountRate !== undefined) {
+              syncTasks.push(
+                AsyncStorage.setItem(
+                  "discount_rate",
+                  String(profile.discountRate),
+                ),
+              );
+            }
+            if (syncTasks.length > 0) {
+              await Promise.all(syncTasks);
+              await loadTaxSettings();
+            }
           }
         } catch (e) {}
 
@@ -796,6 +934,19 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       return newCart;
     });
   }, []);
+
+  const updateCartItemPrice = useCallback(
+    (itemId: string, newPrice: number) => {
+      setCart((prev) => {
+        if (!prev[itemId]) return prev;
+        return {
+          ...prev,
+          [itemId]: { ...prev[itemId], editedPrice: newPrice },
+        };
+      });
+    },
+    [],
+  );
 
   const handleConfirmClear = () => {
     setCart({});
@@ -1439,6 +1590,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         onAdd={addToCart}
         onRemove={removeFromCart}
         onDelete={deleteFromCart}
+        onEditPrice={updateCartItemPrice}
         onClear={() => setIsClearModalVisible(true)}
       />
 

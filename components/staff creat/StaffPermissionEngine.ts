@@ -354,37 +354,33 @@ export const StaffPermissionEngine = {
   // ✅ BUSINESS ID (IMPORTANT FOR STAFF DATA)
 
   async getActiveBusinessId(clerkUserId?: string): Promise<string | null> {
+    // 🚀 Priority 1: If Clerk ID is provided (Owner login), use it immediately and EXCLUSIVELY.
+    // This prevents stale staff sessions (like Masala House) from polluting owner data.
+    if (clerkUserId) return clerkUserId;
+
     try {
       const session = await this.getSession();
+
+      // Priority 2: Staff Session Business ID
       if (session?.businessId) return session.businessId;
       if (session?.clerkId) return session.clerkId;
       if (session?.id) return session.id;
 
-      // Fallback 1: check cached profile (standard for Owners)
+      // Fallback 1: check cached profile (standard for Owners if Clerk is loading)
+      // NOTE: We only use this if clerkUserId was NOT passed in.
       const cached = await AsyncStorage.getItem("@cached_business_profile");
       if (cached) {
-        const data = JSON.parse(cached);
-        const id = data._id || data.id || data.businessId;
-        if (id) return id;
+        try {
+          const data = JSON.parse(cached);
+          const id = data._id || data.id || data.businessId;
+          if (id) return id;
+        } catch (e) {}
       }
 
       // Fallback 2: check if we have it stored elsewhere
       const altCached = await AsyncStorage.getItem("@active_business_id");
       if (altCached) return altCached;
 
-      // Fallback 3: check raw profile data
-      const rawProfile = await AsyncStorage.getItem("user_profile");
-      if (rawProfile) {
-        try {
-          const parsed = JSON.parse(rawProfile);
-          const id = parsed.businessId || parsed._id || parsed.id;
-          if (id) return id;
-        } catch (e) {}
-      }
-
-      // console.log(
-      //   `[AUTH-SYSTEM] Business ID not found for user: ${clerkUserId || "Unknown"}`,
-      // );
       return null;
     } catch (err) {
       return null;

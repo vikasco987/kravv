@@ -5,15 +5,15 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Modal,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
@@ -103,11 +103,15 @@ const MainClientView = ({
     }
   };
 
+  const [isFetchingParties, setIsFetchingParties] = useState(false);
+
   const fetchParties = async (silent = false) => {
-    if (isLockedUser) {
-      setParties([]);
-      setLoading(false);
-      setRefreshing(false);
+    if (isFetchingParties || isLockedUser) {
+      if (isLockedUser) {
+        setParties([]);
+        setLoading(false);
+        setRefreshing(false);
+      }
       return;
     }
 
@@ -135,6 +139,7 @@ const MainClientView = ({
     }
     fetchBills();
     try {
+      setIsFetchingParties(true);
       if (silent) setRefreshing(true);
       else if (!cacheFound) setLoading(true);
 
@@ -150,14 +155,23 @@ const MainClientView = ({
       const res = await fetch(url, {
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
           Authorization: token ? `Bearer ${token}` : "",
         },
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setParties(data);
-        await AsyncStorage.setItem("@cached_parties", JSON.stringify(data));
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          setParties(data);
+          await AsyncStorage.setItem("@cached_parties", JSON.stringify(data));
+        } else {
+          const text = await res.text();
+          console.log(`⚠️ Parties API (Main) non-JSON: ${text.slice(0, 100)}`);
+        }
+      } else {
+        console.log(`❌ Parties API (Main) Error: ${res.status}`);
       }
     } catch (err: any) {
       console.log("Fetch Parties Error:", err.message);
@@ -165,6 +179,7 @@ const MainClientView = ({
         setShowNetworkError(true);
       }
     } finally {
+      setIsFetchingParties(false);
       setLoading(false);
       setRefreshing(false);
     }
@@ -575,6 +590,7 @@ const MainClientView = ({
         onClose={() => setShowDetailsModal(false)}
         party={selectedParty}
         stats={customerStats}
+        bills={allBills}
         t={t}
         onViewHistory={() => {
           setShowDetailsModal(false);

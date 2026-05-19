@@ -62,6 +62,8 @@ export default function CheckoutView({
     address: "",
   });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [tempPrice, setTempPrice] = useState<string>("");
   const [taxSettings, setTaxSettings] = useState({
     enabled: false,
     rate: 0,
@@ -195,7 +197,11 @@ export default function CheckoutView({
     }
   }, [params.cart]);
 
+  const [isFetchingParties, setIsFetchingParties] = useState(false);
+
   const fetchParties = useCallback(async () => {
+    if (isFetchingParties) return;
+
     let cacheFound = false;
     try {
       const cachedData = await AsyncStorage.getItem("@cached_parties");
@@ -211,21 +217,33 @@ export default function CheckoutView({
     }
 
     try {
+      setIsFetchingParties(true);
       const token = await getToken();
       const sessionStr = await AsyncStorage.getItem("staff_session");
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
       const finalToken = token || staffSession?.token;
 
+      if (!finalToken) {
+        console.log("⏭️ Parties API: No token available, skipping fetch.");
+        setIsFetchingParties(false);
+        return;
+      }
+
       const bId =
         activeBusinessId ||
         (await StaffPermissionEngine.getActiveBusinessId(user?.id));
+
       const url = bId
         ? `https://billing.kravy.in/api/parties?businessId=${bId}`
         : "https://billing.kravy.in/api/parties";
 
       const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${finalToken}` },
+        headers: {
+          Authorization: `Bearer ${finalToken}`,
+          Accept: "application/json",
+        },
       });
+
       if (res.ok) {
         const contentType = res.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
@@ -239,28 +257,36 @@ export default function CheckoutView({
             );
           }
         } else {
+          const text = await res.text();
           console.log(
-            "⚠️ Parties API returned non-JSON response (likely a redirect or error page)",
+            `⚠️ Parties API returned non-JSON response (Status: ${res.status}). Body snippet: ${text.slice(0, 100)}`,
           );
         }
-      } else if (res.status === 401 || res.status === 403) {
-        console.log(
-          "🚫 Parties API: Authentication failed (401/403). Please re-login.",
-        );
+      } else {
+        console.log(`❌ Parties API Error: Status ${res.status}`);
+        if (res.status === 401 || res.status === 403) {
+          console.log(
+            "🚫 Parties API: Authentication failed. Please re-login.",
+          );
+        }
       }
     } catch (e) {
       if (!cacheFound) {
-        console.log("Parties fetch info (empty cache):", e);
+        console.log("Parties fetch error (empty cache):", e);
       } else {
-        console.log("Parties fetch info (using cache):", e);
+        console.log("Parties fetch error (using cache):", e);
       }
+    } finally {
+      setIsFetchingParties(false);
     }
-  }, [getToken, activeBusinessId]);
+  }, [getToken, activeBusinessId, user?.id]);
 
   useFocusEffect(
     useCallback(() => {
-      fetchParties();
-    }, [fetchParties]),
+      if (!isProcessing) {
+        fetchParties();
+      }
+    }, [fetchParties, isProcessing]),
   );
 
   const filteredParties = parties.filter(
@@ -292,6 +318,13 @@ export default function CheckoutView({
   const deleteFromCart = useCallback((itemId: string) => {
     setCart((prev) => prev.filter((i) => i.id !== itemId));
   }, []);
+
+  const updateItemPrice = (itemId: string, newPrice: number) => {
+    setCart((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, editedPrice: newPrice } : i)),
+    );
+    setEditingItemId(null);
+  };
 
   const clearCart = () => {
     setCart([]);
@@ -349,14 +382,8 @@ export default function CheckoutView({
         gst = itemPriceAfterDiscount - taxable;
       } else {
         taxable = itemPriceAfterDiscount;
-        // --- DIFFERENTIATED CALCULATION BY CASE ---
-        if (taxSettings.enabled && !taxSettings.perProduct) {
-          // CASE 1: Global Only -> Calculate on Taxable Amount (After Discount)
-          gst = (itemPriceAfterDiscount * itemGstRate) / 100;
-        } else {
-          // CASE 2 & 3: Calculate on Gross Rate (Before Discount)
-          gst = (lineTotal * itemGstRate) / 100;
-        }
+        // Always calculate GST on Discounted Price (Transaction Value)
+        gst = (itemPriceAfterDiscount * itemGstRate) / 100;
       }
 
       // --- COUNTERS LOGIC ---
@@ -615,7 +642,9 @@ export default function CheckoutView({
                     </View>
                   )}
                   <View style={styles.priceBadge}>
-                    <Text style={styles.priceBadgeText}>₹{item.price}</Text>
+                    <Text style={styles.priceBadgeText}>
+                      ₹{item.editedPrice ?? item.price ?? 0}
+                    </Text>
                   </View>
                   <View style={styles.qtyOverlay}>
                     <TouchableOpacity
@@ -712,7 +741,57 @@ export default function CheckoutView({
             <View key={idx} style={styles.summaryItemRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.summaryItemName}>{item.name}</Text>
-                <Text style={styles.summaryItemPrice}>₹{item.price}</Text>
+                {editingItemId === item.id ? (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Text style={{ fontSize: 12 }}>₹</Text>
+                    <TextInput
+                      style={styles.priceInputInline}
+                      value={tempPrice}
+                      onChangeText={setTempPrice}
+                      keyboardType="numeric"
+                      autoFocus
+                    />
+                    <TouchableOpacity
+                      onPress={() =>
+                        updateItemPrice(item.id, parseFloat(tempPrice))
+                      }
+                      style={{ marginLeft: s(5) }}
+                    >
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color="#10B981"
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setEditingItemId(null)}
+                      style={{ marginLeft: s(5) }}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Text style={styles.summaryItemPrice}>
+                      ₹{item.editedPrice ?? item.price ?? 0}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditingItemId(item.id);
+                        setTempPrice(
+                          (item.editedPrice ?? item.price ?? 0).toString(),
+                        );
+                      }}
+                      style={{ marginLeft: s(8) }}
+                    >
+                      <Ionicons
+                        name="create-outline"
+                        size={16}
+                        color={THEME_COLOR}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
 
               <View style={styles.summaryQtyControls}>
@@ -730,7 +809,7 @@ export default function CheckoutView({
                   <Ionicons name="add" size={rf(16)} color="#10B981" />
                 </TouchableOpacity>
                 <Text style={styles.summaryItemTotal}>
-                  ₹{item.price * item.quantity}
+                  ₹{(item.editedPrice ?? item.price ?? 0) * item.quantity}
                 </Text>
                 <TouchableOpacity
                   onPress={() => deleteFromCart(item.id)}
@@ -1056,7 +1135,20 @@ const styles = StyleSheet.create({
     marginBottom: vs(15),
   },
   summaryItemName: { fontSize: rf(15), fontWeight: "600", color: "#1F2937" },
-  summaryItemPrice: { fontSize: rf(13), color: "#64748B", marginTop: vs(2) },
+  summaryItemPrice: {
+    fontSize: rf(13),
+    color: "#6B7280",
+    marginTop: vs(2),
+  },
+  priceInputInline: {
+    fontSize: rf(13),
+    color: "#1E293B",
+    borderBottomWidth: 1,
+    borderBottomColor: THEME_COLOR,
+    padding: 0,
+    minWidth: s(50),
+    fontWeight: "700",
+  },
   summaryQtyControls: { flexDirection: "row", alignItems: "center", gap: s(8) },
   circleBtn: {
     width: s(28),

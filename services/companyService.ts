@@ -42,6 +42,24 @@ export async function getRecentCompanyProfile(token: string) {
       state: (data.state as string) || "",
       pinCode: (data.pinCode as string) || "",
       googleReviewLink: (data.googleReviewLink as string) || "",
+      // Sync tax settings properties
+      taxEnabled: data.taxEnabled,
+      perProductTaxEnabled: data.perProductTaxEnabled,
+      taxRate: data.taxRate,
+      enableDeliveryCharges: data.enableDeliveryCharges,
+      deliveryChargeAmount: data.deliveryChargeAmount,
+      deliveryGstEnabled: data.deliveryGstEnabled,
+      deliveryGstRate: data.deliveryGstRate,
+      enablePackagingCharges: data.enablePackagingCharges,
+      packagingChargeAmount: data.packagingChargeAmount,
+      packagingGstEnabled: data.packagingGstEnabled,
+      packagingGstRate: data.packagingGstRate,
+      enableServiceCharges: data.enableServiceCharges,
+      serviceChargeAmount: data.serviceChargeAmount,
+      serviceGstEnabled: data.serviceGstEnabled,
+      serviceGstRate: data.serviceGstRate,
+      discountEnabled: data.discountEnabled,
+      discountRate: data.discountRate,
     };
 
     if (profile.businessId) {

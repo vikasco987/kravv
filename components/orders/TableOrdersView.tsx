@@ -38,6 +38,7 @@ interface Order {
   status: string;
   customerName?: string;
   customerPhone?: string;
+  customerAddress?: string;
   businessId?: string;
   tableName?: string;
   items: OrderItem[];
@@ -318,10 +319,12 @@ export default function TableOrdersView({
           orderId: item.id as string,
           customerName: item.customerName || "Table Guest",
           phone: item.customerPhone || "",
+          customerAddress: item.customerAddress || "",
           paymentMode: "Cash",
           tableName: item.tableName || (tableName as string) || "Table",
           businessId: item.businessId,
           billId: item.id as string,
+          billNumber: item.billNumber,
           source: "ONLINE",
           tokenNo: item.tokenNumber,
         });
@@ -703,6 +706,29 @@ const OrderCard = React.memo(
           </Text>
         </View>
       ))}
+      {(item.customerName || item.customerPhone || item.customerAddress) && (
+        <View style={styles.customerInfo}>
+          <View style={styles.divider} />
+          {item.customerName && (
+            <View style={styles.infoRow}>
+              <Ionicons name="person-outline" size={rf(14)} color="#4B5563" />
+              <Text style={styles.infoText}>{item.customerName}</Text>
+            </View>
+          )}
+          {item.customerPhone && (
+            <View style={styles.infoRow}>
+              <Ionicons name="call-outline" size={rf(14)} color="#4B5563" />
+              <Text style={styles.infoText}>{item.customerPhone}</Text>
+            </View>
+          )}
+          {item.customerAddress && (
+            <View style={styles.infoRow}>
+              <Ionicons name="location-outline" size={rf(14)} color="#4B5563" />
+              <Text style={styles.infoText}>{item.customerAddress}</Text>
+            </View>
+          )}
+        </View>
+      )}
       <View style={styles.divider} />
       <View style={styles.footer}>
         <Text style={styles.totalText}>Total: ₹{item.total.toFixed(2)}</Text>
@@ -932,4 +958,21 @@ const styles = StyleSheet.create({
     borderRadius: s(12),
   },
   confirmBtnText: { color: "#fff", fontSize: rf(14), fontWeight: "bold" },
+  customerInfo: {
+    marginTop: vs(5),
+    backgroundColor: "#F9FAFB",
+    padding: s(10),
+    borderRadius: s(12),
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: vs(4),
+    gap: s(6),
+  },
+  infoText: {
+    fontSize: rf(12),
+    color: "#4B5563",
+    fontWeight: "500",
+  },
 });

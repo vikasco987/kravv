@@ -133,6 +133,12 @@ const MainSettingsView = ({
     loadSettings();
   }, [isLockedUser]);
 
+  React.useEffect(() => {
+    if (taxModalVisible) {
+      loadSettings();
+    }
+  }, [taxModalVisible]);
+
   const loadSettings = async () => {
     if (isLockedUser) {
       setTaxEnabled(false);
@@ -199,6 +205,24 @@ const MainSettingsView = ({
               ),
             );
           }
+          if (profile.deliveryGstEnabled !== undefined) {
+            setDeliveryGstEnabled(profile.deliveryGstEnabled);
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "delivery_gst_enabled",
+                String(profile.deliveryGstEnabled),
+              ),
+            );
+          }
+          if (profile.deliveryGstRate !== undefined) {
+            setDeliveryGstRate(String(profile.deliveryGstRate));
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "delivery_gst_rate",
+                String(profile.deliveryGstRate),
+              ),
+            );
+          }
           if (profile.enablePackagingCharges !== undefined) {
             setPackagingChargeEnabled(profile.enablePackagingCharges);
             syncTasks.push(
@@ -214,6 +238,78 @@ const MainSettingsView = ({
               AsyncStorage.setItem(
                 "packaging_charge_amount",
                 String(profile.packagingChargeAmount),
+              ),
+            );
+          }
+          if (profile.packagingGstEnabled !== undefined) {
+            setPackagingGstEnabled(profile.packagingGstEnabled);
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "packaging_gst_enabled",
+                String(profile.packagingGstEnabled),
+              ),
+            );
+          }
+          if (profile.packagingGstRate !== undefined) {
+            setPackagingGstRate(String(profile.packagingGstRate));
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "packaging_gst_rate",
+                String(profile.packagingGstRate),
+              ),
+            );
+          }
+          if (profile.enableServiceCharges !== undefined) {
+            setServiceChargeEnabled(profile.enableServiceCharges);
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "service_charge_enabled",
+                String(profile.enableServiceCharges),
+              ),
+            );
+          }
+          if (profile.serviceChargeAmount !== undefined) {
+            setServiceChargeRate(String(profile.serviceChargeAmount));
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "service_charge_rate",
+                String(profile.serviceChargeAmount),
+              ),
+            );
+          }
+          if (profile.serviceGstEnabled !== undefined) {
+            setServiceGstEnabled(profile.serviceGstEnabled);
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "service_gst_enabled",
+                String(profile.serviceGstEnabled),
+              ),
+            );
+          }
+          if (profile.serviceGstRate !== undefined) {
+            setServiceGstRate(String(profile.serviceGstRate));
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "service_gst_rate",
+                String(profile.serviceGstRate),
+              ),
+            );
+          }
+          if (profile.discountEnabled !== undefined) {
+            setDiscountEnabled(profile.discountEnabled);
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "discount_enabled",
+                String(profile.discountEnabled),
+              ),
+            );
+          }
+          if (profile.discountRate !== undefined) {
+            setDiscountRate(String(profile.discountRate));
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "discount_rate",
+                String(profile.discountRate),
               ),
             );
           }
@@ -355,11 +451,41 @@ const MainSettingsView = ({
           case "delivery_charge_amount":
             payload.deliveryChargeAmount = parseFloat(String(value));
             break;
+          case "delivery_gst_enabled":
+            payload.deliveryGstEnabled = value;
+            break;
+          case "delivery_gst_rate":
+            payload.deliveryGstRate = parseFloat(String(value));
+            break;
           case "packaging_charge_enabled":
             payload.enablePackagingCharges = value;
             break;
           case "packaging_charge_amount":
             payload.packagingChargeAmount = parseFloat(String(value));
+            break;
+          case "packaging_gst_enabled":
+            payload.packagingGstEnabled = value;
+            break;
+          case "packaging_gst_rate":
+            payload.packagingGstRate = parseFloat(String(value));
+            break;
+          case "service_charge_enabled":
+            payload.enableServiceCharges = value;
+            break;
+          case "service_charge_rate":
+            payload.serviceChargeAmount = parseFloat(String(value));
+            break;
+          case "service_gst_enabled":
+            payload.serviceGstEnabled = value;
+            break;
+          case "service_gst_rate":
+            payload.serviceGstRate = parseFloat(String(value));
+            break;
+          case "discount_enabled":
+            payload.discountEnabled = value;
+            break;
+          case "discount_rate":
+            payload.discountRate = parseFloat(String(value));
             break;
           default:
             shouldSync = false;
@@ -441,8 +567,8 @@ const MainSettingsView = ({
             lineHeight: vs(20),
           }}
         >
-          You don&apos;t have permission to modify app settings. Please contact your
-          manager.
+          You don&apos;t have permission to modify app settings. Please contact
+          your manager.
         </Text>
       </View>
     );
