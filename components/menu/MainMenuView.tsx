@@ -12,6 +12,7 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  AppState,
   DeviceEventEmitter,
   Dimensions,
   FlatList,
@@ -25,11 +26,15 @@ import { rf, s, vs } from "../../utils/responsive";
 // Project level imports
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
-import { getRecentCompanyProfile } from "../../services/companyService";
+import {
+  getRecentCompanyProfile,
+  updateBusinessSettings,
+} from "../../services/companyService";
 import { preCacheLogo, SimpleBill } from "../../utils/SimpleBill";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import { SaveBill } from "../common/SaveBill";
 import { SimpleKOT } from "../common/SimpleKOT";
+import { SubscriptionRequiredModal } from "../common/SubscriptionRequiredModal";
 
 // Menu Components
 import VoiceOrder from "../AI intelligence tools/VoiceOrder";
@@ -118,8 +123,14 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   const [activeCustomer, setActiveCustomer] = useState<any>(null);
   const [showNetworkError, setShowNetworkError] = useState(false);
   const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
+  const [isSubscriptionModalVisible, setIsSubscriptionModalVisible] =
+    useState(false);
+  const [isAccountBlocked, setIsAccountBlocked] = useState(false);
   const [authBuffering, setAuthBuffering] = useState(false);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
+  const [activeOwnerClerkId, setActiveOwnerClerkId] = useState<string | null>(
+    null,
+  );
 
   const [currentView, setCurrentView] = useState<
     "main" | "addItem" | "heldOrders" | "checkout"
@@ -193,6 +204,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
 
   useEffect(() => {
     if (login === "true") {
+      setIsSubscriptionModalVisible(true);
       setAuthBuffering(true);
       const timer = setTimeout(() => {
         setAuthBuffering(false);
@@ -587,6 +599,65 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     loadTaxSettings();
   }, [isLockedUser]);
 
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: string) => {
+      if (nextAppState === "active") {
+        console.log(
+          "🔄 App returned to foreground! Checking payment/subscription status...",
+        );
+        try {
+          const authToken = await getToken();
+          const session = await StaffPermissionEngine.getSession();
+          const finalToken = authToken || session?.token;
+          const profile = await getRecentCompanyProfile(finalToken || "");
+          if (profile) {
+            console.log("DEBUG SaaS Overrides Foreground Received:", {
+              isFrozen: profile.isFrozen,
+              showPremiumPopup: profile.showPremiumPopup,
+              isPremium: profile.isPremium,
+            });
+            setActiveOwnerClerkId(profile.userId || profile.businessId);
+            if (profile.isFrozen === true) {
+              setIsAccountBlocked(true);
+              setIsSubscriptionModalVisible(true);
+            } else {
+              setIsAccountBlocked(false);
+
+              if (profile.isPremium === true) {
+                setIsSubscriptionModalVisible(false);
+              } else if (profile.showPremiumPopup === true) {
+                setIsSubscriptionModalVisible(true);
+              } else {
+                const trialStart = profile.trialStartedAt
+                  ? new Date(profile.trialStartedAt)
+                  : new Date();
+                const now = new Date();
+                const diffDays =
+                  (now.getTime() - trialStart.getTime()) /
+                  (1000 * 60 * 60 * 24);
+                if (diffDays > 14) {
+                  setIsSubscriptionModalVisible(true);
+                } else {
+                  setIsSubscriptionModalVisible(false);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Foreground SaaS Sync Error:", err);
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange,
+    );
+    return () => {
+      subscription.remove();
+    };
+  }, [user, activeBusinessId]);
+
   useFocusEffect(
     useCallback(() => {
       const resetFocus = async () => {
@@ -607,7 +678,61 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           const session = await StaffPermissionEngine.getSession();
           const finalToken = authToken || session?.token;
           const profile = await getRecentCompanyProfile(finalToken || "");
+
+          // Get the logged-in email and synchronize with company profile if out of sync
+          const loggedInEmail =
+            user?.primaryEmailAddress?.emailAddress || session?.email;
+          if (
+            finalToken &&
+            loggedInEmail &&
+            profile &&
+            profile.email !== loggedInEmail
+          ) {
+            console.log(
+              "🔄 Syncing email address to company profile:",
+              loggedInEmail,
+            );
+            await updateBusinessSettings(finalToken, {
+              email: loggedInEmail,
+              contactPersonEmail: loggedInEmail,
+              businessEmail: loggedInEmail,
+            });
+          }
+
           if (profile) {
+            console.log("DEBUG SaaS Overrides Received:", {
+              isFrozen: profile.isFrozen,
+              showPremiumPopup: profile.showPremiumPopup,
+              isPremium: profile.isPremium,
+              trialStartedAt: profile.trialStartedAt,
+            });
+            setActiveOwnerClerkId(profile.userId || profile.businessId);
+            // Check SaaS manual overrides
+            if (profile.isFrozen === true) {
+              setIsAccountBlocked(true);
+              setIsSubscriptionModalVisible(true);
+            } else {
+              setIsAccountBlocked(false);
+
+              if (profile.isPremium === true) {
+                setIsSubscriptionModalVisible(false);
+              } else if (profile.showPremiumPopup === true) {
+                setIsSubscriptionModalVisible(true);
+              } else {
+                // Check trial expiry (14 days trial)
+                const trialStart = profile.trialStartedAt
+                  ? new Date(profile.trialStartedAt)
+                  : new Date();
+                const now = new Date();
+                const diffDays =
+                  (now.getTime() - trialStart.getTime()) /
+                  (1000 * 60 * 60 * 24);
+                if (diffDays > 14) {
+                  setIsSubscriptionModalVisible(true);
+                }
+              }
+            }
+
             if (profile.logoUrl) {
               preCacheLogo(profile.logoUrl);
             }
@@ -1648,6 +1773,13 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       <NetworkErrorModal
         visible={showNetworkError}
         onClose={() => setShowNetworkError(false)}
+      />
+
+      <SubscriptionRequiredModal
+        visible={isSubscriptionModalVisible}
+        onClose={() => setIsSubscriptionModalVisible(false)}
+        isBlocked={isAccountBlocked}
+        clerkId={activeOwnerClerkId}
       />
     </View>
   );

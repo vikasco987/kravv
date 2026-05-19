@@ -1,5 +1,5 @@
-
-export const BACKEND_URL = "https://billing.kravy.in";
+export const BACKEND_URL =
+  process.env.EXPO_PUBLIC_API_URL || "https://billing.kravy.in";
 
 export const uploadToCloudinary = async (uri: string) => {
   try {

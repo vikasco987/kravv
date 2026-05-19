@@ -1,7 +1,4 @@
-
-import { useAuth } from "@clerk/clerk-expo";
-
-const BASE_URL = "https://billing.kravy.in/api/staff";
+const BASE_URL = `${process.env.EXPO_PUBLIC_API_URL || "https://billing.kravy.in"}/api/staff`;
 
 export const staffService = {
   // Staff Login with Email & Password
@@ -21,13 +18,15 @@ export const staffService = {
   addStaff: async (staffData: any, token: string) => {
     try {
       // Satisfying backend's unique phone number requirement temporarily with a random unique 10-digit number
-      const randomPhone = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+      const randomPhone = Math.floor(
+        1000000000 + Math.random() * 9000000000,
+      ).toString();
       const payload = { ...staffData, phone: staffData.phone || randomPhone };
       const response = await fetch(BASE_URL, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -42,8 +41,8 @@ export const staffService = {
     try {
       const response = await fetch(`${BASE_URL}?businessId=${businessId}`, {
         headers: {
-          "Authorization": `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
       return await response.json();
     } catch (error: any) {
@@ -55,14 +54,23 @@ export const staffService = {
   updateStaff: async (id: string, staffData: any, token: string) => {
     try {
       // Remove fields that Prisma update() doesn't want in data block
-      const { id: _, businessId: __, createdAt: ___, updatedAt: ____, ...dataForUpdate } = staffData;
+      const {
+        id: _,
+        businessId: __,
+        createdAt: ___,
+        updatedAt: ____,
+        ...dataForUpdate
+      } = staffData;
       // Satisfying backend's old phone number requirement temporarily
-      const payload = { ...dataForUpdate, phone: dataForUpdate.phone || "0000000000" };
+      const payload = {
+        ...dataForUpdate,
+        phone: dataForUpdate.phone || "0000000000",
+      };
       const response = await fetch(`${BASE_URL}/${id}`, {
         method: "PUT",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -78,12 +86,12 @@ export const staffService = {
       const response = await fetch(`${BASE_URL}/${id}`, {
         method: "DELETE",
         headers: {
-          "Authorization": `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
       return await response.json();
     } catch (error: any) {
       return { success: false, message: error.message };
     }
-  }
+  },
 };

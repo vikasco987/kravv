@@ -1,4 +1,5 @@
-const BACKEND_URL = "https://billing.kravy.in";
+const BACKEND_URL =
+  process.env.EXPO_PUBLIC_API_URL || "https://billing.kravy.in";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
@@ -26,6 +27,7 @@ export async function getRecentCompanyProfile(token: string) {
 
     const profile = {
       businessId: data._id || data.id || "",
+      userId: data.userId || "",
       companyName: (data.businessName as string) || "",
       companyAddress: (data.businessAddress as string) || "",
       companyPhone: (data.contactPersonPhone as string) || "",
@@ -60,6 +62,11 @@ export async function getRecentCompanyProfile(token: string) {
       serviceGstRate: data.serviceGstRate,
       discountEnabled: data.discountEnabled,
       discountRate: data.discountRate,
+      // SaaS Overrides
+      isPremium: data.isPremium,
+      showPremiumPopup: data.showPremiumPopup,
+      isFrozen: data.isFrozen,
+      trialStartedAt: data.trialStartedAt,
     };
 
     if (profile.businessId) {
