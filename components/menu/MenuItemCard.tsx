@@ -1,7 +1,8 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Feather } from "@expo/vector-icons";
+import React from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
+import { SoundManager } from "../../utils/SoundManager";
 
 const THEME_SECONDARY = "#10B981";
 const THEME_DANGER = "#DC2626";
@@ -32,9 +33,10 @@ export const MenuItemCard = React.memo(({
 }: MenuItemCardProps) => {
     return (
         <View style={[styles.gridItem, { width: itemWidth }]}>
-            <TouchableOpacity 
-                onPress={() => onAdd(item)} 
-                activeOpacity={0.7} 
+            <TouchableOpacity
+                onPress={() => onAdd(item)}
+                onPressIn={() => { SoundManager.suppressNextPlay(); SoundManager.playAdd(); }}
+                activeOpacity={0.7}
                 style={{ width: "100%", alignItems: "center" }}
             >
                 <View>
@@ -45,12 +47,13 @@ export const MenuItemCard = React.memo(({
                         fadeDuration={0}
                     />
                     {quantity > 0 && (
-                        <TouchableOpacity 
-                            style={styles.minusIcon} 
+                        <TouchableOpacity
+                            style={styles.minusIcon}
                             onPress={(e) => {
                                 e.stopPropagation();
                                 onRemove(item);
                             }}
+                            onPressIn={(e) => { e.stopPropagation(); SoundManager.suppressNextPlay(); SoundManager.playRemove(); }}
                             activeOpacity={0.6}
                         >
                             <Feather name="minus" size={12} color="#fff" />

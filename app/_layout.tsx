@@ -11,13 +11,14 @@ import { Drawer } from "expo-router/drawer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import NewOrderNotifier from "../components/common/NewOrderNotifier";
 import CustomDrawerContent from "../components/sidebar/CustomDrawer";
 import { LanguageProvider, useLanguage } from "../context/LanguageContext";
 import { RefreshProvider, useRefresh } from "../context/RefreshContext";
+import { SoundManager } from "../utils/SoundManager";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -47,6 +48,14 @@ const tokenCache = {
 };
 
 export default function RootLayout() {
+  // Initialise global click sound once when app mounts
+  useEffect(() => {
+    SoundManager.init();
+    return () => {
+      SoundManager.destroy();
+    };
+  }, []);
+
   const publishableKey =
     Constants.expoConfig?.extra?.clerkPublishableKey ||
     // @ts-ignore
@@ -76,6 +85,9 @@ function AuthRedirect() {
   const { t } = useLanguage();
 
   const { refreshSignal } = useRefresh();
+
+  // Ref for the deferred-sound timer (see onStartShouldSetResponderCapture below)
+  const soundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setReady(true);
@@ -122,32 +134,72 @@ function AuthRedirect() {
   if (isPublicMenu || isAuthRoute) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerShown: false }} />
+        <View
+          style={{ flex: 1 }}
+          onStartShouldSetResponderCapture={() => {
+            // Fires for EVERY touch — schedule sound tentatively
+            soundTimerRef.current = setTimeout(() => {
+              SoundManager.play();
+              soundTimerRef.current = null;
+            }, 0);
+            return false; // Don't capture — let children handle
+          }}
+          onStartShouldSetResponder={() => {
+            // Fires ONLY when no child claimed the touch (empty area tap) — cancel sound
+            if (soundTimerRef.current) {
+              clearTimeout(soundTimerRef.current);
+              soundTimerRef.current = null;
+            }
+            return false; // Don't become responder
+          }}
+        >
+          <Stack screenOptions={{ headerShown: false }} />
+        </View>
       </GestureHandlerRootView>
     );
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <NewOrderNotifier />
-      <Drawer
-        drawerContent={(props) => <CustomDrawerContent {...props} />}
-        screenOptions={{
-          headerShown: false,
-          drawerActiveTintColor: "#4F46E5",
-          drawerLabelStyle: { fontSize: 16 },
+      <View
+        style={{ flex: 1 }}
+        onStartShouldSetResponderCapture={() => {
+          // Fires for EVERY touch — schedule sound tentatively
+          soundTimerRef.current = setTimeout(() => {
+            SoundManager.play();
+            soundTimerRef.current = null;
+          }, 0);
+          return false; // Don't capture — let children handle
+        }}
+        onStartShouldSetResponder={() => {
+          // Fires ONLY when no child claimed the touch (empty area tap) — cancel sound
+          if (soundTimerRef.current) {
+            clearTimeout(soundTimerRef.current);
+            soundTimerRef.current = null;
+          }
+          return false; // Don't become responder
         }}
       >
-        <Drawer.Screen
-          name="(tabs)"
-          options={{
-            drawerLabel: t("home"),
-            drawerIcon: ({ color, size }) => (
-              <Ionicons name="home-outline" size={size} color={color} />
-            ),
+        <NewOrderNotifier />
+        <Drawer
+          drawerContent={(props) => <CustomDrawerContent {...props} />}
+          screenOptions={{
+            headerShown: false,
+            drawerActiveTintColor: "#4F46E5",
+            drawerLabelStyle: { fontSize: 16 },
           }}
-        />
-      </Drawer>
+        >
+          <Drawer.Screen
+            name="(tabs)"
+            options={{
+              drawerLabel: t("home"),
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="home-outline" size={size} color={color} />
+              ),
+            }}
+          />
+        </Drawer>
+      </View>
     </GestureHandlerRootView>
   );
 }

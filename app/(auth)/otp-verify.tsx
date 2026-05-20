@@ -73,8 +73,8 @@ export default function OTPVerifyScreen() {
       showStatus(
         "success",
         "Success",
-        "Account verified successfully! Please login now.",
-        () => router.replace("/(auth)/custom-login"),
+        "Account verified successfully! Welcome to Kravy!",
+        () => router.replace("/(tabs)/menu?login=true"),
       );
     } catch (error: any) {
       // console.error("❌ OTP Verification failed:", error);

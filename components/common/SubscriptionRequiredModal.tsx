@@ -61,7 +61,7 @@ export const SubscriptionRequiredModal: React.FC<
       animationType="slide"
       transparent={true}
       visible={visible}
-      onRequestClose={isBlocked ? () => {} : onClose}
+      onRequestClose={isBlocked ? () => { } : onClose}
     >
       <View style={styles.overlay}>
         <View style={styles.modalCard}>

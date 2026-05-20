@@ -1,0 +1,13 @@
+diff --git a/node_modules/expo-keep-awake/android/src/main/java/expo/modules/keepawake/KeepAwakeModule.kt b/node_modules/expo-keep-awake/android/src/main/java/expo/modules/keepawake/KeepAwakeModule.kt
+index 3887754..01b7336 100644
+--- a/node_modules/expo-keep-awake/android/src/main/java/expo/modules/keepawake/KeepAwakeModule.kt
++++ b/node_modules/expo-keep-awake/android/src/main/java/expo/modules/keepawake/KeepAwakeModule.kt
+@@ -18,7 +18,7 @@ class KeepAwakeModule : Module() {
+       try {
+         keepAwakeManager.activate(tag) { promise.resolve() }
+       } catch (ex: CurrentActivityNotFoundException) {
+-        promise.reject(ActivateKeepAwakeException())
++        promise.resolve()
+       }
+     }
+ 

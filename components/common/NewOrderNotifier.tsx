@@ -79,7 +79,6 @@ const NewOrderNotifier = () => {
     Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
       playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
       shouldDuckAndroid: false,
     });
   }, []);

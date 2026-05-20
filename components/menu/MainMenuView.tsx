@@ -52,6 +52,7 @@ import { TableSelectionModal } from "./TableSelectionModal";
 
 // Batched Components
 import { SyncManager } from "../../services/SyncManager";
+import { SoundManager } from "../../utils/SoundManager";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { useStaffPermissions } from "../staff creat/useStaffPermissions";
 import AddItemView from "./AddItemView";
@@ -198,8 +199,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     }
   };
 
-  const addSound = { play: () => {} };
-  const removeSound = { play: () => {} };
+  const addSound = { play: () => { } };
+  const removeSound = { play: () => { } };
   const prevSignedIn = useRef(isSignedIn);
 
   useEffect(() => {
@@ -873,7 +874,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
               await loadTaxSettings();
             }
           }
-        } catch (e) {}
+        } catch (e) { }
 
         try {
           const clearSignal = await AsyncStorage.getItem(
@@ -994,7 +995,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             index: catIndex,
             animated: true,
           });
-        } catch (e) {}
+        } catch (e) { }
       }
 
       itemsToAdd.forEach((item) => {
@@ -1053,6 +1054,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   }, []);
 
   const deleteFromCart = useCallback((item: MenuItem) => {
+    SoundManager.playDelete();
     setCart((prev) => {
       const newCart = { ...prev };
       delete newCart[item.id];
@@ -1171,6 +1173,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
 
     // 🚀 INSTANT UI FEEDBACK
     setShowHoldSuccess(true);
+    SoundManager.playHold();
     setIsHoldModalVisible(false);
     setCart({});
     const orderIdToSync = originalActiveId; // Capture before clearing
@@ -1287,7 +1290,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                   fetchHeldCount();
                   triggerRefresh();
                 }
-              } catch (e) {}
+              } catch (e) { }
             }
           })
           .catch(async () => {
@@ -1406,6 +1409,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     }
 
     isPrinting.current = true;
+    SoundManager.playPrint();
     try {
       const tableToPrint = selectedTable;
       const roomToPrint = selectedRoom;

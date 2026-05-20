@@ -131,7 +131,7 @@ async function printQRCode(printer: any, data: string) {
 
 export const preCacheLogo = (url: string) => {
   if (url && typeof url === "string" && url.startsWith("http")) {
-    Image.prefetch(url).catch(() => {});
+    Image.prefetch(url).catch(() => { });
   }
 };
 
@@ -147,12 +147,12 @@ async function fetchAndRasterizeLogo(url: string): Promise<Uint8Array | null> {
     }
 
     // 1. Force Cloudinary to return a high-contrast grayscale BMP
-    // transformations: width 384px (standard 58mm), high contrast, grayscale, BMP format
+    // transformations: width 200px (smaller centered logo), high contrast, grayscale, BMP format
     const transformedUrl = url.includes("/upload/")
       ? url.replace(
-          "/upload/",
-          "/upload/w_384,c_scale,e_grayscale,e_contrast:100,f_bmp/",
-        )
+        "/upload/",
+        "/upload/w_250,c_scale,e_grayscale,e_contrast:100,f_bmp/",
+      )
       : url;
 
     const response = await fetch(transformedUrl);

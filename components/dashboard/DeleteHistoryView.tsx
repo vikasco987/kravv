@@ -5,15 +5,17 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
+  DeviceEventEmitter,
   FlatList,
+  Modal,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
+import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 const DeleteHistoryView = ({ onBack, onRefresh }) => {
   const { getToken } = useAuth();
@@ -22,6 +24,21 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [deletedBills, setDeletedBills] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: "confirm-restore" | "confirm-delete" | "success" | "error";
+    confirmText: string;
+    onConfirm: (() => void) | null;
+  }>({
+    visible: false,
+    title: "",
+    message: "",
+    type: "success",
+    confirmText: "OK",
+    onConfirm: null,
+  });
 
   const fetchDeletedBills = async (isRefreshing = false) => {
     try {
@@ -30,7 +47,7 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
 
       const token = await getToken();
       const staffToken = await AsyncStorage.getItem("staff_token");
-      const bId = await AsyncStorage.getItem("business_id");
+      const bId = (await StaffPermissionEngine.getActiveBusinessId(user?.id)) || (await AsyncStorage.getItem("business_id"));
       const finalToken = token || staffToken;
 
       const res = await fetch(
@@ -79,25 +96,52 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
       setLoading(true);
       const token = await getToken();
       const staffToken = await AsyncStorage.getItem("staff_token");
-      const bId = await AsyncStorage.getItem("business_id");
+      const bId = (await StaffPermissionEngine.getActiveBusinessId(user?.id)) || (await AsyncStorage.getItem("business_id"));
       const finalToken = token || staffToken;
 
-      const res = await fetch(
-        `https://billing.kravy.in/api/bill-manager/action${bId ? `?businessId=${bId}` : ""}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${finalToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
+      let url = "";
+      let method = "POST";
+      let body = null;
+
+      if (payload.action === "restore") {
+        url = `https://billing.kravy.in/api/bill-manager/deleted/restore/${payload.id}`;
+        method = "POST";
+      } else if (payload.action === "hard-delete") {
+        url = `https://billing.kravy.in/api/bill-manager/${payload.id}?hard=true`;
+        method = "DELETE";
+      } else if (payload.action === "bulk-restore") {
+        url = `https://billing.kravy.in/api/bill-manager${bId ? `?businessId=${bId}` : ""}`;
+        method = "PUT";
+        body = JSON.stringify({ ids: payload.ids, action: "restore" });
+      } else if (payload.action === "bulk-hard-delete") {
+        url = `https://billing.kravy.in/api/bill-manager${bId ? `?businessId=${bId}` : ""}`;
+        method = "PUT";
+        body = JSON.stringify({ ids: payload.ids, action: "delete" });
+      } else {
+        throw new Error("Invalid action type");
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${finalToken}`,
+          "Content-Type": "application/json",
         },
-      );
+        body,
+      });
 
       const resText = await res.text();
       if (res.ok) {
-        Alert.alert("Success", "Action completed successfully.");
+        setAlertConfig({
+          visible: true,
+          title: "Success",
+          message: "Action completed successfully.",
+          type: "success",
+          confirmText: "OK",
+          onConfirm: null,
+        });
         fetchDeletedBills();
+        DeviceEventEmitter.emit("REFRESH_DASHBOARD");
         if (
           (payload.action.includes("restore") ||
             payload.action === "restore") &&
@@ -106,35 +150,50 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
           onRefresh();
         }
       } else {
-        Alert.alert("Error", `Action failed: ${resText || res.status}`);
+        setAlertConfig({
+          visible: true,
+          title: "Error",
+          message: `Action failed: ${resText || res.status}`,
+          type: "error",
+          confirmText: "OK",
+          onConfirm: null,
+        });
       }
     } catch (e) {
       console.error("Action error:", e);
-      Alert.alert("Error", "An unexpected error occurred.");
+      setAlertConfig({
+        visible: true,
+        title: "Error",
+        message: "An unexpected error occurred.",
+        type: "error",
+        confirmText: "OK",
+        onConfirm: null,
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleRestore = (id) => {
-    Alert.alert("Restore", "Restore this bill?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Restore",
-        onPress: () => performAction({ action: "restore", id }),
-      },
-    ]);
+    setAlertConfig({
+      visible: true,
+      title: "Restore Bill",
+      message: "Are you sure you want to restore this bill?",
+      type: "confirm-restore",
+      confirmText: "Restore",
+      onConfirm: () => performAction({ action: "restore", id }),
+    });
   };
 
   const handlePermanentDelete = (id) => {
-    Alert.alert("Permanent Delete", "Are you sure? This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete Forever",
-        style: "destructive",
-        onPress: () => performAction({ action: "hard-delete", id }),
-      },
-    ]);
+    setAlertConfig({
+      visible: true,
+      title: "Permanent Delete",
+      message: "Are you sure? This bill will be deleted forever and cannot be recovered.",
+      type: "confirm-delete",
+      confirmText: "Delete",
+      onConfirm: () => performAction({ action: "hard-delete", id }),
+    });
   };
 
   const handleBulkAction = (actionType) => {
@@ -142,22 +201,18 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
     const isRestore = actionType === "restore";
     const actionLabel = isRestore ? "Restore All" : "Delete All";
 
-    Alert.alert(
-      "Bulk Action",
-      `Are you sure you want to ${isRestore ? "restore" : "permanently delete"} ${selectedIds.size} items?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: actionLabel,
-          style: isRestore ? "default" : "destructive",
-          onPress: () =>
-            performAction({
-              action: isRestore ? "bulk-restore" : "bulk-hard-delete",
-              ids: Array.from(selectedIds),
-            }),
-        },
-      ],
-    );
+    setAlertConfig({
+      visible: true,
+      title: isRestore ? "Bulk Restore" : "Bulk Delete",
+      message: `Are you sure you want to ${isRestore ? "restore" : "permanently delete"} ${selectedIds.size} items?`,
+      type: isRestore ? "confirm-restore" : "confirm-delete",
+      confirmText: actionLabel,
+      onConfirm: () =>
+        performAction({
+          action: isRestore ? "bulk-restore" : "bulk-hard-delete",
+          ids: Array.from(selectedIds),
+        }),
+    });
   };
 
   const renderItem = ({ item }) => {
@@ -227,7 +282,7 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
             <Ionicons
               name={
                 selectedIds.size === deletedBills.length &&
-                deletedBills.length > 0
+                  deletedBills.length > 0
                   ? "checkbox"
                   : "square-outline"
               }
@@ -277,6 +332,86 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
           }
         />
       )}
+
+      {/* Beautiful Premium Alert Modal */}
+      <Modal visible={alertConfig.visible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconCircle}>
+              <Ionicons
+                name={
+                  alertConfig.type === "success"
+                    ? "checkmark-circle"
+                    : alertConfig.type === "error"
+                      ? "alert-circle"
+                      : alertConfig.type === "confirm-restore"
+                        ? "refresh-circle"
+                        : "trash-outline"
+                }
+                size={rf(48)}
+                color={
+                  alertConfig.type === "success"
+                    ? "#10B981"
+                    : alertConfig.type === "error"
+                      ? "#EF4444"
+                      : alertConfig.type === "confirm-restore"
+                        ? "#3154D4"
+                        : "#EF4444"
+                }
+              />
+            </View>
+            <Text style={styles.modalTitle}>{alertConfig.title}</Text>
+            <Text style={styles.modalMessage}>{alertConfig.message}</Text>
+
+            <View style={styles.modalButtonContainer}>
+              {alertConfig.type.startsWith("confirm") ? (
+                <>
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.modalCancelBtn]}
+                    onPress={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+                  >
+                    <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalBtn,
+                      styles.modalConfirmBtn,
+                      {
+                        backgroundColor:
+                          alertConfig.type === "confirm-restore"
+                            ? "#3154D4"
+                            : "#EF4444",
+                      },
+                    ]}
+                    onPress={() => {
+                      setAlertConfig(prev => ({ ...prev, visible: false }));
+                      if (alertConfig.onConfirm) alertConfig.onConfirm();
+                    }}
+                  >
+                    <Text style={styles.modalConfirmBtnText}>
+                      {alertConfig.confirmText}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.modalBtn,
+                    styles.modalOkBtn,
+                    {
+                      backgroundColor:
+                        alertConfig.type === "success" ? "#10B981" : "#EF4444",
+                    },
+                  ]}
+                  onPress={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+                >
+                  <Text style={styles.modalOkBtnText}>OK</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -388,6 +523,96 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   empty: { flex: 1, alignItems: "center", marginTop: vs(100) },
   emptyText: { color: "#94A3B8", fontSize: rf(16), marginTop: vs(10) },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    width: s(310),
+    borderRadius: s(24),
+    padding: s(24),
+    alignItems: "center",
+    elevation: 20,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+  },
+  modalIconCircle: {
+    width: s(72),
+    height: s(72),
+    borderRadius: s(36),
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: vs(16),
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  modalTitle: {
+    fontSize: rf(20),
+    fontWeight: "800",
+    color: "#1E293B",
+    textAlign: "center",
+  },
+  modalMessage: {
+    fontSize: rf(14),
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: vs(8),
+    lineHeight: vs(20),
+    paddingHorizontal: s(10),
+  },
+  modalButtonContainer: {
+    flexDirection: "row",
+    gap: s(12),
+    marginTop: vs(24),
+    width: "100%",
+  },
+  modalBtn: {
+    flex: 1,
+    height: vs(48),
+    borderRadius: s(14),
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCancelBtn: {
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  modalCancelBtnText: {
+    color: "#64748B",
+    fontWeight: "700",
+    fontSize: rf(14),
+  },
+  modalConfirmBtn: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  modalConfirmBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: rf(14),
+  },
+  modalOkBtn: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  modalOkBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: rf(14),
+  },
 });
 
 export default DeleteHistoryView;

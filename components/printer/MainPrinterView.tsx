@@ -1,3 +1,5 @@
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -11,17 +13,16 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import RNBluetoothClassic from "react-native-bluetooth-classic";
 import { rf, s, vs } from "../../utils/responsive";
 
 // Components
-import PrinterHeader from "./PrinterHeader";
 import DeviceCard from "./DeviceCard";
+import PrinterHeader from "./PrinterHeader";
 
-import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import { useRouter } from "expo-router";
+import { SoundManager } from "../../utils/SoundManager";
+import { LoginRequiredModal } from "../common/LoginRequiredModal";
 
 const THEME_PRIMARY = "#4F46E5";
 
@@ -90,7 +91,7 @@ const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =
             const bonded = await RNBluetoothClassic.getBondedDevices();
             setDevices(bonded);
 
-            try { await RNBluetoothClassic.cancelDiscovery(); } catch (e) {}
+            try { await RNBluetoothClassic.cancelDiscovery(); } catch (e) { }
             const discovered = await RNBluetoothClassic.startDiscovery();
 
             setDevices((prev) => {
@@ -132,6 +133,7 @@ const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =
                 setConnectedDevice(connection);
                 await AsyncStorage.setItem("saved_printer", device.address);
                 ToastAndroid.show("Connected ✅", ToastAndroid.SHORT);
+                SoundManager.playSuccess();
             }
         } catch (e: any) {
             if (e.message.includes("read failed") || e.message.includes("socket")) {
@@ -159,7 +161,7 @@ const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =
             if (connection) {
                 setConnectedDevice(connection);
                 ToastAndroid.show("Printer Connected ✅", ToastAndroid.SHORT);
-                
+
                 const bonded = await RNBluetoothClassic.getBondedDevices();
                 setDevices(bonded);
             }
@@ -176,7 +178,7 @@ const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =
         try {
             await connectedDevice.disconnect();
             setConnectedDevice(null);
-        } catch (e) {}
+        } catch (e) { }
     };
 
     // ================= FORGET =================
@@ -187,7 +189,7 @@ const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =
             const savedPrinter = await AsyncStorage.getItem("saved_printer");
             if (savedPrinter === address) await AsyncStorage.removeItem("saved_printer");
             ToastAndroid.show("Device forgotten ✅", ToastAndroid.SHORT);
-        } catch (e) {}
+        } catch (e) { }
     };
 
     // ================= PRINT =================
@@ -219,7 +221,7 @@ Thank You\n\n\n`;
         }
     };
 
-    useEffect(() => { 
+    useEffect(() => {
         const init = async () => {
             if (isLockedUser) return;
             const ok = await requestPermissions();
@@ -238,7 +240,7 @@ Thank You\n\n\n`;
                 await autoConnect(false);
             }
         }, 3000); // Check every 3 seconds
-        
+
         return () => clearInterval(interval);
     }, [connectedDevice, isLoading, isLockedUser]);
 
@@ -278,7 +280,7 @@ Thank You\n\n\n`;
                     </View>
                 )}
                 {devices.map((d, i) => (
-                    <DeviceCard 
+                    <DeviceCard
                         key={i}
                         name={d.name}
                         address={d.address}

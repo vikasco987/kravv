@@ -3,15 +3,16 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
+  DeviceEventEmitter,
   FlatList,
   LayoutAnimation,
+  Modal,
   Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   UIManager,
-  View,
+  View
 } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
@@ -64,35 +65,53 @@ const BillCard = ({
 }) => {
   const statusStyle = getStatusStyle(bill.status);
 
-  // Use pre-calculated fields if available (added by billCalculator.js / applyTrueBillTotals)
-  // Otherwise fallback to local calculation (legacy compatibility)
+  const isSavedBill = !!(bill._id || bill.id || bill.billNumber);
+
   const itemsSubtotal =
     bill.itemsSubtotal !== undefined
       ? bill.itemsSubtotal
-      : (bill.items || []).reduce(
+      : bill.subtotal !== undefined
+        ? bill.subtotal
+        : (bill.items || []).reduce(
           (acc, it) =>
             acc + Number(it.qty || 1) * Number(it.rate || it.price || 0),
           0,
         );
-  const discPercent =
-    bill.calculatedDiscountRate !== undefined
+
+  const discPercent = isSavedBill
+    ? (bill.discountRate !== undefined && bill.discountRate !== null
+      ? Number(bill.discountRate)
+      : bill.calculatedDiscountRate !== undefined
+        ? Number(bill.calculatedDiscountRate)
+        : 0)
+    : (bill.calculatedDiscountRate !== undefined
       ? bill.calculatedDiscountRate
-      : (bill.discountRate ?? settings.discount_rate ?? 0);
+      : (bill.discountRate ?? settings.discount_rate ?? 0));
 
-  const discountAmount =
-    bill.calculatedDiscount !== undefined && bill.calculatedDiscount > 0
-      ? bill.calculatedDiscount
-      : bill.discountAmount ||
-        bill.discount_amount ||
-        bill.discount ||
-        (settings.discount_enabled ? itemsSubtotal * (discPercent / 100) : 0);
+  const getStoredDiscountAmount = () => {
+    if (bill.calculatedDiscount !== undefined && bill.calculatedDiscount !== null) return Number(bill.calculatedDiscount);
+    if (bill.discountAmount !== undefined && bill.discountAmount !== null) return Number(bill.discountAmount);
+    if (bill.discount_amount !== undefined && bill.discount_amount !== null) return Number(bill.discount_amount);
+    if (bill.discount !== undefined && bill.discount !== null) return Number(bill.discount);
+    return null;
+  };
+  const storedDiscountAmount = getStoredDiscountAmount();
+  const discountAmount = isSavedBill
+    ? (storedDiscountAmount !== null ? storedDiscountAmount : 0)
+    : (storedDiscountAmount !== null && storedDiscountAmount > 0
+      ? storedDiscountAmount
+      : (settings.discount_enabled ? itemsSubtotal * (discPercent / 100) : 0));
 
-  const taxableAfterDiscount =
-    bill.calculatedTaxable !== undefined &&
-    bill.calculatedTaxable !== itemsSubtotal
+  const taxableAfterDiscount = isSavedBill
+    ? (bill.calculatedTaxable !== undefined && bill.calculatedTaxable !== null
+      ? Number(bill.calculatedTaxable)
+      : bill.taxableAmount !== undefined && bill.taxableAmount !== null
+        ? Number(bill.taxableAmount)
+        : itemsSubtotal - discountAmount)
+    : (bill.calculatedTaxable !== undefined && bill.calculatedTaxable !== itemsSubtotal
       ? bill.calculatedTaxable
-      : itemsSubtotal - discountAmount;
-  // Logic for Detailed GST Breakdown (Global + Per-Product by Rate)
+      : itemsSubtotal - discountAmount);
+
   const globalTaxMap = {};
   const itemTaxMap = {};
 
@@ -103,83 +122,138 @@ const BillCard = ({
     const itemDiscount =
       itemsSubtotal > 0 ? (itemGross / itemsSubtotal) * discountAmount : 0;
     const itemTaxable = itemGross - itemDiscount;
-    const pGst = Number(it.gst || it.gstRate || it.gst_rate || 0);
+    const pGst = Number(it.gstRate !== undefined ? it.gstRate : (it.gst || it.gst_rate || 0));
+    const gstPaid = Number(it.gstPaid !== undefined ? it.gstPaid : 0);
 
-    if (settings.tax_enabled && settings.per_product_tax) {
+    if (isSavedBill) {
       if (pGst > 0) {
-        itemTaxMap[pGst] = (itemTaxMap[pGst] || 0) + itemGross * (pGst / 100);
-      } else if (settings.tax_rate > 0) {
+        const calculatedGst = gstPaid > 0 ? gstPaid : (it.taxableAmount !== undefined ? (it.taxableAmount * pGst / 100) : itemTaxable * (pGst / 100));
+
+        const hasGlobalGst = bill.calculatedGlobalGst !== undefined && Number(bill.calculatedGlobalGst) > 0;
+        const hasItemGst = bill.calculatedItemGst !== undefined && Number(bill.calculatedItemGst) > 0;
+
+        if (hasGlobalGst && !hasItemGst) {
+          globalTaxMap[pGst] = (globalTaxMap[pGst] || 0) + calculatedGst;
+        } else if (hasItemGst && !hasGlobalGst) {
+          itemTaxMap[pGst] = (itemTaxMap[pGst] || 0) + calculatedGst;
+        } else {
+          const isGlobalRate = (settings.tax_enabled && pGst === settings.tax_rate);
+          if (isGlobalRate) {
+            globalTaxMap[pGst] = (globalTaxMap[pGst] || 0) + calculatedGst;
+          } else {
+            itemTaxMap[pGst] = (itemTaxMap[pGst] || 0) + calculatedGst;
+          }
+        }
+      }
+    } else {
+      if (settings.tax_enabled && settings.per_product_tax) {
+        if (pGst > 0) {
+          itemTaxMap[pGst] = (itemTaxMap[pGst] || 0) + itemGross * (pGst / 100);
+        } else if (settings.tax_rate > 0) {
+          globalTaxMap[settings.tax_rate] =
+            (globalTaxMap[settings.tax_rate] || 0) +
+            itemGross * (settings.tax_rate / 100);
+        }
+      } else if (settings.tax_enabled && settings.tax_rate > 0) {
         globalTaxMap[settings.tax_rate] =
           (globalTaxMap[settings.tax_rate] || 0) +
           itemGross * (settings.tax_rate / 100);
+      } else if (settings.per_product_tax && pGst > 0) {
+        itemTaxMap[pGst] = (itemTaxMap[pGst] || 0) + itemGross * (pGst / 100);
       }
-    } else if (settings.tax_enabled && settings.tax_rate > 0) {
-      globalTaxMap[settings.tax_rate] =
-        (globalTaxMap[settings.tax_rate] || 0) +
-        itemGross * (settings.tax_rate / 100);
-    } else if (settings.per_product_tax && pGst > 0) {
-      itemTaxMap[pGst] = (itemTaxMap[pGst] || 0) + itemGross * (pGst / 100);
     }
   });
 
   const totalGlobalGst = Object.values(globalTaxMap).reduce((a, b) => a + b, 0);
   const totalItemGst = Object.values(itemTaxMap).reduce((a, b) => a + b, 0);
 
-  const isExistingBill = !!(bill.id || bill._id);
+  const getStoredGst = () => {
+    if (bill.calculatedGst !== undefined && bill.calculatedGst !== null) return Number(bill.calculatedGst);
+    if (bill.tax !== undefined && bill.tax !== null) return Number(bill.tax);
+    if (bill.gstAmount !== undefined && bill.gstAmount !== null) return Number(bill.gstAmount);
+    return null;
+  };
+  const storedGst = getStoredGst();
 
-  const globalGst =
-    bill.calculatedGlobalGst !== undefined
+  const globalGst = isSavedBill
+    ? (bill.calculatedGlobalGst !== undefined && bill.calculatedGlobalGst !== null
+      ? Number(bill.calculatedGlobalGst)
+      : storedGst !== null ? storedGst : 0)
+    : (bill.calculatedGlobalGst !== undefined
       ? bill.calculatedGlobalGst
       : settings.tax_enabled || settings.per_product_tax
         ? totalGlobalGst
-        : 0;
+        : 0);
 
-  const itemGst =
-    bill.calculatedItemGst !== undefined
+  const itemGst = isSavedBill
+    ? (bill.calculatedItemGst !== undefined && bill.calculatedItemGst !== null
+      ? Number(bill.calculatedItemGst)
+      : 0)
+    : (bill.calculatedItemGst !== undefined
       ? bill.calculatedItemGst
       : settings.tax_enabled || settings.per_product_tax
         ? totalItemGst
-        : 0;
+        : 0);
 
-  const gstToShow = globalGst + itemGst;
-  const serviceCharge =
-    bill.calculatedServiceCharge !== undefined &&
-    bill.calculatedServiceCharge > 0
+  const gstToShow = isSavedBill
+    ? (storedGst !== null ? storedGst : globalGst + itemGst)
+    : (globalGst + itemGst);
+
+  const storedServiceCharge = bill.serviceCharge !== undefined && bill.serviceCharge !== null ? Number(bill.serviceCharge) : null;
+  const serviceCharge = isSavedBill
+    ? (storedServiceCharge !== null ? storedServiceCharge : 0)
+    : (bill.calculatedServiceCharge !== undefined && bill.calculatedServiceCharge > 0
       ? bill.calculatedServiceCharge
-      : bill.serviceCharge || 0;
+      : (storedServiceCharge !== null ? storedServiceCharge : 0));
 
-  const serviceGst =
-    bill.calculatedServiceGst !== undefined && bill.calculatedServiceGst > 0
+  const storedServiceGst = bill.serviceGst !== undefined && bill.serviceGst !== null ? Number(bill.serviceGst) : null;
+  const serviceGst = isSavedBill
+    ? (storedServiceGst !== null ? storedServiceGst : 0)
+    : (bill.calculatedServiceGst !== undefined && bill.calculatedServiceGst > 0
       ? bill.calculatedServiceGst
       : settings.service_gst_enabled && serviceCharge > 0
         ? (serviceCharge * settings.service_gst_rate) / 100
-        : 0;
+        : 0);
 
-  const deliveryCharge =
-    bill.calculatedDeliveryCharge !== undefined &&
-    bill.calculatedDeliveryCharge > 0
+  const storedDeliveryCharge = bill.deliveryCharges !== undefined && bill.deliveryCharges !== null
+    ? Number(bill.deliveryCharges)
+    : bill.deliveryCharge !== undefined && bill.deliveryCharge !== null
+      ? Number(bill.deliveryCharge)
+      : null;
+  const deliveryCharge = isSavedBill
+    ? (storedDeliveryCharge !== null ? storedDeliveryCharge : 0)
+    : (bill.calculatedDeliveryCharge !== undefined && bill.calculatedDeliveryCharge > 0
       ? bill.calculatedDeliveryCharge
-      : bill.deliveryCharge || bill.deliveryCharges || 0;
+      : (storedDeliveryCharge !== null ? storedDeliveryCharge : 0));
 
-  const deliveryGst =
-    bill.calculatedDeliveryGst !== undefined && bill.calculatedDeliveryGst > 0
+  const storedDeliveryGst = bill.deliveryGst !== undefined && bill.deliveryGst !== null ? Number(bill.deliveryGst) : null;
+  const deliveryGst = isSavedBill
+    ? (storedDeliveryGst !== null ? storedDeliveryGst : 0)
+    : (bill.calculatedDeliveryGst !== undefined && bill.calculatedDeliveryGst > 0
       ? bill.calculatedDeliveryGst
       : settings.delivery_gst_enabled && deliveryCharge > 0
         ? (deliveryCharge * settings.delivery_gst_rate) / 100
-        : 0;
+        : 0);
 
-  const packagingCharge =
-    bill.calculatedPackagingCharge !== undefined &&
-    bill.calculatedPackagingCharge > 0
+  const storedPackagingCharge = bill.packagingCharges !== undefined && bill.packagingCharges !== null
+    ? Number(bill.packagingCharges)
+    : bill.packagingCharge !== undefined && bill.packagingCharge !== null
+      ? Number(bill.packagingCharge)
+      : null;
+  const packagingCharge = isSavedBill
+    ? (storedPackagingCharge !== null ? storedPackagingCharge : 0)
+    : (bill.calculatedPackagingCharge !== undefined && bill.calculatedPackagingCharge > 0
       ? bill.calculatedPackagingCharge
-      : bill.packagingCharge || bill.packagingCharges || 0;
+      : (storedPackagingCharge !== null ? storedPackagingCharge : 0));
 
-  const packagingGst =
-    bill.calculatedPackagingGst !== undefined && bill.calculatedPackagingGst > 0
+  const storedPackagingGst = bill.packagingGst !== undefined && bill.packagingGst !== null ? Number(bill.packagingGst) : null;
+  const packagingGst = isSavedBill
+    ? (storedPackagingGst !== null ? storedPackagingGst : 0)
+    : (bill.calculatedPackagingGst !== undefined && bill.calculatedPackagingGst > 0
       ? bill.calculatedPackagingGst
       : settings.packaging_gst_enabled && packagingCharge > 0
         ? (packagingCharge * settings.packaging_gst_rate) / 100
-        : 0;
+        : 0);
 
   const calculatedTotal =
     taxableAfterDiscount +
@@ -191,35 +265,41 @@ const BillCard = ({
     packagingCharge +
     packagingGst;
 
-  // We should prioritize bill.total ONLY if it already includes the calculated components and has a stored discount.
-  // Otherwise use the calculated total (for dynamic discount handling).
-  const hasStoredDiscount =
-    bill.calculatedDiscount > 0 ||
-    bill.discountAmount > 0 ||
-    bill.discount_amount > 0 ||
-    bill.discount > 0;
-  const displayTotal = hasStoredDiscount
-    ? bill.total || calculatedTotal
-    : calculatedTotal;
+  const storedTotal = bill.total || bill.grandTotal;
+  const displayTotal = isSavedBill
+    ? (storedTotal !== undefined && storedTotal !== null ? Number(storedTotal) : calculatedTotal)
+    : (storedDiscountAmount !== null && storedDiscountAmount > 0
+      ? (storedTotal || calculatedTotal)
+      : calculatedTotal);
 
-  // Only update bill.total if it is missing or different from displayTotal
   bill.total = displayTotal;
 
-  const avgGstPercent =
-    bill.calculatedGstRate !== undefined
+  const avgGstPercent = isSavedBill
+    ? (bill.calculatedGstRate !== undefined
+      ? bill.calculatedGstRate
+      : bill.gstRate !== undefined
+        ? bill.gstRate
+        : (bill.items && bill.items[0] && (bill.items[0].gstRate || bill.items[0].gst) ? (bill.items[0].gstRate || bill.items[0].gst) : 0))
+    : (bill.calculatedGstRate !== undefined
       ? bill.calculatedGstRate
       : settings.tax_enabled && !settings.per_product_tax
         ? settings.tax_rate
-        : 0;
-  const servGstPercent =
-    bill.calculatedServiceGstRate || settings.service_gst_rate || 0;
-  const delGstPercent =
-    bill.calculatedDeliveryGstRate || settings.delivery_gst_rate || 0;
-  const pkgGstPercent =
-    bill.calculatedPackagingGstRate || settings.packaging_gst_rate || 0;
+        : 0);
+
+  const servGstPercent = isSavedBill
+    ? (bill.serviceGstRate ?? 0)
+    : (bill.calculatedServiceGstRate || settings.service_gst_rate || 0);
+
+  const delGstPercent = isSavedBill
+    ? (bill.deliveryGstRate ?? 0)
+    : (bill.calculatedDeliveryGstRate || settings.delivery_gst_rate || 0);
+
+  const pkgGstPercent = isSavedBill
+    ? (bill.packagingGstRate ?? 0)
+    : (bill.calculatedPackagingGstRate || settings.packaging_gst_rate || 0);
 
   const avgItemGstPercent =
-    (bill.items || []).find((it) => Number(it.gst || 0) > 0)?.gst || 0;
+    (bill.items || []).find((it) => Number(it.gst || it.gstRate || it.gst_rate || 0) > 0)?.gstRate || 0;
 
   // Format time
   const billTime = formatTime(bill.createdAt);
@@ -313,7 +393,7 @@ const BillCard = ({
                     ₹
                     {Number(
                       (item.qty || item.quantity || 1) *
-                        (item.rate || item.price || 0),
+                      (item.rate || item.price || 0),
                     )
                       .toFixed(2)
                       .replace(/\.00$/, "")}
@@ -334,7 +414,7 @@ const BillCard = ({
               </Text>
             </View>
 
-            {settings.discount_enabled && (
+            {((isSavedBill && discountAmount > 0) || (!isSavedBill && settings.discount_enabled)) && (
               <View style={styles.printRow}>
                 <Text style={styles.printLabel}>Disc ({discPercent}%):</Text>
                 <Text style={styles.printValue}>
@@ -464,6 +544,13 @@ const DetailedBillListView = ({
   const { getToken } = useAuth();
   const { user } = useUser();
   const [expandedRow, setExpandedRow] = useState(null);
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    type: "success",
+    onConfirm: null,
+  });
   const [taxSettings, setTaxSettings] = useState({
     tax_enabled: false,
     tax_rate: 0.0,
@@ -536,7 +623,7 @@ const DetailedBillListView = ({
           packaging_gst_enabled: sMap["packaging_gst_enabled"] === "true",
           packaging_gst_rate: parseFloat(sMap["packaging_gst_rate"] || "0"),
         });
-      } catch (e) {}
+      } catch (e) { }
     };
     loadSettings();
     return () => {
@@ -603,55 +690,75 @@ const DetailedBillListView = ({
     setExpandedRow(expandedRow === id ? null : id);
   };
 
-  const handleDeleteBill = async (bill) => {
+  const handleDeleteBill = (bill) => {
     if (!bill) return;
 
-    Alert.alert("Delete Bill", "Are you sure you want to delete this bill?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const authToken = await getToken();
-            const staffToken = await AsyncStorage.getItem("staff_token");
-            const finalToken = authToken || staffToken;
+    setAlertConfig({
+      visible: true,
+      title: "Delete Bill",
+      message: "Are you sure you want to delete this bill?",
+      type: "confirm",
+      onConfirm: async () => {
+        try {
+          const authToken = await getToken();
+          const staffToken = await AsyncStorage.getItem("staff_token");
+          const finalToken = authToken || staffToken;
 
-            if (!finalToken) {
-              Alert.alert("Error", "Authentication required.");
-              return;
-            }
-
-            const bId = await StaffPermissionEngine.getActiveBusinessId(
-              user?.id,
-            );
-            const billId = bill._id || bill.id;
-
-            const url = bId
-              ? `https://billing.kravy.in/api/bill-manager/${billId}?businessId=${bId}`
-              : `https://billing.kravy.in/api/bill-manager/${billId}`;
-
-            const res = await fetch(url, {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${finalToken}`,
-                "Content-Type": "application/json",
-              },
+          if (!finalToken) {
+            setAlertConfig({
+              visible: true,
+              title: "Error",
+              message: "Authentication required.",
+              type: "error",
             });
-
-            if (res.ok) {
-              Alert.alert("Success", "Bill deleted successfully.");
-              if (onRefresh) onRefresh();
-            } else {
-              Alert.alert("Error", "Failed to delete bill.");
-            }
-          } catch (e) {
-            console.error("Delete error:", e);
-            Alert.alert("Error", "Something went wrong.");
+            return;
           }
-        },
+
+          const bId = await StaffPermissionEngine.getActiveBusinessId(
+            user?.id,
+          );
+          const billId = bill._id || bill.id;
+
+          const url = bId
+            ? `https://billing.kravy.in/api/bill-manager/${billId}?businessId=${bId}`
+            : `https://billing.kravy.in/api/bill-manager/${billId}`;
+
+          const res = await fetch(url, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${finalToken}`,
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (res.ok) {
+            setAlertConfig({
+              visible: true,
+              title: "Success",
+              message: "Bill deleted successfully.",
+              type: "success",
+            });
+            DeviceEventEmitter.emit("REFRESH_DASHBOARD");
+            if (onRefresh) onRefresh();
+          } else {
+            setAlertConfig({
+              visible: true,
+              title: "Error",
+              message: "Failed to delete bill.",
+              type: "error",
+            });
+          }
+        } catch (e) {
+          console.error("Delete error:", e);
+          setAlertConfig({
+            visible: true,
+            title: "Error",
+            message: "Something went wrong.",
+            type: "error",
+          });
+        }
       },
-    ]);
+    });
   };
 
   return (
@@ -720,6 +827,73 @@ const DetailedBillListView = ({
           </View>
         )}
       />
+
+      {/* Premium Alert/Confirmation Modal */}
+      <Modal visible={alertConfig.visible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconCircle}>
+              <Ionicons
+                name={
+                  alertConfig.type === "success"
+                    ? "checkmark-circle"
+                    : alertConfig.type === "error"
+                      ? "alert-circle"
+                      : "trash-outline"
+                }
+                size={rf(48)}
+                color={
+                  alertConfig.type === "success"
+                    ? COLORS.success
+                    : alertConfig.type === "error"
+                      ? COLORS.danger
+                      : "#F59E0B"
+                }
+              />
+            </View>
+            <Text style={styles.modalTitle}>{alertConfig.title}</Text>
+            <Text style={styles.modalMessage}>{alertConfig.message}</Text>
+
+            <View style={styles.modalButtonContainer}>
+              {alertConfig.type === "confirm" ? (
+                <>
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.modalCancelBtn]}
+                    onPress={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+                  >
+                    <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.modalConfirmBtn]}
+                    onPress={() => {
+                      setAlertConfig(prev => ({ ...prev, visible: false }));
+                      if (alertConfig.onConfirm) alertConfig.onConfirm();
+                    }}
+                  >
+                    <Text style={styles.modalConfirmBtnText}>Delete</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.modalBtn,
+                    styles.modalOkBtn,
+                    {
+                      backgroundColor:
+                        alertConfig.type === "success"
+                          ? COLORS.success
+                          : COLORS.danger,
+                    },
+                  ]}
+                  onPress={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+                >
+                  <Text style={styles.modalOkBtnText}>OK</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -985,6 +1159,99 @@ const styles = StyleSheet.create({
   emptyText: {
     color: COLORS.textDim,
     fontSize: rf(16),
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(18, 18, 20, 0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    backgroundColor: "#1C1C1E",
+    width: s(310),
+    borderRadius: s(24),
+    padding: s(24),
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2C2C2E",
+    elevation: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+  },
+  modalIconCircle: {
+    width: s(72),
+    height: s(72),
+    borderRadius: s(36),
+    backgroundColor: "rgba(255,255,255,0.03)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: vs(16),
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  modalTitle: {
+    fontSize: rf(20),
+    fontWeight: "800",
+    color: "#FFFFFF",
+    textAlign: "center",
+  },
+  modalMessage: {
+    fontSize: rf(14),
+    color: "#A1A1AA",
+    textAlign: "center",
+    marginTop: vs(8),
+    lineHeight: vs(20),
+    paddingHorizontal: s(10),
+  },
+  modalButtonContainer: {
+    flexDirection: "row",
+    gap: s(12),
+    marginTop: vs(24),
+    width: "100%",
+  },
+  modalBtn: {
+    flex: 1,
+    height: vs(48),
+    borderRadius: s(14),
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCancelBtn: {
+    backgroundColor: "#2C2C2E",
+    borderWidth: 1,
+    borderColor: "#3A3A3C",
+  },
+  modalCancelBtnText: {
+    color: "#E5E5EA",
+    fontWeight: "700",
+    fontSize: rf(14),
+  },
+  modalConfirmBtn: {
+    backgroundColor: "#FF453A",
+    shadowColor: "#FF453A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  modalConfirmBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: rf(14),
+  },
+  modalOkBtn: {
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  modalOkBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: rf(14),
+    letterSpacing: 0.5,
   },
 });
 
