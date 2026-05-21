@@ -130,7 +130,7 @@ const NewOrderNotifier = () => {
           }),
         ]),
       ).start();
-    } catch (error) {}
+    } catch (error) { }
   };
 
   const stopRingtone = async () => {
@@ -142,7 +142,7 @@ const NewOrderNotifier = () => {
         await soundRef.current.stopAsync();
         await soundRef.current.unloadAsync();
         soundRef.current = null;
-      } catch (e) {}
+      } catch (e) { }
     }
   };
 
@@ -242,24 +242,24 @@ const NewOrderNotifier = () => {
           (it: any) => ({
             name: String(
               it.name ||
-                it.itemName ||
-                it.item_name ||
-                it.productName ||
-                it.product_name ||
-                it.title ||
-                it.label ||
-                it.item ||
-                "Item",
+              it.itemName ||
+              it.item_name ||
+              it.productName ||
+              it.product_name ||
+              it.title ||
+              it.label ||
+              it.item ||
+              "Item",
             ),
             quantity: Number(
               it.quantity ||
-                it.qty ||
-                it.qnt ||
-                it.count ||
-                it.amount ||
-                it.unit ||
-                it.Quantity ||
-                1,
+              it.qty ||
+              it.qnt ||
+              it.count ||
+              it.amount ||
+              it.unit ||
+              it.Quantity ||
+              1,
             ),
           }),
         );
@@ -275,7 +275,15 @@ const NewOrderNotifier = () => {
             currentOrder.table_name ||
             "Online Order";
           const tokenNo = await getNextTokenNumber();
-          await SimpleKOT(items, token, userId, tableName, tokenNo);
+          await SimpleKOT(
+            items,
+            token,
+            userId,
+            tableName,
+            tokenNo,
+            undefined,
+            currentOrder.customerName || currentOrder.customer?.name,
+          );
         }
       }
     } catch (e) {

@@ -1012,6 +1012,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   }, [menus]);
 
   const filteredMenus = useMemo(() => {
+    if (isLockedUser) return [];
     if (!searchQuery) return menus;
     const query = searchQuery.toLowerCase();
     return menus
@@ -1028,7 +1029,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         return null;
       })
       .filter((cat) => cat !== null) as MenuCategory[];
-  }, [searchQuery, menus]);
+  }, [searchQuery, menus, isLockedUser]);
+
 
   const addToCart = useCallback(async (item: MenuItem) => {
     setCart((prev) => ({
@@ -1087,6 +1089,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   };
 
   const { totalItems, totalAmount } = useMemo(() => {
+    if (isLockedUser) return { totalItems: 0, totalAmount: 0 };
     const cartValues = Object.values(cart);
     return {
       totalItems: cartValues.reduce((sum, i) => sum + i.quantity, 0),
@@ -1095,7 +1098,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         0,
       ),
     };
-  }, [cart]);
+  }, [cart, isLockedUser]);
+
 
   const confirmPauseOrder = async (
     itemsToHold?: any[],
@@ -1352,6 +1356,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             tableToPrint,
             tokenNo,
             roomToPrint,
+            activeCustomer?.name,
           );
 
           // 2. Save KOT Page Locally
@@ -1596,9 +1601,10 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setIsVoiceModalVisible(true);
           }
         }}
-        heldCount={heldCount}
+        heldCount={isLockedUser ? 0 : heldCount}
         isVoiceLocked={!canAccessSync("AI Intelligence Tools")}
       />
+
 
       <LoginRequiredModal
         visible={isLoginModalVisible}

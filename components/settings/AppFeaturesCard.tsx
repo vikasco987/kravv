@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
-import { rf, s, vs } from "../../utils/responsive";
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLanguage } from "../../context/LanguageContext";
+import { rf, s, vs } from "../../utils/responsive";
 
 const COLORS = {
     secondary: '#10B981',
@@ -17,6 +17,7 @@ interface AppFeaturesCardProps {
     onPress: () => void;
     onOrderAcceptPress: () => void;
     onLoginRequired: () => void;
+    onPrintingSetupPress?: () => void;
 }
 
 export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
@@ -24,6 +25,7 @@ export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
     onPress,
     onOrderAcceptPress,
     onLoginRequired,
+    onPrintingSetupPress,
 }) => {
     const { t } = useLanguage();
 
@@ -69,6 +71,24 @@ export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
                         <View style={{ flex: 1 }}>
                             <Text style={[styles.infoTitle, { marginBottom: 0 }]}>Order Accept</Text>
                             <Text style={styles.infoText} numberOfLines={1}>Manage incoming order settings</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={rf(18)} color={COLORS.textLight} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Printing Setup Button */}
+                <View style={styles.card}>
+                    <TouchableOpacity
+                        style={styles.sectionHeader}
+                        onPress={() => handlePress(() => onPrintingSetupPress && onPrintingSetupPress())}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.buttonIconBackground, { backgroundColor: "#0EA5E9" + "15" }]}>
+                            <Ionicons name={"print-outline" as any} size={rf(20)} color={"#0EA5E9"} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.infoTitle, { marginBottom: 0 }]}>Printing Setup</Text>
+                            <Text style={styles.infoText} numberOfLines={1}>Customize receipt & KOT prints</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={rf(18)} color={COLORS.textLight} />
                     </TouchableOpacity>

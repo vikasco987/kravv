@@ -3,16 +3,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { ArrowLeft } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
 import { menuService } from "../../services/menuService";

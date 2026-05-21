@@ -46,6 +46,65 @@ const line = (char = "-") => char.repeat(32);
 // Global Cache for Rasterized Logos
 const logoCache = new Map<string, Uint8Array>();
 
+const DEFAULT_PRINT_SETTINGS = {
+  // Bill Settings
+  showLogo: true,
+  showTagline: true,
+  showContact: true,
+  showAddress: true,
+  showGST: true,
+  showFSSAI: true,
+  showToken: true,
+  showCustomerDetails: true,
+  showTaxBreakup: true,
+  showGreetings: true,
+  showAmountInWords: true,
+  showPaymentStatus: true,
+  showFoodTypeSuffix: true,
+  // Financial Summary
+  showSubtotal: true,
+  showDiscount: true,
+  showTaxableAmt: true,
+  showTotalTax: true,
+  showDeliveryCharges: true,
+  showPackagingCharges: true,
+  showServiceCharge: true,
+  // Footer & Branding
+  showVisitAgain: true,
+  showPoweredBy: true,
+  // Layout Separators
+  sepTop: true,
+  sepCustomer: true,
+  sepItemsHeader: true,
+  sepTotalTop: true,
+  sepTotalBottom: true,
+  sepPayment: true,
+  sepFooter: true,
+  sepKOTInstructions: true,
+  // KOT Settings
+  showKOTToken: true,
+  showKOTCustomer: true,
+  showKOTBillNo: true,
+  showKOTTime: true,
+  showKOTInstructions: true,
+  // QR
+  showReviewQR: false,
+};
+
+function numberToWords(n: number): string {
+  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+    "Seventeen", "Eighteen", "Nineteen"];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+  if (n === 0) return "Zero";
+  if (n < 20) return ones[n];
+  if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
+  if (n < 1000) return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 ? " " + numberToWords(n % 100) : "");
+  if (n < 100000) return numberToWords(Math.floor(n / 1000)) + " Thousand" + (n % 1000 ? " " + numberToWords(n % 1000) : "");
+  return numberToWords(Math.floor(n / 100000)) + " Lakh" + (n % 100000 ? " " + numberToWords(n % 100000) : "");
+}
+
 // Printer Constants
 const ALIGN_CENTER = new Uint8Array([0x1b, 0x61, 0x01]);
 const ALIGN_LEFT = new Uint8Array([0x1b, 0x61, 0x00]);
@@ -223,8 +282,8 @@ async function fetchAndRasterizeLogo(url: string): Promise<Uint8Array | null> {
     logoCache.set(url, command);
 
     return command;
-  } catch (err) {
-    console.error("Logo Rasterization Error:", err);
+  } catch (err: any) {
+    console.log("Logo Rasterization Error:", err.message || err);
     return null;
   }
 }
@@ -257,6 +316,19 @@ export async function SimpleBill(
 
     if (!finalBusinessId && companyInfo?.businessId) {
       finalBusinessId = companyInfo.businessId;
+    }
+
+    // Load print settings from AsyncStorage or fallback
+    let printSettings: any = { ...DEFAULT_PRINT_SETTINGS };
+    try {
+      const cachedSettings = await AsyncStorage.getItem("print_settings");
+      if (cachedSettings) {
+        printSettings = { ...printSettings, ...JSON.parse(cachedSettings) };
+      } else if (companyInfo?.printSettings) {
+        printSettings = { ...printSettings, ...companyInfo.printSettings };
+      }
+    } catch (e) {
+      console.log("Failed to load print settings in SimpleBill:", e);
     }
 
     const date = new Date();
@@ -584,12 +656,20 @@ export async function SimpleBill(
           const businessTagLine =
             companyInfo?.businessTagline || companyInfo?.businessTagLine || "";
           const gstNumber = companyInfo?.gstNumber || "";
+          const bizPhone = companyInfo?.companyPhone || companyInfo?.businessPhone || companyInfo?.phone || "";
+          const bizFSSAI = companyInfo?.fssaiNumber || companyInfo?.businessFSSAI || "";
+          const reviewLink = companyInfo?.googleReviewLink || "";
 
           await printer.write(ALIGN_CENTER);
 
+          // Top Separator
+          if (printSettings.sepTop) {
+            await printer.write(utf8Encode(line("-") + "\n"));
+          }
+
           // Print Logo
           const logoUrl = companyInfo?.logoUrl || companyInfo?.logo;
-          if (logoUrl) {
+          if (printSettings.showLogo && logoUrl) {
             const logoBytes = await fetchAndRasterizeLogo(logoUrl);
             if (logoBytes) {
               await printer.write(logoBytes);
@@ -604,68 +684,145 @@ export async function SimpleBill(
           await printer.write(BOLD_OFF);
           await printer.write(SIZE_NORMAL);
 
-          if (businessTagLine)
+          if (printSettings.showTagline && businessTagLine)
             await printer.write(utf8Encode(businessTagLine + "\n"));
-          await printer.write(utf8Encode(line("=") + "\n"));
-          if (businessAddress)
+          if (printSettings.showAddress && businessAddress)
             await printer.write(utf8Encode(businessAddress + "\n"));
-          if (gstNumber)
+          if (printSettings.showContact && bizPhone)
+            await printer.write(utf8Encode(`Mob: ${bizPhone}\n`));
+          if (printSettings.showGST && gstNumber)
             await printer.write(utf8Encode(`GSTIN: ${gstNumber}\n`));
+          if (printSettings.showFSSAI && bizFSSAI)
+            await printer.write(utf8Encode(`FSSAI: ${bizFSSAI}\n`));
+
           await printer.write(utf8Encode(line("-") + "\n"));
           await printer.write(ALIGN_LEFT);
 
           let printBody = `Bill No: ${finalBillNoToPrint}\nDate: ${date.toLocaleString()}\n`;
-          if (finalTokenNo) printBody += `Token No: #${finalTokenNo}\n`;
+          if (printSettings.showToken && finalTokenNo) printBody += `Token No: #${finalTokenNo}\n`;
           if (options?.tableName) printBody += `Table: ${options.tableName}\n`;
-          if (options?.customerName)
-            printBody += `Cust: ${options.customerName}\n`;
-          if (options?.phone) printBody += `Phone: ${options.phone}\n`;
-          if (options?.customerAddress)
-            printBody += `Addr: ${options.customerAddress}\n`;
           await printer.write(utf8Encode(printBody));
 
-          printBody = `${line("-")}\nItem         Qty  Price   Total\n${line("-")}\n`;
+          if (printSettings.showCustomerDetails) {
+            if (printSettings.sepCustomer) {
+              await printer.write(utf8Encode(line("-") + "\n"));
+            }
+            let custBody = "";
+            if (options?.customerName) custBody += `Cust: ${options.customerName}\n`;
+            if (options?.phone) custBody += `Phone: ${options.phone}\n`;
+            if (options?.customerAddress) custBody += `Addr: ${options.customerAddress}\n`;
+            if (custBody) {
+              await printer.write(utf8Encode(custBody));
+            }
+          }
+
+          let itemsHeader = "";
+          if (printSettings.sepItemsHeader) {
+            itemsHeader += line("-") + "\n";
+          }
+          itemsHeader += "Item         Qty  Price   Total\n";
+          itemsHeader += line("-") + "\n";
+          await printer.write(utf8Encode(itemsHeader));
+
+          printBody = "";
           productsForBackend.forEach((i) => {
+            let suffix = "";
+            if (printSettings.showFoodTypeSuffix) {
+              const isVeg = (i as any).isVeg ?? (i as any).veg ?? !/\b(nv|egg|chicken|mutton|fish|meat|pork|beef|non-veg|nonveg)\b/i.test(i.name);
+              suffix = isVeg ? "(V)" : "(NV)";
+            }
             const displayName =
               i.gstRate > 0
-                ? `${i.name.slice(0, 7)}(${i.gstRate}%)`
-                : i.name.slice(0, 12);
+                ? `${i.name.slice(0, 7)}${suffix}(${i.gstRate}%)`
+                : `${i.name.slice(0, 12)}${suffix}`;
             printBody += `${displayName.padEnd(12)} ${String(i.qty).padStart(3)} ${i.rate.toFixed(2).padStart(6)} ${i.total.toFixed(2).padStart(8)}\n`;
           });
-          printBody += `${line("-")}\n`;
-          printBody += `${"subtotal:".padEnd(20)}${subtotal.toFixed(2).padStart(12)}\n`;
-          if (isDiscountEnabled)
+
+          if (printSettings.sepTotalTop) {
+            printBody += `${line("-")}\n`;
+          }
+          if (printSettings.showSubtotal)
+            printBody += `${"Subtotal:".padEnd(20)}${subtotal.toFixed(2).padStart(12)}\n`;
+          if (printSettings.showDiscount && isDiscountEnabled)
             printBody += `${`Disc (${discountRatePercent}%):`.padEnd(20)}${`-${totalDiscount.toFixed(2)}`.padStart(12)}\n`;
-          printBody += `${"Taxable:".padEnd(20)}${taxableAfterDiscount.toFixed(2).padStart(12)}\n`;
-          if (globalGstTotal > 0)
+          if (printSettings.showTaxableAmt)
+            printBody += `${"Taxable:".padEnd(20)}${taxableAfterDiscount.toFixed(2).padStart(12)}\n`;
+          if (printSettings.showTotalTax && globalGstTotal > 0)
             printBody += `${`Global GST(${globalTaxRate}%):`.padEnd(20)}${globalGstTotal.toFixed(2).padStart(12)}\n`;
 
-          Object.entries(perProductGstTotals).forEach(([rate, amount]) => {
-            if (amount > 0)
-              printBody += `${`Item GST(${rate}%):`.padEnd(20)}${amount.toFixed(2).padStart(12)}\n`;
-          });
-          if (serviceCharge > 0) {
+          // Tax Breakup
+          if (printSettings.showTaxBreakup) {
+            if (globalGstTotal > 0) {
+              const halfTax = globalGstTotal / 2;
+              const halfRate = globalTaxRate / 2;
+              printBody += `${`CGST (${halfRate}%):`.padEnd(20)}${halfTax.toFixed(2).padStart(12)}\n`;
+              printBody += `${`SGST (${halfRate}%):`.padEnd(20)}${halfTax.toFixed(2).padStart(12)}\n`;
+            }
+            Object.entries(perProductGstTotals).forEach(([rate, amount]) => {
+              if (amount > 0) {
+                const r = parseFloat(rate);
+                const halfTax = amount / 2;
+                const halfRate = r / 2;
+                printBody += `${`CGST (${halfRate}%):`.padEnd(20)}${halfTax.toFixed(2).padStart(12)}\n`;
+                printBody += `${`SGST (${halfRate}%):`.padEnd(20)}${halfTax.toFixed(2).padStart(12)}\n`;
+              }
+            });
+          }
+
+          if (printSettings.showServiceCharge && serviceCharge > 0) {
             printBody += `${"Service:".padEnd(20)}${serviceCharge.toFixed(2).padStart(12)}\n`;
             if (serviceGst > 0)
               printBody += `${`Serv GST(${serviceGstRate}%):`.padEnd(20)}${serviceGst.toFixed(2).padStart(12)}\n`;
           }
-          if (deliveryCharge > 0) {
+          if (printSettings.showDeliveryCharges && deliveryCharge > 0) {
             printBody += `${"Delivery:".padEnd(20)}${deliveryCharge.toFixed(2).padStart(12)}\n`;
             if (deliveryGst > 0)
               printBody += `${`Del GST(${deliveryGstRate}%):`.padEnd(20)}${deliveryGst.toFixed(2).padStart(12)}\n`;
           }
-          if (packagingCharge > 0) {
+          if (printSettings.showPackagingCharges && packagingCharge > 0) {
             printBody += `${"Packaging:".padEnd(20)}${packagingCharge.toFixed(2).padStart(12)}\n`;
             if (packagingGst > 0)
               printBody += `${`Pkg GST(${packagingGstRate}%):`.padEnd(20)}${packagingGst.toFixed(2).padStart(12)}\n`;
           }
-          printBody += `${line("-")}\n`;
+
+          if (printSettings.sepTotalBottom) {
+            printBody += `${line("-")}\n`;
+          }
           printBody += `${"TOTAL:".padEnd(20)}${finalGrandTotal.toFixed(2).padStart(12)}\n`;
-          printBody += `${line("-")}\n`;
+          if (printSettings.sepTotalBottom) {
+            printBody += `${line("-")}\n`;
+          }
+
+          // Amount in Words
+          if (printSettings.showAmountInWords) {
+            const amtWords = numberToWords(Math.round(finalGrandTotal));
+            printBody += `${amtWords} Rupees Only\n`;
+          }
+
+          // Payment Status
+          if (printSettings.showPaymentStatus) {
+            if (printSettings.sepPayment) {
+              printBody += `${line("-")}\n`;
+            }
+            printBody += `[ PAID - ${options?.paymentMode || "CASH"} ]\n`;
+          }
+
           await printer.write(utf8Encode(printBody));
 
           await printer.write(ALIGN_CENTER);
-          await printer.write(utf8Encode("Thank You! Visit Again\n"));
+
+          // Greetings / Footer
+          if (printSettings.showGreetings || printSettings.showVisitAgain) {
+            if (printSettings.sepFooter) {
+              await printer.write(utf8Encode(line("-") + "\n"));
+            }
+            if (printSettings.showGreetings) {
+              await printer.write(utf8Encode("Thank You! Visit Again\n"));
+            }
+            if (printSettings.showVisitAgain) {
+              await printer.write(utf8Encode("Please visit again soon\n"));
+            }
+          }
 
           const upiId = companyInfo?.upi || companyInfo?.upiId;
           if (upiId) {
@@ -678,6 +835,23 @@ export async function SimpleBill(
             await printQRCode(printer, upiUri);
             await printer.write(utf8Encode("\n"));
           }
+
+          // Google Review QR
+          if (printSettings.showReviewQR && reviewLink) {
+            await printer.write(utf8Encode(line("-") + "\n"));
+            await printer.write(BOLD_ON);
+            await printer.write(utf8Encode("Rate Us on Google\n"));
+            await printer.write(BOLD_OFF);
+            await printQRCode(printer, reviewLink);
+            await printer.write(utf8Encode("\n"));
+          }
+
+          // Powered By
+          if (printSettings.showPoweredBy) {
+            await printer.write(utf8Encode(line("-") + "\n"));
+            await printer.write(utf8Encode("Powered by Kravy Billing\n"));
+          }
+
           await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
           await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
         }

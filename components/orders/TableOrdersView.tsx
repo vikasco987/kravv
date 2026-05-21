@@ -99,11 +99,11 @@ export default function TableOrdersView({
         const filteredOrders = ordersArray.filter((o: any) => {
           const oTableId = String(
             o.tableId ||
-              (o.table &&
-                (typeof o.table === "string"
-                  ? o.table
-                  : o.table.id || o.table._id)) ||
-              "",
+            (o.table &&
+              (typeof o.table === "string"
+                ? o.table
+                : o.table.id || o.table._id)) ||
+            "",
           );
           return oTableId === String(tableId);
         });
@@ -294,6 +294,9 @@ export default function TableOrdersView({
           token!,
           user?.id!,
           (tableName as string) || "Table",
+          item.tokenNumber ? String(item.tokenNumber) : undefined,
+          undefined,
+          item.customerName,
         );
       } catch (error) {
         ToastAndroid.show("Print Error", ToastAndroid.SHORT);

@@ -8,9 +8,11 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
 
 // Modular Sidebar Components (Now in same folder)
+import { setLoggingOutFlag } from "../staff creat/useStaffPermissions";
 import SidebarHeader from "./SidebarHeader";
 import SidebarItems from "./SidebarItems";
 import SidebarModals from "./SidebarModals";
+
 
 export default function CustomDrawerContent(props: any) {
   const { user, isSignedIn } = useUser();
@@ -163,6 +165,9 @@ export default function CustomDrawerContent(props: any) {
   };
 
   const handleLogout = async () => {
+    // Set logging out flag immediately to prevent flashing!
+    setLoggingOutFlag(true);
+
     // 1. Preserve critical non-sensitive preferences
     const currentLang = await AsyncStorage.getItem("app_language");
     const savedPrinter = await AsyncStorage.getItem("saved_printer");

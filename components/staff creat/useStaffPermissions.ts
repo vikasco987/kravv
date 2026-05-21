@@ -36,6 +36,17 @@ import { useEffect, useState } from "react";
 import { DeviceEventEmitter } from "react-native";
 import { StaffPermissionEngine, StaffSession } from "./StaffPermissionEngine";
 
+let isLoggingOut = false;
+
+export const setLoggingOutFlag = (val: boolean) => {
+  isLoggingOut = val;
+  DeviceEventEmitter.emit("PERMISSIONS_UPDATED");
+};
+
+export const getLoggingOutFlag = () => {
+  return isLoggingOut;
+};
+
 export const useStaffPermissions = () => {
   const { isSignedIn, isLoaded, user } = useUser();
   const [session, setSession] = useState<StaffSession | null>(null);
@@ -45,12 +56,18 @@ export const useStaffPermissions = () => {
   const loadSession = async () => {
     console.log("[useStaffPermissions] Loading session...");
     const data = await StaffPermissionEngine.getSession();
+    if (data) {
+      isLoggingOut = false;
+    }
     setSession(data);
     setLoading(false);
   };
 
   useEffect(() => {
     if (isLoaded) {
+      if (isSignedIn) {
+        isLoggingOut = false;
+      }
       loadSession();
     }
 
@@ -69,13 +86,16 @@ export const useStaffPermissions = () => {
   }, [refreshTrigger]);
 
   const isOwner =
-    (isLoaded && !!isSignedIn) ||
-    session?.role === "USER" ||
-    session?.role === "ADMIN" ||
-    session?.role === "SELLER";
+    !isLoggingOut && (
+      (isLoaded && !!isSignedIn) ||
+      session?.role === "USER" ||
+      session?.role === "ADMIN" ||
+      session?.role === "SELLER"
+    );
 
   // ✅ SYNC CHECK (FOR UI)
   const canAccessSync = (category: string): boolean => {
+    if (isLoggingOut) return false;
     if (!isLoaded) return false;
     if (
       isOwner ||
@@ -126,10 +146,11 @@ export const useStaffPermissions = () => {
   return {
     isOwner,
     canAccessCategory: async (cat: string) =>
-      await StaffPermissionEngine.hasPermission(cat, isOwner),
+      isLoggingOut ? false : await StaffPermissionEngine.hasPermission(cat, isOwner),
     canAccessSync,
-    session,
-    loading: !isLoaded || loading,
+    session: isLoggingOut ? null : session,
+    loading: isLoggingOut ? false : (!isLoaded || loading),
     refreshSession: loadSession,
   };
 };
+

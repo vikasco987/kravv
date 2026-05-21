@@ -32,6 +32,15 @@ async function ensurePrinterConnected() {
   }
 }
 
+const DEFAULT_PRINT_SETTINGS = {
+  showKOTToken: true,
+  showKOTCustomer: true,
+  showKOTBillNo: true,
+  showKOTTime: true,
+  showKOTInstructions: true,
+  sepKOTInstructions: true,
+};
+
 /* ---------- MAIN KOT FUNCTION ---------- */
 export async function SimpleKOT(
   cartItems: any[],
@@ -40,12 +49,24 @@ export async function SimpleKOT(
   tableNumber?: string | null,
   tokenNumber?: string,
   roomNumber?: string | null,
+  customerName?: string | null,
 ) {
   try {
     const printer = await ensurePrinterConnected();
     if (!printer) {
       ToastAndroid.show("⚠️ Printer not connected!", ToastAndroid.SHORT);
       return false;
+    }
+
+    // Load KOT print settings from AsyncStorage or fallback
+    let printSettings = { ...DEFAULT_PRINT_SETTINGS };
+    try {
+      const cachedSettings = await AsyncStorage.getItem("print_settings");
+      if (cachedSettings) {
+        printSettings = { ...printSettings, ...JSON.parse(cachedSettings) };
+      }
+    } catch (e) {
+      console.log("Failed to load print settings in SimpleKOT:", e);
     }
 
     const date = new Date();
@@ -65,7 +86,11 @@ export async function SimpleKOT(
         kotHeader1 += line("=") + "\n";
         kotHeader1 += "KITCHEN ORDER TICKET\n";
         kotHeader1 += line("-") + "\n";
-        kotHeader1 += `KOT No: ${kotNo}\n`;
+
+        if (printSettings.showKOTBillNo) {
+          kotHeader1 += `KOT No: ${kotNo}\n`;
+        }
+
         if (tableNumber) {
           const cleanName = tableNumber
             .replace(/^Table\s+/i, "")
@@ -79,10 +104,14 @@ export async function SimpleKOT(
           kotHeader1 += `Room R-${cleanName}\n`;
         }
 
+        if (printSettings.showKOTCustomer && customerName) {
+          kotHeader1 += `Cust: ${customerName}\n`;
+        }
+
         // @ts-ignore
         await printer.write(encoder.encode(kotHeader1));
 
-        if (tokenNumber) {
+        if (printSettings.showKOTToken && tokenNumber) {
           // @ts-ignore
           await printer.write(new Uint8Array([0x1b, 0x45, 0x01])); // BOLD ON
           // @ts-ignore
@@ -92,7 +121,9 @@ export async function SimpleKOT(
         }
 
         let kotHeader2 = "";
-        kotHeader2 += `Date: ${date.toLocaleString()}\n`;
+        if (printSettings.showKOTTime) {
+          kotHeader2 += `Date: ${date.toLocaleString()}\n`;
+        }
         kotHeader2 += line("-") + "\n";
 
         // @ts-ignore
@@ -104,6 +135,20 @@ export async function SimpleKOT(
         for (const item of cartItems) {
           let itemText = `${item.name}\n`;
           itemText += `Qty: ${item.quantity}\n`;
+
+          if (printSettings.showKOTInstructions) {
+            const instruction = item.instruction || item.instructions || item.notes || item.note;
+            if (instruction && instruction.trim().length > 0) {
+              if (printSettings.sepKOTInstructions) {
+                itemText += `*------------------------------*\n`;
+                itemText += `* NOTE: ${instruction.trim()}\n`;
+                itemText += `*------------------------------*\n`;
+              } else {
+                itemText += `  Note: ${instruction.trim()}\n`;
+              }
+            }
+          }
+
           itemText += line("-") + "\n";
           // @ts-ignore
           await printer.write(encoder.encode(itemText));

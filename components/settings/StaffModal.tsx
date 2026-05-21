@@ -239,7 +239,9 @@ export const StaffModal = ({ visible, onClose }: StaffModalProps) => {
   };
 
   const handleDeleteStaff = async (id: string) => {
-    const token = await getToken();
+    const clerkToken = await getToken();
+    const staffToken = await AsyncStorage.getItem("staff_token");
+    const token = clerkToken || staffToken;
     if (!token) return;
 
     try {
@@ -260,7 +262,9 @@ export const StaffModal = ({ visible, onClose }: StaffModalProps) => {
     name: string,
     email: string,
   ) => {
-    const token = await getToken();
+    const clerkToken = await getToken();
+    const staffToken = await AsyncStorage.getItem("staff_token");
+    const token = clerkToken || staffToken;
     if (!token) return;
 
     try {

@@ -80,7 +80,15 @@ export default function KotView() {
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
 
       // 1. Print
-      await SimpleKOT(order.items, token!, bId!, order.tableName?.replace("Table ", ""));
+      await SimpleKOT(
+        order.items,
+        token!,
+        bId!,
+        order.tableName?.replace("Table ", ""),
+        (order as any).tokenNumber ? String((order as any).tokenNumber) : undefined,
+        undefined,
+        (order as any).customerName,
+      );
 
       // 2. Save to MongoDB
       const payload = {
@@ -121,7 +129,7 @@ export default function KotView() {
     <View style={styles.card}>
       <View style={[styles.cardHeader, { backgroundColor: COLORS.PRIMARY }]}>
         <View>
-          <Text style={styles.cardTitle}>{item.tableName} { (item as any).tokenNumber ? `(Token #${(item as any).tokenNumber})` : ''}</Text>
+          <Text style={styles.cardTitle}>{item.tableName} {(item as any).tokenNumber ? `(Token #${(item as any).tokenNumber})` : ''}</Text>
           <Text style={styles.cardSubtitle}>Order #{(item as any).tokenNumber || item.billNumber} • {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
         </View>
         <TouchableOpacity onPress={() => removeLocalOrder(item.id)}>

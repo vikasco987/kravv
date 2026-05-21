@@ -44,6 +44,7 @@ export async function getRecentCompanyProfile(token: string) {
       state: (data.state as string) || "",
       pinCode: (data.pinCode as string) || "",
       googleReviewLink: (data.googleReviewLink as string) || "",
+      fssaiNumber: (data.fssaiNumber as string) || "",
       // Sync tax settings properties
       taxEnabled: data.taxEnabled,
       perProductTaxEnabled: data.perProductTaxEnabled,
@@ -62,6 +63,8 @@ export async function getRecentCompanyProfile(token: string) {
       serviceGstRate: data.serviceGstRate,
       discountEnabled: data.discountEnabled,
       discountRate: data.discountRate,
+      // Print Settings
+      printSettings: data.printSettings || null,
       // SaaS Overrides
       isPremium: data.isPremium,
       showPremiumPopup: data.showPremiumPopup,
@@ -85,7 +88,7 @@ export async function getRecentCompanyProfile(token: string) {
       // Offline but no cache - only then show alert or just return null
       console.log("Offline and no cached profile available");
     } else {
-      console.error("❌ getRecentCompanyProfile Error:", err);
+      console.log("❌ getRecentCompanyProfile Error:", err.message || err);
     }
     return null;
   }
@@ -109,13 +112,13 @@ export async function updateBusinessSettings(token: string, settings: any) {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      console.error("❌ updateBusinessSettings Failed:", res.status, errData);
+      console.log("❌ updateBusinessSettings Failed:", res.status, errData);
       return null;
     }
 
     return await res.json();
-  } catch (err) {
-    console.error("❌ updateBusinessSettings Error:", err);
+  } catch (err: any) {
+    console.log("❌ updateBusinessSettings Error:", err.message || err);
     return null;
   }
 }

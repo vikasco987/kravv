@@ -16,7 +16,7 @@
       }
     },
     "android": {
-      "versionCode": 10,
+      "versionCode": 11,
       "adaptiveIcon": {
         "backgroundColor": "#1e3a8a",
         "foregroundImage": "./assets/images/kravlogo.png",
@@ -75,8 +75,12 @@
         {
           "android": {
             "newArchEnabled": true,
-            "queries": ["android.speech.RecognitionService"],
-            "unstable_interopModules": ["RCTVoice"]
+            "queries": [
+              "android.speech.RecognitionService"
+            ],
+            "unstable_interopModules": [
+              "RCTVoice"
+            ]
           }
         }
       ]

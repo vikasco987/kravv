@@ -1,7 +1,7 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
@@ -29,6 +29,8 @@ import { KOTTablesModal } from "./KOTTablesModal";
 import { LanguageCard } from "./LanguageCard";
 import { LanguageSelectionModal } from "./LanguageSelectionModal";
 import { OrderAcceptModal } from "./OrderAcceptModal";
+import PrintingPreviewScreen from "./PrintingPreviewScreen";
+import PrintingSetupScreen from "./PrintingSetupScreen";
 import SettingsHeader from "./SettingsHeader";
 import { StaffCard } from "./StaffCard";
 import { StaffModal } from "./StaffModal";
@@ -94,11 +96,24 @@ const MainSettingsView = ({
   const [orderAcceptModalVisible, setOrderAcceptModalVisible] =
     React.useState(false);
   const [orderAutoAccept, setOrderAutoAccept] = React.useState(false);
-  const [currentView, setCurrentView] = React.useState<"main" | "profile">(
-    "main",
-  );
+  const [currentView, setCurrentView] = React.useState<
+    "main" | "profile" | "printing" | "printingPreview"
+  >("main");
+  const [printSettingsForPreview, setPrintSettingsForPreview] =
+    React.useState<any>(null);
+  const [businessProfileForPreview, setBusinessProfileForPreview] =
+    React.useState<any>(null);
   const [isStaffSignedIn, setIsStaffSignedIn] = React.useState(false);
   const [hasSettingsAccess, setHasSettingsAccess] = React.useState(true);
+
+  // Automatically reset currentView to "main" when settings screen loses focus (e.g. user signs out or navigates away)
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => {
+        setCurrentView("main");
+      };
+    }, [])
+  );
 
   React.useEffect(() => {
     loadSettings();
@@ -518,10 +533,31 @@ const MainSettingsView = ({
   if (currentView === "profile")
     return <CompanyInfoView onBack={() => setCurrentView("main")} />;
 
+  if (currentView === "printing")
+    return (
+      <PrintingSetupScreen
+        onBack={() => setCurrentView("main")}
+        onPreview={(settings, profile) => {
+          setPrintSettingsForPreview(settings);
+          setBusinessProfileForPreview(profile);
+          setCurrentView("printingPreview");
+        }}
+      />
+    );
+
+  if (currentView === "printingPreview")
+    return (
+      <PrintingPreviewScreen
+        onBack={() => setCurrentView("printing")}
+        printSettings={printSettingsForPreview}
+        businessProfile={businessProfileForPreview}
+      />
+    );
+
   const effectiveUser = isLockedUser
     ? null
     : user ||
-      (isStaffSignedIn ? { id: "staff_user", firstName: "Staff" } : null);
+    (isStaffSignedIn ? { id: "staff_user", firstName: "Staff" } : null);
 
   if (!hasSettingsAccess && !user) {
     return (
@@ -599,6 +635,7 @@ const MainSettingsView = ({
         user={effectiveUser}
         onPress={() => setKotModalVisible(true)}
         onOrderAcceptPress={() => setOrderAcceptModalVisible(true)}
+        onPrintingSetupPress={() => setCurrentView("printing")}
         onLoginRequired={() => setLoginModalVisible(true)}
       />
 

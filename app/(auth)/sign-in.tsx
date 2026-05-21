@@ -15,7 +15,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import StatusModal from "../../components/common/StatusModal";
 import { StaffLogin } from "../../components/staff creat/StaffLogin";
