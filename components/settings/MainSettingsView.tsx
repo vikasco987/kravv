@@ -20,6 +20,7 @@ import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 // Import Settings Components
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
+import { AdvancedControlsModal } from "./AdvancedControlsModal";
 import { AdvancedDiscountCard } from "./AdvancedDiscountCard";
 import { AdvancedDiscountModal } from "./AdvancedDiscountModal";
 import { AppFeaturesCard } from "./AppFeaturesCard";
@@ -83,6 +84,8 @@ const MainSettingsView = ({
   const [packagingGstEnabled, setPackagingGstEnabled] = React.useState(false);
   const [packagingGstRate, setPackagingGstRate] = React.useState("0.00");
   const [taxModalVisible, setTaxModalVisible] = React.useState(false);
+  const [advancedControlsModalVisible, setAdvancedControlsModalVisible] = React.useState(false);
+  const [multiZoneMenuEnabled, setMultiZoneMenuEnabled] = React.useState(false);
   const [advancedDiscountModalVisible, setAdvancedDiscountModalVisible] =
     React.useState(false);
   const [kotModalVisible, setKotModalVisible] = React.useState(false);
@@ -328,6 +331,15 @@ const MainSettingsView = ({
               ),
             );
           }
+          if (profile.multiZoneMenuEnabled !== undefined) {
+            setMultiZoneMenuEnabled(profile.multiZoneMenuEnabled);
+            syncTasks.push(
+              AsyncStorage.setItem(
+                "multi_zone_menu_enabled",
+                String(profile.multiZoneMenuEnabled),
+              ),
+            );
+          }
           await Promise.all(syncTasks);
         }
       }
@@ -356,6 +368,7 @@ const MainSettingsView = ({
         "room_booking_enabled",
         "app_language",
         "order_auto_accept",
+        "multi_zone_menu_enabled",
       ]);
       settings.forEach(([key, value]) => {
         if (value !== null) {
@@ -422,6 +435,9 @@ const MainSettingsView = ({
               break;
             case "order_auto_accept":
               setOrderAutoAccept(value === "true");
+              break;
+            case "multi_zone_menu_enabled":
+              setMultiZoneMenuEnabled(value === "true");
               break;
           }
         }
@@ -501,6 +517,9 @@ const MainSettingsView = ({
             break;
           case "discount_rate":
             payload.discountRate = parseFloat(String(value));
+            break;
+          case "multi_zone_menu_enabled":
+            payload.multiZoneMenuEnabled = value;
             break;
           default:
             shouldSync = false;
@@ -636,6 +655,7 @@ const MainSettingsView = ({
         onPress={() => setKotModalVisible(true)}
         onOrderAcceptPress={() => setOrderAcceptModalVisible(true)}
         onPrintingSetupPress={() => setCurrentView("printing")}
+        onAdvancedControlsPress={() => setAdvancedControlsModalVisible(true)}
         onLoginRequired={() => setLoginModalVisible(true)}
       />
 
@@ -705,6 +725,13 @@ const MainSettingsView = ({
       <AdvancedDiscountModal
         visible={advancedDiscountModalVisible}
         onClose={() => setAdvancedDiscountModalVisible(false)}
+      />
+      <AdvancedControlsModal
+        visible={advancedControlsModalVisible}
+        onClose={() => setAdvancedControlsModalVisible(false)}
+        multiZoneMenuEnabled={multiZoneMenuEnabled}
+        setMultiZoneMenuEnabled={setMultiZoneMenuEnabled}
+        onSave={saveSetting}
       />
       <KOTTablesModal
         visible={kotModalVisible}

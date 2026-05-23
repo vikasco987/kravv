@@ -18,7 +18,6 @@ import { rf, s, vs } from "../../utils/responsive";
 
 // Components
 import DeviceCard from "./DeviceCard";
-import PrinterHeader from "./PrinterHeader";
 
 import { useRouter } from "expo-router";
 import { SoundManager } from "../../utils/SoundManager";
@@ -254,7 +253,6 @@ Thank You\n\n\n`;
 
     return (
         <View style={styles.content}>
-            <PrinterHeader />
 
             <View style={styles.actionRow}>
                 <TouchableOpacity style={[styles.mainBtn, { backgroundColor: '#10B981' }]} onPress={scanDevices} disabled={isLoading}>
@@ -368,7 +366,7 @@ Thank You\n\n\n`;
 
 const styles = StyleSheet.create({
     content: { flex: 1 },
-    actionRow: { flexDirection: 'row', paddingHorizontal: s(20), marginTop: vs(-20), gap: s(12) },
+    actionRow: { flexDirection: 'row', paddingHorizontal: s(20), marginTop: vs(10), gap: s(12) },
     mainBtn: { flex: 1, height: vs(55), borderRadius: s(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s(8), elevation: 4 },
     btnText: { color: '#fff', fontWeight: 'bold', fontSize: rf(15) },
     sectionTitle: { fontSize: rf(18), fontWeight: "bold", color: "#374151", marginTop: vs(30), marginHorizontal: s(20), marginBottom: vs(10) },

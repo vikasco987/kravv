@@ -159,8 +159,8 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
       }
 
       const url = bId
-        ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}&limit=1000`
-        : `https://billing.kravy.in/api/bill-manager?limit=1000`;
+        ? `https://billing.kravy.in/api/bill-manager?businessId=${bId}&limit=1000&t=${Date.now()}`
+        : `https://billing.kravy.in/api/bill-manager?limit=1000&t=${Date.now()}`;
 
       const res = await fetch(url, {
         headers: {
@@ -347,31 +347,33 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F7FA" }}>
       <LinearGradient
-        colors={["#6C63FF", "#4E43E3"]}
-        style={[styles.header, { paddingTop: isSidebar ? vs(45) : vs(15) }]}
+        colors={isSidebar ? ["#6C63FF", "#4E43E3"] : ["transparent", "transparent"]}
+        style={[styles.header, { paddingTop: isSidebar ? vs(45) : vs(15) }, !isSidebar && { elevation: 0 }]}
       >
         <View style={styles.headerTopRow}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={rf(26)} color="white" />
+            <Ionicons name="arrow-back" size={rf(26)} color={isSidebar ? "white" : "#1F2937"} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Bills & Transactions</Text>
-          <TouchableOpacity
-            onPress={triggerRefresh}
-            style={styles.headerReloadBtn}
-          >
-            <Animated.View style={{ transform: [{ rotate: spin }] }}>
-              <Ionicons name="refresh" size={rf(26)} color="white" />
-            </Animated.View>
-          </TouchableOpacity>
+          <Text style={[styles.headerTitle, !isSidebar && { color: "#1F2937" }]}>Bills & Transactions</Text>
+          {isSidebar && (
+            <TouchableOpacity
+              onPress={triggerRefresh}
+              style={styles.headerReloadBtn}
+            >
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Ionicons name="refresh" size={rf(26)} color={isSidebar ? "white" : "#1F2937"} />
+              </Animated.View>
+            </TouchableOpacity>
+          )}
         </View>
 
-        <View style={styles.searchWrapper}>
+        <View style={[styles.searchWrapper, !isSidebar && { backgroundColor: "rgba(0,0,0,0.05)" }]}>
           <TextInput
             placeholder="Search Bill ID / Customer / Item"
-            placeholderTextColor="#eee"
+            placeholderTextColor={isSidebar ? "#eee" : "#6B7280"}
             value={search}
             onChangeText={setSearch}
-            style={styles.searchInput}
+            style={[styles.searchInput, !isSidebar && { color: "#1F2937" }]}
           />
         </View>
       </LinearGradient>
@@ -604,7 +606,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     paddingTop: vs(45),
-    paddingBottom: vs(15),
+    paddingBottom: vs(2),
     paddingHorizontal: s(18),
     borderBottomLeftRadius: s(25),
     borderBottomRightRadius: s(25),
@@ -614,7 +616,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: vs(15),
+    marginBottom: vs(5),
   },
   backButton: { padding: s(5) },
   headerTitle: {
@@ -628,10 +630,10 @@ const styles = StyleSheet.create({
   searchWrapper: {
     backgroundColor: "rgba(255,255,255,0.25)",
     paddingHorizontal: s(15),
-    paddingVertical: vs(10),
+    paddingVertical: vs(5),
     borderRadius: s(10),
   },
-  searchInput: { color: "#fff", fontSize: rf(17), fontWeight: "500" },
+  searchInput: { color: "#fff", fontSize: rf(15), fontWeight: "500" },
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -698,7 +700,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: s(15),
-    paddingTop: vs(20),
+    paddingTop: vs(8),
     paddingBottom: vs(50),
     backgroundColor: "#fff",
     elevation: 20,

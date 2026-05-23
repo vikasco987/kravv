@@ -1,11 +1,27 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React from 'react';
-import { ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { Ionicons } from "@expo/vector-icons";
+import { ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
 
-const THEME_PRIMARY = "#4F46E5";
-const COLOR_BG_DARK = "#FFFFFF";
-const CATEGORY_COLUMN_WIDTH = s(80);
+const getCategoryIcon = (name: string): any => {
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('pizza')) return 'pizza';
+    if (lowerName.includes('burger') || lowerName.includes('sandwich')) return 'hamburger';
+    if (lowerName.includes('drink') || lowerName.includes('beverage') || lowerName.includes('juice') || lowerName.includes('shake')) return 'cup-water';
+    if (lowerName.includes('dessert') || lowerName.includes('sweet') || lowerName.includes('ice') || lowerName.includes('cake')) return 'ice-cream';
+    if (lowerName.includes('combo') || lowerName.includes('meal') || lowerName.includes('thali')) return 'food-variant';
+    if (lowerName.includes('biryani') || lowerName.includes('rice') || lowerName.includes('pulao')) return 'pot-steam';
+    if (lowerName.includes('roti') || lowerName.includes('bread') || lowerName.includes('naan') || lowerName.includes('parota') || lowerName.includes('chapathi')) return 'bread-slice-outline';
+    if (lowerName.includes('chicken') || lowerName.includes('non') || lowerName.includes('mutton') || lowerName.includes('fish') || lowerName.includes('meat')) return 'food-drumstick';
+    if (lowerName.includes('veg') || lowerName.includes('salad') || lowerName.includes('paneer')) return 'leaf';
+    if (lowerName.includes('snack') || lowerName.includes('starter') || lowerName.includes('fries') || lowerName.includes('roll')) return 'french-fries';
+    if (lowerName.includes('soup')) return 'bowl-mix';
+    if (lowerName.includes('coffee') || lowerName.includes('tea') || lowerName.includes('chai')) return 'coffee';
+
+    return 'silverware-fork-knife'; // fallback
+};
+
+const CATEGORY_COLUMN_WIDTH = s(85);
 
 interface Category {
     id: string;
@@ -24,8 +40,8 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
     cartVisible,
 }) => {
     return (
-        <ScrollView 
-            style={[styles.categoryColumn, cartVisible && { marginBottom: vs(210) }]} 
+        <ScrollView
+            style={[styles.categoryColumn, cartVisible && { marginBottom: vs(210) }]}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: vs(20) }}
         >
@@ -35,8 +51,8 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                     style={styles.categoryButton}
                     onPress={() => onCategoryPress(cat, index)}
                 >
-                    <Ionicons name="fast-food-outline" size={12} color="#fff" />
-                    <Text style={styles.categoryText}>{cat.name}</Text>
+                    <MaterialCommunityIcons name={getCategoryIcon(cat.name)} size={rf(20)} color="#9CA3AF" />
+                    <Text style={styles.categoryText} numberOfLines={2}>{cat.name}</Text>
                 </TouchableOpacity>
             ))}
         </ScrollView>
@@ -46,25 +62,28 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
 const styles = StyleSheet.create({
     categoryColumn: {
         width: CATEGORY_COLUMN_WIDTH,
-        backgroundColor: COLOR_BG_DARK,
+        backgroundColor: "#F9FAFB",
         borderRightWidth: 1,
         borderColor: "#E5E7EB"
     },
     categoryButton: {
-        flexDirection: "row",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        paddingVertical: vs(6),
-        marginVertical: vs(3),
-        backgroundColor: THEME_PRIMARY,
-        borderRadius: s(8),
-        marginHorizontal: s(4)
+        paddingVertical: vs(12),
+        paddingHorizontal: s(4),
+        marginVertical: vs(5),
+        backgroundColor: "#FFFFFF",
+        borderRadius: s(12),
+        marginHorizontal: s(6),
+        borderWidth: 1,
+        borderColor: "#D1D5DB",
     },
     categoryText: {
         fontWeight: "600",
-        color: "#fff",
-        marginLeft: s(3),
-        fontSize: rf(10),
+        color: "#4B5563",
+        marginTop: vs(6),
+        fontSize: rf(11),
         textAlign: 'center'
     },
 });

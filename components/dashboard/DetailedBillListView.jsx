@@ -8,12 +8,14 @@ import {
   LayoutAnimation,
   Modal,
   Platform,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   UIManager,
   View
 } from "react-native";
+import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
@@ -24,13 +26,13 @@ if (Platform.OS === "android") {
 }
 
 const COLORS = {
-  bg: "#121214",
-  cardBg: "#1C1C1E",
-  text: "#FFFFFF",
-  textDim: "#A1A1AA",
-  border: "#2C2C2E",
-  chipBg: "#2C2C2E",
-  brand: "#3154D4",
+  bg: "#F9FAFB",
+  cardBg: "#FFFFFF",
+  text: "#1F2937",
+  textDim: "#6B7280",
+  border: "#E5E7EB",
+  chipBg: "#F3F4F6",
+  brand: "#4F46E5",
   success: "#34C759",
   danger: "#FF453A",
   statusPaid: "#D1FAE5",
@@ -543,7 +545,9 @@ const DetailedBillListView = ({
 }) => {
   const { getToken } = useAuth();
   const { user } = useUser();
+  const { refreshSignal, triggerRefresh } = useRefresh();
   const [expandedRow, setExpandedRow] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     title: "",
@@ -570,6 +574,16 @@ const DetailedBillListView = ({
     packaging_gst_enabled: false,
     packaging_gst_rate: 0,
   });
+
+  useEffect(() => {
+    if (refreshSignal > 0) {
+      setIsRefreshing(true);
+    }
+  }, [refreshSignal]);
+
+  useEffect(() => {
+    setIsRefreshing(false);
+  }, [allBills]);
 
   useEffect(() => {
     let isMounted = true;
@@ -768,11 +782,8 @@ const DetailedBillListView = ({
         {/* Back and Title */}
         <View style={styles.backRow}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={rf(24)} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={rf(24)} color={COLORS.text} />
             <Text style={styles.headerTitle}>{title || "Sales Details"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.reloadButton} onPress={onRefresh}>
-            <Ionicons name="refresh" size={rf(20)} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
@@ -809,6 +820,13 @@ const DetailedBillListView = ({
         maxToRenderPerBatch={10}
         windowSize={5}
         removeClippedSubviews={Platform.OS === "android"}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => triggerRefresh()}
+            colors={[COLORS.brand]}
+          />
+        }
         renderItem={({ item, index }) => (
           <BillCard
             bill={item}
@@ -904,7 +922,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
   },
   header: {
-    backgroundColor: "#3154D4",
     paddingTop: vs(25),
     paddingBottom: vs(15),
     paddingHorizontal: s(16),
@@ -918,7 +935,7 @@ const styles = StyleSheet.create({
   appTitle: {
     fontSize: rf(20),
     fontWeight: "bold",
-    color: "#FFFFFF",
+    color: COLORS.text,
   },
   appSubtitle: {
     fontSize: rf(13),
@@ -929,7 +946,7 @@ const styles = StyleSheet.create({
     width: s(36),
     height: s(36),
     borderRadius: s(18),
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: COLORS.border,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -944,7 +961,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: {
-    color: "#FFFFFF",
+    color: COLORS.text,
     fontSize: rf(18),
     fontWeight: "700",
     marginLeft: s(8),
@@ -962,17 +979,17 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: rf(18),
     fontWeight: "bold",
-    color: "#FFFFFF",
+    color: COLORS.text,
     marginBottom: vs(4),
   },
   statLabel: {
     fontSize: rf(11),
-    color: "#E0E7FF",
+    color: COLORS.textDim,
   },
   statDivider: {
     width: 1,
     height: vs(20),
-    backgroundColor: "rgba(255,255,255,0.3)",
+    backgroundColor: COLORS.border,
   },
   // Card Styles
   cardContainer: {
@@ -981,6 +998,8 @@ const styles = StyleSheet.create({
     marginTop: vs(16),
     borderRadius: s(12),
     padding: s(16),
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   cardHeader: {
     flexDirection: "row",
@@ -991,12 +1010,12 @@ const styles = StyleSheet.create({
   billNoText: {
     fontSize: rf(16),
     fontWeight: "700",
-    color: "#7D8BFF",
+    color: COLORS.brand,
   },
   totalText: {
     fontSize: rf(18),
     fontWeight: "bold",
-    color: "#FFFFFF",
+    color: COLORS.text,
   },
   cardSubHeader: {
     flexDirection: "row",
@@ -1038,7 +1057,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: rf(12),
-    color: "#FFFFFF",
+    color: COLORS.text,
     fontWeight: "500",
   },
   summaryButtonsRow: {
@@ -1056,7 +1075,7 @@ const styles = StyleSheet.create({
   },
   waButton: {
     borderWidth: 1,
-    borderColor: "#48484A",
+    borderColor: COLORS.border,
     borderRadius: s(8),
     paddingHorizontal: s(12),
     paddingVertical: vs(6),
@@ -1065,7 +1084,7 @@ const styles = StyleSheet.create({
   },
   detailsButton: {
     borderWidth: 1,
-    borderColor: "#48484A",
+    borderColor: COLORS.border,
     borderRadius: s(8),
     paddingHorizontal: s(12),
     paddingVertical: vs(6),
@@ -1074,7 +1093,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: rf(13),
-    color: "#FFFFFF",
+    color: COLORS.text,
     fontWeight: "600",
   },
   // Expanded Content
@@ -1094,18 +1113,18 @@ const styles = StyleSheet.create({
   },
   expandedItemName: {
     fontSize: rf(14),
-    color: "#FFFFFF",
+    color: COLORS.text,
     fontWeight: "500",
   },
   taxTypeLabel: {
     fontSize: rf(11),
-    color: "#34C759",
+    color: COLORS.success,
     marginTop: vs(2),
     fontStyle: "italic",
   },
   expandedItemPrice: {
     fontSize: rf(14),
-    color: "#FFFFFF",
+    color: COLORS.text,
     fontWeight: "600",
     marginLeft: s(10),
   },
@@ -1116,7 +1135,7 @@ const styles = StyleSheet.create({
   printContainer: {
     marginTop: vs(10),
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.1)",
+    borderTopColor: COLORS.border,
     paddingTop: vs(12),
   },
   printRow: {
@@ -1131,25 +1150,25 @@ const styles = StyleSheet.create({
   },
   printValue: {
     fontSize: rf(14),
-    color: "#FFFFFF",
+    color: COLORS.text,
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
   },
   printDivider: {
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: COLORS.border,
     marginVertical: vs(10),
     borderStyle: "dashed",
   },
   printTotalLabel: {
     fontSize: rf(16),
     fontWeight: "bold",
-    color: "#FFFFFF",
+    color: COLORS.text,
     fontFamily: Platform.OS === "ios" ? "Courier-Bold" : "monospace",
   },
   printTotalValue: {
     fontSize: rf(16),
     fontWeight: "bold",
-    color: "#FFFFFF",
+    color: COLORS.text,
     fontFamily: Platform.OS === "ios" ? "Courier-Bold" : "monospace",
   },
   emptyContainer: {
@@ -1167,7 +1186,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalCard: {
-    backgroundColor: "#1C1C1E",
+    backgroundColor: COLORS.cardBg,
     width: s(310),
     borderRadius: s(24),
     padding: s(24),
@@ -1194,7 +1213,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: rf(20),
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: COLORS.text,
     textAlign: "center",
   },
   modalMessage: {
@@ -1237,7 +1256,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   modalConfirmBtnText: {
-    color: "#FFFFFF",
+    color: COLORS.text,
     fontWeight: "700",
     fontSize: rf(14),
   },
@@ -1248,7 +1267,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   modalOkBtnText: {
-    color: "#FFFFFF",
+    color: COLORS.text,
     fontWeight: "800",
     fontSize: rf(14),
     letterSpacing: 0.5,
@@ -1256,3 +1275,4 @@ const styles = StyleSheet.create({
 });
 
 export default DetailedBillListView;
+

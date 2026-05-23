@@ -199,6 +199,7 @@ export default function DailySalesScreen({ onBack, allBills }) {
         groupSalesByDate(allBills.filter((b) => b.isHeld !== true)),
       );
       setLoading(false);
+      setRefreshing(false);
     } else {
       fetchBills();
     }
@@ -258,7 +259,7 @@ export default function DailySalesScreen({ onBack, allBills }) {
 
   useEffect(() => {
     if (refreshSignal > 0) {
-      fetchBills(true);
+      setRefreshing(true);
     }
   }, [refreshSignal]);
 
@@ -297,12 +298,6 @@ export default function DailySalesScreen({ onBack, allBills }) {
           <Text style={enhancedStyles.title}>
             {t("daily_sales_report") || "Daily Sales Report"} 📈
           </Text>
-          <TouchableOpacity
-            onPress={triggerRefresh}
-            style={enhancedStyles.reloadButton}
-          >
-            <Ionicons name="refresh" size={rf(26)} color={COLORS.primary} />
-          </TouchableOpacity>
         </View>
         <Text style={enhancedStyles.subtitle}>
           {t("all_time_sales") || "All Time Sales"}:{" "}
@@ -338,7 +333,7 @@ export default function DailySalesScreen({ onBack, allBills }) {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={() => fetchBills(true)}
+                onRefresh={() => triggerRefresh()}
                 colors={[COLORS.primary]}
               />
             }
@@ -372,7 +367,7 @@ export default function DailySalesScreen({ onBack, allBills }) {
           <TableListView
             data={dailySales}
             refreshing={refreshing}
-            onRefresh={() => fetchBills(true)}
+            onRefresh={() => triggerRefresh()}
             t={t}
             onRowPress={(id) => setSelectedDateReport(id)}
           />

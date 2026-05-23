@@ -13,9 +13,11 @@ interface MenuHeaderProps {
     onVoicePress: () => void;
     heldCount: number;
     isVoiceLocked?: boolean;
+    multiZoneMenuEnabled?: boolean;
+    selectedZone?: string;
+    onZonePress?: () => void;
 }
 
-import { PermissionGuard } from "../common/PermissionGuard";
 
 export const MenuHeader: React.FC<MenuHeaderProps> = ({
     onAddItem,
@@ -24,11 +26,27 @@ export const MenuHeader: React.FC<MenuHeaderProps> = ({
     onVoicePress,
     heldCount,
     isVoiceLocked = false,
+    multiZoneMenuEnabled = false,
+    selectedZone = "Global",
+    onZonePress,
 }) => {
     return (
         <View style={styles.integratedHeaderBar}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(6), flexShrink: 1 }}>
                 <Text style={styles.headerTitle}>Menu</Text>
+
+                {multiZoneMenuEnabled && onZonePress && (
+                    <TouchableOpacity
+                        style={styles.zoneTrigger}
+                        onPress={onZonePress}
+                        activeOpacity={0.7}
+                    >
+                        <Ionicons name={selectedZone === "Global" ? "earth-outline" : "location-outline"} size={rf(16)} color="#10B981" />
+                        <Text style={styles.zoneText} numberOfLines={1}>{selectedZone}</Text>
+                        <Ionicons name="chevron-down" size={rf(14)} color="#6B7280" />
+                    </TouchableOpacity>
+                )}
+
                 <TouchableOpacity
                     style={[styles.voiceTrigger, isVoiceLocked && { opacity: 0.6 }]}
                     onPress={onVoicePress}
@@ -40,7 +58,7 @@ export const MenuHeader: React.FC<MenuHeaderProps> = ({
 
             <View style={styles.headerActionGroup}>
                 <TouchableOpacity style={styles.integratedActionButton} onPress={onAddItem}>
-                    <Feather name="plus" size={rf(16)} color="#FFF" style={{ marginRight: s(4) }} />
+                    <Feather name="plus-square" size={rf(16)} color="#4B5563" style={{ marginRight: s(4) }} />
                     <Text style={styles.integratedButtonText}>Item</Text>
                 </TouchableOpacity>
 
@@ -55,8 +73,8 @@ export const MenuHeader: React.FC<MenuHeaderProps> = ({
                     style={[styles.integratedActionButton, { position: 'relative' }]}
                     onPress={onViewHeldOrders}
                 >
-                    <Ionicons name="timer-outline" size={rf(16)} color="#FFF" style={{ marginRight: s(4) }} />
-                    <Text style={styles.integratedButtonText}>HOLD</Text>
+                    <Ionicons name="stopwatch-outline" size={rf(16)} color="#4B5563" style={{ marginRight: s(4) }} />
+                    <Text style={styles.integratedButtonText}>Hold</Text>
                     {heldCount > 0 && (
                         <View style={styles.headerBadge}>
                             <Text style={styles.headerBadgeText}>{heldCount}</Text>
@@ -104,23 +122,24 @@ const styles = StyleSheet.create({
     },
     headerActionGroup: {
         flexDirection: "row",
-        backgroundColor: THEME_PRIMARY,
-        borderRadius: s(10),
-        padding: s(4)
+        alignItems: "center",
+        gap: s(4),
     },
     integratedActionButton: {
         flexDirection: "row",
         alignItems: "center",
-        paddingVertical: vs(6),
-        paddingHorizontal: s(10),
-        borderRadius: s(8),
-        marginHorizontal: s(2),
+        paddingVertical: vs(4),
+        paddingHorizontal: s(6),
+        borderRadius: s(12),
+        backgroundColor: "#FFFFFF",
+        borderWidth: 1,
+        borderColor: "#D1D5DB",
         position: 'relative'
     },
     integratedButtonText: {
-        fontSize: rf(13),
-        fontWeight: "700",
-        color: "#FFF"
+        fontSize: rf(12),
+        fontWeight: "600",
+        color: "#4B5563"
     },
     headerBadge: {
         position: 'absolute',
@@ -146,5 +165,25 @@ const styles = StyleSheet.create({
         borderRadius: s(8),
         borderWidth: 1,
         borderColor: '#E2E8F0',
+        marginLeft: s(4),
+        flexShrink: 0,
+    },
+    zoneTrigger: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#ECFDF5',
+        paddingVertical: vs(4),
+        paddingHorizontal: s(6),
+        borderRadius: s(8),
+        borderWidth: 1,
+        borderColor: '#A7F3D0',
+        gap: s(4),
+        flexShrink: 1,
+    },
+    zoneText: {
+        fontSize: rf(12),
+        fontWeight: '700',
+        color: '#065F46',
+        flexShrink: 1,
     }
 });

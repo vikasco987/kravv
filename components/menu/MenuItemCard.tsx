@@ -14,6 +14,8 @@ interface MenuItem {
     price?: number;
     imageUrl?: string;
     unit?: string;
+    isVeg?: boolean;
+    isEgg?: boolean;
 }
 
 interface MenuItemCardProps {
@@ -37,15 +39,28 @@ export const MenuItemCard = React.memo(({
                 onPress={() => onAdd(item)}
                 onPressIn={() => { SoundManager.suppressNextPlay(); SoundManager.playAdd(); }}
                 activeOpacity={0.7}
-                style={{ width: "100%", alignItems: "center" }}
+                style={{ width: "100%", alignItems: "flex-start" }}
             >
-                <View>
-                    <Image
-                        source={{ uri: item.imageUrl?.startsWith("http") ? item.imageUrl : "https://via.placeholder.com/80?text=No+Image" }}
-                        style={[styles.itemImage, { width: itemWidth - s(12), height: itemWidth - s(12) }]}
-                        resizeMode="cover"
-                        fadeDuration={0}
-                    />
+                <View style={{ marginBottom: vs(6) }}>
+                    <View style={[styles.dietaryMarkDot, {
+                        backgroundColor: item.isEgg ? '#EAB308' : item.isVeg === false ? '#EF4444' : '#10B981',
+                    }]} />
+                </View>
+
+                <View style={{ width: "100%", alignItems: "center", marginBottom: vs(8) }}>
+                    {item.imageUrl && item.imageUrl.startsWith("http") ? (
+                        <Image
+                            source={{ uri: item.imageUrl }}
+                            style={[styles.itemImage, { width: "100%", height: vs(60) }]}
+                            resizeMode="cover"
+                            fadeDuration={0}
+                        />
+                    ) : (
+                        <View style={[styles.imagePlaceholder, { width: "100%", height: vs(60) }]}>
+                            <Feather name="image" size={rf(20)} color="#D1D5DB" />
+                        </View>
+                    )}
+
                     {quantity > 0 && (
                         <TouchableOpacity
                             style={styles.minusIcon}
@@ -63,10 +78,12 @@ export const MenuItemCard = React.memo(({
                 <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
                 <View style={styles.bottomRow}>
                     <Text style={styles.itemPrice}>₹{item.price ?? "0"}</Text>
-                    {quantity > 0 && (
-                        <View style={styles.quantityBox}>
+                    {quantity > 0 ? (
+                        <View style={styles.quantityPill}>
                             <Text style={styles.quantityText}>{quantity}</Text>
                         </View>
+                    ) : (
+                        <View style={styles.emptyPill}></View>
                     )}
                 </View>
             </TouchableOpacity>
@@ -77,16 +94,21 @@ MenuItemCard.displayName = "MenuItemCard";
 
 const styles = StyleSheet.create({
     gridItem: {
-        backgroundColor: COLOR_BG_DARK,
-        borderRadius: s(10),
-        padding: s(6),
+        backgroundColor: "#FFFFFF",
+        borderRadius: s(12),
+        padding: s(8),
         margin: s(4),
-        alignItems: "center",
-        elevation: 2
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
     },
     itemImage: {
         borderRadius: s(8),
-        marginBottom: vs(4)
+    },
+    imagePlaceholder: {
+        backgroundColor: '#F3F4F6',
+        borderRadius: s(8),
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     minusIcon: {
         position: "absolute",
@@ -98,33 +120,48 @@ const styles = StyleSheet.create({
         zIndex: 10
     },
     itemName: {
-        fontSize: rf(13),
+        fontSize: rf(12),
         fontWeight: "600",
-        textAlign: "center",
-        color: "#111",
-        marginBottom: vs(2)
+        textAlign: "left",
+        color: "#374151",
+        lineHeight: rf(16),
+        height: rf(32), // roughly 2 lines
     },
     bottomRow: {
         width: "100%",
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginTop: vs(4)
+        marginTop: vs(6)
     },
     itemPrice: {
-        fontSize: rf(11),
-        color: THEME_DANGER,
-        fontWeight: "bold"
+        fontSize: rf(12),
+        color: "#EA580C",
+        fontWeight: "700"
     },
-    quantityBox: {
-        backgroundColor: THEME_SECONDARY,
-        paddingHorizontal: s(6),
-        paddingVertical: vs(2),
-        borderRadius: s(6)
+    emptyPill: {
+        width: s(36),
+        height: vs(18),
+        borderRadius: s(10),
+        borderWidth: 1,
+        borderColor: "#D1D5DB",
+    },
+    quantityPill: {
+        width: s(36),
+        height: vs(18),
+        borderRadius: s(10),
+        backgroundColor: "#4F46E5",
+        justifyContent: "center",
+        alignItems: "center",
     },
     quantityText: {
         color: "#fff",
         fontWeight: "bold",
         fontSize: rf(10)
+    },
+    dietaryMarkDot: {
+        width: s(8),
+        height: s(8),
+        borderRadius: s(4),
     },
 });

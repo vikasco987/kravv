@@ -102,7 +102,7 @@ export async function SimpleKOT(
         const globalWeight = printSettings.kotFontWeight;
         const kotTokenSizeCmd = getEscPosSize(Number(printSettings.kotTokenSize) || 16);
         const kotTokenWeightCmd = getEscPosWeight(printSettings.kotTokenWeight, globalWeight, "bold");
-        
+
         const kotItemsSizeCmd = getEscPosSize(Number(printSettings.kotItemsFontSize) || 11);
         const kotItemsWeightCmd = getEscPosWeight(printSettings.kotItemsWeight, globalWeight, "normal");
 
@@ -114,14 +114,14 @@ export async function SimpleKOT(
 
         // Apply Print Density (Line Spacing)
         if (printSettings.printDensity === "compact") {
-            // @ts-ignore
-            await printer.write(new Uint8Array([0x1b, 0x33, 20])); // ESC 3 20
+          // @ts-ignore
+          await printer.write(new Uint8Array([0x1b, 0x33, 20])); // ESC 3 20
         } else if (printSettings.printDensity === "spacious" || printSettings.printDensity === "bold") {
-            // @ts-ignore
-            await printer.write(new Uint8Array([0x1b, 0x33, 45])); // ESC 3 45
+          // @ts-ignore
+          await printer.write(new Uint8Array([0x1b, 0x33, 45])); // ESC 3 45
         } else {
-            // @ts-ignore
-            await printer.write(new Uint8Array([0x1b, 0x32])); // ESC 2 (Default)
+          // @ts-ignore
+          await printer.write(new Uint8Array([0x1b, 0x32])); // ESC 2 (Default)
         }
 
         // @ts-ignore

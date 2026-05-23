@@ -10,6 +10,7 @@ const COLORS = {
     text: '#111827',
     textLight: '#6B7280',
     white: '#FFFFFF',
+    advanced: '#8B5CF6',
 };
 
 interface AppFeaturesCardProps {
@@ -18,6 +19,7 @@ interface AppFeaturesCardProps {
     onOrderAcceptPress: () => void;
     onLoginRequired: () => void;
     onPrintingSetupPress?: () => void;
+    onAdvancedControlsPress?: () => void;
 }
 
 export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
@@ -26,6 +28,7 @@ export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
     onOrderAcceptPress,
     onLoginRequired,
     onPrintingSetupPress,
+    onAdvancedControlsPress,
 }) => {
     const { t } = useLanguage();
 
@@ -89,6 +92,24 @@ export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
                         <View style={{ flex: 1 }}>
                             <Text style={[styles.infoTitle, { marginBottom: 0 }]}>Printing Setup</Text>
                             <Text style={styles.infoText} numberOfLines={1}>Customize receipt & KOT prints</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={rf(18)} color={COLORS.textLight} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Advanced Controls Button */}
+                <View style={styles.card}>
+                    <TouchableOpacity
+                        style={styles.sectionHeader}
+                        onPress={() => handlePress(() => onAdvancedControlsPress && onAdvancedControlsPress())}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.buttonIconBackground, { backgroundColor: COLORS.advanced + "15" }]}>
+                            <Ionicons name={"options-outline" as any} size={rf(20)} color={COLORS.advanced} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.infoTitle, { marginBottom: 0 }]}>Advanced Controls</Text>
+                            <Text style={styles.infoText} numberOfLines={1}>Multi-Zone Menu & Special Controls</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={rf(18)} color={COLORS.textLight} />
                     </TouchableOpacity>

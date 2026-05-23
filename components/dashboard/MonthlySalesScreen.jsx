@@ -4,14 +4,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    RefreshControl,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
@@ -212,6 +212,7 @@ export default function MonthlySalesScreen({ onBack, allBills }) {
         groupSalesByMonth(allBills.filter((b) => b.isHeld !== true)),
       );
       setLoading(false);
+      setRefreshing(false);
     } else {
       fetchBills();
     }
@@ -272,7 +273,7 @@ export default function MonthlySalesScreen({ onBack, allBills }) {
 
   useEffect(() => {
     if (refreshSignal > 0) {
-      fetchBills(true);
+      setRefreshing(true);
     }
   }, [refreshSignal]);
 
@@ -311,12 +312,6 @@ export default function MonthlySalesScreen({ onBack, allBills }) {
           <Text style={enhancedStyles.title}>
             {t("monthly_sales_report") || "Monthly Sales Report"} 📊
           </Text>
-          <TouchableOpacity
-            onPress={triggerRefresh}
-            style={enhancedStyles.reloadButton}
-          >
-            <Ionicons name="refresh" size={rf(26)} color={COLORS.primary} />
-          </TouchableOpacity>
         </View>
         <Text style={enhancedStyles.subtitle}>
           {t("all_time_revenue") || "All Time Revenue"}:{" "}
@@ -352,7 +347,7 @@ export default function MonthlySalesScreen({ onBack, allBills }) {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={() => fetchBills(true)}
+                onRefresh={() => triggerRefresh()}
                 colors={[COLORS.primary]}
               />
             }
@@ -386,7 +381,7 @@ export default function MonthlySalesScreen({ onBack, allBills }) {
           <TableListView
             data={monthlySales}
             refreshing={refreshing}
-            onRefresh={() => fetchBills(true)}
+            onRefresh={() => triggerRefresh()}
             t={t}
             onRowPress={(key) => setSelectedMonthReport(key)}
           />

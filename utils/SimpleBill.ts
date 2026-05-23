@@ -734,7 +734,7 @@ export async function SimpleBill(
             await printer.write(BOLD_OFF);
             await printer.write(SIZE_NORMAL);
           }
-          
+
           if (printSettings.showAddress && businessAddress) {
             await printer.write(addressSizeCmd);
             await printer.write(addressWeightCmd);
@@ -763,12 +763,12 @@ export async function SimpleBill(
           await printer.write(utf8Encode(printBody));
 
           if (printSettings.showToken && finalTokenNo) {
-             await printer.write(tokenSizeCmd);
-             await printer.write(tokenWeightCmd);
-             await printer.write(utf8Encode(`Token No: #${finalTokenNo}\n`));
-             await printer.write(BOLD_OFF);
-             await printer.write(detailsSizeCmd);
-             await printer.write(detailsWeightCmd);
+            await printer.write(tokenSizeCmd);
+            await printer.write(tokenWeightCmd);
+            await printer.write(utf8Encode(`Token No: #${finalTokenNo}\n`));
+            await printer.write(BOLD_OFF);
+            await printer.write(detailsSizeCmd);
+            await printer.write(detailsWeightCmd);
           }
 
           if (printSettings.showCustomerDetails) {
@@ -871,7 +871,7 @@ export async function SimpleBill(
           await printer.write(totalWeightCmd);
           await printer.write(utf8Encode(`TOTAL: Rs.${finalGrandTotal.toFixed(2)}\n`));
           await printer.write(BOLD_OFF);
-          
+
           await printer.write(detailsSizeCmd);
           await printer.write(detailsWeightCmd);
           let footerBody = "";

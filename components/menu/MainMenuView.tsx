@@ -16,6 +16,7 @@ import {
   DeviceEventEmitter,
   Dimensions,
   FlatList,
+  RefreshControl,
   StyleSheet,
   Text,
   ToastAndroid,
@@ -49,6 +50,7 @@ import { MenuItemCard } from "./MenuItemCard";
 import { QuickAddItemCard } from "./QuickAddItemCard";
 import { QuickAddItemModal } from "./QuickAddItemModal";
 import { TableSelectionModal } from "./TableSelectionModal";
+import { ZoneSelectionModal } from "./ZoneSelectionModal";
 
 // Batched Components
 import { SyncManager } from "../../services/SyncManager";
@@ -69,6 +71,9 @@ type MenuItem = {
   gst?: number;
   taxType?: string;
   hsnCode?: string;
+  zones?: string[];
+  isVeg?: boolean;
+  isEgg?: boolean;
 };
 
 type MenuCategory = {
@@ -81,8 +86,8 @@ type CartItem = MenuItem & { quantity: number; editedPrice?: number };
 
 // --- CONSTANTS ---
 const THEME_PRIMARY = "#4F46E5";
-const COLOR_BG_LIGHT = "#F9FAFB";
-const CATEGORY_COLUMN_WIDTH = s(80);
+const COLOR_BG_LIGHT = "#F4F4F5";
+const CATEGORY_COLUMN_WIDTH = s(85);
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
@@ -116,6 +121,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   const [roomBookingEnabled, setRoomBookingEnabled] = useState(false);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const [multiZoneMenuEnabled, setMultiZoneMenuEnabled] = useState(false);
+  const [selectedZone, setSelectedZone] = useState<string>("Global");
+  const [isZoneModalVisible, setIsZoneModalVisible] = useState(false);
   const [bookingMode, setBookingMode] = useState<"Table" | "Room">("Table");
   const [isTableModalVisible, setIsTableModalVisible] = useState(false);
   const [isQuickAddModalVisible, setIsQuickAddModalVisible] = useState(false);
@@ -230,7 +238,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
 
       try {
         // 🚀 STEP 1: Always try to load from Cache FIRST for instant UI
-        const cachedData = await AsyncStorage.getItem("@cached_menu");
+        const cacheKey = `@cached_menu_${activeBusinessId || user?.id || 'guest'}`;
+        const cachedData = await AsyncStorage.getItem(cacheKey);
         if (cachedData) {
           const parsed = JSON.parse(cachedData);
           if (parsed && parsed.length > 0) {
@@ -348,7 +357,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
               categoryMap[catId] = { id: catId, name: catName, items: [] };
             }
 
-            categoryMap[catId].items.push({
+            const newItem: MenuItem = {
               id: String(item.id || item._id || Math.random().toString()),
               name: String(item.name || "Unnamed Item"),
               price: Number(
@@ -359,7 +368,23 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
               gst: item.gst,
               taxType: item.taxType,
               hsnCode: item.hsnCode,
-            });
+              zones: item.zones || [],
+            };
+
+            const nameLower = newItem.name.toLowerCase();
+            const nameHasEgg = nameLower.includes("egg") || nameLower.includes("(e)");
+            const nameHasNV = nameLower.includes("(nv)") || nameLower.includes("chicken") || nameLower.includes("mutton") || nameLower.includes("fish") || nameLower.includes("beef") || nameLower.includes("pork");
+
+            let parsedEgg = item.isEgg === true || item.isEgg === "true" || item.isEgg === 1;
+            let parsedVeg = item.isVeg === false || item.isVeg === "false" || item.isVeg === 0 ? false : true;
+
+            if (nameHasEgg) parsedEgg = true;
+            if (nameHasNV || nameHasEgg) parsedVeg = false;
+
+            newItem.isEgg = parsedEgg;
+            newItem.isVeg = parsedVeg;
+
+            categoryMap[catId].items.push(newItem);
           });
         }
 
@@ -402,8 +427,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         }
 
         if (finalMenus.length > 0) {
+          const cacheKey = `@cached_menu_${activeBusinessId || user?.id || 'guest'}`;
           await AsyncStorage.setItem(
-            "@cached_menu",
+            cacheKey,
             JSON.stringify(finalMenus),
           );
           setMenus((prev) =>
@@ -435,13 +461,21 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       const kot = await AsyncStorage.getItem("kot_enabled");
       const table = await AsyncStorage.getItem("table_booking_enabled");
       const room = await AsyncStorage.getItem("room_booking_enabled");
+      const multiZone = await AsyncStorage.getItem("multi_zone_menu_enabled");
+      const savedZone = await AsyncStorage.getItem("default_selected_zone");
       const isKot = kot === "true";
       const isTable = table === "true";
       const isRoom = room === "true";
+      const isMultiZone = multiZone === "true";
+
+      if (savedZone) {
+        setSelectedZone(savedZone);
+      }
 
       setKotEnabled((prev) => (prev !== isKot ? isKot : prev));
       setTableBookingEnabled((prev) => (prev !== isTable ? isTable : prev));
       setRoomBookingEnabled((prev) => (prev !== isRoom ? isRoom : prev));
+      setMultiZoneMenuEnabled((prev) => (prev !== isMultiZone ? isMultiZone : prev));
     } catch (e) {
       console.log("Settings fetch info (local):", e);
     }
@@ -599,6 +633,15 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     fetchSettings();
     loadTaxSettings();
   }, [isLockedUser]);
+
+  useEffect(() => {
+    if (refreshSignal > 0) {
+      fetchMenus(true);
+      fetchHeldCount();
+      fetchSettings();
+      loadTaxSettings();
+    }
+  }, [refreshSignal]);
 
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: string) => {
@@ -1011,11 +1054,32 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     return () => sub.remove();
   }, [menus]);
 
+  const availableZones = useMemo(() => {
+    const zones = new Set<string>();
+    menus.forEach((cat) => {
+      cat.items.forEach((item) => {
+        if (Array.isArray(item.zones)) {
+          item.zones.forEach((z) => zones.add(z));
+        }
+      });
+    });
+    return ["Global", ...Array.from(zones)];
+  }, [menus]);
+
   const filteredMenus = useMemo(() => {
     if (isLockedUser) return [];
-    if (!searchQuery) return menus;
+
+    let zoneFilteredMenus = menus;
+    if (multiZoneMenuEnabled && selectedZone !== "Global") {
+      zoneFilteredMenus = menus.map(cat => ({
+        ...cat,
+        items: cat.items.filter(item => item.zones?.includes(selectedZone))
+      })).filter(cat => cat.items.length > 0);
+    }
+
+    if (!searchQuery) return zoneFilteredMenus;
     const query = searchQuery.toLowerCase();
-    return menus
+    return zoneFilteredMenus
       .map((cat) => {
         const categoryMatches = cat.name.toLowerCase().includes(query);
         const filteredItems = cat.items.filter(
@@ -1029,7 +1093,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         return null;
       })
       .filter((cat) => cat !== null) as MenuCategory[];
-  }, [searchQuery, menus, isLockedUser]);
+  }, [searchQuery, menus, isLockedUser, multiZoneMenuEnabled, selectedZone]);
 
 
   const addToCart = useCallback(async (item: MenuItem) => {
@@ -1548,6 +1612,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   return (
     <View style={styles.container}>
       <MenuHeader
+        multiZoneMenuEnabled={multiZoneMenuEnabled}
+        selectedZone={selectedZone}
+        onZonePress={() => setIsZoneModalVisible(true)}
         onAddItem={async () => {
           if (isLockedUser) {
             setIsLoginModalVisible(true);
@@ -1633,6 +1700,13 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           maxToRenderPerBatch={2}
           windowSize={5}
           removeClippedSubviews={true}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => triggerRefresh()}
+              colors={[THEME_PRIMARY]}
+            />
+          }
           ListEmptyComponent={null}
           onScrollToIndexFailed={(info) => {
             const estimatedOffset = info.averageItemLength * info.index;
@@ -1741,6 +1815,18 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         tableBookingEnabled={tableBookingEnabled}
         roomBookingEnabled={roomBookingEnabled}
         activeTabOverride={bookingMode}
+      />
+
+      <ZoneSelectionModal
+        visible={isZoneModalVisible}
+        onClose={() => setIsZoneModalVisible(false)}
+        availableZones={availableZones}
+        selectedZone={selectedZone}
+        onSelectZone={(zone) => {
+          setSelectedZone(zone);
+          AsyncStorage.setItem("default_selected_zone", zone).catch(console.error);
+          setIsZoneModalVisible(false);
+        }}
       />
 
       <ConfirmHoldModal

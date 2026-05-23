@@ -80,7 +80,7 @@ interface PrintSettings {
   printDensity?: string;
   paperBottomPadding?: number;
   spoolerDelay?: number;
-  
+
   // Receipt Element Sizing & Weights
   businessNameSize?: number;
   businessNameWeight?: string;
@@ -98,7 +98,7 @@ interface PrintSettings {
   detailsWeight?: string;
   greetingFontSize?: number;
   greetingWeight?: string;
-  
+
   // KOT Element Sizing & Weights
   kotTokenSize?: number;
   kotTokenWeight?: string;
@@ -106,7 +106,7 @@ interface PrintSettings {
   kotItemsWeight?: string;
   kotQtyFontSize?: number;
   kotQtyWeight?: string;
-  
+
   // Fonts
   fontFamily?: string;
   kotFontFamily?: string;
@@ -167,7 +167,7 @@ const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   printDensity: "balanced",
   paperBottomPadding: 80,
   spoolerDelay: 1500,
-  
+
   // Default sizes
   businessNameSize: 18,
   businessAddressSize: 11,
@@ -177,11 +177,11 @@ const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   totalFontSize: 13,
   detailsFontSize: 10,
   greetingFontSize: 12,
-  
+
   kotTokenSize: 16,
   kotItemsFontSize: 11,
   kotQtyFontSize: 14,
-  
+
   fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
   kotFontFamily: '"Courier New", Courier, monospace',
   fontWeight: "400",
@@ -189,71 +189,71 @@ const DEFAULT_PRINT_SETTINGS: PrintSettings = {
 };
 
 const fonts = [
-    { name: "Default (System Sans)", value: "", desc: "Clean & fast" },
-    { name: "Courier New / Monospace", value: '"Courier New", Courier, monospace', desc: "Thermal Classic" },
-    { name: "Helvetica / Clean Sans", value: '"Helvetica Neue", Helvetica, Arial, sans-serif', desc: "Modern Sans" },
-    { name: "Verdana / Wide Sans", value: 'Verdana, Geneva, sans-serif', desc: "Broad Sans" },
-    { name: "Georgia / Classic Serif", value: 'Georgia, Cambria, "Times New Roman", serif', desc: "Formal Print" }
+  { name: "Default (System Sans)", value: "", desc: "Clean & fast" },
+  { name: "Courier New / Monospace", value: '"Courier New", Courier, monospace', desc: "Thermal Classic" },
+  { name: "Helvetica / Clean Sans", value: '"Helvetica Neue", Helvetica, Arial, sans-serif', desc: "Modern Sans" },
+  { name: "Verdana / Wide Sans", value: 'Verdana, Geneva, sans-serif', desc: "Broad Sans" },
+  { name: "Georgia / Classic Serif", value: 'Georgia, Cambria, "Times New Roman", serif', desc: "Formal Print" }
 ];
 
 const fontWeights = [
-    { name: "Default (Style Standard)", value: "", desc: "Default bolding" },
-    { name: "Light (300)", value: "300", desc: "Fine weight" },
-    { name: "Regular / Normal (400)", value: "400", desc: "Standard weight" },
-    { name: "Medium (500)", value: "500", desc: "Medium weight" },
-    { name: "Semi Bold (600)", value: "600", desc: "Moderately bold" },
-    { name: "Bold (700)", value: "700", desc: "High contrast bold" },
-    { name: "Extra Bold (900)", value: "900", desc: "Heavy block weight" }
+  { name: "Default (Style Standard)", value: "", desc: "Default bolding" },
+  { name: "Light (300)", value: "300", desc: "Fine weight" },
+  { name: "Regular / Normal (400)", value: "400", desc: "Standard weight" },
+  { name: "Medium (500)", value: "500", desc: "Medium weight" },
+  { name: "Semi Bold (600)", value: "600", desc: "Moderately bold" },
+  { name: "Bold (700)", value: "700", desc: "High contrast bold" },
+  { name: "Extra Bold (900)", value: "900", desc: "Heavy block weight" }
 ];
 
 const spoolerOptions = [
-    { name: "0.5s (Ultra Fast Spooler)", value: 500, desc: "" },
-    { name: "1.0s (Fast Printer)", value: 1000, desc: "" },
-    { name: "1.5s (Balanced Standard)", value: 1500, desc: "" },
-    { name: "2.0s (Recommended for Slow Printers)", value: 2000, desc: "" },
-    { name: "3.0s (Extra Safe Queue)", value: 3000, desc: "" },
-    { name: "4.0s (Slow Spooler Cooldown)", value: 4000, desc: "" }
+  { name: "0.5s (Ultra Fast Spooler)", value: 500, desc: "" },
+  { name: "1.0s (Fast Printer)", value: 1000, desc: "" },
+  { name: "1.5s (Balanced Standard)", value: 1500, desc: "" },
+  { name: "2.0s (Recommended for Slow Printers)", value: 2000, desc: "" },
+  { name: "3.0s (Extra Safe Queue)", value: 3000, desc: "" },
+  { name: "4.0s (Slow Spooler Cooldown)", value: 4000, desc: "" }
 ];
 
 const TYPOGRAPHY_PRESETS = {
   balanced: {
-      businessNameSize: 18, businessAddressSize: 11, taglineSize: 11, receiptTokenSize: 28,
-      detailsFontSize: 10, itemsFontSize: 11, totalFontSize: 13, greetingFontSize: 12,
-      kotTokenSize: 16, kotItemsFontSize: 11, kotQtyFontSize: 14,
-      fontFamily: "", kotFontFamily: "", fontWeight: "", kotFontWeight: "",
-      businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
-      itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
-      kotItemsWeight: "", kotQtyWeight: ""
+    businessNameSize: 18, businessAddressSize: 11, taglineSize: 11, receiptTokenSize: 28,
+    detailsFontSize: 10, itemsFontSize: 11, totalFontSize: 13, greetingFontSize: 12,
+    kotTokenSize: 16, kotItemsFontSize: 11, kotQtyFontSize: 14,
+    fontFamily: "", kotFontFamily: "", fontWeight: "", kotFontWeight: "",
+    businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
+    itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
+    kotItemsWeight: "", kotQtyWeight: ""
   },
   compact: {
-      businessNameSize: 14, businessAddressSize: 9, taglineSize: 9, receiptTokenSize: 20,
-      detailsFontSize: 8, itemsFontSize: 9, totalFontSize: 11, greetingFontSize: 9,
-      kotTokenSize: 12, kotItemsFontSize: 9, kotQtyFontSize: 11,
-      fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif', kotFontFamily: '"Courier New", Courier, monospace',
-      fontWeight: "400", kotFontWeight: "400",
-      businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
-      itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
-      kotItemsWeight: "", kotQtyWeight: ""
+    businessNameSize: 14, businessAddressSize: 9, taglineSize: 9, receiptTokenSize: 20,
+    detailsFontSize: 8, itemsFontSize: 9, totalFontSize: 11, greetingFontSize: 9,
+    kotTokenSize: 12, kotItemsFontSize: 9, kotQtyFontSize: 11,
+    fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif', kotFontFamily: '"Courier New", Courier, monospace',
+    fontWeight: "400", kotFontWeight: "400",
+    businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
+    itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
+    kotItemsWeight: "", kotQtyWeight: ""
   },
   bold: {
-      businessNameSize: 24, businessAddressSize: 13, taglineSize: 12, receiptTokenSize: 34,
-      detailsFontSize: 12, itemsFontSize: 13, totalFontSize: 16, greetingFontSize: 14,
-      kotTokenSize: 20, kotItemsFontSize: 13, kotQtyFontSize: 16,
-      fontFamily: 'Georgia, Cambria, "Times New Roman", serif', kotFontFamily: '"Courier New", Courier, monospace',
-      fontWeight: "700", kotFontWeight: "700",
-      businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
-      itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
-      kotItemsWeight: "", kotQtyWeight: ""
+    businessNameSize: 24, businessAddressSize: 13, taglineSize: 12, receiptTokenSize: 34,
+    detailsFontSize: 12, itemsFontSize: 13, totalFontSize: 16, greetingFontSize: 14,
+    kotTokenSize: 20, kotItemsFontSize: 13, kotQtyFontSize: 16,
+    fontFamily: 'Georgia, Cambria, "Times New Roman", serif', kotFontFamily: '"Courier New", Courier, monospace',
+    fontWeight: "700", kotFontWeight: "700",
+    businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
+    itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
+    kotItemsWeight: "", kotQtyWeight: ""
   },
   minimal: {
-      businessNameSize: 16, businessAddressSize: 10, taglineSize: 10, receiptTokenSize: 24,
-      detailsFontSize: 9, itemsFontSize: 10, totalFontSize: 12, greetingFontSize: 10,
-      kotTokenSize: 14, kotItemsFontSize: 10, kotQtyFontSize: 12,
-      fontFamily: '"Trebuchet MS", Helvetica, sans-serif', kotFontFamily: '"Courier New", Courier, monospace',
-      fontWeight: "500", kotFontWeight: "500",
-      businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
-      itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
-      kotItemsWeight: "", kotQtyWeight: ""
+    businessNameSize: 16, businessAddressSize: 10, taglineSize: 10, receiptTokenSize: 24,
+    detailsFontSize: 9, itemsFontSize: 10, totalFontSize: 12, greetingFontSize: 10,
+    kotTokenSize: 14, kotItemsFontSize: 10, kotQtyFontSize: 12,
+    fontFamily: '"Trebuchet MS", Helvetica, sans-serif', kotFontFamily: '"Courier New", Courier, monospace',
+    fontWeight: "500", kotFontWeight: "500",
+    businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
+    itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
+    kotItemsWeight: "", kotQtyWeight: ""
   }
 };
 
@@ -330,10 +330,10 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
   const [dropdownConfig, setDropdownConfig] = useState<{
     visible: boolean;
     title: string;
-    options: {name: string; value: any; desc: string}[];
+    options: { name: string; value: any; desc: string }[];
     selectedValue: any;
     onSelect: (val: any) => void;
-  }>({ visible: false, title: "", options: [], selectedValue: null, onSelect: () => {} });
+  }>({ visible: false, title: "", options: [], selectedValue: null, onSelect: () => { } });
   const [businessProfile, setBusinessProfile] = useState<any>(null);
 
   const [googleReviewLink, setGoogleReviewLink] = useState("");
@@ -527,13 +527,13 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
         <View style={{ paddingVertical: vs(12) }}>
           <Text style={styles.inputLabel}>Paper Width & Density</Text>
           <View style={styles.segmentedControl}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.segmentBtn, printSettings.paperWidth !== "80mm" && styles.segmentBtnActive]}
               onPress={() => updateSettingValue("paperWidth", "58mm")}
             >
               <Text style={[styles.segmentText, printSettings.paperWidth !== "80mm" && styles.segmentTextActive]}>58mm (2" Thermal)</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.segmentBtn, printSettings.paperWidth === "80mm" && styles.segmentBtnActive]}
               onPress={() => updateSettingValue("paperWidth", "80mm")}
             >
@@ -552,10 +552,10 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
             { id: "bold", label: "Restaurant Bold", desc: "High readability" },
             { id: "minimal", label: "Minimal Cafe", desc: "Clean modern design" }
           ].map(preset => (
-            <TouchableOpacity 
-              key={preset.id} 
+            <TouchableOpacity
+              key={preset.id}
               style={[
-                styles.presetCard, 
+                styles.presetCard,
                 (printSettings.printDensity === preset.id || (preset.id === "balanced" && !printSettings.printDensity)) && styles.presetCardActive
               ]}
               onPress={() => {
@@ -577,7 +577,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
         <View style={{ paddingVertical: vs(12) }}>
           <Text style={[styles.inputLabel, { color: COLORS.text, fontWeight: "800" }]}>Printer Queue & Feed Spacing Safety</Text>
           <Text style={[styles.inputHint, { marginBottom: vs(8), marginTop: -vs(4) }]}>Prevents Cutter Jams / Queue Freezes</Text>
-          
+
           <Text style={styles.inputLabel}>Receipt Bottom Padding (Feed Spacing)</Text>
           <View style={styles.sliderRow}>
             <TouchableOpacity style={styles.adjustBtn} onPress={() => updateSettingValue("paperBottomPadding", Math.max(20, (printSettings.paperBottomPadding || 80) - 10))}>
@@ -593,7 +593,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
 
         <View style={{ paddingVertical: vs(12), borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
           <Text style={styles.inputLabel}>Consecutive Print Spooler Delay</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.dropdownTrigger}
             onPress={() => setDropdownConfig({
               visible: true, title: "Spooler Delay", options: spoolerOptions,
@@ -612,10 +612,10 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
         <View style={styles.divider} />
 
         <Text style={[styles.inputLabel, { marginTop: vs(12) }]}>Typography & Fonts</Text>
-        
+
         <View style={{ paddingVertical: vs(6) }}>
           <Text style={styles.inputLabel}>Receipt Font</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.dropdownTrigger}
             onPress={() => setDropdownConfig({
               visible: true, title: "Receipt Font", options: fonts,
@@ -632,7 +632,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
 
         <View style={{ paddingVertical: vs(6) }}>
           <Text style={styles.inputLabel}>Kitchen Slip (KOT) Font</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.dropdownTrigger}
             onPress={() => setDropdownConfig({
               visible: true, title: "KOT Font", options: fonts,
@@ -649,7 +649,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
 
         <View style={{ paddingVertical: vs(6) }}>
           <Text style={styles.inputLabel}>Global Receipt Font Weight</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.dropdownTrigger}
             onPress={() => setDropdownConfig({
               visible: true, title: "Global Font Weight", options: fontWeights,
@@ -666,7 +666,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
 
         <View style={{ paddingVertical: vs(6) }}>
           <Text style={styles.inputLabel}>KOT Font Weight</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.dropdownTrigger}
             onPress={() => setDropdownConfig({
               visible: true, title: "KOT Font Weight", options: fontWeights,
@@ -705,7 +705,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
         <View style={styles.resetRow}>
           <Text style={styles.resetHint}>* Element sizing fallbacks are applied automatically</Text>
           <View style={styles.resetBtnsRow}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.resetBtn}
               onPress={() => {
                 setPrintSettings(p => ({
@@ -730,7 +730,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
               <Text style={styles.resetBtnText}>Reset Receipt</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.resetBtn}
               onPress={() => {
                 setPrintSettings(p => ({
@@ -777,7 +777,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
         {weightKey && (
           <View style={styles.weightOverrideRow}>
             <Text style={styles.weightOverrideLabel}>Weight Override</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.weightDropdownTrigger}
               onPress={() => setDropdownConfig({
                 visible: true, title: `${label} Weight`, options: fontWeights,
@@ -850,25 +850,25 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
 
       <Modal visible={dropdownConfig.visible} transparent animationType="slide">
         <View style={styles.dropdownModalOverlay}>
-          <TouchableOpacity style={{ flex: 1 }} onPress={() => setDropdownConfig(prev => ({...prev, visible: false}))} />
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setDropdownConfig(prev => ({ ...prev, visible: false }))} />
           <View style={styles.dropdownModalContent}>
             <View style={styles.dropdownModalHeader}>
               <Text style={styles.dropdownModalTitle}>{dropdownConfig.title}</Text>
-              <TouchableOpacity onPress={() => setDropdownConfig(prev => ({...prev, visible: false}))}>
+              <TouchableOpacity onPress={() => setDropdownConfig(prev => ({ ...prev, visible: false }))}>
                 <Ionicons name="close-circle" size={rf(24)} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: vs(300) }}>
               {dropdownConfig.options.map((opt, idx) => (
-                <TouchableOpacity 
+                <TouchableOpacity
                   key={idx}
                   style={[
-                    styles.dropdownOption, 
+                    styles.dropdownOption,
                     dropdownConfig.selectedValue === opt.value && styles.dropdownOptionActive
                   ]}
                   onPress={() => {
                     dropdownConfig.onSelect(opt.value);
-                    setDropdownConfig(prev => ({...prev, visible: false}));
+                    setDropdownConfig(prev => ({ ...prev, visible: false }));
                   }}
                 >
                   <View>

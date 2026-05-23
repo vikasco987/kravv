@@ -51,7 +51,7 @@ const MainClientView = ({
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
   const { t } = useLanguage();
-  const { refreshSignal } = useRefresh();
+  const { refreshSignal, triggerRefresh } = useRefresh();
 
   const [parties, setParties] = useState<Party[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -412,8 +412,8 @@ const MainClientView = ({
         (discountEnabled ? billTaxable * (discountRate / 100) : 0) +
         (serviceChargeEnabled
           ? (billTaxable -
-              (discountEnabled ? billTaxable * (discountRate / 100) : 0)) *
-            (serviceChargeRate / 100)
+            (discountEnabled ? billTaxable * (discountRate / 100) : 0)) *
+          (serviceChargeRate / 100)
           : 0);
       const calcTotal =
         Math.floor(
@@ -527,7 +527,7 @@ const MainClientView = ({
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => fetchParties(true)}
+              onRefresh={() => triggerRefresh()}
               colors={[THEME_PRIMARY]}
             />
           }

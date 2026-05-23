@@ -1,5 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 // @ts-ignore
+import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
@@ -20,7 +21,7 @@ export default function TopNavBar({ title = "Home", showBack = false, showSearch
   const [isSearching, setIsSearching] = useState(false);
 
   const { triggerRefresh, searchQuery, setSearchQuery } = useRefresh();
-  
+
   // Animation Value for Refresh Icon
   const spinValue = useRef(new Animated.Value(0)).current;
 
@@ -52,7 +53,7 @@ export default function TopNavBar({ title = "Home", showBack = false, showSearch
   };
 
   return (
-    <View style={styles.container}>
+    <LinearGradient colors={["#8B5CF6", "#6D28D9"]} style={styles.container}>
       {isSearching ? (
         <View style={styles.searchBarWrapper}>
           <TouchableOpacity onPress={toggleSearch} style={styles.iconButton}>
@@ -80,8 +81,8 @@ export default function TopNavBar({ title = "Home", showBack = false, showSearch
               <Ionicons name="arrow-back" size={rf(26)} color="#fff" />
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity onPress={() => (navigation as any).openDrawer()} style={styles.iconButton}>
-              <Feather name="menu" size={rf(24)} color="#fff" />
+            <TouchableOpacity onPress={() => (navigation as any).openDrawer()} style={styles.menuIconButton}>
+              <Feather name="menu" size={rf(20)} color="#fff" />
             </TouchableOpacity>
           )}
 
@@ -109,22 +110,31 @@ export default function TopNavBar({ title = "Home", showBack = false, showSearch
           </View>
         </>
       )}
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     paddingTop: vs(40),
-    paddingHorizontal: s(10),
-    backgroundColor: THEME_PRIMARY,
+    paddingHorizontal: s(15),
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     height: vs(100),
+    borderBottomLeftRadius: s(15),
+    borderBottomRightRadius: s(15),
   },
   iconButton: { padding: s(5) },
-  titleGroup: { flex: 1, marginLeft: s(10) },
+  menuIconButton: {
+    width: s(40),
+    height: s(40),
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: s(10),
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  titleGroup: { flex: 1, marginLeft: s(15) },
   mainTitle: { fontSize: rf(22), fontWeight: "900", color: "#fff" },
   infoText: { fontSize: rf(12), color: "rgba(255,255,255,0.8)" },
   actionGroup: {

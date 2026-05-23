@@ -63,6 +63,7 @@ export async function getRecentCompanyProfile(token: string) {
       serviceGstRate: data.serviceGstRate,
       discountEnabled: data.discountEnabled,
       discountRate: data.discountRate,
+      multiZoneMenuEnabled: data.multiZoneMenuEnabled,
       // Print Settings
       printSettings: data.printSettings || null,
       // SaaS Overrides

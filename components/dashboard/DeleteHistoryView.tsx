@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
@@ -22,6 +23,7 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
   const { user } = useUser();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { refreshSignal } = useRefresh();
   const [deletedBills, setDeletedBills] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [alertConfig, setAlertConfig] = useState<{
@@ -75,6 +77,12 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
   useEffect(() => {
     fetchDeletedBills();
   }, []);
+
+  useEffect(() => {
+    if (refreshSignal > 0) {
+      fetchDeletedBills(true);
+    }
+  }, [refreshSignal]);
 
   const toggleSelect = (id) => {
     const newSet = new Set(selectedIds);
@@ -265,9 +273,9 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={["#3154D4", "#1E3A8A"]} style={styles.header}>
+      <LinearGradient colors={["transparent", "transparent"]} style={[styles.header, { elevation: 0 }]}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={rf(26)} color="#fff" />
+          <Ionicons name="arrow-back" size={rf(26)} color="#1E293B" />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: s(15) }}>
           <Text style={styles.headerTitle}>Delete Bills History</Text>
@@ -287,7 +295,7 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
                   : "square-outline"
               }
               size={rf(24)}
-              color="#fff"
+              color="#3154D4"
             />
           </TouchableOpacity>
         )}
@@ -427,12 +435,12 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: s(5) },
   headerTitle: {
-    color: "#fff",
+    color: "#1E293B",
     fontSize: rf(18),
     fontWeight: "bold",
   },
   headerSubtitle: {
-    color: "rgba(255,255,255,0.8)",
+    color: "#64748B",
     fontSize: rf(12),
     marginTop: vs(2),
   },

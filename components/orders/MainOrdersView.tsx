@@ -14,6 +14,7 @@ import {
     View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
+import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 import TableRotation from "../table-insights/TableRotation";
 
@@ -36,6 +37,7 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
     const { getToken } = useAuth();
     const { isSignedIn, user } = useUser();
     const { t } = useLanguage();
+    const { refreshSignal, triggerRefresh } = useRefresh();
     const router = useRouter();
     const [tables, setTables] = useState<Table[]>([]);
     const [loading, setLoading] = useState(true);
@@ -178,6 +180,13 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
         return () => clearInterval(interval);
     }, [fetchTables]);
 
+    useEffect(() => {
+        if (refreshSignal > 0) {
+            setRefreshing(true);
+            fetchTables();
+        }
+    }, [refreshSignal, fetchTables]);
+
     const onRefresh = () => {
         setRefreshing(true);
         fetchTables();
@@ -243,7 +252,7 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                     windowSize={10}
                     removeClippedSubviews={true}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME_PRIMARY} />
+                        <RefreshControl refreshing={refreshing} onRefresh={() => triggerRefresh()} tintColor={THEME_PRIMARY} />
                     }
                     renderItem={({ item }) => (
                         <TableCard

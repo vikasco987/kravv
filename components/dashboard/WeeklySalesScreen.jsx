@@ -4,14 +4,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    RefreshControl,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
@@ -216,6 +216,7 @@ export default function WeeklySalesScreen({ onBack, allBills }) {
     if (allBills && allBills.length > 0) {
       setRawBills(allBills.filter((b) => b.isHeld !== true));
       setLoading(false);
+      setRefreshing(false);
     } else {
       fetchBills();
     }
@@ -273,7 +274,7 @@ export default function WeeklySalesScreen({ onBack, allBills }) {
 
   useEffect(() => {
     if (refreshSignal > 0) {
-      fetchBills(true);
+      setRefreshing(true);
     }
   }, [refreshSignal]);
 
@@ -312,12 +313,6 @@ export default function WeeklySalesScreen({ onBack, allBills }) {
           <Text style={enhancedStyles.title}>
             {t("weekly_sales_report") || "Weekly Sales Report"} 📈
           </Text>
-          <TouchableOpacity
-            onPress={triggerRefresh}
-            style={enhancedStyles.reloadButton}
-          >
-            <Ionicons name="refresh" size={rf(26)} color={COLORS.primary} />
-          </TouchableOpacity>
         </View>
         <Text style={enhancedStyles.subtitle}>
           {t("all_time_sales") || "All Time Sales"}:{" "}
@@ -353,7 +348,7 @@ export default function WeeklySalesScreen({ onBack, allBills }) {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={() => fetchBills(true)}
+                onRefresh={() => triggerRefresh()}
                 colors={[COLORS.primary]}
               />
             }
@@ -387,7 +382,7 @@ export default function WeeklySalesScreen({ onBack, allBills }) {
           <TableListView
             data={groupedSales}
             refreshing={refreshing}
-            onRefresh={() => fetchBills(true)}
+            onRefresh={() => triggerRefresh()}
             t={t}
             onRowPress={(key) => setSelectedWeekReport(key)}
           />

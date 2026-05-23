@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS = {
   showKOTTime: true, showKOTInstructions: true,
   // QR
   showReviewQR: false,
-  
+
   // Typography Defaults
   businessNameSize: 18,
   businessAddressSize: 11,
@@ -57,10 +57,10 @@ const DEFAULT_SETTINGS = {
   totalFontSize: 13,
   detailsFontSize: 10,
   greetingFontSize: 12,
-  
+
   fontFamily: "",
   fontWeight: "",
-  
+
   businessNameWeight: "",
   businessAddressWeight: "",
   taglineWeight: "",
@@ -103,27 +103,27 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
   // Typography Resolvers
   const globalFont = getSafeFont(ps.fontFamily);
   const globalWeight = ps.fontWeight;
-  
+
   const bizNameSize = ps.businessNameSize || DEFAULT_SETTINGS.businessNameSize;
   const bizNameWeight = getSafeWeight(ps.businessNameWeight, globalWeight, "bold");
-  
+
   const bizAddressSize = ps.businessAddressSize || DEFAULT_SETTINGS.businessAddressSize;
   const bizAddressWeight = getSafeWeight(ps.businessAddressWeight, globalWeight, "normal");
-  
+
   const taglineSize = ps.taglineSize || DEFAULT_SETTINGS.taglineSize;
   const taglineWeight = getSafeWeight(ps.taglineWeight, globalWeight, "normal");
-  
+
   const detailsSize = ps.detailsFontSize || DEFAULT_SETTINGS.detailsFontSize;
   const detailsWeight = getSafeWeight(ps.detailsWeight, globalWeight, "normal");
   const detailsBoldWeight = getSafeWeight(ps.detailsWeight, globalWeight, "700");
-  
+
   const itemsSize = ps.itemsFontSize || DEFAULT_SETTINGS.itemsFontSize;
   const itemsWeight = getSafeWeight(ps.itemsWeight, globalWeight, "normal");
   const itemsBoldWeight = getSafeWeight(ps.itemsWeight, globalWeight, "800");
-  
+
   const totalSize = ps.totalFontSize || DEFAULT_SETTINGS.totalFontSize;
   const totalWeight = getSafeWeight(ps.totalWeight, globalWeight, "bold");
-  
+
   const greetingSize = ps.greetingFontSize || DEFAULT_SETTINGS.greetingFontSize;
   const greetingWeight = getSafeWeight(ps.greetingWeight, globalWeight, "normal");
 
@@ -161,7 +161,7 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
   const reviewLink = profile?.googleReviewLink || "";
 
   // Financial calculations
-  const subtotal = PREVIEW_ITEMS.reduce((a, i) => a + i.qty * i.rate, 0); 
+  const subtotal = PREVIEW_ITEMS.reduce((a, i) => a + i.qty * i.rate, 0);
   const discountAmt = 50;
   const packagingAmt = 20;
   const deliveryAmt = 0;
@@ -289,7 +289,7 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
               </View>
             )}
           </View>
-          
+
           <Row left="Bill No:" right="INV-2024-001" />
           <Row left="Date:" right={new Date().toLocaleDateString("en-IN")} />
           <Row left="Table:" right="Table 05" />
@@ -342,7 +342,7 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
               <Row left="SGST @2.5%" right={`₹${sgst.toFixed(2)}`} />
             </>
           )}
-          
+
           {show("showTotalTax") && <Row left="Total GST" right={`₹${totalTax.toFixed(2)}`} />}
           {show("showPackagingCharges") && packagingAmt > 0 && <Row left="Packaging" right={`+₹${packagingAmt.toFixed(2)}`} />}
           {show("showDeliveryCharges") && deliveryAmt > 0 && <Row left="Delivery" right={`+₹${deliveryAmt.toFixed(2)}`} />}
@@ -417,7 +417,7 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
             KITCHEN ORDER TICKET
           </Text>
           <Separator />
-          
+
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
             <Text style={{ fontFamily: kotFont, fontWeight: kotItemsBoldWeight, fontSize: kotItemsSize, color: "#000" }}>Token:</Text>
             {show("showKOTToken") && (

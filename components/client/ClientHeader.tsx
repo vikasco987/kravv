@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from "@expo/vector-icons";
+import { StyleSheet, Text, View } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
 
 interface ClientHeaderProps {
@@ -11,10 +10,10 @@ interface ClientHeaderProps {
 const THEME_PRIMARY = "#4F46E5";
 
 const ClientHeader = ({ title, onRefresh }: ClientHeaderProps) => {
-    const today = new Date().toLocaleDateString('en-GB', { 
-        day: 'numeric', 
-        month: 'short', 
-        year: 'numeric' 
+    const today = new Date().toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
     });
 
     return (
@@ -23,9 +22,6 @@ const ClientHeader = ({ title, onRefresh }: ClientHeaderProps) => {
                 <Text style={styles.headerTitle}>{title}</Text>
                 <Text style={styles.infoDate}>{today}</Text>
             </View>
-            <TouchableOpacity onPress={onRefresh}>
-                <Ionicons name="refresh-circle-outline" size={rf(32)} color={THEME_PRIMARY} />
-            </TouchableOpacity>
         </View>
     );
 };
