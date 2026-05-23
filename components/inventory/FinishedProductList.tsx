@@ -37,7 +37,7 @@ const FinishedProductList = ({
   };
 
   const renderItem = ({ item }: { item: InventoryProduct }) => {
-    const status = getStockStatus(item.stockLevel, item.reorderLevel);
+    const status = getStockStatus(item.currentStock, item.reorderLevel);
     const categoryName =
       typeof item.category === "object" && item.category !== null
         ? (item.category as any).name
@@ -94,7 +94,7 @@ const FinishedProductList = ({
               <View style={styles.statBox}>
                 <Text style={styles.statLabel}>Stock</Text>
                 <Text style={[styles.stockValue, { color: status.color }]}>
-                  {item.stockLevel}{" "}
+                  {item.currentStock}{" "}
                   <Text style={styles.unit}>{item.unit || "pcs"}</Text>
                 </Text>
               </View>

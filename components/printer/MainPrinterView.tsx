@@ -290,14 +290,14 @@ Thank You\n\n\n`;
                         onForget={() => forgetDevice(d.address)}
                     />
                 ))}
-            </ScrollView>
 
-            {connectedDevice && (
-                <TouchableOpacity style={styles.disconnectBtn} onPress={disconnectDevice}>
-                    <Ionicons name="close-circle-outline" size={rf(18)} color="#EF4444" />
-                    <Text style={styles.disconnectText}>Disconnect Printer</Text>
-                </TouchableOpacity>
-            )}
+                {connectedDevice && (
+                    <TouchableOpacity style={styles.disconnectBtn} onPress={disconnectDevice}>
+                        <Ionicons name="close-circle-outline" size={rf(18)} color="#EF4444" />
+                        <Text style={styles.disconnectText}>Disconnect Printer</Text>
+                    </TouchableOpacity>
+                )}
+            </ScrollView>
 
             {/* Modals */}
             <Modal transparent visible={isBtOffModalVisible} animationType="fade">

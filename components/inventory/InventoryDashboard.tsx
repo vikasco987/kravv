@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -117,6 +118,48 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: s(20),
+  },
+  categoryModalContainer: {
+    backgroundColor: "#fff",
+    borderRadius: s(20),
+    width: "100%",
+    maxHeight: vs(400),
+    padding: s(20),
+  },
+  categoryModalTitle: {
+    fontSize: rf(16),
+    fontWeight: "800",
+    color: "#1E293B",
+    marginBottom: vs(15),
+    textAlign: "center",
+  },
+  categoryOption: {
+    paddingVertical: vs(12),
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  categoryOptionActive: {
+    backgroundColor: "#EEF2FF",
+    borderRadius: s(8),
+    borderBottomWidth: 0,
+    paddingHorizontal: s(10),
+  },
+  categoryOptionText: {
+    fontSize: rf(14),
+    color: "#475569",
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  categoryOptionTextActive: {
+    color: "#4F46E5",
+    fontWeight: "800",
+  },
 });
 
 const InventoryDashboard = () => {
@@ -153,6 +196,8 @@ const InventoryDashboard = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [stockModalVisible, setStockModalVisible] = useState(false);
   const [materialModalVisible, setMaterialModalVisible] = useState(false);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [sortModalVisible, setSortModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   const fetchData = useCallback(
@@ -174,25 +219,10 @@ const InventoryDashboard = () => {
           return;
         }
 
-        const [
-          metricsData,
-          productsData,
-          materialsData,
-          categoriesData,
-          billsData,
-        ] = await Promise.all([
-          inventoryService.getInventoryMetrics(finalToken, bId).catch(() => ({
-            totalAssets: 0,
-            criticalStockCount: 0,
-            inventoryValue: 0,
-          })),
-          inventoryService
-            .getInventoryProducts(finalToken, bId)
-            .catch(() => []),
+        const [productsData, materialsData, categoriesData, billsData] = await Promise.all([
+          inventoryService.getInventoryProducts(finalToken, bId).catch(() => []),
           inventoryService.getRawMaterials(finalToken, bId).catch(() => []),
-          inventoryService
-            .getInventoryCategories(finalToken, bId)
-            .catch(() => []),
+          inventoryService.getInventoryCategories(finalToken, bId).catch(() => []),
           fetch(
             `https://billing.kravy.in/api/bill-manager?businessId=${bId || ""}&limit=1000`,
             { headers: { Authorization: `Bearer ${finalToken}` } },
@@ -201,10 +231,33 @@ const InventoryDashboard = () => {
             .catch(() => ({ bills: [] })),
         ]);
 
-        setMetrics({
-          ...metricsData,
-          totalCategories: categoriesData.length,
+        let inventoryValue = 0;
+        let criticalStockCount = 0;
+        const metricsCategories = new Set();
+
+        productsData.forEach((p: any) => {
+          inventoryValue += (p.currentStock || 0) * (p.price || p.sellingPrice || 0);
+          if ((p.currentStock || 0) <= (p.reorderLevel || 0)) criticalStockCount++;
+          if (p.category) {
+            const cat = typeof p.category === 'object' ? p.category.name : p.category;
+            metricsCategories.add(cat);
+          }
         });
+
+        materialsData.forEach((m: any) => {
+          inventoryValue += (m.currentStock || 0) * (m.purchasePrice || 0);
+          if ((m.currentStock || 0) <= (m.alertThreshold || 0)) criticalStockCount++;
+          if (m.category) metricsCategories.add(m.category);
+        });
+
+        const metricsData = {
+          totalAssets: productsData.length + materialsData.length,
+          criticalStockCount,
+          inventoryValue,
+          totalCategories: categoriesData.length || metricsCategories.size,
+        };
+
+        setMetrics(metricsData);
         setProducts(productsData);
         setMaterials(materialsData);
         setCategories(categoriesData);
@@ -232,7 +285,7 @@ const InventoryDashboard = () => {
         const token = await getToken();
         const session = await StaffPermissionEngine.getSession();
         const newStock =
-          mode === "add" ? selectedProduct.stockLevel + value : value;
+          mode === "add" ? selectedProduct.currentStock + value : value;
         await inventoryService.updateProductStock(
           token || session?.token || "",
           selectedProduct.id,
@@ -384,8 +437,7 @@ const InventoryDashboard = () => {
     // Status Filter
     if (filterStatus !== "all") {
       filtered = filtered.filter((item) => {
-        const current =
-          item.stockLevel !== undefined ? item.stockLevel : item.currentStock;
+        const current = item.currentStock;
         const reorder =
           item.reorderLevel !== undefined
             ? item.reorderLevel
@@ -402,10 +454,8 @@ const InventoryDashboard = () => {
     return filtered.sort((a, b) => {
       if (sortBy === "name") return a.name.localeCompare(b.name);
       if (sortBy === "stock") {
-        const aStock =
-          a.stockLevel !== undefined ? a.stockLevel : a.currentStock;
-        const bStock =
-          b.stockLevel !== undefined ? b.stockLevel : b.currentStock;
+        const aStock = a.currentStock;
+        const bStock = b.currentStock;
         return aStock - bStock;
       }
       if (sortBy === "price") {
@@ -447,6 +497,7 @@ const InventoryDashboard = () => {
           <TextInput
             style={styles.searchInput}
             placeholder={`Search ${activeTab}...`}
+            placeholderTextColor="#64748B"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -522,13 +573,7 @@ const InventoryDashboard = () => {
 
             {/* Category Filter */}
             <TouchableOpacity
-              onPress={() => {
-                // Simplified category picker logic
-                const nextIndex =
-                  categories.findIndex((c) => c.id === filterCategory) + 1;
-                if (nextIndex >= categories.length) setFilterCategory(null);
-                else setFilterCategory(categories[nextIndex].id);
-              }}
+              onPress={() => setCategoryModalVisible(true)}
               style={[
                 styles.filterBadge,
                 filterCategory !== null && styles.filterBadgeActive,
@@ -553,11 +598,7 @@ const InventoryDashboard = () => {
 
             {/* Sort Toggle */}
             <TouchableOpacity
-              onPress={() => {
-                if (sortBy === "name") setSortBy("stock");
-                else if (sortBy === "stock") setSortBy("price");
-                else setSortBy("name");
-              }}
+              onPress={() => setSortModalVisible(true)}
               style={styles.filterBadge}
             >
               <Feather name="arrow-up" size={rf(12)} color="#64748B" />
@@ -631,6 +672,59 @@ const InventoryDashboard = () => {
         onSave={handleSaveMaterial}
         loading={actionLoading}
       />
+
+      <Modal visible={categoryModalVisible} transparent animationType="fade">
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setCategoryModalVisible(false)}>
+          <View style={styles.categoryModalContainer}>
+            <Text style={styles.categoryModalTitle}>Select Category</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[styles.categoryOption, filterCategory === null && styles.categoryOptionActive]}
+                onPress={() => { setFilterCategory(null); setCategoryModalVisible(false); }}
+              >
+                <Text style={[styles.categoryOptionText, filterCategory === null && styles.categoryOptionTextActive]}>All Categories</Text>
+              </TouchableOpacity>
+              {categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[styles.categoryOption, filterCategory === cat.id && styles.categoryOptionActive]}
+                  onPress={() => { setFilterCategory(cat.id); setCategoryModalVisible(false); }}
+                >
+                  <Text style={[styles.categoryOptionText, filterCategory === cat.id && styles.categoryOptionTextActive]}>{cat.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={sortModalVisible} transparent animationType="fade">
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSortModalVisible(false)}>
+          <View style={styles.categoryModalContainer}>
+            <Text style={styles.categoryModalTitle}>Sort By</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[styles.categoryOption, sortBy === "name" && styles.categoryOptionActive]}
+                onPress={() => { setSortBy("name"); setSortModalVisible(false); }}
+              >
+                <Text style={[styles.categoryOptionText, sortBy === "name" && styles.categoryOptionTextActive]}>Name (A-Z)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.categoryOption, sortBy === "stock" && styles.categoryOptionActive]}
+                onPress={() => { setSortBy("stock"); setSortModalVisible(false); }}
+              >
+                <Text style={[styles.categoryOptionText, sortBy === "stock" && styles.categoryOptionTextActive]}>Stock (Low to High)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.categoryOption, sortBy === "price" && styles.categoryOptionActive]}
+                onPress={() => { setSortBy("price"); setSortModalVisible(false); }}
+              >
+                <Text style={[styles.categoryOptionText, sortBy === "price" && styles.categoryOptionTextActive]}>Price / Cost</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };

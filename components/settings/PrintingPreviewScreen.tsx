@@ -19,7 +19,7 @@ const COLORS = {
   primary: "#4F46E5",
 };
 
-// Sample order items for preview (same as website uses dummy items)
+// Sample order items for preview
 const PREVIEW_ITEMS = [
   { name: "Paneer Butter Masala", qty: 2, rate: 250, isVeg: true },
   { name: "Butter Naan", qty: 4, rate: 40, isVeg: true },
@@ -47,6 +47,44 @@ const DEFAULT_SETTINGS = {
   showKOTTime: true, showKOTInstructions: true,
   // QR
   showReviewQR: false,
+  
+  // Typography Defaults
+  businessNameSize: 18,
+  businessAddressSize: 11,
+  taglineSize: 11,
+  receiptTokenSize: 28,
+  itemsFontSize: 11,
+  totalFontSize: 13,
+  detailsFontSize: 10,
+  greetingFontSize: 12,
+  
+  fontFamily: "",
+  fontWeight: "",
+  
+  businessNameWeight: "",
+  businessAddressWeight: "",
+  taglineWeight: "",
+  receiptTokenWeight: "",
+  itemsWeight: "",
+  totalWeight: "",
+  detailsWeight: "",
+  greetingWeight: "",
+};
+
+// Safe Font Parser for React Native
+const getSafeFont = (cssFontStr: string | undefined | null) => {
+  if (!cssFontStr) return undefined;
+  const lower = cssFontStr.toLowerCase();
+  if (lower.includes("courier") || lower.includes("monospace")) return "monospace";
+  if (lower.includes("georgia") || lower.includes("times") || lower.includes("serif")) return "serif";
+  return "sans-serif";
+};
+
+// Safe Weight Parser
+const getSafeWeight = (specific: string | undefined | null, global: string | undefined | null, fallback: any): any => {
+  const w = specific || global;
+  if (!w) return fallback;
+  return w as any;
 };
 
 interface PrintingPreviewScreenProps {
@@ -60,12 +98,51 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
   const [cachedProfile, setCachedProfile] = useState<any>(null);
 
   const ps = { ...DEFAULT_SETTINGS, ...(printSettings || {}) };
-  const show = (key: string) => ps[key] !== false;
+  const show = (key: string) => ps[key as keyof typeof DEFAULT_SETTINGS] !== false;
 
-  // Use prop profile first, fall back to AsyncStorage cache
+  // Typography Resolvers
+  const globalFont = getSafeFont(ps.fontFamily);
+  const globalWeight = ps.fontWeight;
+  
+  const bizNameSize = ps.businessNameSize || DEFAULT_SETTINGS.businessNameSize;
+  const bizNameWeight = getSafeWeight(ps.businessNameWeight, globalWeight, "bold");
+  
+  const bizAddressSize = ps.businessAddressSize || DEFAULT_SETTINGS.businessAddressSize;
+  const bizAddressWeight = getSafeWeight(ps.businessAddressWeight, globalWeight, "normal");
+  
+  const taglineSize = ps.taglineSize || DEFAULT_SETTINGS.taglineSize;
+  const taglineWeight = getSafeWeight(ps.taglineWeight, globalWeight, "normal");
+  
+  const detailsSize = ps.detailsFontSize || DEFAULT_SETTINGS.detailsFontSize;
+  const detailsWeight = getSafeWeight(ps.detailsWeight, globalWeight, "normal");
+  const detailsBoldWeight = getSafeWeight(ps.detailsWeight, globalWeight, "700");
+  
+  const itemsSize = ps.itemsFontSize || DEFAULT_SETTINGS.itemsFontSize;
+  const itemsWeight = getSafeWeight(ps.itemsWeight, globalWeight, "normal");
+  const itemsBoldWeight = getSafeWeight(ps.itemsWeight, globalWeight, "800");
+  
+  const totalSize = ps.totalFontSize || DEFAULT_SETTINGS.totalFontSize;
+  const totalWeight = getSafeWeight(ps.totalWeight, globalWeight, "bold");
+  
+  const greetingSize = ps.greetingFontSize || DEFAULT_SETTINGS.greetingFontSize;
+  const greetingWeight = getSafeWeight(ps.greetingWeight, globalWeight, "normal");
+
+  const receiptTokenSize = ps.receiptTokenSize || DEFAULT_SETTINGS.receiptTokenSize;
+  const receiptTokenWeight = getSafeWeight(ps.receiptTokenWeight, globalWeight, "900");
+
+  // KOT Typography Resolvers
+  const kotFont = getSafeFont(ps.kotFontFamily) || globalFont;
+  const kotGlobalWeight = ps.kotFontWeight || globalWeight;
+  const kotTokenSize = ps.kotTokenSize || 16;
+  const kotTokenWeight = getSafeWeight(ps.kotTokenWeight, kotGlobalWeight, "900");
+  const kotItemsSize = ps.kotItemsFontSize || 11;
+  const kotItemsWeight = getSafeWeight(ps.kotItemsWeight, kotGlobalWeight, "normal");
+  const kotItemsBoldWeight = getSafeWeight(ps.kotItemsWeight, kotGlobalWeight, "800");
+  const kotQtySize = ps.kotQtyFontSize || 14;
+  const kotQtyWeight = getSafeWeight(ps.kotQtyWeight, kotGlobalWeight, "900");
+
   const profile = propProfile || cachedProfile;
 
-  // Load from cache as fallback (when prop is null/undefined)
   useEffect(() => {
     if (!propProfile) {
       AsyncStorage.getItem("@cached_company_profile")
@@ -74,7 +151,6 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
     }
   }, [propProfile]);
 
-  // Real business data — from prop (direct, reliable) with fallbacks
   const bizName = profile?.companyName || "Your Business";
   const bizTagline = profile?.businessTagLine || "";
   const bizAddress = profile?.companyAddress || "";
@@ -84,13 +160,13 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
   const bizLogo = profile?.logoUrl || "";
   const reviewLink = profile?.googleReviewLink || "";
 
-  // Financial calculations (preview dummy order)
-  const subtotal = PREVIEW_ITEMS.reduce((a, i) => a + i.qty * i.rate, 0); // 780
+  // Financial calculations
+  const subtotal = PREVIEW_ITEMS.reduce((a, i) => a + i.qty * i.rate, 0); 
   const discountAmt = 50;
   const packagingAmt = 20;
   const deliveryAmt = 0;
   const serviceAmt = 0;
-  const taxableAmt = subtotal - discountAmt; // 730
+  const taxableAmt = subtotal - discountAmt;
   const cgst = parseFloat((taxableAmt * 0.025).toFixed(2));
   const sgst = parseFloat((taxableAmt * 0.025).toFixed(2));
   const totalTax = cgst + sgst;
@@ -105,10 +181,10 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
     }} />
   );
 
-  const Row = ({ left, right, bold = false }: { left: string; right: string; bold?: boolean }) => (
+  const Row = ({ left, right, bold = false, size = detailsSize, weight = detailsWeight, boldWeight = detailsBoldWeight, font = globalFont }: any) => (
     <View style={{ flexDirection: "row", justifyContent: "space-between", marginVertical: 1 }}>
-      <Text style={{ fontSize: 10, fontWeight: bold ? "700" : "400", color: "#000" }}>{left}</Text>
-      <Text style={{ fontSize: 10, fontWeight: bold ? "700" : "400", color: "#000" }}>{right}</Text>
+      <Text style={{ fontFamily: font, fontSize: size, fontWeight: bold ? boldWeight : weight, color: "#000" }}>{left}</Text>
+      <Text style={{ fontFamily: font, fontSize: size, fontWeight: bold ? boldWeight : weight, color: "#000" }}>{right}</Text>
     </View>
   );
 
@@ -148,23 +224,16 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
         contentContainerStyle={styles.previewContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── RECEIPT PAPER ── */}
         <View style={[styles.paper, {
           transform: [{ scale: zoom }],
           marginVertical: zoom > 1 ? vs(zoom * 40) : vs(10),
         }]}>
 
-          {/* Separator: Top Header Line */}
           {show("sepTop") && <Separator />}
 
-          {/* Logo */}
           {show("showLogo") && bizLogo ? (
             <View style={{ alignItems: "center", marginBottom: 4 }}>
-              <Image
-                source={{ uri: bizLogo }}
-                style={{ width: 56, height: 56, borderRadius: 4 }}
-                resizeMode="contain"
-              />
+              <Image source={{ uri: bizLogo }} style={{ width: 56, height: 56, borderRadius: 4 }} resizeMode="contain" />
             </View>
           ) : show("showLogo") && (
             <View style={{ alignItems: "center", marginBottom: 4 }}>
@@ -174,79 +243,71 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
             </View>
           )}
 
-          {/* Business Name */}
-          <Text style={{ textAlign: "center", fontWeight: "bold", fontSize: 14, color: "#000" }}>
+          <Text style={{ fontFamily: globalFont, textAlign: "center", fontWeight: bizNameWeight, fontSize: bizNameSize, color: "#000" }}>
             {bizName}
           </Text>
 
-          {/* Tagline */}
           {show("showTagline") && bizTagline ? (
-            <Text style={{ textAlign: "center", fontSize: 9, fontStyle: "italic", color: "#000", marginTop: 1 }}>
+            <Text style={{ fontFamily: globalFont, textAlign: "center", fontSize: taglineSize, fontWeight: taglineWeight, fontStyle: "italic", color: "#000", marginTop: 1 }}>
               {bizTagline}
             </Text>
           ) : null}
 
-          {/* Address */}
           {show("showAddress") && bizAddress ? (
-            <Text style={{ textAlign: "center", fontSize: 9, color: "#000", marginTop: 2 }}>
+            <Text style={{ fontFamily: globalFont, textAlign: "center", fontSize: bizAddressSize, fontWeight: bizAddressWeight, color: "#000", marginTop: 2 }}>
               {bizAddress}
             </Text>
           ) : null}
 
-          {/* Contact */}
           {show("showContact") && bizPhone ? (
-            <Text style={{ textAlign: "center", fontWeight: "bold", fontSize: 9, marginTop: 2, color: "#000" }}>
+            <Text style={{ fontFamily: globalFont, textAlign: "center", fontWeight: detailsBoldWeight, fontSize: detailsSize, marginTop: 2, color: "#000" }}>
               Mob: {bizPhone}
             </Text>
           ) : null}
 
-          {/* GST */}
           {show("showGST") && bizGST ? (
             <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: "#000", paddingVertical: 2, marginTop: 3 }}>
-              <Text style={{ textAlign: "center", fontSize: 9, fontWeight: "bold", color: "#000" }}>
+              <Text style={{ fontFamily: globalFont, textAlign: "center", fontSize: detailsSize, fontWeight: detailsBoldWeight, color: "#000" }}>
                 GSTIN: {bizGST}
               </Text>
             </View>
           ) : null}
 
-          {/* FSSAI */}
           {show("showFSSAI") && bizFSSAI ? (
-            <Text style={{ textAlign: "center", fontSize: 9, fontWeight: "bold", color: "#000", marginTop: 2 }}>
+            <Text style={{ fontFamily: globalFont, textAlign: "center", fontSize: detailsSize, fontWeight: detailsBoldWeight, color: "#000", marginTop: 2 }}>
               FSSAI: {bizFSSAI}
             </Text>
           ) : null}
 
           <Separator dashed />
 
-          {/* Bill Info Row */}
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
-            <Text style={{ fontWeight: "800", fontSize: 9, color: "#000" }}>BILL SUMMARY</Text>
+            <Text style={{ fontFamily: globalFont, fontWeight: detailsBoldWeight, fontSize: detailsSize, color: "#000" }}>BILL SUMMARY</Text>
             {show("showToken") && (
               <View style={{ borderWidth: 2, borderColor: "#000", paddingHorizontal: 3 }}>
-                <Text style={{ fontSize: 8, fontWeight: "900", color: "#000" }}>TOKEN #42</Text>
+                <Text style={{ fontFamily: globalFont, fontSize: receiptTokenSize, fontWeight: receiptTokenWeight, color: "#000" }}>#42</Text>
               </View>
             )}
           </View>
+          
           <Row left="Bill No:" right="INV-2024-001" />
           <Row left="Date:" right={new Date().toLocaleDateString("en-IN")} />
           <Row left="Table:" right="Table 05" />
 
-          {/* Customer Details */}
           {show("showCustomerDetails") && (
             <>
               {show("sepCustomer") && <Separator dashed />}
-              <Text style={{ fontWeight: "700", fontSize: 10, color: "#000", marginBottom: 1 }}>Customer:</Text>
-              <Text style={{ fontSize: 9, color: "#000" }}>Rahul Sharma</Text>
-              <Text style={{ fontSize: 9, color: "#000" }}>9876543210</Text>
+              <Text style={{ fontFamily: globalFont, fontWeight: detailsBoldWeight, fontSize: detailsSize, color: "#000", marginBottom: 1 }}>Customer:</Text>
+              <Text style={{ fontFamily: globalFont, fontSize: detailsSize, fontWeight: detailsWeight, color: "#000" }}>Rahul Sharma</Text>
+              <Text style={{ fontFamily: globalFont, fontSize: detailsSize, fontWeight: detailsWeight, color: "#000" }}>9876543210</Text>
             </>
           )}
 
-          {/* Items */}
           {show("sepItemsHeader") && <Separator dashed />}
           <View style={{ flexDirection: "row", marginBottom: 2 }}>
-            <Text style={{ flex: 1, fontSize: 9, fontWeight: "800", color: "#000" }}>ITEM</Text>
-            <Text style={{ width: 20, fontSize: 9, fontWeight: "800", textAlign: "center", color: "#000" }}>QT</Text>
-            <Text style={{ width: 38, fontSize: 9, fontWeight: "800", textAlign: "right", color: "#000" }}>AMT</Text>
+            <Text style={{ fontFamily: globalFont, flex: 1, fontSize: itemsSize, fontWeight: itemsBoldWeight, color: "#000" }}>ITEM</Text>
+            <Text style={{ fontFamily: globalFont, width: 20, fontSize: itemsSize, fontWeight: itemsBoldWeight, textAlign: "center", color: "#000" }}>QT</Text>
+            <Text style={{ fontFamily: globalFont, width: 38, fontSize: itemsSize, fontWeight: itemsBoldWeight, textAlign: "right", color: "#000" }}>AMT</Text>
           </View>
           <Separator />
 
@@ -258,108 +319,86 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
                     <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "#16A34A" }} />
                   </View>
                 )}
-                <Text style={{ fontSize: 9, color: "#000", flex: 1 }}>{item.name}</Text>
+                <Text style={{ fontFamily: globalFont, fontSize: itemsSize, fontWeight: itemsWeight, color: "#000", flex: 1 }}>{item.name}</Text>
               </View>
-              <Text style={{ width: 20, fontSize: 9, textAlign: "center", color: "#000" }}>{item.qty}</Text>
-              <Text style={{ width: 38, fontSize: 9, textAlign: "right", color: "#000" }}>
+              <Text style={{ fontFamily: globalFont, width: 20, fontSize: itemsSize, fontWeight: itemsWeight, textAlign: "center", color: "#000" }}>{item.qty}</Text>
+              <Text style={{ fontFamily: globalFont, width: 38, fontSize: itemsSize, fontWeight: itemsWeight, textAlign: "right", color: "#000" }}>
                 ₹{(item.qty * item.rate).toFixed(0)}
               </Text>
             </View>
           ))}
 
-          {/* Financial Summary */}
           {show("sepTotalTop") && <Separator />}
 
           {show("showSubtotal") && <Row left="Subtotal" right={`₹${subtotal.toFixed(2)}`} />}
           {show("showDiscount") && <Row left="Discount (WELCOME50)" right={`-₹${discountAmt.toFixed(2)}`} />}
           {show("showTaxableAmt") && <Row left="Taxable Amount" right={`₹${taxableAmt.toFixed(2)}`} />}
 
-          {/* Tax Breakup */}
           {show("showTaxBreakup") && (
             <>
               <Separator dashed />
-              <Text style={{ fontSize: 9, fontWeight: "800", color: "#000", marginBottom: 1 }}>TAX BREAKUP:</Text>
+              <Text style={{ fontFamily: globalFont, fontSize: detailsSize, fontWeight: detailsBoldWeight, color: "#000", marginBottom: 1 }}>TAX BREAKUP:</Text>
               <Row left="CGST @2.5%" right={`₹${cgst.toFixed(2)}`} />
               <Row left="SGST @2.5%" right={`₹${sgst.toFixed(2)}`} />
             </>
           )}
+          
           {show("showTotalTax") && <Row left="Total GST" right={`₹${totalTax.toFixed(2)}`} />}
-          {show("showPackagingCharges") && packagingAmt > 0 && (
-            <Row left="Packaging" right={`+₹${packagingAmt.toFixed(2)}`} />
-          )}
-          {show("showDeliveryCharges") && deliveryAmt > 0 && (
-            <Row left="Delivery" right={`+₹${deliveryAmt.toFixed(2)}`} />
-          )}
-          {show("showServiceCharge") && serviceAmt > 0 && (
-            <Row left="Service Charge" right={`+₹${serviceAmt.toFixed(2)}`} />
-          )}
+          {show("showPackagingCharges") && packagingAmt > 0 && <Row left="Packaging" right={`+₹${packagingAmt.toFixed(2)}`} />}
+          {show("showDeliveryCharges") && deliveryAmt > 0 && <Row left="Delivery" right={`+₹${deliveryAmt.toFixed(2)}`} />}
+          {show("showServiceCharge") && serviceAmt > 0 && <Row left="Service Charge" right={`+₹${serviceAmt.toFixed(2)}`} />}
 
           {show("sepTotalBottom") && <Separator />}
-          <Row left="TOTAL" right={`₹${finalTotal.toFixed(2)}`} bold />
+          <Row left="TOTAL" right={`₹${finalTotal.toFixed(2)}`} bold size={totalSize} weight={totalWeight} boldWeight={totalWeight} />
 
-          {/* Amount in Words */}
           {show("showAmountInWords") && (
-            <Text style={{ fontSize: 8, fontStyle: "italic", color: "#000", marginTop: 2 }}>
+            <Text style={{ fontFamily: globalFont, fontSize: detailsSize - 2, fontWeight: detailsWeight, fontStyle: "italic", color: "#000", marginTop: 2 }}>
               {numberToWords(Math.round(finalTotal))} Rupees Only
             </Text>
           )}
 
-          {/* Payment Status */}
           {show("showPaymentStatus") && (
             <>
               {show("sepPayment") && <Separator dashed />}
-              <Text style={{ textAlign: "center", fontWeight: "900", fontSize: 10, color: "#000", marginTop: 2 }}>
+              <Text style={{ fontFamily: globalFont, textAlign: "center", fontWeight: "900", fontSize: detailsSize, color: "#000", marginTop: 2 }}>
                 [ PAID - UPI ]
               </Text>
             </>
           )}
 
-          {/* Greetings / Footer */}
           {show("showGreetings") && (
             <>
               {show("sepFooter") && <Separator dashed />}
-              <Text style={{ textAlign: "center", fontSize: 9, fontStyle: "italic", color: "#000" }}>
+              <Text style={{ fontFamily: globalFont, textAlign: "center", fontSize: greetingSize, fontWeight: greetingWeight, fontStyle: "italic", color: "#000" }}>
                 Thank you for visiting! 🙏
               </Text>
             </>
           )}
           {show("showVisitAgain") && (
-            <Text style={{ textAlign: "center", fontSize: 8, color: "#000" }}>Please visit again soon</Text>
+            <Text style={{ fontFamily: globalFont, textAlign: "center", fontSize: greetingSize - 1, fontWeight: greetingWeight, color: "#000" }}>Please visit again soon</Text>
           )}
 
-          {/* Review QR */}
           {show("showReviewQR") && (
             <>
               <Separator dashed />
-              <Text style={{ textAlign: "center", fontSize: 9, fontWeight: "700", color: "#000", marginBottom: 2 }}>
+              <Text style={{ fontFamily: globalFont, textAlign: "center", fontSize: detailsSize, fontWeight: detailsBoldWeight, color: "#000", marginBottom: 2 }}>
                 Rate Us on Google ⭐
               </Text>
               <View style={{ alignSelf: "center", marginVertical: 4 }}>
                 {reviewLink ? (
-                  <QRCode
-                    value={reviewLink}
-                    size={60}
-                    color="#000"
-                    backgroundColor="#fff"
-                  />
+                  <QRCode value={reviewLink} size={60} color="#000" backgroundColor="#fff" />
                 ) : (
                   <View style={{ width: 60, height: 60, backgroundColor: "#EEE", borderRadius: 4, alignItems: "center", justifyContent: "center" }}>
                     <Ionicons name="qr-code-outline" size={24} color="#999" />
                   </View>
                 )}
               </View>
-              {reviewLink ? (
-                <Text style={{ textAlign: "center", fontSize: 7, color: "#555", marginTop: 2 }} numberOfLines={1}>
-                  {reviewLink}
-                </Text>
-              ) : null}
             </>
           )}
 
-          {/* Powered By */}
           {show("showPoweredBy") && (
             <View style={{ borderTopWidth: 1, borderStyle: "dashed", borderColor: "#000", marginTop: 6, paddingTop: 4 }}>
-              <Text style={{ textAlign: "center", fontSize: 7, color: "#000" }}>
+              <Text style={{ fontFamily: globalFont, textAlign: "center", fontSize: detailsSize - 3, color: "#000" }}>
                 Powered by Kravy Billing
               </Text>
             </View>
@@ -367,16 +406,78 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
 
         </View>
 
-        {/* Note */}
+        {/* KOT SLIP PREVIEW */}
+        <View style={[styles.paper, {
+          transform: [{ scale: zoom }],
+          marginBottom: zoom > 1 ? vs(zoom * 40) : vs(40),
+          borderTopWidth: 4,
+          borderTopColor: "#000",
+        }]}>
+          <Text style={{ fontFamily: kotFont, textAlign: "center", fontSize: kotItemsSize + 2, fontWeight: kotItemsBoldWeight, color: "#000" }}>
+            KITCHEN ORDER TICKET
+          </Text>
+          <Separator />
+          
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
+            <Text style={{ fontFamily: kotFont, fontWeight: kotItemsBoldWeight, fontSize: kotItemsSize, color: "#000" }}>Token:</Text>
+            {show("showKOTToken") && (
+              <Text style={{ fontFamily: kotFont, fontSize: kotTokenSize, fontWeight: kotTokenWeight, color: "#000" }}>#42</Text>
+            )}
+          </View>
+
+          {show("showKOTBillNo") && (
+            <Row left="Bill No:" right="INV-2024-001" size={kotItemsSize} weight={kotItemsWeight} bold={false} font={kotFont} />
+          )}
+          {show("showKOTTime") && (
+            <Row left="Date/Time:" right={`${new Date().toLocaleDateString("en-IN")} 19:30`} size={kotItemsSize} weight={kotItemsWeight} bold={false} font={kotFont} />
+          )}
+
+          {show("showKOTCustomer") && (
+            <>
+              {show("sepCustomer") && <Separator dashed />}
+              <Text style={{ fontFamily: kotFont, fontSize: kotItemsSize, fontWeight: kotItemsWeight, color: "#000" }}>Table: Table 05</Text>
+              <Text style={{ fontFamily: kotFont, fontSize: kotItemsSize, fontWeight: kotItemsWeight, color: "#000" }}>Customer: Rahul Sharma</Text>
+            </>
+          )}
+
+          {show("sepItemsHeader") && <Separator dashed />}
+          <View style={{ flexDirection: "row", marginBottom: 2 }}>
+            <Text style={{ fontFamily: kotFont, flex: 1, fontSize: kotItemsSize, fontWeight: kotItemsBoldWeight, color: "#000" }}>ITEM</Text>
+            <Text style={{ fontFamily: kotFont, width: 30, fontSize: kotItemsSize, fontWeight: kotItemsBoldWeight, textAlign: "right", color: "#000" }}>QTY</Text>
+          </View>
+          <Separator />
+
+          {PREVIEW_ITEMS.map((item, i) => (
+            <View key={i} style={{ flexDirection: "row", marginBottom: 4 }}>
+              <Text style={{ fontFamily: kotFont, fontSize: kotItemsSize, fontWeight: kotItemsWeight, color: "#000", flex: 1 }}>{item.name}</Text>
+              <Text style={{ fontFamily: kotFont, width: 30, fontSize: kotQtySize, fontWeight: kotQtyWeight, textAlign: "right", color: "#000" }}>{item.qty}</Text>
+            </View>
+          ))}
+
+          {show("showKOTInstructions") && (
+            <>
+              {show("sepKOTInstructions") && <Separator dashed />}
+              <Text style={{ fontFamily: kotFont, fontSize: kotItemsSize, fontWeight: kotItemsBoldWeight, color: "#000", marginTop: 2 }}>
+                Instructions:
+              </Text>
+              <Text style={{ fontFamily: kotFont, fontSize: kotItemsSize, fontWeight: kotItemsWeight, fontStyle: "italic", color: "#000" }}>
+                - Make it spicy
+              </Text>
+              <Text style={{ fontFamily: kotFont, fontSize: kotItemsSize, fontWeight: kotItemsWeight, fontStyle: "italic", color: "#000" }}>
+                - Less oil in Paneer
+              </Text>
+            </>
+          )}
+        </View>
+
         <Text style={styles.noteText}>
-          * Preview may differ slightly from actual 58mm thermal print
+          * Preview reflects exact applied styling & typography
         </Text>
       </ScrollView>
     </View>
   );
 };
 
-// Simple number-to-words helper for amounts
 function numberToWords(n: number): string {
   const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
     "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",

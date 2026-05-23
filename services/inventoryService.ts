@@ -4,7 +4,7 @@ export interface InventoryProduct {
   id: string;
   name: string;
   description?: string;
-  stockLevel: number;
+  currentStock: number;
   reorderLevel: number;
   openingStock: number;
   sellingPrice: number;
@@ -121,13 +121,13 @@ export const inventoryService = {
     newStock: number,
     businessId?: string | null,
   ) => {
-    const response = await fetch(`${BACKEND_URL}/api/inventory/update`, {
-      method: "POST",
+    const response = await fetch(`${BACKEND_URL}/api/inventory`, {
+      method: "PUT",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ productId, stock: newStock, businessId }),
+      body: JSON.stringify({ id: productId, currentStock: newStock, businessId }),
     });
 
     if (!response.ok) throw new Error("Failed to update product stock");

@@ -208,9 +208,8 @@ export default function CustomDrawerContent(props: any) {
 
   return (
     <>
-      <DrawerContentScrollView {...props}>
-        <SidebarHeader user={user || staffMember} t={t} />
-
+      <SidebarHeader user={user || staffMember} t={t} />
+      <DrawerContentScrollView {...props} contentContainerStyle={{ paddingTop: 0 }}>
         <SidebarItems
           t={t}
           navigation={props.navigation}

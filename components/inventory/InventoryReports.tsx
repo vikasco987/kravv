@@ -35,10 +35,10 @@ const InventoryReports: React.FC<InventoryReportsProps> = ({
 
     products.forEach((item) => {
       const price = item.price || item.sellingPrice || 0;
-      const val = (item.stockLevel || 0) * price;
+      const val = (item.currentStock || 0) * price;
       totalProductValue += val;
 
-      if ((item.stockLevel || 0) <= (item.reorderLevel || 0)) {
+      if ((item.currentStock || 0) <= (item.reorderLevel || 0)) {
         lowStockProducts++;
       }
 
@@ -87,7 +87,7 @@ const InventoryReports: React.FC<InventoryReportsProps> = ({
         return {
           name,
           qty,
-          stock: product ? product.stockLevel : 0,
+          stock: product ? product.currentStock : 0,
           unit: product ? product.unit : "pcs",
         };
       });

@@ -4,14 +4,13 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { InventoryProduct, RawMaterial } from "../../services/inventoryService";
 import { rf, s, vs } from "../../utils/responsive";
@@ -43,7 +42,7 @@ export const UpdateStockModal = ({
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior="padding"
           style={styles.modalContainer}
         >
           <View style={styles.modalContent}>
@@ -57,7 +56,7 @@ export const UpdateStockModal = ({
             <View style={styles.modalBody}>
               <Text style={styles.productName}>{product?.name}</Text>
               <Text style={styles.label}>
-                Current: {product?.stockLevel} {product?.unit || "pcs"}
+                Current: {product?.currentStock} {product?.unit || "pcs"}
               </Text>
 
               <View style={styles.modeToggle}>
@@ -98,6 +97,7 @@ export const UpdateStockModal = ({
                 onChangeText={setValue}
                 keyboardType="numeric"
                 placeholder={mode === "add" ? "e.g. 10" : "e.g. 50"}
+                placeholderTextColor="#64748B"
                 autoFocus
               />
             </View>
@@ -168,7 +168,7 @@ export const AddEditProductModal = ({
           (typeof product.category === "object" ? product.category.id : ""),
         barcode: product.barcode || "",
         openingStock: String(product.openingStock || "0"),
-        currentStock: String(product.stockLevel || "0"),
+        currentStock: String(product.currentStock || "0"),
         reorderLevel: String(product.reorderLevel || "5"),
         taxStatus: product.taxStatus || "Without Tax",
         gst: String(product.gst || "0"),
@@ -217,7 +217,7 @@ export const AddEditProductModal = ({
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior="padding"
           style={styles.modalContainer}
         >
           <View style={[styles.modalContent, { maxHeight: vs(650) }]}>
@@ -259,14 +259,14 @@ export const AddEditProductModal = ({
                           style={[
                             styles.miniBadge,
                             formData.categoryId === cat.id &&
-                              styles.miniBadgeActive,
+                            styles.miniBadgeActive,
                           ]}
                         >
                           <Text
                             style={[
                               styles.miniBadgeText,
                               formData.categoryId === cat.id &&
-                                styles.miniBadgeTextActive,
+                              styles.miniBadgeTextActive,
                             ]}
                           >
                             {cat.name}
@@ -437,7 +437,7 @@ const CustomInput = ({
       onChangeText={onChangeText}
       placeholder={placeholder}
       keyboardType={keyboardType}
-      placeholderTextColor="#94A3B8"
+      placeholderTextColor="#64748B"
     />
   </View>
 );
@@ -502,7 +502,7 @@ export const AddEditMaterialModal = ({
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior="padding"
           style={styles.modalContainer}
         >
           <View style={styles.modalContent}>

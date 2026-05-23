@@ -10,6 +10,7 @@ import {
   Switch,
   Text,
   TextInput,
+  ToastAndroid,
   TouchableOpacity,
   View
 } from "react-native";
@@ -74,6 +75,43 @@ interface PrintSettings {
   showKOTInstructions: boolean;
   // QR
   showReviewQR: boolean;
+  // Typography & Styling
+  paperWidth?: string;
+  printDensity?: string;
+  paperBottomPadding?: number;
+  spoolerDelay?: number;
+  
+  // Receipt Element Sizing & Weights
+  businessNameSize?: number;
+  businessNameWeight?: string;
+  businessAddressSize?: number;
+  businessAddressWeight?: string;
+  taglineSize?: number;
+  taglineWeight?: string;
+  receiptTokenSize?: number;
+  receiptTokenWeight?: string;
+  itemsFontSize?: number;
+  itemsWeight?: string;
+  totalFontSize?: number;
+  totalWeight?: string;
+  detailsFontSize?: number;
+  detailsWeight?: string;
+  greetingFontSize?: number;
+  greetingWeight?: string;
+  
+  // KOT Element Sizing & Weights
+  kotTokenSize?: number;
+  kotTokenWeight?: string;
+  kotItemsFontSize?: number;
+  kotItemsWeight?: string;
+  kotQtyFontSize?: number;
+  kotQtyWeight?: string;
+  
+  // Fonts
+  fontFamily?: string;
+  kotFontFamily?: string;
+  fontWeight?: string;
+  kotFontWeight?: string;
 }
 
 interface PrintingSetupScreenProps {
@@ -124,6 +162,99 @@ const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   showKOTInstructions: true,
   // QR
   showReviewQR: false,
+  // Typography & Styling
+  paperWidth: "58mm",
+  printDensity: "balanced",
+  paperBottomPadding: 80,
+  spoolerDelay: 1500,
+  
+  // Default sizes
+  businessNameSize: 18,
+  businessAddressSize: 11,
+  taglineSize: 11,
+  receiptTokenSize: 28,
+  itemsFontSize: 11,
+  totalFontSize: 13,
+  detailsFontSize: 10,
+  greetingFontSize: 12,
+  
+  kotTokenSize: 16,
+  kotItemsFontSize: 11,
+  kotQtyFontSize: 14,
+  
+  fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  kotFontFamily: '"Courier New", Courier, monospace',
+  fontWeight: "400",
+  kotFontWeight: "400",
+};
+
+const fonts = [
+    { name: "Default (System Sans)", value: "", desc: "Clean & fast" },
+    { name: "Courier New / Monospace", value: '"Courier New", Courier, monospace', desc: "Thermal Classic" },
+    { name: "Helvetica / Clean Sans", value: '"Helvetica Neue", Helvetica, Arial, sans-serif', desc: "Modern Sans" },
+    { name: "Verdana / Wide Sans", value: 'Verdana, Geneva, sans-serif', desc: "Broad Sans" },
+    { name: "Georgia / Classic Serif", value: 'Georgia, Cambria, "Times New Roman", serif', desc: "Formal Print" }
+];
+
+const fontWeights = [
+    { name: "Default (Style Standard)", value: "", desc: "Default bolding" },
+    { name: "Light (300)", value: "300", desc: "Fine weight" },
+    { name: "Regular / Normal (400)", value: "400", desc: "Standard weight" },
+    { name: "Medium (500)", value: "500", desc: "Medium weight" },
+    { name: "Semi Bold (600)", value: "600", desc: "Moderately bold" },
+    { name: "Bold (700)", value: "700", desc: "High contrast bold" },
+    { name: "Extra Bold (900)", value: "900", desc: "Heavy block weight" }
+];
+
+const spoolerOptions = [
+    { name: "0.5s (Ultra Fast Spooler)", value: 500, desc: "" },
+    { name: "1.0s (Fast Printer)", value: 1000, desc: "" },
+    { name: "1.5s (Balanced Standard)", value: 1500, desc: "" },
+    { name: "2.0s (Recommended for Slow Printers)", value: 2000, desc: "" },
+    { name: "3.0s (Extra Safe Queue)", value: 3000, desc: "" },
+    { name: "4.0s (Slow Spooler Cooldown)", value: 4000, desc: "" }
+];
+
+const TYPOGRAPHY_PRESETS = {
+  balanced: {
+      businessNameSize: 18, businessAddressSize: 11, taglineSize: 11, receiptTokenSize: 28,
+      detailsFontSize: 10, itemsFontSize: 11, totalFontSize: 13, greetingFontSize: 12,
+      kotTokenSize: 16, kotItemsFontSize: 11, kotQtyFontSize: 14,
+      fontFamily: "", kotFontFamily: "", fontWeight: "", kotFontWeight: "",
+      businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
+      itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
+      kotItemsWeight: "", kotQtyWeight: ""
+  },
+  compact: {
+      businessNameSize: 14, businessAddressSize: 9, taglineSize: 9, receiptTokenSize: 20,
+      detailsFontSize: 8, itemsFontSize: 9, totalFontSize: 11, greetingFontSize: 9,
+      kotTokenSize: 12, kotItemsFontSize: 9, kotQtyFontSize: 11,
+      fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif', kotFontFamily: '"Courier New", Courier, monospace',
+      fontWeight: "400", kotFontWeight: "400",
+      businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
+      itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
+      kotItemsWeight: "", kotQtyWeight: ""
+  },
+  bold: {
+      businessNameSize: 24, businessAddressSize: 13, taglineSize: 12, receiptTokenSize: 34,
+      detailsFontSize: 12, itemsFontSize: 13, totalFontSize: 16, greetingFontSize: 14,
+      kotTokenSize: 20, kotItemsFontSize: 13, kotQtyFontSize: 16,
+      fontFamily: 'Georgia, Cambria, "Times New Roman", serif', kotFontFamily: '"Courier New", Courier, monospace',
+      fontWeight: "700", kotFontWeight: "700",
+      businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
+      itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
+      kotItemsWeight: "", kotQtyWeight: ""
+  },
+  minimal: {
+      businessNameSize: 16, businessAddressSize: 10, taglineSize: 10, receiptTokenSize: 24,
+      detailsFontSize: 9, itemsFontSize: 10, totalFontSize: 12, greetingFontSize: 10,
+      kotTokenSize: 14, kotItemsFontSize: 10, kotQtyFontSize: 12,
+      fontFamily: '"Trebuchet MS", Helvetica, sans-serif', kotFontFamily: '"Courier New", Courier, monospace',
+      fontWeight: "500", kotFontWeight: "500",
+      businessNameWeight: "", businessAddressWeight: "", taglineWeight: "", receiptTokenWeight: "",
+      itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: "", kotTokenWeight: "",
+      kotItemsWeight: "", kotQtyWeight: ""
+  }
 };
 
 interface ToggleRow {
@@ -193,8 +324,16 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [printSettings, setPrintSettings] = useState<PrintSettings>(DEFAULT_PRINT_SETTINGS);
-  const [savedSettings, setSavedSettings] = useState<PrintSettings>(DEFAULT_PRINT_SETTINGS);
+  const [printSettings, setPrintSettings] = useState<PrintSettings>({ ...DEFAULT_PRINT_SETTINGS });
+  const [originalSettings, setOriginalSettings] = useState<PrintSettings | null>(null);
+
+  const [dropdownConfig, setDropdownConfig] = useState<{
+    visible: boolean;
+    title: string;
+    options: {name: string; value: any; desc: string}[];
+    selectedValue: any;
+    onSelect: (val: any) => void;
+  }>({ visible: false, title: "", options: [], selectedValue: null, onSelect: () => {} });
   const [businessProfile, setBusinessProfile] = useState<any>(null);
 
   const [googleReviewLink, setGoogleReviewLink] = useState("");
@@ -212,7 +351,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
   });
 
   const hasChanges =
-    JSON.stringify(printSettings) !== JSON.stringify(savedSettings) ||
+    JSON.stringify(printSettings) !== JSON.stringify(originalSettings || DEFAULT_PRINT_SETTINGS) ||
     googleReviewLink !== savedGoogleReviewLink;
 
   useEffect(() => {
@@ -221,15 +360,14 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
 
   const loadPrintSettings = async () => {
     try {
-      // 1. Load print settings from AsyncStorage INSTANTLY
       const cached = await AsyncStorage.getItem(PRINT_SETTING_KEY);
+      let loadedSettings = { ...DEFAULT_PRINT_SETTINGS };
       if (cached) {
-        const parsed = { ...DEFAULT_PRINT_SETTINGS, ...JSON.parse(cached) };
-        setPrintSettings(parsed);
-        setSavedSettings(parsed);
+        loadedSettings = { ...DEFAULT_PRINT_SETTINGS, ...JSON.parse(cached) };
       }
+      setPrintSettings(loadedSettings);
+      setOriginalSettings(loadedSettings);
 
-      // 2. Load business profile from cache immediately (for preview)
       const cachedProfile = await AsyncStorage.getItem("@cached_company_profile");
       if (cachedProfile) {
         const parsedProfile = JSON.parse(cachedProfile);
@@ -240,7 +378,6 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
 
       setLoading(false);
 
-      // 3. Silently refresh from backend in background
       const token = await getToken();
       const sessionStr = await AsyncStorage.getItem("staff_session");
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
@@ -249,7 +386,6 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
       if (finalToken) {
         const profile: any = await getRecentCompanyProfile(finalToken);
         if (profile) {
-          // Always update businessProfile with fresh data
           setBusinessProfile(profile);
           setGoogleReviewLink(profile.googleReviewLink || "");
           setSavedGoogleReviewLink(profile.googleReviewLink || "");
@@ -257,7 +393,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
           if (profile.printSettings) {
             const merged = { ...DEFAULT_PRINT_SETTINGS, ...profile.printSettings };
             setPrintSettings(merged);
-            setSavedSettings(merged);
+            setOriginalSettings(merged);
             await AsyncStorage.setItem(PRINT_SETTING_KEY, JSON.stringify(merged));
           }
         }
@@ -275,11 +411,8 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
   const handleSave = async () => {
     try {
       setSaving(true);
-
-      // Save print settings locally
       await AsyncStorage.setItem(PRINT_SETTING_KEY, JSON.stringify(printSettings));
 
-      // Update @cached_company_profile locally
       const cachedProfileStr = await AsyncStorage.getItem("@cached_company_profile");
       let updatedProfile = businessProfile;
       if (cachedProfileStr) {
@@ -295,19 +428,6 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
         setBusinessProfile(parsed);
       }
 
-      // Update @cached_business_profile locally
-      const cachedBizProfileStr = await AsyncStorage.getItem("@cached_business_profile");
-      if (cachedBizProfileStr) {
-        const parsed = JSON.parse(cachedBizProfileStr);
-        if (parsed.data) {
-          parsed.data.googleReviewLink = googleReviewLink;
-        } else {
-          parsed.googleReviewLink = googleReviewLink;
-        }
-        await AsyncStorage.setItem("@cached_business_profile", JSON.stringify(parsed));
-      }
-
-      // Save to backend
       const token = await getToken();
       const sessionStr = await AsyncStorage.getItem("staff_session");
       const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
@@ -316,7 +436,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
         await updateBusinessSettings(finalToken, { printSettings, googleReviewLink });
       }
 
-      setSavedSettings(printSettings);
+      setOriginalSettings(printSettings);
       setSavedGoogleReviewLink(googleReviewLink);
       setPopup({
         visible: true,
@@ -331,7 +451,6 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
         title: "Failed to Save ❌",
         message: "An error occurred while saving your preferences. Please try again.",
       });
-      console.error(e);
     } finally {
       setSaving(false);
     }
@@ -347,7 +466,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
         <Text style={styles.toggleDesc} numberOfLines={1}>{item.desc}</Text>
       </View>
       <Switch
-        value={printSettings[item.key]}
+        value={!!printSettings[item.key]}
         onValueChange={() => toggle(item.key)}
         trackColor={{ false: "#E5E7EB", true: COLORS.green + "60" }}
         thumbColor={printSettings[item.key] ? COLORS.green : "#9CA3AF"}
@@ -394,6 +513,289 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
     </View>
   );
 
+  const updateSettingValue = (key: keyof PrintSettings, value: any) => {
+    setPrintSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const renderTypographySection = () => (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <View style={[styles.sectionDot, { backgroundColor: "#8B5CF6" }]} />
+        <Text style={styles.sectionTitle}>Typography & Styling</Text>
+      </View>
+      <View style={styles.card}>
+        <View style={{ paddingVertical: vs(12) }}>
+          <Text style={styles.inputLabel}>Paper Width & Density</Text>
+          <View style={styles.segmentedControl}>
+            <TouchableOpacity 
+              style={[styles.segmentBtn, printSettings.paperWidth !== "80mm" && styles.segmentBtnActive]}
+              onPress={() => updateSettingValue("paperWidth", "58mm")}
+            >
+              <Text style={[styles.segmentText, printSettings.paperWidth !== "80mm" && styles.segmentTextActive]}>58mm (2" Thermal)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.segmentBtn, printSettings.paperWidth === "80mm" && styles.segmentBtnActive]}
+              onPress={() => updateSettingValue("paperWidth", "80mm")}
+            >
+              <Text style={[styles.segmentText, printSettings.paperWidth === "80mm" && styles.segmentTextActive]}>80mm (3" Thermal)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <Text style={[styles.inputLabel, { marginTop: vs(12) }]}>Styling Presets</Text>
+        <View style={styles.presetsGrid}>
+          {[
+            { id: "balanced", label: "Balanced Standard", desc: "Default layout" },
+            { id: "compact", label: "Compact POS", desc: "Dense & paper-saving" },
+            { id: "bold", label: "Restaurant Bold", desc: "High readability" },
+            { id: "minimal", label: "Minimal Cafe", desc: "Clean modern design" }
+          ].map(preset => (
+            <TouchableOpacity 
+              key={preset.id} 
+              style={[
+                styles.presetCard, 
+                (printSettings.printDensity === preset.id || (preset.id === "balanced" && !printSettings.printDensity)) && styles.presetCardActive
+              ]}
+              onPress={() => {
+                setPrintSettings(p => ({
+                  ...p,
+                  printDensity: preset.id as any,
+                  ...TYPOGRAPHY_PRESETS[preset.id as keyof typeof TYPOGRAPHY_PRESETS]
+                }));
+              }}
+            >
+              <Text style={[styles.presetTitle, (printSettings.printDensity === preset.id || (preset.id === "balanced" && !printSettings.printDensity)) && styles.presetTitleActive]}>{preset.label}</Text>
+              <Text style={styles.presetDesc}>{preset.desc}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={{ paddingVertical: vs(12) }}>
+          <Text style={[styles.inputLabel, { color: COLORS.text, fontWeight: "800" }]}>Printer Queue & Feed Spacing Safety</Text>
+          <Text style={[styles.inputHint, { marginBottom: vs(8), marginTop: -vs(4) }]}>Prevents Cutter Jams / Queue Freezes</Text>
+          
+          <Text style={styles.inputLabel}>Receipt Bottom Padding (Feed Spacing)</Text>
+          <View style={styles.sliderRow}>
+            <TouchableOpacity style={styles.adjustBtn} onPress={() => updateSettingValue("paperBottomPadding", Math.max(20, (printSettings.paperBottomPadding || 80) - 10))}>
+              <Ionicons name="remove" size={rf(18)} color="#4F46E5" />
+            </TouchableOpacity>
+            <Text style={styles.sliderValue}>{printSettings.paperBottomPadding || 80} px</Text>
+            <TouchableOpacity style={styles.adjustBtn} onPress={() => updateSettingValue("paperBottomPadding", Math.min(200, (printSettings.paperBottomPadding || 80) + 10))}>
+              <Ionicons name="add" size={rf(18)} color="#4F46E5" />
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.inputHint, { textAlign: 'center', marginTop: vs(2) }]}>Feeds paper past the cutter. Increase this if text cuts off.</Text>
+        </View>
+
+        <View style={{ paddingVertical: vs(12), borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
+          <Text style={styles.inputLabel}>Consecutive Print Spooler Delay</Text>
+          <TouchableOpacity 
+            style={styles.dropdownTrigger}
+            onPress={() => setDropdownConfig({
+              visible: true, title: "Spooler Delay", options: spoolerOptions,
+              selectedValue: printSettings.spoolerDelay || 1500,
+              onSelect: (v) => updateSettingValue("spoolerDelay", v)
+            })}
+          >
+            <Text style={styles.dropdownTriggerText}>
+              {spoolerOptions.find(o => o.value === (printSettings.spoolerDelay || 1500))?.name || "1.5s (Balanced Standard)"}
+            </Text>
+            <Ionicons name="chevron-down" size={rf(16)} color={COLORS.textLight} />
+          </TouchableOpacity>
+          <Text style={[styles.inputHint, { marginTop: vs(6) }]}>Cooldown time between KOT and Bill prints to prevent freezes.</Text>
+        </View>
+
+        <View style={styles.divider} />
+
+        <Text style={[styles.inputLabel, { marginTop: vs(12) }]}>Typography & Fonts</Text>
+        
+        <View style={{ paddingVertical: vs(6) }}>
+          <Text style={styles.inputLabel}>Receipt Font</Text>
+          <TouchableOpacity 
+            style={styles.dropdownTrigger}
+            onPress={() => setDropdownConfig({
+              visible: true, title: "Receipt Font", options: fonts,
+              selectedValue: printSettings.fontFamily || "",
+              onSelect: (v) => updateSettingValue("fontFamily", v)
+            })}
+          >
+            <Text style={styles.dropdownTriggerText}>
+              {fonts.find(o => o.value === (printSettings.fontFamily || ""))?.name || "Default (System Sans)"}
+            </Text>
+            <Ionicons name="chevron-down" size={rf(16)} color={COLORS.textLight} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ paddingVertical: vs(6) }}>
+          <Text style={styles.inputLabel}>Kitchen Slip (KOT) Font</Text>
+          <TouchableOpacity 
+            style={styles.dropdownTrigger}
+            onPress={() => setDropdownConfig({
+              visible: true, title: "KOT Font", options: fonts,
+              selectedValue: printSettings.kotFontFamily || "",
+              onSelect: (v) => updateSettingValue("kotFontFamily", v)
+            })}
+          >
+            <Text style={styles.dropdownTriggerText}>
+              {fonts.find(o => o.value === (printSettings.kotFontFamily || ""))?.name || "Default (System Sans)"}
+            </Text>
+            <Ionicons name="chevron-down" size={rf(16)} color={COLORS.textLight} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ paddingVertical: vs(6) }}>
+          <Text style={styles.inputLabel}>Global Receipt Font Weight</Text>
+          <TouchableOpacity 
+            style={styles.dropdownTrigger}
+            onPress={() => setDropdownConfig({
+              visible: true, title: "Global Font Weight", options: fontWeights,
+              selectedValue: printSettings.fontWeight || "",
+              onSelect: (v) => updateSettingValue("fontWeight", v)
+            })}
+          >
+            <Text style={styles.dropdownTriggerText}>
+              {fontWeights.find(o => o.value === (printSettings.fontWeight || ""))?.name || "Default (Style Standard)"}
+            </Text>
+            <Ionicons name="chevron-down" size={rf(16)} color={COLORS.textLight} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ paddingVertical: vs(6) }}>
+          <Text style={styles.inputLabel}>KOT Font Weight</Text>
+          <TouchableOpacity 
+            style={styles.dropdownTrigger}
+            onPress={() => setDropdownConfig({
+              visible: true, title: "KOT Font Weight", options: fontWeights,
+              selectedValue: printSettings.kotFontWeight || "",
+              onSelect: (v) => updateSettingValue("kotFontWeight", v)
+            })}
+          >
+            <Text style={styles.dropdownTriggerText}>
+              {fontWeights.find(o => o.value === (printSettings.kotFontWeight || ""))?.name || "Default"}
+            </Text>
+            <Ionicons name="chevron-down" size={rf(16)} color={COLORS.textLight} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.divider} />
+
+        <Text style={[styles.inputLabel, { marginTop: vs(12) }]}>Receipt Element Sizing</Text>
+        {renderSizer("Business Name", "businessNameSize", "businessNameWeight", 14, 32)}
+        {renderSizer("Address", "businessAddressSize", "businessAddressWeight", 8, 16)}
+        {renderSizer("Tagline", "taglineSize", "taglineWeight", 8, 14)}
+        {renderSizer("Receipt Token", "receiptTokenSize", "receiptTokenWeight", 18, 40)}
+        {renderSizer("Items List", "itemsFontSize", "itemsWeight", 9, 18)}
+        {renderSizer("Grand Total", "totalFontSize", "totalWeight", 11, 24)}
+        {renderSizer("Details & Metadata", "detailsFontSize", "detailsWeight", 8, 14)}
+        {renderSizer("Greetings", "greetingFontSize", "greetingWeight", 9, 18)}
+
+        <View style={styles.divider} />
+
+        <Text style={[styles.inputLabel, { marginTop: vs(12) }]}>Kitchen Slip (KOT) Sizing</Text>
+        {renderSizer("KOT Token", "kotTokenSize", "kotTokenWeight", 12, 28)}
+        {renderSizer("KOT Items", "kotItemsFontSize", "kotItemsWeight", 9, 18)}
+        {renderSizer("KOT Quantity", "kotQtyFontSize", "kotQtyWeight", 10, 22)}
+
+        <View style={styles.divider} />
+
+        <View style={styles.resetRow}>
+          <Text style={styles.resetHint}>* Element sizing fallbacks are applied automatically</Text>
+          <View style={styles.resetBtnsRow}>
+            <TouchableOpacity 
+              style={styles.resetBtn}
+              onPress={() => {
+                setPrintSettings(p => ({
+                  ...p,
+                  businessNameSize: DEFAULT_PRINT_SETTINGS.businessNameSize,
+                  businessAddressSize: DEFAULT_PRINT_SETTINGS.businessAddressSize,
+                  taglineSize: DEFAULT_PRINT_SETTINGS.taglineSize,
+                  receiptTokenSize: DEFAULT_PRINT_SETTINGS.receiptTokenSize,
+                  detailsFontSize: DEFAULT_PRINT_SETTINGS.detailsFontSize,
+                  itemsFontSize: DEFAULT_PRINT_SETTINGS.itemsFontSize,
+                  totalFontSize: DEFAULT_PRINT_SETTINGS.totalFontSize,
+                  greetingFontSize: DEFAULT_PRINT_SETTINGS.greetingFontSize,
+                  fontFamily: DEFAULT_PRINT_SETTINGS.fontFamily,
+                  fontWeight: DEFAULT_PRINT_SETTINGS.fontWeight,
+                  businessNameWeight: "", businessAddressWeight: "", taglineWeight: "",
+                  receiptTokenWeight: "", itemsWeight: "", totalWeight: "", detailsWeight: "", greetingWeight: ""
+                }));
+                ToastAndroid.show("Receipt typography reset!", ToastAndroid.SHORT);
+              }}
+            >
+              <Ionicons name="refresh" size={rf(14)} color={COLORS.textLight} />
+              <Text style={styles.resetBtnText}>Reset Receipt</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.resetBtn}
+              onPress={() => {
+                setPrintSettings(p => ({
+                  ...p,
+                  kotTokenSize: DEFAULT_PRINT_SETTINGS.kotTokenSize,
+                  kotItemsFontSize: DEFAULT_PRINT_SETTINGS.kotItemsFontSize,
+                  kotQtyFontSize: DEFAULT_PRINT_SETTINGS.kotQtyFontSize,
+                  kotFontFamily: DEFAULT_PRINT_SETTINGS.kotFontFamily,
+                  kotFontWeight: DEFAULT_PRINT_SETTINGS.kotFontWeight,
+                  kotTokenWeight: "", kotItemsWeight: "", kotQtyWeight: ""
+                }));
+                ToastAndroid.show("KOT typography reset!", ToastAndroid.SHORT);
+              }}
+            >
+              <Ionicons name="refresh" size={rf(14)} color={COLORS.textLight} />
+              <Text style={styles.resetBtnText}>Reset KOT</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderSizer = (label: string, key: keyof PrintSettings, weightKey: keyof PrintSettings | null, min: number, max: number) => {
+    const val = (printSettings[key] as number) || min;
+    return (
+      <View style={styles.sizerContainerOuter}>
+        <View style={styles.sizerContainer}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sizerLabel}>{label}</Text>
+            <Text style={styles.sizerRange}>Range: {min}px - {max}px</Text>
+          </View>
+          <View style={styles.sizerControls}>
+            <TouchableOpacity style={styles.sizerBtn} onPress={() => updateSettingValue(key, Math.max(min, val - 1))}>
+              <Ionicons name="remove" size={rf(14)} color={COLORS.textLight} />
+            </TouchableOpacity>
+            <Text style={styles.sizerValText}>{val}</Text>
+            <TouchableOpacity style={styles.sizerBtn} onPress={() => updateSettingValue(key, Math.min(max, val + 1))}>
+              <Ionicons name="add" size={rf(14)} color={COLORS.textLight} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {weightKey && (
+          <View style={styles.weightOverrideRow}>
+            <Text style={styles.weightOverrideLabel}>Weight Override</Text>
+            <TouchableOpacity 
+              style={styles.weightDropdownTrigger}
+              onPress={() => setDropdownConfig({
+                visible: true, title: `${label} Weight`, options: fontWeights,
+                selectedValue: printSettings[weightKey] || "",
+                onSelect: (v) => updateSettingValue(weightKey, v)
+              })}
+            >
+              <Text style={styles.weightDropdownText}>
+                {fontWeights.find(o => o.value === (printSettings[weightKey] || ""))?.name.split(" (")[0] || "Default style"}
+              </Text>
+              <Ionicons name="chevron-down" size={rf(14)} color={COLORS.textLight} />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -405,7 +807,6 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={rf(22)} color={COLORS.text} />
@@ -414,7 +815,6 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
           <Text style={styles.headerTitle}>Print Customizer</Text>
           <Text style={styles.headerSub}>Design your Bill & KOT layout</Text>
         </View>
-        {/* Preview Button */}
         <TouchableOpacity
           style={styles.previewBtn}
           onPress={() => onPreview(printSettings, { ...businessProfile, googleReviewLink })}
@@ -443,11 +843,50 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
         {renderSection("Layout Separators", "remove-circle-outline", "#64748B", SEPARATOR_TOGGLES)}
         {renderSection("KOT (Kitchen) Layout", "restaurant-outline", "#EF4444", KOT_TOGGLES)}
         {renderSection("QR Code & Digital", "qr-code-outline", "#F97316", QR_TOGGLES)}
+        {renderTypographySection()}
 
         <View style={{ height: vs(100) }} />
       </ScrollView>
 
-      {/* Save Button */}
+      <Modal visible={dropdownConfig.visible} transparent animationType="slide">
+        <View style={styles.dropdownModalOverlay}>
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setDropdownConfig(prev => ({...prev, visible: false}))} />
+          <View style={styles.dropdownModalContent}>
+            <View style={styles.dropdownModalHeader}>
+              <Text style={styles.dropdownModalTitle}>{dropdownConfig.title}</Text>
+              <TouchableOpacity onPress={() => setDropdownConfig(prev => ({...prev, visible: false}))}>
+                <Ionicons name="close-circle" size={rf(24)} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: vs(300) }}>
+              {dropdownConfig.options.map((opt, idx) => (
+                <TouchableOpacity 
+                  key={idx}
+                  style={[
+                    styles.dropdownOption, 
+                    dropdownConfig.selectedValue === opt.value && styles.dropdownOptionActive
+                  ]}
+                  onPress={() => {
+                    dropdownConfig.onSelect(opt.value);
+                    setDropdownConfig(prev => ({...prev, visible: false}));
+                  }}
+                >
+                  <View>
+                    <Text style={[styles.dropdownOptionName, dropdownConfig.selectedValue === opt.value && styles.dropdownOptionNameActive]}>
+                      {opt.name}
+                    </Text>
+                    {opt.desc ? <Text style={styles.dropdownOptionDesc}>{opt.desc}</Text> : null}
+                  </View>
+                  {dropdownConfig.selectedValue === opt.value && (
+                    <Ionicons name="checkmark-circle" size={rf(20)} color={COLORS.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <View style={[styles.saveBar, { paddingBottom: vs(12) }]}>
         <TouchableOpacity
           style={[styles.saveBtn, !hasChanges && styles.saveBtnDisabled]}
@@ -606,6 +1045,257 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     marginTop: vs(4),
     lineHeight: rf(14),
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: s(10),
+    padding: s(4),
+    gap: s(4),
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: vs(8),
+    alignItems: 'center',
+    borderRadius: s(8),
+  },
+  segmentBtnActive: {
+    backgroundColor: '#FFF',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  segmentText: {
+    fontSize: rf(12),
+    fontWeight: '600',
+    color: COLORS.textLight,
+  },
+  segmentTextActive: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  sliderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: s(20),
+    marginVertical: vs(6),
+  },
+  adjustBtn: {
+    width: s(36),
+    height: s(36),
+    backgroundColor: '#EEF2FF',
+    borderRadius: s(18),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sliderValue: {
+    fontSize: rf(16),
+    fontWeight: 'bold',
+    color: COLORS.text,
+    minWidth: s(60),
+    textAlign: 'center',
+  },
+  sizerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: s(8),
+    paddingHorizontal: s(4),
+    paddingVertical: vs(4),
+  },
+  sizerBtn: {
+    padding: s(4),
+  },
+  sizerValText: {
+    fontSize: rf(13),
+    fontWeight: 'bold',
+    color: COLORS.text,
+    minWidth: s(24),
+    textAlign: 'center',
+  },
+  sizerContainerOuter: {
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    borderRadius: s(12),
+    padding: s(12),
+    marginVertical: vs(4),
+  },
+  sizerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sizerLabel: {
+    fontSize: rf(12),
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  sizerRange: {
+    fontSize: rf(9),
+    color: COLORS.textLight,
+    marginTop: vs(2),
+  },
+  weightOverrideRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: vs(8),
+    paddingTop: vs(8),
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  weightOverrideLabel: {
+    fontSize: rf(10),
+    fontWeight: 'bold',
+    color: COLORS.textLight,
+    textTransform: 'uppercase',
+  },
+  weightDropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: s(8),
+    paddingHorizontal: s(8),
+    paddingVertical: vs(4),
+    gap: s(4),
+  },
+  weightDropdownText: {
+    fontSize: rf(10),
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  resetRow: {
+    marginTop: vs(8),
+    gap: vs(8),
+  },
+  resetHint: {
+    fontSize: rf(9),
+    color: COLORS.textLight,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  resetBtnsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s(8),
+  },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: s(8),
+    paddingHorizontal: s(12),
+    paddingVertical: vs(8),
+    gap: s(4),
+  },
+  resetBtnText: {
+    fontSize: rf(11),
+    fontWeight: 'bold',
+    color: COLORS.textLight,
+  },
+  presetsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: s(8),
+    marginTop: vs(8),
+  },
+  presetCard: {
+    width: '48%',
+    backgroundColor: '#F3F4F6',
+    borderRadius: s(12),
+    padding: s(12),
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  presetCardActive: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#C7D2FE',
+  },
+  presetTitle: {
+    fontSize: rf(12),
+    fontWeight: 'bold',
+    color: COLORS.text,
+    textTransform: 'uppercase',
+  },
+  presetTitleActive: {
+    color: COLORS.primary,
+  },
+  presetDesc: {
+    fontSize: rf(9),
+    color: COLORS.textLight,
+    marginTop: vs(4),
+  },
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: s(12),
+    paddingHorizontal: s(12),
+    paddingVertical: vs(12),
+    marginTop: vs(4),
+  },
+  dropdownTriggerText: {
+    fontSize: rf(12),
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  dropdownModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  dropdownModalContent: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: s(24),
+    borderTopRightRadius: s(24),
+    padding: s(20),
+    paddingBottom: vs(40),
+  },
+  dropdownModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: vs(16),
+  },
+  dropdownModalTitle: {
+    fontSize: rf(16),
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  dropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: vs(14),
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  dropdownOptionActive: {
+    backgroundColor: '#F9FAFB',
+  },
+  dropdownOptionName: {
+    fontSize: rf(14),
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  dropdownOptionNameActive: {
+    color: COLORS.primary,
+  },
+  dropdownOptionDesc: {
+    fontSize: rf(10),
+    color: COLORS.textLight,
+    marginTop: vs(2),
   },
   modalOverlay: {
     flex: 1,
