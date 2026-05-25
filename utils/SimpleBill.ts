@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { DeviceEventEmitter, Image } from "react-native";
+import { DeviceEventEmitter, Image, ToastAndroid } from "react-native";
 // @ts-ignore
 import RNBluetoothClassic from "react-native-bluetooth-classic";
 import { StaffPermissionEngine } from "../components/staff creat/StaffPermissionEngine";
@@ -211,10 +211,52 @@ export const preCacheLogo = (url: string) => {
 };
 
 /**
+ * Ensures an order gets a consistent token number. If the backend didn't provide one, 
+ * it generates a local token and caches it for future KOTs/Bills of the same order.
+ */
+export async function resolveOrderToken(orderId: string | undefined | null, backendToken: any): Promise<string> {
+  if (backendToken) return String(backendToken);
+
+  if (orderId) {
+    try {
+      const storedStr = await AsyncStorage.getItem("@order_tokens");
+      const stored = storedStr ? JSON.parse(storedStr) : {};
+      if (stored[orderId]) {
+        return stored[orderId];
+      }
+
+      const currentToken = await AsyncStorage.getItem("@token_counter");
+      const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
+      await AsyncStorage.setItem("@token_counter", String(nextToken));
+
+      stored[orderId] = String(nextToken);
+      const keys = Object.keys(stored);
+      if (keys.length > 100) {
+        delete stored[keys[0]];
+      }
+      await AsyncStorage.setItem("@order_tokens", JSON.stringify(stored));
+      return String(nextToken);
+    } catch (e) {
+      console.log("Error resolving order token:", e);
+    }
+  }
+
+  // Fallback
+  try {
+    const currentToken = await AsyncStorage.getItem("@token_counter");
+    const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
+    await AsyncStorage.setItem("@token_counter", String(nextToken));
+    return String(nextToken);
+  } catch (e) {
+    return String(Math.floor(100 + Math.random() * 900));
+  }
+}
+
+/**
  * Fetches an image from Cloudinary as a BMP, rasterizes it into a 1-bit bitmask,
  * and returns the ESC/POS GS v 0 command bytes.
  */
-async function fetchAndRasterizeLogo(url: string): Promise<Uint8Array | null> {
+async function fetchAndRasterizeLogo(url: string): Promise<Uint8Array | { error: string } | null> {
   try {
     // 0. Check Cache First
     if (logoCache.has(url)) {
@@ -223,22 +265,36 @@ async function fetchAndRasterizeLogo(url: string): Promise<Uint8Array | null> {
 
     // 1. Force Cloudinary to return a high-contrast grayscale BMP
     // transformations: width 200px (smaller centered logo), high contrast, grayscale, BMP format
-    const transformedUrl = url.includes("/upload/")
-      ? url.replace(
+    let transformedUrl = url;
+    if (url.startsWith("data:image/")) {
+      console.log("[LOGO ERROR] Base64 images are not supported for thermal printing.");
+      return null;
+    }
+
+    if (url.includes("/upload/")) {
+      transformedUrl = url.replace(
         "/upload/",
         "/upload/w_250,c_scale,e_grayscale,e_contrast:100,f_bmp/",
-      )
-      : url;
+      );
+    } else if (url.startsWith("http")) {
+      transformedUrl = `https://res.cloudinary.com/demo/image/fetch/w_250,c_scale,e_grayscale,e_contrast:100,f_bmp/${encodeURIComponent(url)}`;
+    }
 
     const response = await fetch(transformedUrl);
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.log(`[LOGO ERROR] Failed to fetch transformed logo from: ${transformedUrl}. Status: ${response.status}`);
+      return { error: `Fetch failed: ${response.status}` };
+    }
 
     const arrayBuffer = await response.arrayBuffer();
     const data = new Uint8Array(arrayBuffer);
 
     // 2. Basic BMP Parser (Supports 24-bit and 8-bit uncompressed)
     // Check 'BM' signature
-    if (data[0] !== 0x42 || data[1] !== 0x4d) return null;
+    if (data[0] !== 0x42 || data[1] !== 0x4d) {
+      console.log(`[LOGO ERROR] Not a BMP file. Signature: ${data[0].toString(16)} ${data[1].toString(16)} for URL:`, transformedUrl);
+      return { error: `Not a BMP (Sig: ${data[0].toString(16)} ${data[1].toString(16)})` };
+    }
 
     const offset =
       data[10] | (data[11] << 8) | (data[12] << 16) | (data[13] << 24);
@@ -249,7 +305,10 @@ async function fetchAndRasterizeLogo(url: string): Promise<Uint8Array | null> {
     );
     const bpp = data[28] | (data[29] << 8);
 
-    if (bpp !== 24 && bpp !== 8) return null;
+    if (bpp !== 32 && bpp !== 24 && bpp !== 8) {
+      console.log(`[LOGO ERROR] Unsupported BPP: ${bpp}. Only 8, 24, or 32 bit BMP supported.`);
+      return { error: `Unsupported BPP: ${bpp}` };
+    }
 
     // ESC/POS requires width to be a multiple of 8 for GS v 0
     const widthBytes = Math.ceil(width / 8);
@@ -266,7 +325,15 @@ async function fetchAndRasterizeLogo(url: string): Promise<Uint8Array | null> {
 
       for (let x = 0; x < width; x++) {
         let gray = 0;
-        if (bpp === 24) {
+        if (bpp === 32) {
+          const p = rowOffset + x * 4;
+          const alpha = data[p + 3];
+          if (alpha < 128) {
+            gray = 255; // treat transparent pixels as white (not printed)
+          } else {
+            gray = (data[p] + data[p + 1] + data[p + 2]) / 3;
+          }
+        } else if (bpp === 24) {
           const p = rowOffset + x * 3;
           // BMP is BGR
           gray = (data[p] + data[p + 1] + data[p + 2]) / 3;
@@ -300,7 +367,7 @@ async function fetchAndRasterizeLogo(url: string): Promise<Uint8Array | null> {
     return command;
   } catch (err: any) {
     console.log("Logo Rasterization Error:", err.message || err);
-    return null;
+    return { error: `Exception: ${err.message}` };
   }
 }
 
@@ -350,18 +417,8 @@ export async function SimpleBill(
     const date = new Date();
     const tempBillNo = `NEW-${Date.now().toString().slice(-4)}`;
 
-    // --- AUTO-GENERATE TOKEN IF NOT PROVIDED ---
-    let finalTokenNo = options?.tokenNo;
-    if (!finalTokenNo) {
-      try {
-        const currentToken = await AsyncStorage.getItem("@token_counter");
-        const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
-        await AsyncStorage.setItem("@token_counter", String(nextToken));
-        finalTokenNo = String(nextToken);
-      } catch (e) {
-        finalTokenNo = String(Math.floor(100 + Math.random() * 900));
-      }
-    }
+    // --- AUTO-GENERATE OR FETCH TOKEN IF NOT PROVIDED ---
+    let finalTokenNo = await resolveOrderToken(options?.orderId, options?.tokenNo);
 
     const settings = await AsyncStorage.multiGet([
       "tax_enabled",
@@ -685,11 +742,15 @@ export async function SimpleBill(
 
           // Print Logo
           const logoUrl = companyInfo?.logoUrl || companyInfo?.logo;
-          if (printSettings.showLogo && logoUrl) {
-            const logoBytes = await fetchAndRasterizeLogo(logoUrl);
-            if (logoBytes) {
-              await printer.write(logoBytes);
+          if (String(printSettings.showLogo) === "true" && logoUrl) {
+            const logoResult = await fetchAndRasterizeLogo(logoUrl);
+            if (logoResult && !(logoResult as any).error) {
+              await printer.write(logoResult);
               await printer.write(utf8Encode("\n"));
+            } else {
+              const errDetails = logoResult ? (logoResult as any).error : "Unknown";
+              console.log("[BILL LOGO] Failed to print logo.", errDetails);
+              ToastAndroid.show(`Logo print failed: ${errDetails}`, ToastAndroid.LONG);
             }
           }
 
@@ -812,7 +873,7 @@ export async function SimpleBill(
 
           await printer.write(utf8Encode(printBody));
 
-          await printer.write(detailsSizeCmd);
+          await printer.write(itemsSizeCmd);
           await printer.write(detailsWeightCmd);
           let taxBody = "";
           if (printSettings.sepTotalTop) {
@@ -869,10 +930,11 @@ export async function SimpleBill(
 
           await printer.write(totalSizeCmd);
           await printer.write(totalWeightCmd);
-          await printer.write(utf8Encode(`TOTAL: Rs.${finalGrandTotal.toFixed(2)}\n`));
+          const totalStr = `Rs.${finalGrandTotal.toFixed(2)}`;
+          await printer.write(utf8Encode(`${"TOTAL:".padEnd(32 - totalStr.length)}${totalStr}\n`));
           await printer.write(BOLD_OFF);
 
-          await printer.write(detailsSizeCmd);
+          await printer.write(itemsSizeCmd);
           await printer.write(detailsWeightCmd);
           let footerBody = "";
           if (printSettings.sepTotalBottom) {

@@ -607,11 +607,13 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                 setSelectedTable(tableName);
               }
 
+              const parsedData = JSON.parse(data);
               setCheckoutParams({
                 cart: JSON.stringify(newCart),
                 paymentMethod,
                 selectedTable: tableName === "Counter" ? null : tableName,
                 tokenNo: tokenNumber,
+                kotId: parsedData.kotId,
               });
               setCurrentView("checkout");
             }

@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
+import { resolveOrderToken } from "../../utils/SimpleBill";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { SimpleKOT } from "./SimpleKOT";
 
@@ -274,7 +275,9 @@ const NewOrderNotifier = () => {
             currentOrder.table?.name ||
             currentOrder.table_name ||
             "Online Order";
-          const tokenNo = await getNextTokenNumber();
+          const backendToken = currentOrder.tokenNumber || currentOrder.dailyTokenNumber || currentOrder.orderNumber || currentOrder.billNumber || currentOrder.kotNumbers?.[0]?.toString();
+          const orderId = currentOrder._id || currentOrder.id;
+          const tokenNo = await resolveOrderToken(orderId, backendToken);
           await SimpleKOT(
             items,
             token,
@@ -359,30 +362,35 @@ const NewOrderNotifier = () => {
             processedOrderIds.current.add(o._id || o.id),
           );
 
-          // ✅ TRIGGER SYSTEM NOTIFICATION FOR BACKGROUND
-          if (AppState.currentState !== "active") {
-            const firstOrder = newlyArrivedOrders[0];
-            const tableName =
-              firstOrder.tableName || firstOrder.table?.name || "Online Order";
-            Notifications.scheduleNotificationAsync({
-              content: {
-                title: "🚨 NEW URGENT ORDER!",
-                body: `${tableName} has sent a new order. Open app to accept!`,
-                data: { orderId: firstOrder._id || firstOrder.id },
-                sound: true,
-                priority: "max",
-              },
-              trigger: null, // show immediately
+          // Only alert for online/QR orders
+          const alertableOrders = newlyArrivedOrders.filter((o) => o.source !== "OFFLINE");
+
+          if (alertableOrders.length > 0) {
+            // ✅ TRIGGER SYSTEM NOTIFICATION FOR BACKGROUND
+            if (AppState.currentState !== "active") {
+              const firstOrder = alertableOrders[0];
+              const tableName =
+                firstOrder.tableName || firstOrder.table?.name || "Online Order";
+              Notifications.scheduleNotificationAsync({
+                content: {
+                  title: "🚨 NEW URGENT ORDER!",
+                  body: `${tableName} has sent a new order. Open app to accept!`,
+                  data: { orderId: firstOrder._id || firstOrder.id },
+                  sound: true,
+                  priority: "max",
+                },
+                trigger: null, // show immediately
+              });
+            }
+
+            setPendingOrders((prev) => {
+              const updated = [...prev, ...alertableOrders];
+              if (prev.length === 0 && !showNotification) {
+                triggerNotification(updated[0]);
+              }
+              return updated;
             });
           }
-
-          setPendingOrders((prev) => {
-            const updated = [...prev, ...newlyArrivedOrders];
-            if (prev.length === 0 && !showNotification) {
-              triggerNotification(updated[0]);
-            }
-            return updated;
-          });
         }
       }
     } catch (error) {
@@ -406,6 +414,16 @@ const NewOrderNotifier = () => {
       fetchOrders,
     );
 
+    // ✅ Listen for local offline orders so they don't trigger alarms
+    const localOrderSub = DeviceEventEmitter.addListener(
+      "LOCAL_ORDER_CREATED",
+      (orderId) => {
+        if (orderId) {
+          processedOrderIds.current.add(String(orderId));
+        }
+      }
+    );
+
     // ✅ Extreme fast polling (1 second) for "instant" feel
     const interval = setInterval(fetchOrders, 1000);
 
@@ -420,6 +438,7 @@ const NewOrderNotifier = () => {
       clearInterval(interval);
       appStateSub.remove();
       refreshSub.remove();
+      localOrderSub.remove();
     };
   }, [isSignedIn, staffData]);
 

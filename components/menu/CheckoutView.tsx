@@ -551,6 +551,17 @@ export default function CheckoutView({
       if (result?.status === "success") {
         setIsSuccessModalVisible(true);
         triggerRefresh(); // Update dashboard
+
+        // If this checkout originated from a KOT order, mark it as COMPLETED
+        if (params.kotId) {
+          try {
+            fetch("https://billing.kravy.in/api/orders", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+              body: JSON.stringify({ orderId: params.kotId, status: "COMPLETED" }),
+            }).catch(e => console.log("Failed to complete KOT order in background", e));
+          } catch (err) { }
+        }
       } else {
         setPrintErrorMessage(result?.error || "Failed to process bill.");
         setIsErrorModalVisible(true);
