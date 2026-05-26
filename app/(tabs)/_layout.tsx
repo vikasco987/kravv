@@ -64,7 +64,7 @@ export default function TabsLayout() {
   const getTitle = () => {
     if (pathname.includes("Dashboard")) return t('dashboard');
     if (pathname.includes("menu")) return t('menu');
-    if (pathname.includes("orders")) return t('orders');
+    if (pathname.includes("orders")) return "Tables";
     if (pathname.includes("Client")) return t('client');
     if (pathname.includes("Printer")) return t('printer');
     if (pathname.includes("setting")) return t('settings');
@@ -127,7 +127,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="orders"
           options={{
-            title: t('orders'),
+            title: "Tables",
             href: undefined,
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons

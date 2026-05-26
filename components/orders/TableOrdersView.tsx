@@ -437,7 +437,7 @@ export default function TableOrdersView({
         tableName: tableName,
         tokenNo: tokenNo,
         source: "POS_TABLE",
-        isHeld: activeOrder.status !== "COMPLETED",
+        isHeld: false,
       }
     );
 

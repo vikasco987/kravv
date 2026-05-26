@@ -225,21 +225,10 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
 
   const renderItem = ({ item }) => {
     const snap = item.snapshot || {};
-    const isSelected = selectedIds.has(item.id);
     return (
-      <TouchableOpacity
-        style={[styles.card, isSelected && styles.selectedCard]}
-        onPress={() => toggleSelect(item.id)}
-        activeOpacity={0.7}
-      >
+      <View style={styles.card}>
         <View style={styles.cardHeader}>
           <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-            <Ionicons
-              name={isSelected ? "checkbox" : "square-outline"}
-              size={rf(22)}
-              color={isSelected ? "#3154D4" : "#CBD5E1"}
-              style={{ marginRight: s(10) }}
-            />
             <Text style={styles.billNo}>#{snap.billNumber || "N/A"}</Text>
           </View>
           <Text style={styles.amount}>
@@ -267,7 +256,7 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
             </Text>
           </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -285,20 +274,7 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
             </Text>
           )}
         </View>
-        {deletedBills.length > 0 && (
-          <TouchableOpacity onPress={toggleSelectAll} style={styles.selectAll}>
-            <Ionicons
-              name={
-                selectedIds.size === deletedBills.length &&
-                  deletedBills.length > 0
-                  ? "checkbox"
-                  : "square-outline"
-              }
-              size={rf(24)}
-              color="#3154D4"
-            />
-          </TouchableOpacity>
-        )}
+
       </LinearGradient>
 
       {selectedIds.size > 0 && (
