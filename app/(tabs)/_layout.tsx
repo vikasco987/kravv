@@ -1,16 +1,16 @@
 import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Tabs, usePathname, useRouter } from "expo-router";
-import React, { useState, useEffect } from "react";
-import { View, DeviceEventEmitter } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View } from "react-native";
+import RNBluetoothClassic from "react-native-bluetooth-classic";
 import "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LoginRequiredModal } from "../../components/common/LoginRequiredModal";
 import TopNavBar from "../../components/common/TopNavBar";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import RNBluetoothClassic from "react-native-bluetooth-classic";
 
 export default function TabsLayout() {
   const { t } = useLanguage();
@@ -57,7 +57,7 @@ export default function TabsLayout() {
     };
 
     checkAndConnectPrinter();
-    const interval = setInterval(checkAndConnectPrinter, 5000); 
+    const interval = setInterval(checkAndConnectPrinter, 5000);
     return () => clearInterval(interval);
   }, []);
 
