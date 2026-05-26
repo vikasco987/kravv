@@ -13,6 +13,7 @@ import {
   Dimensions,
   StyleSheet,
   Text,
+  ToastAndroid,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -31,6 +32,7 @@ const NewOrderNotifier = () => {
   const [showNotification, setShowNotification] = useState(false);
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [newOrderInfo, setNewOrderInfo] = useState<any>(null);
+  const [latestOrders, setLatestOrders] = useState<any[]>([]);
   const processedOrderIds = useRef(new Set<string>());
   const { refreshSignal } = useRefresh();
   const [staffData, setStaffData] = useState<{
@@ -213,7 +215,7 @@ const NewOrderNotifier = () => {
           },
           body: JSON.stringify({
             orderId: currentOrder._id || currentOrder.id,
-            status: "PREPARING",
+            status: "ACCEPTED",
           }),
         }).catch((err) => console.log("[NewOrder] Status update failed:", err));
 
@@ -325,6 +327,18 @@ const NewOrderNotifier = () => {
     };
   }, [showNotification, newOrderInfo]);
 
+  // ✅ AUTO DISMISS IF ACCEPTED ON WEB
+  useEffect(() => {
+    if (showNotification && newOrderInfo && latestOrders.length > 0) {
+      const dbOrder = latestOrders.find((o) => (o._id || o.id) === (newOrderInfo._id || newOrderInfo.id));
+      if (dbOrder && dbOrder.status !== "PENDING") {
+        console.log("[NewOrder] Order was accepted on another device/web. Dismissing popup.");
+        ToastAndroid.show("Order accepted on Web/Another device", ToastAndroid.SHORT);
+        hideNotification();
+      }
+    }
+  }, [latestOrders, showNotification, newOrderInfo]);
+
   const fetchOrders = async () => {
     if ((!isSignedIn && !staffData) || fetchInProgress.current) return;
     try {
@@ -347,6 +361,7 @@ const NewOrderNotifier = () => {
       if (response.ok) {
         const oData = await response.json();
         const orders: any[] = Array.isArray(oData) ? oData : oData.orders || [];
+        setLatestOrders(orders);
 
         if (processedOrderIds.current.size === 0) {
           orders.forEach((o) => processedOrderIds.current.add(o._id || o.id));

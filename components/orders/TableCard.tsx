@@ -11,6 +11,8 @@ interface TableCardProps {
     activeCount: number;
     startTime?: string;
     onPress: () => void;
+    onEdit?: () => void;
+    onDelete?: () => void;
 }
 
 const STATUS_CONFIG: Record<TableStatus, { bg: string; border: string; text: string; dot: string; label: string; }> = {
@@ -54,7 +56,7 @@ const TableTimer = ({ startTime }: { startTime?: string }) => {
     );
 };
 
-export const TableCard = React.memo(({ name, status, activeCount, startTime, onPress }: TableCardProps) => {
+export const TableCard = React.memo(({ name, status, activeCount, startTime, onPress, onEdit, onDelete }: TableCardProps) => {
     const config = STATUS_CONFIG[status] || STATUS_CONFIG.FREE;
     const displayName = name.startsWith("T-") ? name.slice(2) : name;
 
@@ -73,23 +75,39 @@ export const TableCard = React.memo(({ name, status, activeCount, startTime, onP
                     <View style={[styles.statusDot, { backgroundColor: config.dot }]} />
                     <Text style={[styles.statusLabel, { color: config.text }]}>{config.label}</Text>
                 </View>
-                {activeCount > 0 && (
-                    <View style={styles.badge}>
-                        <Text style={styles.badgeText}>{activeCount}</Text>
-                    </View>
-                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {activeCount > 0 && (
+                        <View style={styles.badge}>
+                            <Text style={styles.badgeText}>{activeCount}</Text>
+                        </View>
+                    )}
+                </View>
             </View>
 
             <View style={styles.nameContainer}>
                 <Text style={styles.tableName} numberOfLines={2} adjustsFontSizeToFit>{displayName}</Text>
             </View>
 
-            <View style={styles.bottomRow}>
-                {status !== 'FREE' && startTime ? (
-                    <TableTimer startTime={startTime} />
-                ) : (
-                    <View style={{ height: vs(16) }} />
-                )}
+            <View style={[styles.bottomRow, { flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'flex-end' }]}>
+                <View>
+                    {status !== 'FREE' && startTime ? (
+                        <TableTimer startTime={startTime} />
+                    ) : (
+                        <View style={{ height: vs(16) }} />
+                    )}
+                </View>
+                <View style={{ flexDirection: 'row' }}>
+                    {onEdit && (
+                        <TouchableOpacity style={styles.actionBtn} onPress={(e) => { e.stopPropagation(); onEdit(); }}>
+                            <Ionicons name="pencil" size={rf(14)} color="#6B7280" />
+                        </TouchableOpacity>
+                    )}
+                    {onDelete && (
+                        <TouchableOpacity style={styles.actionBtn} onPress={(e) => { e.stopPropagation(); onDelete(); }}>
+                            <Ionicons name="trash" size={rf(14)} color="#EF4444" />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
         </TouchableOpacity>
     );
@@ -99,11 +117,11 @@ TableCard.displayName = "TableCard";
 const styles = StyleSheet.create({
     tableCard: {
         flex: 1,
-        margin: s(5),
+        margin: s(3),
         height: vs(110),
-        borderRadius: s(16),
+        borderRadius: s(12),
         borderWidth: 1,
-        padding: s(8),
+        padding: s(6),
         justifyContent: 'space-between',
     },
     activeShadow: {
@@ -145,6 +163,12 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: rf(9),
         fontWeight: 'bold',
+    },
+    actionBtn: {
+        padding: s(4),
+        marginLeft: s(4),
+        backgroundColor: 'rgba(255,255,255,0.7)',
+        borderRadius: s(4),
     },
     nameContainer: {
         flex: 1,

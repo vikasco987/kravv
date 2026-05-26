@@ -1,6 +1,7 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -78,6 +79,16 @@ export default function TableOrdersView({
 
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
 
+  // Merge Bills State
+  const [isMergeModalVisible, setIsMergeModalVisible] = useState(false);
+  const [mergeSelection, setMergeSelection] = useState<Set<string>>(new Set());
+
+  // Bill Preview State
+  const [isPreviewModalVisible, setIsPreviewModalVisible] = useState(false);
+
+  // Customer Details State
+  const [isCustomerModalVisible, setIsCustomerModalVisible] = useState(false);
+
   const fetchInProgress = React.useRef(false);
   const getTokenRef = React.useRef(getToken);
 
@@ -122,6 +133,14 @@ export default function TableOrdersView({
     const interval = setInterval(fetchOrders, 5000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
+
+  const hasAutoCreated = React.useRef(false);
+  useEffect(() => {
+    if (!loading && orders.length === 0 && !hasAutoCreated.current && !fetchInProgress.current) {
+      hasAutoCreated.current = true;
+      createNewOrder();
+    }
+  }, [loading, orders.length]);
 
   const fetchMenu = async () => {
     try {
@@ -453,6 +472,70 @@ export default function TableOrdersView({
     }
   };
 
+  const handleMergeBills = async () => {
+    const selectedOrders = orders.filter(o => mergeSelection.has(o.id));
+    if (selectedOrders.length === 0) return;
+
+    const mergedItems = selectedOrders.flatMap(o => o.items);
+    const total = mergedItems.reduce((acc, it) => acc + (it.price || (it as any).sellingPrice || 0) * it.quantity, 0);
+
+    const targetOrder = {
+      id: `ManualMerge-${Date.now().toString().slice(-4)}`,
+      items: mergedItems,
+      total: total,
+      customerName: "Combined Group",
+      billNumber: selectedOrders.map(o => o.billNumber).join(", ")
+    };
+
+    const authToken = await getToken();
+    const staffToken = await AsyncStorage.getItem("staff_token");
+    const finalToken = authToken || staffToken || "";
+
+    let clerkId = user?.id;
+    if (!clerkId) {
+      const staffSessionStr = await AsyncStorage.getItem("staff_session");
+      if (staffSessionStr) {
+        const staffSession = JSON.parse(staffSessionStr);
+        clerkId = staffSession?.id || "";
+      }
+    }
+
+    ToastAndroid.show("Printing Merged Bill...", ToastAndroid.SHORT);
+
+    const result = await SimpleBill(
+      targetOrder.items as any[],
+      finalToken,
+      clerkId || "",
+      {
+        orderId: targetOrder.id,
+        billNumber: targetOrder.billNumber,
+        customerName: targetOrder.customerName,
+        phone: "",
+        tableName: tableName,
+        tokenNo: targetOrder.billNumber,
+        source: "POS_TABLE",
+        isHeld: false,
+      }
+    );
+
+    if (result && result.status !== "error") {
+      ToastAndroid.show("Merged Bill Printed Successfully", ToastAndroid.SHORT);
+
+      // Mark all selected orders as completed
+      for (const order of selectedOrders) {
+        await updateOrderStatus(order.id, "COMPLETED");
+      }
+
+      setIsMergeModalVisible(false);
+      setMergeSelection(new Set());
+      if (onBack) {
+        onBack();
+      }
+    } else {
+      ToastAndroid.show("Failed to print Merged Bill", ToastAndroid.SHORT);
+    }
+  };
+
   const handleCheckout = async () => {
     if (!activeOrder) return;
     try {
@@ -485,20 +568,16 @@ export default function TableOrdersView({
     );
   }
 
-  // EMPTY STATE
+  // EMPTY STATE WHILE AUTO-CREATING
   if (orders.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.emptyView}>
+        <View style={styles.center}>
           <TouchableOpacity onPress={onBack} style={styles.backBtnAbsolute}>
             <Ionicons name="arrow-back" size={rf(26)} color="#1F2937" />
           </TouchableOpacity>
-          <Ionicons name="restaurant-outline" size={rf(60)} color="#D1D5DB" />
-          <Text style={styles.emptyText}>This table is vacant.</Text>
-          <TouchableOpacity style={styles.startBtn} onPress={createNewOrder}>
-            <Ionicons name="add" size={rf(18)} color="#fff" style={{ marginRight: s(5) }} />
-            <Text style={styles.startBtnText}>Start Offline Order</Text>
-          </TouchableOpacity>
+          <ActivityIndicator size="large" color={THEME_PRIMARY} />
+          <Text style={{ marginTop: 10, color: '#6B7280' }}>Opening Table...</Text>
         </View>
       </SafeAreaView>
     );
@@ -544,6 +623,13 @@ export default function TableOrdersView({
           <TouchableOpacity style={styles.newOrderBtn} onPress={createNewOrder}>
             <Ionicons name="add" size={rf(16)} color="#FFF" />
             <Text style={styles.newOrderText}>NEW ORDER</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.newOrderBtn, { backgroundColor: '#F59E0B' }]} onPress={() => {
+            setMergeSelection(new Set());
+            setIsMergeModalVisible(true);
+          }}>
+            <Ionicons name="layers" size={rf(16)} color="#FFF" />
+            <Text style={styles.newOrderText}>MERGE BILLS</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.addItemBtn} onPress={() => {
             setIsMenuModalVisible(true);
@@ -607,9 +693,25 @@ export default function TableOrdersView({
             <View style={styles.purpleBar} />
             <Text style={styles.breakdownText}>ORDER BREAKDOWN</Text>
           </View>
-          <View style={styles.priorityBadge}>
-            <Text style={styles.priorityText}>KITCHEN PRIORITY: HIGH</Text>
-          </View>
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: '#4338CA',
+              paddingHorizontal: s(8),
+              paddingVertical: vs(4),
+              borderRadius: s(12),
+              shadowColor: '#4338CA',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 3,
+              elevation: 2,
+            }}
+            onPress={() => setIsCustomerModalVisible(true)}
+          >
+            <Ionicons name="person" size={rf(9)} color="#FFF" style={{ marginRight: s(4) }} />
+            <Text style={{ color: '#FFF', fontSize: rf(8), fontWeight: 'bold', letterSpacing: 0.5 }}>CUSTOMER INFO</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.cartDivider}>
@@ -670,7 +772,9 @@ export default function TableOrdersView({
 
         <View style={styles.bottomActionsRow}>
           <View style={styles.leftActions}>
-            <TouchableOpacity style={styles.iconBtn}><Ionicons name="eye-outline" size={rf(18)} /></TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => setIsPreviewModalVisible(true)}>
+              <Ionicons name="eye-outline" size={rf(18)} />
+            </TouchableOpacity>
             <TouchableOpacity style={styles.outlineBtn} onPress={handlePrintKOT}>
               <Ionicons name="print-outline" size={rf(14)} />
               <Text style={styles.outlineBtnText}>KOT</Text>
@@ -702,6 +806,262 @@ export default function TableOrdersView({
         loading={menuLoading}
         onConfirm={(items: any[]) => addItemToOrder(activeOrderId as string, items)}
       />
+
+      {/* MERGE BILLS MODAL (DROPDOWN STYLE) */}
+      <Modal visible={isMergeModalVisible} animationType="fade" transparent>
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}
+          activeOpacity={1}
+          onPress={() => setIsMergeModalVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={{
+              position: 'absolute',
+              top: vs(140),
+              right: s(15),
+              width: s(220),
+              maxHeight: '50%',
+              backgroundColor: '#FFF',
+              borderRadius: s(10),
+              padding: s(12),
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 8,
+              elevation: 4,
+            }}
+          >
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: vs(8), paddingBottom: vs(8), borderBottomWidth: 1, borderBottomColor: "#F3F4F6" }}>
+              <Text style={{ fontSize: rf(12), fontWeight: "bold", color: "#1F2937" }}>Merge Bills</Text>
+              <TouchableOpacity onPress={() => setIsMergeModalVisible(false)}>
+                <Ionicons name="close" size={rf(16)} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ flexShrink: 1 }}>
+              {orders.length === 0 ? (
+                <Text style={{ textAlign: 'center', marginVertical: 15, color: '#6B7280', fontSize: rf(11) }}>No active orders.</Text>
+              ) : (
+                orders.map((o) => {
+                  const isSelected = mergeSelection.has(o.id);
+                  return (
+                    <TouchableOpacity
+                      key={o.id}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: s(8),
+                        borderWidth: 1,
+                        borderColor: isSelected ? THEME_PRIMARY : '#E5E7EB',
+                        borderRadius: s(6),
+                        marginBottom: vs(8),
+                        backgroundColor: isSelected ? `${THEME_PRIMARY}10` : '#FFF'
+                      }}
+                      onPress={() => {
+                        const newSet = new Set(mergeSelection);
+                        if (newSet.has(o.id)) newSet.delete(o.id);
+                        else newSet.add(o.id);
+                        setMergeSelection(newSet);
+                      }}
+                    >
+                      <View>
+                        <Text style={{ fontWeight: 'bold', fontSize: rf(12), color: '#111827' }}>
+                          Order #{o.billNumber}
+                        </Text>
+                        <Text style={{ fontSize: rf(10), color: '#6B7280', marginTop: 2 }}>
+                          {o.items.length} Items • ₹{o.total}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name={isSelected ? "checkbox" : "square-outline"}
+                        size={rf(16)}
+                        color={isSelected ? THEME_PRIMARY : '#9CA3AF'}
+                      />
+                    </TouchableOpacity>
+                  )
+                })
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.darkBtn, { width: '100%', marginTop: vs(10), opacity: mergeSelection.size > 0 ? 1 : 0.5, justifyContent: 'center', paddingVertical: vs(6) }]}
+              disabled={mergeSelection.size === 0}
+              onPress={handleMergeBills}
+            >
+              <Ionicons name="layers" size={rf(12)} color="#FFF" />
+              <Text style={[styles.darkBtnText, { fontSize: rf(10) }]}>MERGE & COMBINE ({mergeSelection.size})</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* CUSTOMER DETAILS MODAL */}
+      <Modal visible={isCustomerModalVisible} animationType="fade" transparent>
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          activeOpacity={1}
+          onPress={() => setIsCustomerModalVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={{
+              width: '75%',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 10,
+              elevation: 5,
+            }}
+          >
+            <LinearGradient
+              colors={['#10B981', '#047857']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{
+                borderRadius: s(16),
+                padding: s(20),
+              }}
+            >
+              <View style={{ alignItems: "center", marginBottom: vs(15) }}>
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: s(12), borderRadius: s(30), marginBottom: vs(6) }}>
+                  <Ionicons name="person" size={rf(22)} color="#FFF" />
+                </View>
+                <Text style={{ fontSize: rf(16), fontWeight: "900", color: "#FFF" }}>Customer Details</Text>
+                <TouchableOpacity onPress={() => setIsCustomerModalVisible(false)} style={{ position: 'absolute', right: 0, top: 0, padding: s(5) }}>
+                  <Ionicons name="close" size={rf(20)} color="rgba(255,255,255,0.8)" />
+                </TouchableOpacity>
+              </View>
+
+              {activeOrder && (
+                <View style={{ gap: vs(8) }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.95)', padding: s(10), borderRadius: s(10) }}>
+                    <View style={{ backgroundColor: '#EFF6FF', padding: s(8), borderRadius: s(8), marginRight: s(10) }}>
+                      <Ionicons name="person-outline" size={rf(14)} color="#3B82F6" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: rf(8), color: '#6B7280', fontWeight: 'bold', letterSpacing: 0.5 }}>NAME</Text>
+                      <Text style={{ fontSize: rf(12), fontWeight: 'bold', color: '#1F2937', marginTop: 2 }}>{activeOrder.customerName || "N/A"}</Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.95)', padding: s(10), borderRadius: s(10) }}>
+                    <View style={{ backgroundColor: '#F0FDF4', padding: s(8), borderRadius: s(8), marginRight: s(10) }}>
+                      <Ionicons name="call-outline" size={rf(14)} color="#22C55E" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: rf(8), color: '#6B7280', fontWeight: 'bold', letterSpacing: 0.5 }}>PHONE NUMBER</Text>
+                      <Text style={{ fontSize: rf(12), fontWeight: 'bold', color: '#1F2937', marginTop: 2 }}>{activeOrder.customerPhone || "N/A"}</Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.95)', padding: s(10), borderRadius: s(10) }}>
+                    <View style={{ backgroundColor: '#FEF2F2', padding: s(8), borderRadius: s(8), marginRight: s(10) }}>
+                      <Ionicons name="location-outline" size={rf(14)} color="#EF4444" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: rf(8), color: '#6B7280', fontWeight: 'bold', letterSpacing: 0.5 }}>ADDRESS</Text>
+                      <Text style={{ fontSize: rf(12), fontWeight: 'bold', color: '#1F2937', marginTop: 2 }}>{activeOrder.customerAddress || "N/A"}</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* BILL PREVIEW MODAL */}
+      <Modal visible={isPreviewModalVisible} animationType="fade" transparent>
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}
+          activeOpacity={1}
+          onPress={() => setIsPreviewModalVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={{
+              width: '85%',
+              maxHeight: '80%',
+              backgroundColor: '#FFF',
+              borderRadius: s(12),
+              padding: s(20),
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 5 },
+              shadowOpacity: 0.3,
+              shadowRadius: 10,
+              elevation: 10,
+            }}
+          >
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: vs(15) }}>
+              <Text style={{ fontSize: rf(16), fontWeight: "bold", color: "#1F2937" }}>Bill Preview</Text>
+              <TouchableOpacity onPress={() => setIsPreviewModalVisible(false)}>
+                <Ionicons name="close" size={rf(20)} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {activeOrder && (
+              <ScrollView style={{ flexShrink: 1, backgroundColor: '#F9FAFB', padding: s(15), borderRadius: s(8), borderWidth: 1, borderColor: '#D1D5DB', borderStyle: 'dashed' }} showsVerticalScrollIndicator={false}>
+                <Text style={{ textAlign: 'center', fontWeight: 'bold', fontSize: rf(18), marginBottom: vs(5), color: '#111827' }}>RESTAURANT RECEIPT</Text>
+                <Text style={{ textAlign: 'center', fontSize: rf(11), color: '#6B7280', marginBottom: vs(15) }}>
+                  Date: {new Date(activeOrder.createdAt).toLocaleDateString()} {new Date(activeOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{'\n'}
+                  Table: {tableName} • Order #{activeOrder.billNumber}
+                </Text>
+
+                <View style={{ borderBottomWidth: 1, borderBottomColor: '#D1D5DB', borderStyle: 'dashed', marginBottom: vs(10) }} />
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: vs(8) }}>
+                  <Text style={{ flex: 2, fontWeight: 'bold', fontSize: rf(12), color: '#374151' }}>Item</Text>
+                  <Text style={{ flex: 1, textAlign: 'center', fontWeight: 'bold', fontSize: rf(12), color: '#374151' }}>Qty</Text>
+                  <Text style={{ flex: 1, textAlign: 'right', fontWeight: 'bold', fontSize: rf(12), color: '#374151' }}>Amount</Text>
+                </View>
+
+                {activeOrder.items.map((item, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: vs(6) }}>
+                    <Text style={{ flex: 2, fontSize: rf(12), color: '#111827' }} numberOfLines={2}>{item.name}</Text>
+                    <Text style={{ flex: 1, textAlign: 'center', fontSize: rf(12), color: '#111827' }}>{item.quantity}</Text>
+                    <Text style={{ flex: 1, textAlign: 'right', fontSize: rf(12), color: '#111827' }}>₹{(item.price || (item as any).sellingPrice || 0) * item.quantity}</Text>
+                  </View>
+                ))}
+
+                <View style={{ borderBottomWidth: 1, borderBottomColor: '#D1D5DB', borderStyle: 'dashed', marginVertical: vs(10) }} />
+
+                {(() => {
+                  const subtotal = activeOrder.items.reduce((acc, it) => acc + (it.price || (it as any).sellingPrice || 0) * it.quantity, 0);
+                  const difference = activeOrder.total - subtotal;
+                  return (
+                    <>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: vs(4) }}>
+                        <Text style={{ fontSize: rf(12), color: '#374151' }}>Subtotal</Text>
+                        <Text style={{ fontSize: rf(12), color: '#374151' }}>₹{subtotal.toFixed(2)}</Text>
+                      </View>
+                      {difference !== 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: vs(4) }}>
+                          <Text style={{ fontSize: rf(12), color: '#374151' }}>Taxes & Charges</Text>
+                          <Text style={{ fontSize: rf(12), color: '#374151' }}>₹{difference.toFixed(2)}</Text>
+                        </View>
+                      )}
+
+                      <View style={{ borderBottomWidth: 1, borderBottomColor: '#D1D5DB', borderStyle: 'dashed', marginVertical: vs(10) }} />
+
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontWeight: 'bold', fontSize: rf(16), color: '#111827' }}>Grand Total</Text>
+                        <Text style={{ fontWeight: 'bold', fontSize: rf(16), color: '#111827' }}>₹{Number(activeOrder.total).toFixed(2)}</Text>
+                      </View>
+
+                      <View style={{ alignItems: 'center', marginTop: vs(25), marginBottom: vs(10) }}>
+                        <Text style={{ fontSize: rf(11), color: '#4B5563', fontWeight: 'bold', letterSpacing: 1 }}>*** THANK YOU ***</Text>
+                        <Text style={{ fontSize: rf(10), color: '#9CA3AF', marginTop: vs(2) }}>Please Visit Again</Text>
+                      </View>
+                    </>
+                  );
+                })()}
+              </ScrollView>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }

@@ -48,8 +48,10 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
     const [refreshing, setRefreshing] = useState(false);
 
     const [isCreateTableVisible, setIsCreateTableVisible] = useState(false);
+    const [isEditTableVisible, setIsEditTableVisible] = useState(false);
     const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
     const [newTableName, setNewTableName] = useState("");
+    const [editingTable, setEditingTable] = useState<Table | null>(null);
     const [selectedTable, setSelectedTable] = useState<Table | null>(null);
 
     // Floor Management Filters
@@ -172,6 +174,41 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
             }
         } catch (error) {
             console.error("Create table error:", error);
+        }
+    };
+
+    const updateTable = async () => {
+        if (!editingTable || !newTableName.trim()) return;
+        try {
+            const token = await getToken();
+            const response = await fetch(`https://billing.kravy.in/api/tables/${editingTable.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ name: newTableName }),
+            });
+            if (response.ok) {
+                setNewTableName("");
+                setIsEditTableVisible(false);
+                setEditingTable(null);
+                fetchTables();
+            }
+        } catch (error) {
+            console.error("Update table error:", error);
+        }
+    };
+
+    const deleteTable = async (tableId: string) => {
+        try {
+            const token = await getToken();
+            const response = await fetch(`https://billing.kravy.in/api/tables/${tableId}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.ok) {
+                fetchTables();
+            }
+        } catch (error) {
+            console.error("Delete table error:", error);
         }
     };
 
@@ -364,6 +401,12 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                                 activeCount={item.activeCount}
                                 startTime={item.startTime}
                                 onPress={() => navigateToTable(item)}
+                                onEdit={() => {
+                                    setEditingTable(item);
+                                    setNewTableName(item.name);
+                                    setIsEditTableVisible(true);
+                                }}
+                                onDelete={() => deleteTable(item.id)}
                             />
                         </View>
                     )}
@@ -386,6 +429,22 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                 placeholder={t('table_name')}
                 cancelText={t('cancel')}
                 createText={t('create')}
+            />
+
+            <CreateTableModal
+                visible={isEditTableVisible}
+                onClose={() => {
+                    setIsEditTableVisible(false);
+                    setEditingTable(null);
+                    setNewTableName("");
+                }}
+                onSave={updateTable}
+                tableName={newTableName}
+                onTableNameChange={setNewTableName}
+                title="Edit Table"
+                placeholder="Table Name"
+                cancelText="Cancel"
+                createText="Update"
             />
 
             <LoginRequiredModal
