@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   ScrollView,
   StyleSheet,
   Text,
@@ -116,6 +117,28 @@ const MainSettingsView = ({
         setCurrentView("main");
       };
     }, [])
+  );
+
+  // Handle hardware back button on Android
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        if (currentView === "printingPreview") {
+          setCurrentView("printing");
+          return true;
+        } else if (currentView !== "main") {
+          setCurrentView("main");
+          return true;
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+
+      return () => {
+        subscription.remove();
+      };
+    }, [currentView])
   );
 
   React.useEffect(() => {

@@ -13,6 +13,7 @@ import React, {
 import {
   ActivityIndicator,
   AppState,
+  BackHandler,
   DeviceEventEmitter,
   Dimensions,
   FlatList,
@@ -144,7 +145,30 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   const [currentView, setCurrentView] = useState<
     "main" | "addItem" | "heldOrders" | "checkout"
   >("main");
+
   const [checkoutParams, setCheckoutParams] = useState<any>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (currentView !== "main") {
+          if (currentView === "checkout" && checkoutParams?.kotId) {
+            setCart({}); // Clear menu cart so items aren't selected
+            setCheckoutParams(null);
+            setCurrentView("main");
+            router.push("/(tabs)/orders");
+          } else {
+            setCurrentView("main");
+          }
+          return true;
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => subscription.remove();
+    }, [currentView, checkoutParams, router])
+  );
   const isPrinting = useRef(false);
   const flatListRef = useRef<any>(null);
   const isFocused = useIsFocused();
@@ -1605,7 +1629,14 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setSelectedTable(null);
             setSelectedRoom(null);
           }
-          setCurrentView("main");
+          if (checkoutParams?.kotId) {
+            setCart({}); // Clear menu cart so items aren't selected
+            setCheckoutParams(null);
+            setCurrentView("main");
+            router.push("/(tabs)/orders");
+          } else {
+            setCurrentView("main");
+          }
         }}
         cartParams={checkoutParams}
       />

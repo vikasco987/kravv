@@ -1,10 +1,11 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   RefreshControl,
   SafeAreaView,
@@ -161,6 +162,25 @@ export default function DailySalesScreen({ onBack, allBills }) {
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState("card");
   const [selectedDateReport, setSelectedDateReport] = useState(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (selectedDateReport) {
+          setSelectedDateReport(null);
+          return true; // We handled it
+        }
+        if (onBack) {
+          onBack();
+          return true; // Parent handled it
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => subscription.remove();
+    }, [selectedDateReport, onBack])
+  );
 
   // @ts-ignore
   const totalGrandSales = dailySales.reduce(

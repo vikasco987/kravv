@@ -86,6 +86,35 @@ const NewOrderNotifier = () => {
     });
   }, []);
 
+  // Sync Push Token to Backend
+  useEffect(() => {
+    async function registerAndSyncPushToken() {
+      if (!user?.id) return;
+
+      try {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        if (existingStatus !== "granted") return; // already requested in setupNotifications
+
+        // Use default projectId resolving
+        const tokenData = await Notifications.getExpoPushTokenAsync();
+        const pushToken = tokenData.data;
+
+        if (pushToken) {
+          console.log("📲 Syncing Push Token to Backend:", pushToken);
+          await fetch("https://billing.kravy.in/api/profile/push-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clerkUserId: user.id, token: pushToken }),
+          }).catch((err) => console.log("Push token sync failed:", err));
+        }
+      } catch (error) {
+        console.log("Failed to get push token:", error);
+      }
+    }
+
+    registerAndSyncPushToken();
+  }, [user?.id]);
+
   // Check for Staff Session
   useEffect(() => {
     const checkAuth = async () => {
@@ -215,7 +244,7 @@ const NewOrderNotifier = () => {
           },
           body: JSON.stringify({
             orderId: currentOrder._id || currentOrder.id,
-            status: "ACCEPTED",
+            status: "PREPARING",
           }),
         }).catch((err) => console.log("[NewOrder] Status update failed:", err));
 

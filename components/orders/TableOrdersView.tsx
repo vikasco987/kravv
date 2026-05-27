@@ -21,6 +21,7 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill, resolveOrderToken } from "../../utils/SimpleBill";
+import { CustomToast } from "../common/CustomToast";
 import { SimpleKOT } from "../common/SimpleKOT";
 import { CategorySidebar } from "../menu/CategorySidebar";
 import { MenuItemCard } from "../menu/MenuItemCard";
@@ -88,6 +89,13 @@ export default function TableOrdersView({
 
   // Customer Details State
   const [isCustomerModalVisible, setIsCustomerModalVisible] = useState(false);
+
+  // Custom Toast State
+  const [toastState, setToastState] = useState<{ visible: boolean, message: string, type: 'success' | 'error' }>({ visible: false, message: '', type: 'success' });
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastState({ visible: true, message, type });
+  };
 
   const fetchInProgress = React.useRef(false);
   const getTokenRef = React.useRef(getToken);
@@ -276,6 +284,23 @@ export default function TableOrdersView({
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
+    // 1. Optimistic UI update instantly
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) return { ...o, status: newStatus };
+      return o;
+    }));
+
+    if (newStatus === "PREPARING") {
+      showToast("Order Accepted! Cooking Started.", "success");
+      // Auto-print KOT if we just accepted it
+      const order = orders.find(o => o.id === orderId);
+      if (order && order.status === "PENDING" && order.items && order.items.length > 0) {
+        handlePrintSpecificKOT(order.items);
+      }
+    } else if (newStatus === "READY") {
+      showToast("Order Marked as Ready!", "success");
+    }
+
     try {
       const authToken = await getToken();
       const staffToken = await AsyncStorage.getItem("staff_token");
@@ -287,19 +312,55 @@ export default function TableOrdersView({
         body: JSON.stringify({ orderId, status: newStatus }),
       });
       if (response.ok) {
+        // Sync in background
         fetchOrders();
       } else {
         const errorText = await response.text();
-        console.error("updateItemQuantity Error:", response.status, errorText);
-        ToastAndroid.show("Error: " + response.status + " " + errorText.substring(0, 50), ToastAndroid.LONG);
+        console.error("updateOrderStatus Error:", response.status, errorText);
+        showToast("Failed to update status", "error");
+        fetchOrders(); // Revert on failure
       }
     } catch (error: any) {
-      console.error("updateItemQuantity Catch:", error);
-      ToastAndroid.show("Network Error: " + error.message, ToastAndroid.LONG);
+      console.error("updateOrderStatus Catch:", error);
+      showToast("Network Error", "error");
+      fetchOrders(); // Revert on failure
     }
   };
 
-  const addItemToOrder = async (orderId: string, newItems: any[]) => {
+  const handlePrintSpecificKOT = async (itemsToPrint: any[]) => {
+    if (!activeOrder || itemsToPrint.length === 0) return;
+    const authToken = await getToken();
+    const staffToken = await AsyncStorage.getItem("staff_token");
+    const finalToken = authToken || staffToken || "";
+
+    let clerkId = user?.id;
+    if (!clerkId) {
+      const staffSessionStr = await AsyncStorage.getItem("staff_session");
+      if (staffSessionStr) {
+        const staffSession = JSON.parse(staffSessionStr);
+        clerkId = staffSession?.id || "";
+      }
+    }
+
+    ToastAndroid.show("Printing KOT...", ToastAndroid.SHORT);
+    const backendToken = (activeOrder as any).tokenNumber || (activeOrder as any).dailyTokenNumber || (activeOrder as any).orderNumber || (activeOrder as any).billNumber || (activeOrder as any).kotNumbers?.[0]?.toString();
+    const tokenNo = await resolveOrderToken(activeOrder.id, backendToken);
+
+    const success = await SimpleKOT(
+      itemsToPrint,
+      finalToken,
+      clerkId || "",
+      tableName,
+      tokenNo,
+      null,
+      (activeOrder as any).customerName
+    );
+    if (success) {
+      ToastAndroid.show("KOT Printed Successfully", ToastAndroid.SHORT);
+    }
+  };
+
+  const addItemToOrder = async (orderId: string, newItems: any[], shouldPrintKOT: boolean = false) => {
     if (!orderId || orderId === "null" || orderId === "undefined") {
       ToastAndroid.show("Please select or create an order first!", ToastAndroid.SHORT);
       return;
@@ -331,16 +392,25 @@ export default function TableOrdersView({
       const combinedItems = [...existingItems, ...newItems];
       const newTotal = combinedItems.reduce((acc, item: any) => acc + (item.price || item.sellingPrice || 0) * item.quantity, 0);
 
+      let targetStatus = order?.status;
+      if (shouldPrintKOT && (order?.status === "PENDING" || order?.status === "ACCEPTED")) {
+        targetStatus = "PREPARING";
+      }
+
       const response = await fetch(`https://billing.kravy.in/api/orders`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
-        body: JSON.stringify({ orderId, items: combinedItems, total: newTotal }),
+        body: JSON.stringify({ orderId, items: combinedItems, total: newTotal, ...(targetStatus ? { status: targetStatus } : {}) }),
       });
 
       if (response.ok) {
         setIsMenuModalVisible(false);
         fetchOrders();
         ToastAndroid.show("Items Added", ToastAndroid.SHORT);
+
+        if (shouldPrintKOT) {
+          handlePrintSpecificKOT(newItems);
+        }
       } else {
         const errorText = await response.text();
         console.error("addItemToOrder Error:", response.status, errorText);
@@ -419,6 +489,9 @@ export default function TableOrdersView({
     );
     if (success) {
       ToastAndroid.show("KOT Printed Successfully", ToastAndroid.SHORT);
+      if (activeOrder.status === "PENDING" || activeOrder.status === "ACCEPTED") {
+        updateOrderStatus(activeOrder.id, "PREPARING");
+      }
     }
   };
 
@@ -624,19 +697,19 @@ export default function TableOrdersView({
             <Ionicons name="add" size={rf(16)} color="#FFF" />
             <Text style={styles.newOrderText}>NEW ORDER</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.newOrderBtn, { backgroundColor: '#F59E0B' }]} onPress={() => {
-            setMergeSelection(new Set());
-            setIsMergeModalVisible(true);
-          }}>
-            <Ionicons name="layers" size={rf(16)} color="#FFF" />
-            <Text style={styles.newOrderText}>MERGE BILLS</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.addItemBtn} onPress={() => {
             setIsMenuModalVisible(true);
             fetchMenu();
           }}>
             <Ionicons name="add" size={rf(16)} color="#111827" />
             <Text style={styles.addItemText}>ADD ITEM</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.newOrderBtn, { backgroundColor: '#F59E0B' }]} onPress={() => {
+            setMergeSelection(new Set());
+            setIsMergeModalVisible(true);
+          }}>
+            <Ionicons name="layers" size={rf(16)} color="#FFF" />
+            <Text style={styles.newOrderText}>MERGE BILLS</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -804,7 +877,7 @@ export default function TableOrdersView({
         onClose={() => setIsMenuModalVisible(false)}
         categories={menuData}
         loading={menuLoading}
-        onConfirm={(items: any[]) => addItemToOrder(activeOrderId as string, items)}
+        onConfirm={(items: any[], printKOT: boolean) => addItemToOrder(activeOrderId as string, items, printKOT)}
       />
 
       {/* MERGE BILLS MODAL (DROPDOWN STYLE) */}
@@ -1062,6 +1135,12 @@ export default function TableOrdersView({
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+      <CustomToast
+        visible={toastState.visible}
+        message={toastState.message}
+        type={toastState.type}
+        onHide={() => setToastState(prev => ({ ...prev, visible: false }))}
+      />
     </SafeAreaView>
   );
 }
@@ -1103,6 +1182,8 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading }: any
 
   const totalItems = Object.values(cart).reduce((sum, it) => sum + it.quantity, 0);
   const totalAmount = Object.values(cart).reduce((sum, it) => sum + (it.sellingPrice || it.price || 0) * it.quantity, 0);
+
+  const [printKOT, setPrintKOT] = useState(true); // Default to true
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -1166,9 +1247,19 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading }: any
                 <Text style={styles.footerQty}>{totalItems} Items</Text>
                 <Text style={styles.footerTotal}>₹{totalAmount.toFixed(2)}</Text>
               </View>
-              <TouchableOpacity style={styles.confirmBtn} onPress={() => onConfirm(Object.values(cart))}>
-                <Text style={styles.confirmBtnText}>Add to Order</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: printKOT ? '#ECFDF5' : '#F9FAFB', paddingHorizontal: s(12), paddingVertical: vs(12), borderRadius: s(12), borderWidth: 1, borderColor: printKOT ? '#10B981' : '#E5E7EB' }}
+                  onPress={() => setPrintKOT(!printKOT)}
+                >
+                  <Ionicons name={printKOT ? "checkmark-circle" : "ellipse-outline"} size={rf(18)} color={printKOT ? '#10B981' : '#9CA3AF'} />
+                  <Text style={{ marginLeft: s(6), fontSize: rf(12), fontWeight: 'bold', color: printKOT ? '#10B981' : '#6B7280' }}>KOT</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.confirmBtn} onPress={() => onConfirm(Object.values(cart), printKOT)}>
+                  <Text style={styles.confirmBtnText}>Add to Order</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         </View>

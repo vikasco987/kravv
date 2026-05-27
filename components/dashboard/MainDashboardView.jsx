@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   DeviceEventEmitter,
   RefreshControl,
   ScrollView,
@@ -59,6 +60,21 @@ const MainDashboardView = ({ isLockedUser }) => {
 
   // State for switching views inside the same tab
   const [currentView, setCurrentView] = useState("main"); // 'main', 'daily', 'weekly', 'monthly', 'deepsale'
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (currentView !== "main") {
+          setCurrentView("main");
+          return true;
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => subscription.remove();
+    }, [currentView])
+  );
 
   const calculateStats = async (bills) => {
     const now = new Date();

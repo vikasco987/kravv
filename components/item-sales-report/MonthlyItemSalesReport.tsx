@@ -1,17 +1,47 @@
-import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, BackHandler, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
-import { useRefresh } from "../../context/RefreshContext";
-import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import ItemWiseSalesDetail from './ItemWiseSalesDetail';
 
 const MonthlyItemSalesReport = ({ onBack, preloadedData, loadingData, onRefresh: parentRefresh, targetSortKey }: any) => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Normal BackHandler for when not in Modal (or if RN allows it)
+      const onBackPress = () => {
+        if (selectedItem) {
+          setSelectedItem(null);
+          return true;
+        }
+        if (onBack) {
+          onBack();
+          return true;
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+
+      // Global hook for Modal's onRequestClose
+      (global as any).itemSalesChildBackHandler = () => {
+        if (selectedItem) {
+          setSelectedItem(null);
+          return true; // handled
+        }
+        return false;
+      };
+
+      return () => {
+        subscription.remove();
+        (global as any).itemSalesChildBackHandler = null;
+      };
+    }, [selectedItem, onBack])
+  );
 
   const categories = preloadedData?.categories || [];
   const itemCategoryMap = preloadedData?.itemCategoryMap || {};
@@ -21,20 +51,20 @@ const MonthlyItemSalesReport = ({ onBack, preloadedData, loadingData, onRefresh:
 
     let monthlyBillsList = [];
     if (targetSortKey) {
-        monthlyBillsList = preloadedData.allBills.filter((bill: any) => {
-            const date = new Date(bill.createdAt);
-            const key = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-            return key === targetSortKey && bill.isHeld !== true;
-        });
+      monthlyBillsList = preloadedData.allBills.filter((bill: any) => {
+        const date = new Date(bill.createdAt);
+        const key = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+        return key === targetSortKey && bill.isHeld !== true;
+      });
     } else {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        thirtyDaysAgo.setHours(0, 0, 0, 0);
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-        monthlyBillsList = preloadedData.allBills.filter((bill: any) => {
-            const billDate = new Date(bill.createdAt);
-            return billDate >= thirtyDaysAgo && bill.isHeld !== true;
-        });
+      monthlyBillsList = preloadedData.allBills.filter((bill: any) => {
+        const billDate = new Date(bill.createdAt);
+        return billDate >= thirtyDaysAgo && bill.isHeld !== true;
+      });
     }
 
     const itemMap: Record<string, { name: string, qty: number, total: number }> = {};

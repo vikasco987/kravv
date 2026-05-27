@@ -1,17 +1,47 @@
-import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, BackHandler, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
-import { useRefresh } from "../../context/RefreshContext";
-import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import ItemWiseSalesDetail from './ItemWiseSalesDetail';
 
 const WeeklyItemSalesReport = ({ onBack, preloadedData, loadingData, onRefresh: parentRefresh, targetSortKey }: any) => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Normal BackHandler for when not in Modal (or if RN allows it)
+      const onBackPress = () => {
+        if (selectedItem) {
+          setSelectedItem(null);
+          return true;
+        }
+        if (onBack) {
+          onBack();
+          return true;
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+
+      // Global hook for Modal's onRequestClose
+      (global as any).itemSalesChildBackHandler = () => {
+        if (selectedItem) {
+          setSelectedItem(null);
+          return true; // handled
+        }
+        return false;
+      };
+
+      return () => {
+        subscription.remove();
+        (global as any).itemSalesChildBackHandler = null;
+      };
+    }, [selectedItem, onBack])
+  );
 
   const categories = preloadedData?.categories || [];
   const itemCategoryMap = preloadedData?.itemCategoryMap || {};
@@ -20,29 +50,29 @@ const WeeklyItemSalesReport = ({ onBack, preloadedData, loadingData, onRefresh: 
     if (!preloadedData) return { weeklyBills: [], reportData: { items: [], totalSales: 0, totalQty: 0 } };
 
     const getWeekNumber = (date: Date) => {
-        const d = new Date(date);
-        d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-        const yearStart = new Date(d.getFullYear(), 0, 1);
-        return Math.ceil((((Number(d) - Number(yearStart)) / 86400000) + 1) / 7);
+      const d = new Date(date);
+      d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+      const yearStart = new Date(d.getFullYear(), 0, 1);
+      return Math.ceil((((Number(d) - Number(yearStart)) / 86400000) + 1) / 7);
     };
 
     let weeklyBillsList = [];
     if (targetSortKey) {
-        weeklyBillsList = preloadedData.allBills.filter((bill: any) => {
-            const billDate = new Date(bill.createdAt);
-            const week = getWeekNumber(billDate);
-            const key = `${billDate.getFullYear()}-W${week.toString().padStart(2, '0')}`;
-            return key === targetSortKey && bill.isHeld !== true;
-        });
+      weeklyBillsList = preloadedData.allBills.filter((bill: any) => {
+        const billDate = new Date(bill.createdAt);
+        const week = getWeekNumber(billDate);
+        const key = `${billDate.getFullYear()}-W${week.toString().padStart(2, '0')}`;
+        return key === targetSortKey && bill.isHeld !== true;
+      });
     } else {
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        sevenDaysAgo.setHours(0, 0, 0, 0);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      sevenDaysAgo.setHours(0, 0, 0, 0);
 
-        weeklyBillsList = preloadedData.allBills.filter((bill: any) => {
-            const billDate = new Date(bill.createdAt);
-            return billDate >= sevenDaysAgo && bill.isHeld !== true;
-        });
+      weeklyBillsList = preloadedData.allBills.filter((bill: any) => {
+        const billDate = new Date(bill.createdAt);
+        return billDate >= sevenDaysAgo && bill.isHeld !== true;
+      });
     }
 
     const itemMap: Record<string, { name: string, qty: number, total: number }> = {};

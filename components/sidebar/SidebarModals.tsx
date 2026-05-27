@@ -71,19 +71,11 @@ const SidebarModals = ({
         />
       </Modal>
 
-      <Modal
+      <ItemSalesReport
         visible={modals.inventory}
-        animationType="slide"
-        onRequestClose={() =>
-          setModals((prev: any) => ({ ...prev, inventory: false }))
-        }
-      >
-        <ItemSalesReport
-          onBack={() =>
-            setModals((prev: any) => ({ ...prev, inventory: false }))
-          }
-        />
-      </Modal>
+        onBack={() => setModals((prev: any) => ({ ...prev, inventory: false }))}
+        onClose={() => setModals((prev: any) => ({ ...prev, inventory: false }))}
+      />
 
       <Modal
         visible={modals.inventoryMain}

@@ -1,10 +1,11 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   RefreshControl,
   SafeAreaView,
@@ -175,6 +176,25 @@ export default function MonthlySalesScreen({ onBack, allBills }) {
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState("card");
   const [selectedMonthReport, setSelectedMonthReport] = useState(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (selectedMonthReport) {
+          setSelectedMonthReport(null);
+          return true;
+        }
+        if (onBack) {
+          onBack();
+          return true;
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => subscription.remove();
+    }, [selectedMonthReport, onBack])
+  );
 
   const totalGrandSales = useMemo(() => {
     // @ts-ignore

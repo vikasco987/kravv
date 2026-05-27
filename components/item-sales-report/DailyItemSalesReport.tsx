@@ -1,17 +1,47 @@
-import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, BackHandler, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
-import { useRefresh } from "../../context/RefreshContext";
-import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import ItemWiseSalesDetail from './ItemWiseSalesDetail';
 
 const DailyItemSalesReport = ({ onBack, preloadedData, loadingData, onRefresh: parentRefresh, targetDate }: any) => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Normal BackHandler for when not in Modal (or if RN allows it)
+      const onBackPress = () => {
+        if (selectedItem) {
+          setSelectedItem(null);
+          return true;
+        }
+        if (onBack) {
+          onBack();
+          return true;
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+
+      // Global hook for Modal's onRequestClose
+      (global as any).itemSalesChildBackHandler = () => {
+        if (selectedItem) {
+          setSelectedItem(null);
+          return true; // handled
+        }
+        return false;
+      };
+
+      return () => {
+        subscription.remove();
+        (global as any).itemSalesChildBackHandler = null;
+      };
+    }, [selectedItem, onBack])
+  );
 
   const categories = preloadedData?.categories || [];
   const itemCategoryMap = preloadedData?.itemCategoryMap || {};
@@ -78,7 +108,7 @@ const DailyItemSalesReport = ({ onBack, preloadedData, loadingData, onRefresh: p
         <TouchableOpacity onPress={onBack}>
           <Ionicons name="arrow-back" size={rf(28)} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{targetDate ? `Item Sales (${new Date(targetDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric'})})` : "Daily Item Sales"}</Text>
+        <Text style={styles.headerTitle}>{targetDate ? `Item Sales (${new Date(targetDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })})` : "Daily Item Sales"}</Text>
       </View>
 
       {loading && !refreshing ? (

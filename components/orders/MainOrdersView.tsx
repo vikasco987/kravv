@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
+    BackHandler,
     DeviceEventEmitter,
     FlatList,
     RefreshControl,
@@ -19,8 +20,10 @@ import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 
 // --- Orders Components ---
+import { CustomToast } from "../common/CustomToast";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import CreateTableModal from "./CreateTableModal";
+import DeleteConfirmModal from "./DeleteConfirmModal";
 import TableCard, { TableStatus } from "./TableCard";
 import TableOrdersView from "./TableOrdersView";
 
@@ -53,12 +56,24 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
     const [newTableName, setNewTableName] = useState("");
     const [editingTable, setEditingTable] = useState<Table | null>(null);
     const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+    const [isSubmittingTable, setIsSubmittingTable] = useState(false);
+    const [tableToDelete, setTableToDelete] = useState<string | null>(null);
+
+    // Custom Toast State
+    const [toastState, setToastState] = useState<{ visible: boolean, message: string, type: 'success' | 'error' }>({ visible: false, message: '', type: 'success' });
+
+    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+        setToastState({ visible: true, message, type });
+    };
 
     // Floor Management Filters
     const [tableFilter, setTableFilter] = useState<"ALL" | "RUNNING" | "READY">("ALL");
     const [activeZone, setActiveZone] = useState<string>("ALL");
 
     const fetchInProgress = React.useRef(false);
+    const pendingDeletes = React.useRef(new Set<string>());
+    const pendingCreates = React.useRef(new Map<string, Table>());
+    const pendingUpdates = React.useRef(new Map<string, string>());
     const getTokenRef = React.useRef(getToken);
     const isLockedRef = React.useRef(isLockedUser);
 
@@ -126,18 +141,47 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                     return {
                         ...t,
                         id: tId || Math.random().toString(),
+                        name: pendingUpdates.current.get(tId) || t.name, // Apply pending update if exists
                         status,
                         activeCount,
                         startTime
                     };
+                }).filter((t: any) => !pendingDeletes.current.has(t.id));
+
+                let finalTables = [...normalizedTables];
+                pendingCreates.current.forEach((tableObj, tableId) => {
+                    if (!finalTables.find(t => t.id === tableId)) {
+                        finalTables.push(tableObj);
+                    } else {
+                        // Server successfully returned it, remove from pending
+                        pendingCreates.current.delete(tableId);
+                    }
                 });
 
-                setTables(normalizedTables);
-                await AsyncStorage.setItem('@cached_tables', JSON.stringify(normalizedTables));
+                // Clear pending updates if they match server or just clear them since we got fresh data
+                // To be safe, if we get data, we just assume it's syncing soon, but if server matches we can delete
+                finalTables.forEach(t => {
+                    if (pendingUpdates.current.has(t.id) && t.name === pendingUpdates.current.get(t.id)) {
+                        pendingUpdates.current.delete(t.id);
+                    }
+                });
+
+                finalTables.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+                setTables(finalTables);
+                await AsyncStorage.setItem('@cached_tables', JSON.stringify(finalTables));
+
+                return finalTables;
             }
+            return null;
         } catch (error) {
             const cachedTables = await AsyncStorage.getItem('@cached_tables');
-            if (cachedTables) setTables(JSON.parse(cachedTables));
+            if (cachedTables) {
+                const parsed = JSON.parse(cachedTables);
+                setTables(parsed);
+                return parsed;
+            }
+            return null;
         } finally {
             fetchInProgress.current = false;
             setLoading(false);
@@ -160,6 +204,7 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
 
     const createTable = async () => {
         if (!newTableName.trim()) return;
+        setIsSubmittingTable(true);
         try {
             const token = await getToken();
             const response = await fetch("https://billing.kravy.in/api/tables", {
@@ -167,18 +212,48 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ name: newTableName }),
             });
+            setIsSubmittingTable(false); // Stop button spinning immediately
+
             if (response.ok) {
+                const responseData = await response.json();
+                const actualTable = responseData.table || responseData.data || responseData;
+                const newTableId = actualTable.id || actualTable._id || Math.random().toString();
+
+                const optimisticTable: Table = {
+                    ...actualTable,
+                    id: newTableId,
+                    status: "FREE",
+                    activeCount: 0,
+                };
+
+                // Track optimistic creation to prevent ghosting
+                pendingCreates.current.set(newTableId, optimisticTable);
+
+                setTables(prev => {
+                    const exists = prev.find(t => t.id === newTableId);
+                    if (exists) return prev;
+                    return [...prev, optimisticTable].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+                });
+
                 setNewTableName("");
                 setIsCreateTableVisible(false);
-                fetchTables();
+
+                showToast("Table created successfully!", "success");
+
+                fetchTables(); // Sync with backend silently
+            } else {
+                showToast("Failed to create table", "error");
             }
         } catch (error) {
+            setIsSubmittingTable(false);
             console.error("Create table error:", error);
+            showToast("Error creating table", "error");
         }
     };
 
     const updateTable = async () => {
         if (!editingTable || !newTableName.trim()) return;
+        setIsSubmittingTable(true);
         try {
             const token = await getToken();
             const response = await fetch(`https://billing.kravy.in/api/tables/${editingTable.id}`, {
@@ -186,18 +261,40 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ name: newTableName }),
             });
+            setIsSubmittingTable(false); // Stop button spinning immediately
+
             if (response.ok) {
+                const updatedName = newTableName;
+
+                // Track pending update to prevent ghosting
+                pendingUpdates.current.set(editingTable.id, updatedName);
+
+                setTables(prev => {
+                    return prev.map(t => {
+                        if (t.id === editingTable.id) {
+                            return { ...t, name: updatedName };
+                        }
+                        return t;
+                    }).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+                });
+
                 setNewTableName("");
                 setIsEditTableVisible(false);
                 setEditingTable(null);
-                fetchTables();
+
+                fetchTables(); // Sync with backend silently
             }
         } catch (error) {
+            setIsSubmittingTable(false);
             console.error("Update table error:", error);
         }
     };
 
     const deleteTable = async (tableId: string) => {
+        // Optimistic UI update: Instantly remove the table from UI
+        pendingDeletes.current.add(tableId);
+        setTables(prev => prev.filter(t => t.id !== tableId));
+
         try {
             const token = await getToken();
             const response = await fetch(`https://billing.kravy.in/api/tables/${tableId}`, {
@@ -205,10 +302,30 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (response.ok) {
-                fetchTables();
+                showToast("Table deleted successfully!", "success");
+            } else {
+                pendingDeletes.current.delete(tableId); // Revert on failure
+
+                let errorMessage = "Failed to delete table";
+                try {
+                    const errorData = await response.json();
+                    if (errorData && errorData.message) {
+                        errorMessage = errorData.message;
+                    } else if (errorData && errorData.error) {
+                        errorMessage = errorData.error;
+                    }
+                } catch (e) {
+                    // Ignore JSON parse error, stick to default message
+                }
+
+                showToast(errorMessage, "error");
             }
         } catch (error) {
             console.error("Delete table error:", error);
+            pendingDeletes.current.delete(tableId); // Revert on failure
+            showToast("Error deleting table", "error");
+        } finally {
+            fetchTables(); // Sync in background without blocking UI
         }
     };
 
@@ -240,6 +357,22 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
     }, [refreshSignal, fetchTables]);
 
     const [currentView, setCurrentView] = useState<"main" | "tableOrders">("main");
+
+    useFocusEffect(
+        useCallback(() => {
+            const onBackPress = () => {
+                if (currentView !== "main") {
+                    setSelectedTable(null);
+                    setCurrentView("main");
+                    return true;
+                }
+                return false;
+            };
+
+            const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+            return () => subscription.remove();
+        }, [currentView])
+    );
 
     const navigateToTable = useCallback((item: Table) => {
         if (isLockedUser) {
@@ -394,7 +527,7 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                         <RefreshControl refreshing={refreshing} onRefresh={() => triggerRefresh()} tintColor={THEME_PRIMARY} />
                     }
                     renderItem={({ item }) => (
-                        <View style={{ flex: 1, padding: s(5) }}>
+                        <View style={{ width: '33.33%', padding: s(5) }}>
                             <TableCard
                                 name={item.name}
                                 status={item.status}
@@ -406,7 +539,7 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                                     setNewTableName(item.name);
                                     setIsEditTableVisible(true);
                                 }}
-                                onDelete={() => deleteTable(item.id)}
+                                onDelete={() => setTableToDelete(item.id)}
                             />
                         </View>
                     )}
@@ -429,6 +562,7 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                 placeholder={t('table_name')}
                 cancelText={t('cancel')}
                 createText={t('create')}
+                isSubmitting={isSubmittingTable}
             />
 
             <CreateTableModal
@@ -445,6 +579,18 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                 placeholder="Table Name"
                 cancelText="Cancel"
                 createText="Update"
+                isSubmitting={isSubmittingTable}
+            />
+
+            <DeleteConfirmModal
+                visible={tableToDelete !== null}
+                onClose={() => setTableToDelete(null)}
+                onConfirm={() => {
+                    if (tableToDelete) {
+                        deleteTable(tableToDelete);
+                        setTableToDelete(null);
+                    }
+                }}
             />
 
             <LoginRequiredModal
@@ -454,6 +600,13 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                     setIsLoginModalVisible(false);
                     router.push("/(auth)/sign-in");
                 }}
+            />
+
+            <CustomToast
+                visible={toastState.visible}
+                message={toastState.message}
+                type={toastState.type}
+                onHide={() => setToastState(prev => ({ ...prev, visible: false }))}
             />
         </View>
     );

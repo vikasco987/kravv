@@ -1,10 +1,11 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   RefreshControl,
   SafeAreaView,
@@ -177,6 +178,25 @@ export default function WeeklySalesScreen({ onBack, allBills }) {
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState("card");
   const [selectedWeekReport, setSelectedWeekReport] = useState(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (selectedWeekReport) {
+          setSelectedWeekReport(null);
+          return true;
+        }
+        if (onBack) {
+          onBack();
+          return true;
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => subscription.remove();
+    }, [selectedWeekReport, onBack])
+  );
 
   const getWeekNumber = (date) => {
     const d = new Date(date);

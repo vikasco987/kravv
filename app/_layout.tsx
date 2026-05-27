@@ -12,7 +12,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, BackHandler, Platform, ToastAndroid, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import NewOrderNotifier from "../components/common/NewOrderNotifier";
 import CustomDrawerContent from "../components/sidebar/CustomDrawer";
@@ -86,8 +86,46 @@ function AuthRedirect() {
 
   const { refreshSignal } = useRefresh();
 
-  // Ref for the deferred-sound timer (see onStartShouldSetResponderCapture below)
   const soundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const backPressCountRef = useRef(0);
+  const backPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handleBackPress = () => {
+      backPressCountRef.current += 1;
+
+      if (backPressCountRef.current >= 3) {
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Exiting app...', ToastAndroid.SHORT);
+        }
+        BackHandler.exitApp();
+        return true;
+      }
+
+      const pressesLeft = 3 - backPressCountRef.current;
+
+      if (Platform.OS === 'android') {
+        ToastAndroid.show(`Press back ${pressesLeft} more time${pressesLeft > 1 ? 's' : ''} to exit`, ToastAndroid.SHORT);
+      }
+
+      if (backPressTimerRef.current) {
+        clearTimeout(backPressTimerRef.current);
+      }
+
+      backPressTimerRef.current = setTimeout(() => {
+        backPressCountRef.current = 0;
+      }, 2000);
+
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+    return () => {
+      backHandler.remove();
+      if (backPressTimerRef.current) clearTimeout(backPressTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     setReady(true);
