@@ -114,7 +114,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   const [isHoldModalVisible, setIsHoldModalVisible] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [showHoldSuccess, setShowHoldSuccess] = useState(false);
-  const { refreshSignal, triggerRefresh, searchQuery } = useRefresh();
+  const { refreshSignal, triggerRefresh, searchQuery, isListView } = useRefresh();
 
   // Settings states
   const [kotEnabled, setKotEnabled] = useState(false);
@@ -123,6 +123,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [multiZoneMenuEnabled, setMultiZoneMenuEnabled] = useState(false);
+  const [menuGridEnabled, setMenuGridEnabled] = useState(false);
   const [selectedZone, setSelectedZone] = useState<string>("Global");
   const [isZoneModalVisible, setIsZoneModalVisible] = useState(false);
   const [bookingMode, setBookingMode] = useState<"Table" | "Room">("Table");
@@ -486,11 +487,13 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       const table = await AsyncStorage.getItem("table_booking_enabled");
       const room = await AsyncStorage.getItem("room_booking_enabled");
       const multiZone = await AsyncStorage.getItem("multi_zone_menu_enabled");
+      const menuGrid = await AsyncStorage.getItem("menu_grid_enabled");
       const savedZone = await AsyncStorage.getItem("default_selected_zone");
       const isKot = kot === "true";
       const isTable = table === "true";
       const isRoom = room === "true";
       const isMultiZone = multiZone === "true";
+      const isMenuGrid = menuGrid === "true";
 
       if (savedZone) {
         setSelectedZone(savedZone);
@@ -500,6 +503,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       setTableBookingEnabled((prev) => (prev !== isTable ? isTable : prev));
       setRoomBookingEnabled((prev) => (prev !== isRoom ? isRoom : prev));
       setMultiZoneMenuEnabled((prev) => (prev !== isMultiZone ? isMultiZone : prev));
+      setMenuGridEnabled((prev) => (prev !== isMenuGrid ? isMenuGrid : prev));
     } catch (e) {
       console.log("Settings fetch info (local):", e);
     }
@@ -1591,7 +1595,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     ToastAndroid.show("💾 Bill Saved", ToastAndroid.SHORT);
   };
 
-  const itemWidth = (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32)) / 3;
+  const itemWidth = isListView
+    ? (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(20))
+    : (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32)) / (menuGridEnabled ? 2 : 3);
 
   if (!isLoaded || loading || authBuffering)
     return (
@@ -1722,6 +1728,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             flatListRef.current?.scrollToIndex({ index, animated: true })
           }
           cartVisible={totalItems > 0}
+          isListView={isListView}
         />
 
         <FlatList
@@ -1768,6 +1775,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                     quantity={cart[item.id]?.quantity || 0}
                     onAdd={addToCart}
                     onRemove={removeFromCart}
+                    isListView={isListView}
                   />
                 ))}
                 {!searchQuery && (

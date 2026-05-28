@@ -20,6 +20,7 @@ interface AppFeaturesCardProps {
     onLoginRequired: () => void;
     onPrintingSetupPress?: () => void;
     onAdvancedControlsPress?: () => void;
+    onMenuGridPress?: () => void;
 }
 
 export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
@@ -29,6 +30,7 @@ export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
     onLoginRequired,
     onPrintingSetupPress,
     onAdvancedControlsPress,
+    onMenuGridPress,
 }) => {
     const { t } = useLanguage();
 
@@ -110,6 +112,24 @@ export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
                         <View style={{ flex: 1 }}>
                             <Text style={[styles.infoTitle, { marginBottom: 0 }]}>Advanced Controls</Text>
                             <Text style={styles.infoText} numberOfLines={1}>Multi-Zone Menu & Special Controls</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={rf(18)} color={COLORS.textLight} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Menu Grid Button */}
+                <View style={styles.card}>
+                    <TouchableOpacity
+                        style={styles.sectionHeader}
+                        onPress={() => handlePress(() => onMenuGridPress && onMenuGridPress())}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.buttonIconBackground, { backgroundColor: "#10B981" + "15" }]}>
+                            <Ionicons name={"grid-outline" as any} size={rf(20)} color={"#10B981"} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.infoTitle, { marginBottom: 0 }]}>Menu Grid</Text>
+                            <Text style={styles.infoText} numberOfLines={1}>Manage your menu layout preferences</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={rf(18)} color={COLORS.textLight} />
                     </TouchableOpacity>

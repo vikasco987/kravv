@@ -7,21 +7,26 @@ interface RefreshContextType {
   triggerSearch: () => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  isListView: boolean;
+  toggleListView: () => void;
 }
 
 const RefreshContext = createContext<RefreshContextType>({
   refreshSignal: 0,
-  triggerRefresh: () => {},
+  triggerRefresh: () => { },
   searchSignal: 0,
-  triggerSearch: () => {},
+  triggerSearch: () => { },
   searchQuery: "",
-  setSearchQuery: () => {},
+  setSearchQuery: () => { },
+  isListView: false,
+  toggleListView: () => { },
 });
 
 export const RefreshProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [searchSignal, setSearchSignal] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isListView, setIsListView] = useState(false);
 
   const triggerRefresh = () => {
     setRefreshSignal((prev) => prev + 1);
@@ -31,14 +36,20 @@ export const RefreshProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setSearchSignal((prev) => prev + 1);
   };
 
+  const toggleListView = () => {
+    setIsListView((prev) => !prev);
+  };
+
   return (
-    <RefreshContext.Provider value={{ 
-      refreshSignal, 
-      triggerRefresh, 
-      searchSignal, 
+    <RefreshContext.Provider value={{
+      refreshSignal,
+      triggerRefresh,
+      searchSignal,
       triggerSearch,
       searchQuery,
-      setSearchQuery
+      setSearchQuery,
+      isListView,
+      toggleListView
     }}>
       {children}
     </RefreshContext.Provider>

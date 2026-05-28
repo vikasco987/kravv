@@ -30,6 +30,7 @@ import CompanyInfoView from "./CompanyInfoView";
 import { KOTTablesModal } from "./KOTTablesModal";
 import { LanguageCard } from "./LanguageCard";
 import { LanguageSelectionModal } from "./LanguageSelectionModal";
+import { MenuGridModal } from "./MenuGridModal";
 import { OrderAcceptModal } from "./OrderAcceptModal";
 import PrintingPreviewScreen from "./PrintingPreviewScreen";
 import PrintingSetupScreen from "./PrintingSetupScreen";
@@ -97,8 +98,9 @@ const MainSettingsView = ({
   const [roomBookingEnabled, setRoomBookingEnabled] = React.useState(false);
   const [languageModalVisible, setLanguageModalVisible] = React.useState(false);
   const [staffModalVisible, setStaffModalVisible] = React.useState(false);
-  const [orderAcceptModalVisible, setOrderAcceptModalVisible] =
-    React.useState(false);
+  const [orderAcceptModalVisible, setOrderAcceptModalVisible] = React.useState(false);
+  const [menuGridModalVisible, setMenuGridModalVisible] = React.useState(false);
+  const [menuGridEnabled, setMenuGridEnabled] = React.useState(false);
   const [orderAutoAccept, setOrderAutoAccept] = React.useState(false);
   const [currentView, setCurrentView] = React.useState<
     "main" | "profile" | "printing" | "printingPreview"
@@ -392,6 +394,7 @@ const MainSettingsView = ({
         "app_language",
         "order_auto_accept",
         "multi_zone_menu_enabled",
+        "menu_grid_enabled",
       ]);
       settings.forEach(([key, value]) => {
         if (value !== null) {
@@ -461,6 +464,9 @@ const MainSettingsView = ({
               break;
             case "multi_zone_menu_enabled":
               setMultiZoneMenuEnabled(value === "true");
+              break;
+            case "menu_grid_enabled":
+              setMenuGridEnabled(value === "true");
               break;
           }
         }
@@ -543,6 +549,10 @@ const MainSettingsView = ({
             break;
           case "multi_zone_menu_enabled":
             payload.multiZoneMenuEnabled = value;
+            break;
+          case "menu_grid_enabled":
+            // Not a backend setting yet, so just local
+            shouldSync = false;
             break;
           default:
             shouldSync = false;
@@ -679,6 +689,7 @@ const MainSettingsView = ({
         onOrderAcceptPress={() => setOrderAcceptModalVisible(true)}
         onPrintingSetupPress={() => setCurrentView("printing")}
         onAdvancedControlsPress={() => setAdvancedControlsModalVisible(true)}
+        onMenuGridPress={() => setMenuGridModalVisible(true)}
         onLoginRequired={() => setLoginModalVisible(true)}
       />
 
@@ -794,6 +805,13 @@ const MainSettingsView = ({
         onClose={() => setOrderAcceptModalVisible(false)}
         orderAutoAccept={orderAutoAccept}
         setOrderAutoAccept={setOrderAutoAccept}
+        onSave={saveSetting}
+      />
+      <MenuGridModal
+        visible={menuGridModalVisible}
+        onClose={() => setMenuGridModalVisible(false)}
+        menuGridEnabled={menuGridEnabled}
+        setMenuGridEnabled={setMenuGridEnabled}
         onSave={saveSetting}
       />
     </ScrollView>

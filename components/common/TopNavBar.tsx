@@ -20,7 +20,7 @@ export default function TopNavBar({ title = "Home", showBack = false, showSearch
   const router = useRouter();
   const [isSearching, setIsSearching] = useState(false);
 
-  const { triggerRefresh, searchQuery, setSearchQuery } = useRefresh();
+  const { triggerRefresh, searchQuery, setSearchQuery, isListView, toggleListView } = useRefresh();
 
   // Animation Value for Refresh Icon
   const spinValue = useRef(new Animated.Value(0)).current;
@@ -104,8 +104,8 @@ export default function TopNavBar({ title = "Home", showBack = false, showSearch
                 <Ionicons name="refresh" size={rf(28)} color="#fff" />
               </Animated.View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons name="headset-outline" size={rf(26)} color="#fff" />
+            <TouchableOpacity onPress={toggleListView} style={styles.iconButton}>
+              <Ionicons name={isListView ? "cube" : "cube-outline"} size={rf(26)} color="#fff" />
             </TouchableOpacity>
           </View>
         </>
