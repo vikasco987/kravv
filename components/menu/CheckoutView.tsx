@@ -12,6 +12,7 @@ import {
   Modal,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -61,6 +62,13 @@ export default function CheckoutView({
     phone: "",
     address: "",
   });
+  const [isCustomerModalVisible, setIsCustomerModalVisible] = useState(false);
+  const [isDiscountModalVisible, setIsDiscountModalVisible] = useState(false);
+  const [tempDiscountRate, setTempDiscountRate] = useState("0");
+  const [isChargesModalVisible, setIsChargesModalVisible] = useState(false);
+  const [tempServiceCharge, setTempServiceCharge] = useState("0");
+  const [tempDeliveryCharge, setTempDeliveryCharge] = useState("0");
+  const [tempPackagingCharge, setTempPackagingCharge] = useState("0");
   const [isProcessing, setIsProcessing] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState<string>("");
@@ -580,405 +588,569 @@ export default function CheckoutView({
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FAFB" }}>
-      <LinearGradient colors={["#fff", "#fff"]} style={styles.header}>
-        <TouchableOpacity
-          onPress={() => handleBack()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={rf(22)} color="#111" />
-        </TouchableOpacity>
+    <>
+      <View style={{ flex: 1, backgroundColor: "#6D28D9" }}>
+        <StatusBar backgroundColor="#6D28D9" barStyle="light-content" />
+        <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+          <View style={[styles.header, { backgroundColor: "transparent", borderBottomWidth: 0 }]}>
+            <TouchableOpacity
+              onPress={() => handleBack()}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={rf(22)} color="#fff" />
+            </TouchableOpacity>
 
-        <View style={styles.headerBusinessInfo}>
-          {businessProfile?.logoUrl ? (
-            <Image
-              source={{ uri: businessProfile.logoUrl }}
-              style={styles.headerLogo}
-            />
-          ) : (
-            <View style={styles.headerLogoPlaceholder}>
-              <Ionicons name="restaurant" size={rf(16)} color={THEME_COLOR} />
+            <View style={styles.headerBusinessInfo}>
+              {businessProfile?.logoUrl ? (
+                <Image
+                  source={{ uri: businessProfile.logoUrl }}
+                  style={styles.headerLogo}
+                />
+              ) : (
+                <View style={[styles.headerLogoPlaceholder, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                  <Ionicons name="restaurant" size={rf(16)} color="#fff" />
+                </View>
+              )}
+              <View>
+                <Text style={[styles.headerTitle, { color: '#fff' }]} numberOfLines={1}>
+                  {businessProfile?.companyName || t("checkout")}
+                </Text>
+                {businessProfile?.gstNumber && (
+                  <Text style={[styles.headerGst, { color: 'rgba(255,255,255,0.7)' }]} numberOfLines={1}>
+                    GST: {businessProfile.gstNumber}
+                  </Text>
+                )}
+              </View>
             </View>
-          )}
-          <View>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {businessProfile?.companyName || t("checkout")}
-            </Text>
-            {businessProfile?.gstNumber && (
-              <Text style={styles.headerGst} numberOfLines={1}>
-                GST: {businessProfile.gstNumber}
-              </Text>
-            )}
+
+            <View style={{ width: s(40) }} />
           </View>
-        </View>
 
-        <View style={{ width: s(40) }} />
-      </LinearGradient>
+          <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+            {/* Horizontal Items List */}
+            <View style={styles.topSection}>
+              <Text style={[styles.sectionTitleMain, { color: '#D8B4FE', fontSize: rf(13), textTransform: 'uppercase', letterSpacing: 1, marginLeft: s(20), marginBottom: vs(15) }]}>
+                Items added to order
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalScroll}
+              >
+                {cart.map((item, idx) => (
+                  <View key={idx} style={{ width: s(130), marginRight: s(15), alignItems: 'center' }}>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: vs(50) }}>
-        {/* Horizontal Items List */}
-        <View style={styles.topSection}>
-          <Text style={styles.sectionTitleMain}>Items added to order</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalScroll}
-          >
-            {cart.map((item, idx) => (
-              <View key={idx} style={styles.itemContainer}>
-                <View style={styles.imageWrapper}>
-                  {item.image || item.imageUrl || item.image_url ? (
-                    <Image
-                      source={{
-                        uri: item.image || item.imageUrl || item.image_url,
-                      }}
-                      style={styles.itemImage}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.itemImage,
-                        {
-                          backgroundColor: "#F3F4F6",
-                          justifyContent: "center",
-                          alignItems: "center",
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name="image-outline"
-                        size={rf(30)}
-                        color="#D1D5DB"
-                      />
+                    {/* Image Card */}
+                    <View style={{ width: '100%', height: s(100), backgroundColor: '#7C3AED', borderRadius: s(16), borderWidth: 1, borderColor: '#8B5CF6', overflow: 'hidden', elevation: 3 }}>
+                      {(item.image || item.imageUrl || item.image_url) && (
+                        <>
+                          <Image
+                            source={{ uri: item.image || item.imageUrl || item.image_url }}
+                            style={[StyleSheet.absoluteFillObject, { opacity: 1 }]}
+                            resizeMode="cover"
+                          />
+                          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0, 0, 0, 0.1)' }]} />
+                        </>
+                      )}
+
+                      {/* Price Pill (Top Corner) */}
+                      <View style={{ position: 'absolute', top: s(8), right: s(8), backgroundColor: '#fff', paddingHorizontal: s(8), paddingVertical: vs(2), borderRadius: s(10), zIndex: 1, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 3 }}>
+                        <Text style={{ color: '#6D28D9', fontSize: rf(11), fontWeight: 'bold' }}>
+                          ₹{item.editedPrice ?? item.price ?? 0}
+                        </Text>
+                      </View>
                     </View>
-                  )}
-                  <View style={styles.priceBadge}>
-                    <Text style={styles.priceBadgeText}>
-                      ₹{item.editedPrice ?? item.price ?? 0}
+
+                    {/* Item Name (Outside) */}
+                    <Text style={{ color: '#fff', fontSize: rf(11.5), textAlign: 'center', fontWeight: 'bold', marginTop: vs(8), marginBottom: vs(8), width: '100%', height: vs(32) }} numberOfLines={2}>
+                      {item.name}
                     </Text>
+
+                    {/* Qty Controls (Outside) */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderRadius: s(8), paddingHorizontal: s(8), paddingVertical: vs(4), width: '100%' }}>
+                      <TouchableOpacity onPress={() => removeFromCart(item)} style={{ paddingHorizontal: s(8) }}>
+                        <Text style={{ color: '#6D28D9', fontSize: rf(18), fontWeight: 'bold' }}>-</Text>
+                      </TouchableOpacity>
+                      <Text style={{ color: '#1F2937', fontSize: rf(14), fontWeight: 'bold' }}>
+                        {item.quantity}
+                      </Text>
+                      <TouchableOpacity onPress={() => addToCart(item)} style={{ paddingHorizontal: s(8) }}>
+                        <Text style={{ color: '#6D28D9', fontSize: rf(18), fontWeight: 'bold' }}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+
                   </View>
-                  <View style={styles.qtyOverlay}>
-                    <TouchableOpacity
-                      onPress={() => removeFromCart(item)}
-                      style={styles.qtyBtn}
-                    >
-                      <Ionicons name="remove" size={rf(18)} color="#fff" />
-                    </TouchableOpacity>
-                    <Text style={styles.qtyTextOverlay}>{item.quantity}</Text>
-                    <TouchableOpacity
-                      onPress={() => addToCart(item)}
-                      style={styles.qtyBtn}
-                    >
-                      <Ionicons name="add" size={rf(18)} color="#fff" />
+                ))}
+              </ScrollView>
+            </View>
+
+
+
+            {/* Cart Summary Card */}
+            <View style={{ backgroundColor: '#fff', borderTopLeftRadius: s(30), borderTopRightRadius: s(30), marginTop: vs(20), padding: s(20), paddingBottom: vs(70), flex: 1, minHeight: '60%' }}>
+              <View style={[styles.cardHeader, { justifyContent: 'space-between', marginBottom: vs(20) }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ backgroundColor: '#F3E8FF', padding: s(8), borderRadius: s(8) }}>
+                    <Ionicons name="bag-handle" size={rf(18)} color="#7C3AED" />
+                  </View>
+                  <Text style={[styles.cardTitle, { color: '#4C1D95', fontSize: rf(18), marginLeft: s(10) }]}>Cart Summary</Text>
+                </View>
+                <View style={{ backgroundColor: '#F97316', paddingHorizontal: s(10), paddingVertical: vs(4), borderRadius: s(12) }}>
+                  <Text style={{ color: '#fff', fontSize: rf(12), fontWeight: 'bold' }}>{cart.length} items</Text>
+                </View>
+              </View>
+
+              {cart.map((item, idx) => (
+                <View key={idx} style={[styles.summaryItemRow, { borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: vs(15), marginBottom: vs(15) }]}>
+                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start' }}>
+                    <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: item.isVeg === false ? '#ef4444' : '#10B981', marginTop: vs(6), marginRight: s(10) }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.summaryItemName, { fontSize: rf(14), color: '#1F2937' }]}>{item.name}</Text>
+
+                      {editingItemId === item.id ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: vs(5) }}>
+                          <Text style={{ fontSize: rf(12), color: '#6B7280' }}>₹</Text>
+                          <TextInput
+                            style={[styles.priceInputInline, { color: '#6B7280', borderBottomColor: '#6B7280' }]}
+                            value={tempPrice}
+                            onChangeText={setTempPrice}
+                            keyboardType="numeric"
+                            autoFocus
+                          />
+                          <TouchableOpacity onPress={() => updateItemPrice(item.id, parseFloat(tempPrice))} style={{ marginLeft: s(5) }}>
+                            <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => setEditingItemId(null)} style={{ marginLeft: s(5) }}>
+                            <Ionicons name="close-circle" size={16} color="#ef4444" />
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: vs(5) }}>
+                          <Text style={{ fontSize: rf(12), color: '#94A3B8' }}>
+                            ₹{item.editedPrice ?? item.price ?? 0} per item
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setEditingItemId(item.id);
+                              setTempPrice((item.editedPrice ?? item.price ?? 0).toString());
+                            }}
+                            style={{ marginLeft: s(5) }}
+                          >
+                            <Ionicons name="create-outline" size={14} color="#C4B5FD" />
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#DDD6FE', borderRadius: s(8), paddingHorizontal: s(5), paddingVertical: vs(4), backgroundColor: '#FAF5FF', marginRight: s(10) }}>
+                      <TouchableOpacity onPress={() => removeFromCart(item)} style={{ paddingHorizontal: s(8) }}>
+                        <Text style={{ color: '#4C1D95', fontSize: rf(16) }}>-</Text>
+                      </TouchableOpacity>
+                      <Text style={{ color: '#4C1D95', fontSize: rf(13), fontWeight: 'bold', paddingHorizontal: s(8) }}>{item.quantity}</Text>
+                      <TouchableOpacity onPress={() => addToCart(item)} style={{ paddingHorizontal: s(8) }}>
+                        <Text style={{ color: '#4C1D95', fontSize: rf(14) }}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={[styles.summaryItemTotal, { color: '#F97316', fontSize: rf(14), fontWeight: 'bold', marginRight: s(10), minWidth: s(40), textAlign: 'right' }]}>
+                      ₹{(item.editedPrice ?? item.price ?? 0) * item.quantity}
+                    </Text>
+
+                    <TouchableOpacity onPress={() => deleteFromCart(item.id)} style={{ padding: s(5), borderWidth: 1, borderColor: '#FECACA', borderRadius: s(6) }}>
+                      <Ionicons name="trash-outline" size={rf(14)} color="#ef4444" />
                     </TouchableOpacity>
                   </View>
                 </View>
-                <Text style={styles.itemNameTop} numberOfLines={1}>
-                  {item.name}
-                </Text>
+              ))}
+
+              {/* Action Buttons Row */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: s(10), marginTop: vs(15), marginBottom: vs(20) }}>
+                {/* Customer Details Button */}
+                <TouchableOpacity
+                  onPress={() => setIsCustomerModalVisible(true)}
+                  style={{ paddingHorizontal: s(12), paddingVertical: vs(8), borderRadius: s(8), borderWidth: 1, borderColor: '#D1D5DB', flexDirection: 'row', alignItems: 'center', gap: s(8) }}
+                >
+                  <Ionicons name="person-outline" size={rf(14)} color="#4B5563" />
+                  <Text style={{ fontSize: rf(13), color: '#374151' }}>
+                    {newParty.name || searchQuery || "Add Customer"}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Add Discount Button */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setTempDiscountRate((taxSettings.discountRate || 0).toString());
+                    setIsDiscountModalVisible(true);
+                  }}
+                  style={{ paddingHorizontal: s(12), paddingVertical: vs(8), borderRadius: s(8), borderWidth: 1, borderColor: '#D1D5DB', flexDirection: 'row', alignItems: 'center', gap: s(8) }}
+                >
+                  <Ionicons name="pricetag-outline" size={rf(14)} color="#4B5563" />
+                  <Text style={{ fontSize: rf(13), color: '#374151' }}>
+                    {taxSettings.discountEnabled && taxSettings.discountRate > 0 ? `${taxSettings.discountRate}% Discount` : "Add Discount"}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Add Charges Button */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setTempServiceCharge((taxSettings.serviceChargeRate || 0).toString());
+                    setTempDeliveryCharge((taxSettings.deliveryChargeAmount || 0).toString());
+                    setTempPackagingCharge((taxSettings.packagingChargeAmount || 0).toString());
+                    setIsChargesModalVisible(true);
+                  }}
+                  style={{ paddingHorizontal: s(12), paddingVertical: vs(8), borderRadius: s(8), borderWidth: 1, borderColor: '#D1D5DB', flexDirection: 'row', alignItems: 'center', gap: s(8) }}
+                >
+                  <Ionicons name="add-circle-outline" size={rf(14)} color="#4B5563" />
+                  <Text style={{ fontSize: rf(13), color: '#374151' }}>
+                    Add Charges
+                  </Text>
+                </TouchableOpacity>
               </View>
-            ))}
-          </ScrollView>
-        </View>
 
-        {/* Customer Details Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="person" size={rf(20)} color="#2563EB" />
-            <Text style={styles.cardTitle}>Customer Details</Text>
-          </View>
-          <TextInput
-            style={styles.input}
-            placeholder="Customer Name"
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery || newParty.name}
-            onChangeText={(t) => {
-              setSearchQuery(t);
-              setNewParty((p) => ({ ...p, name: t }));
-              setShowPartyDropdown(true);
-            }}
-          />
-          {showPartyDropdown &&
-            searchQuery.length > 0 &&
-            filteredParties.length > 0 && (
-              <View style={styles.dropdown}>
-                {filteredParties.map((p) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setSelectedParty(p);
-                      setSearchQuery(p.name);
-                      setNewParty({
-                        name: p.name,
-                        phone: p.phone,
-                        address: p.address || "",
-                      });
-                      setShowPartyDropdown(false);
-                    }}
-                  >
-                    <Text>
-                      {p.name} ({p.phone})
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          <TextInput
-            style={styles.input}
-            placeholder="Phone"
-            placeholderTextColor="#9CA3AF"
-            keyboardType="numeric"
-            value={newParty.phone}
-            onChangeText={(t) => setNewParty((p) => ({ ...p, phone: t }))}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Address"
-            placeholderTextColor="#9CA3AF"
-            value={newParty.address}
-            onChangeText={(t) => setNewParty((p) => ({ ...p, address: t }))}
-          />
-        </View>
+              {/* Totals Section */}
+              <View style={{ gap: vs(10) }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: rf(13), color: '#6B7280' }}>Subtotal</Text>
+                  <Text style={{ fontSize: rf(13), color: '#1F2937' }}>₹{totals.subtotal.toFixed(2)}</Text>
+                </View>
 
-        {/* Cart Summary Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="bag-handle" size={rf(22)} color="#10B981" />
-            <Text style={styles.cardTitle}>Cart Summary</Text>
-          </View>
-
-          {cart.map((item, idx) => (
-            <View key={idx} style={styles.summaryItemRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.summaryItemName}>{item.name}</Text>
-                {editingItemId === item.id ? (
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Text style={{ fontSize: 12 }}>₹</Text>
-                    <TextInput
-                      style={styles.priceInputInline}
-                      value={tempPrice}
-                      onChangeText={setTempPrice}
-                      keyboardType="numeric"
-                      autoFocus
-                    />
-                    <TouchableOpacity
-                      onPress={() =>
-                        updateItemPrice(item.id, parseFloat(tempPrice))
-                      }
-                      style={{ marginLeft: s(5) }}
-                    >
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color="#10B981"
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setEditingItemId(null)}
-                      style={{ marginLeft: s(5) }}
-                    >
-                      <Ionicons name="close-circle" size={20} color="#ef4444" />
-                    </TouchableOpacity>
+                {taxSettings.discountEnabled && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: rf(13), color: '#6B7280' }}>Discount ({totals.discountRate}%)</Text>
+                    <Text style={{ fontSize: rf(13), color: "#ef4444" }}>-₹{totals.discountAmount.toFixed(2)}</Text>
                   </View>
-                ) : (
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Text style={styles.summaryItemPrice}>
-                      ₹{item.editedPrice ?? item.price ?? 0}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setEditingItemId(item.id);
-                        setTempPrice(
-                          (item.editedPrice ?? item.price ?? 0).toString(),
-                        );
-                      }}
-                      style={{ marginLeft: s(8) }}
-                    >
-                      <Ionicons
-                        name="create-outline"
-                        size={16}
-                        color={THEME_COLOR}
-                      />
-                    </TouchableOpacity>
+                )}
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: rf(13), color: '#6B7280' }}>Taxable Amount</Text>
+                  <Text style={{ fontSize: rf(13), color: '#1F2937' }}>₹{(totals.taxableAmount || totals.subtotal).toFixed(2)}</Text>
+                </View>
+
+                {totals.globalGstTotal > 0 && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: rf(13), color: '#6B7280' }}>Global GST ({totals.globalGstRate}%)</Text>
+                    <Text style={{ fontSize: rf(13), color: '#1F2937' }}>₹{totals.globalGstTotal.toFixed(2)}</Text>
+                  </View>
+                )}
+
+                {Object.entries(totals.perProductGstTotals).map(([rate, amount]) => (
+                  <View key={rate} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: rf(13), color: '#6B7280' }}>Item GST ({rate}%)</Text>
+                    <Text style={{ fontSize: rf(13), color: '#1F2937' }}>₹{Number(amount).toFixed(2)}</Text>
+                  </View>
+                ))}
+
+                {taxSettings.serviceChargeEnabled && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: rf(13), color: '#6B7280' }}>Service Charge</Text>
+                    <Text style={{ fontSize: rf(13), color: '#1F2937' }}>₹{totals.serviceChargeAmount.toFixed(2)}</Text>
+                  </View>
+                )}
+                {taxSettings.serviceChargeEnabled && taxSettings.serviceGstEnabled && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: rf(13), color: '#6B7280' }}>GST on Service ({totals.serviceGstRate}%)</Text>
+                    <Text style={{ fontSize: rf(13), color: '#1F2937' }}>₹{totals.serviceGstAmount.toFixed(2)}</Text>
+                  </View>
+                )}
+                {taxSettings.deliveryChargeEnabled && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: rf(13), color: '#6B7280' }}>Delivery Charge</Text>
+                    <Text style={{ fontSize: rf(13), color: '#1F2937' }}>₹{totals.deliveryChargeAmount.toFixed(2)}</Text>
+                  </View>
+                )}
+                {taxSettings.deliveryChargeEnabled && taxSettings.deliveryGstEnabled && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: rf(13), color: '#6B7280' }}>GST on Delivery ({totals.deliveryGstRate}%)</Text>
+                    <Text style={{ fontSize: rf(13), color: '#1F2937' }}>₹{totals.deliveryGstAmount.toFixed(2)}</Text>
+                  </View>
+                )}
+                {taxSettings.packagingChargeEnabled && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: rf(13), color: '#6B7280' }}>Packaging Charge</Text>
+                    <Text style={{ fontSize: rf(13), color: '#1F2937' }}>₹{totals.packagingChargeAmount.toFixed(2)}</Text>
+                  </View>
+                )}
+                {taxSettings.packagingChargeEnabled && taxSettings.packagingGstEnabled && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: rf(13), color: '#6B7280' }}>GST on Packaging ({totals.packagingGstRate}%)</Text>
+                    <Text style={{ fontSize: rf(13), color: '#1F2937' }}>₹{totals.packagingGstAmount.toFixed(2)}</Text>
                   </View>
                 )}
               </View>
 
-              <View style={styles.summaryQtyControls}>
+              <View style={{ backgroundColor: '#FFF7ED', padding: s(20), borderRadius: s(16), borderWidth: 1, borderColor: '#FFEDD5', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: vs(20) }}>
+                <Text style={{ fontSize: rf(16), color: '#4C1D95' }}>Total Due</Text>
+                <Text style={{ fontSize: rf(24), color: '#F97316' }}>₹{totals.totalDue.toFixed(2)}</Text>
+              </View>
+
+              <TouchableOpacity
+                style={{ marginTop: vs(20), borderWidth: 1, borderColor: '#D1D5DB', borderRadius: s(8), paddingVertical: vs(12), flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}
+                onPress={handlePrint}
+                disabled={isProcessing || cart.length === 0}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color="#374151" />
+                ) : (
+                  <>
+                    <Ionicons name="document-text-outline" size={rf(18)} color="#374151" style={{ marginRight: s(10) }} />
+                    <Text style={{ color: '#374151', fontSize: rf(14) }}>PRINT & SAVE BILL</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{ marginTop: vs(12), borderWidth: 1, borderColor: '#D1D5DB', borderRadius: s(8), paddingVertical: vs(12), flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}
+                onPress={clearCart}
+              >
+                <Ionicons name="trash-outline" size={rf(18)} color="#374151" style={{ marginRight: s(10) }} />
+                <Text style={{ color: '#374151', fontSize: rf(14) }}>Clear Cart</Text>
+              </TouchableOpacity>
+
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </View>
+
+      <Modal transparent visible={isCustomerModalVisible} animationType="slide">
+        <View style={styles.modalOverlayCentered}>
+          <View style={[styles.modalContentCentered, { width: SCREEN_WIDTH * 0.75, padding: 0, borderRadius: s(24), overflow: 'hidden' }]}>
+
+            {/* Modal Header */}
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ width: '100%', paddingVertical: vs(15), paddingHorizontal: s(20), alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: rf(16), fontWeight: 'bold', color: '#fff' }}>Customer Details</Text>
+            </LinearGradient>
+
+            <View style={{ padding: s(20), width: '100%' }}>
+              <TextInput
+                style={[styles.input, { width: '100%', padding: s(10), fontSize: rf(13), marginBottom: vs(10), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0' }]}
+                placeholder="Customer Name"
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery || newParty.name}
+                onChangeText={(t) => {
+                  setSearchQuery(t);
+                  setNewParty((p) => ({ ...p, name: t }));
+                  setShowPartyDropdown(true);
+                }}
+              />
+              {showPartyDropdown &&
+                searchQuery.length > 0 &&
+                filteredParties.length > 0 && (
+                  <View style={[styles.dropdown, { width: '100%', maxHeight: vs(100), padding: s(5) }]}>
+                    <ScrollView nestedScrollEnabled>
+                      {filteredParties.map((p) => (
+                        <TouchableOpacity
+                          key={p.id}
+                          style={[styles.dropdownItem, { paddingVertical: vs(8) }]}
+                          onPress={() => {
+                            setSelectedParty(p);
+                            setSearchQuery(p.name);
+                            setNewParty({
+                              name: p.name,
+                              phone: p.phone,
+                              address: p.address || "",
+                            });
+                            setShowPartyDropdown(false);
+                          }}
+                        >
+                          <Text style={{ fontSize: rf(13), fontWeight: '500', color: '#334155' }}>
+                            {p.name} <Text style={{ color: '#64748B' }}>({p.phone})</Text>
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              <TextInput
+                style={[styles.input, { width: '100%', padding: s(10), fontSize: rf(13), marginBottom: vs(10), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0' }]}
+                placeholder="Phone"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                value={newParty.phone}
+                onChangeText={(t) => setNewParty((p) => ({ ...p, phone: t }))}
+              />
+              <TextInput
+                style={[styles.input, { width: '100%', padding: s(10), fontSize: rf(13), marginBottom: vs(15), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0' }]}
+                placeholder="Address"
+                placeholderTextColor="#9CA3AF"
+                value={newParty.address}
+                onChangeText={(t) => setNewParty((p) => ({ ...p, address: t }))}
+              />
+
+              <View style={{ flexDirection: 'row', gap: s(12), marginTop: vs(5), width: '100%' }}>
                 <TouchableOpacity
-                  onPress={() => removeFromCart(item)}
-                  style={styles.circleBtn}
+                  style={{ flex: 1, backgroundColor: '#F1F5F9', alignItems: 'center', paddingVertical: vs(12), borderRadius: s(12) }}
+                  onPress={() => setIsCustomerModalVisible(false)}
                 >
-                  <Ionicons name="remove" size={rf(16)} color="#10B981" />
+                  <Text style={{ fontSize: rf(14), fontWeight: 'bold', color: '#64748B' }}>Cancel</Text>
                 </TouchableOpacity>
-                <Text style={styles.summaryQtyText}>{item.quantity}</Text>
                 <TouchableOpacity
-                  onPress={() => addToCart(item)}
-                  style={styles.circleBtn}
+                  style={{ flex: 1 }}
+                  activeOpacity={0.8}
+                  onPress={() => setIsCustomerModalVisible(false)}
                 >
-                  <Ionicons name="add" size={rf(16)} color="#10B981" />
-                </TouchableOpacity>
-                <Text style={styles.summaryItemTotal}>
-                  ₹{(item.editedPrice ?? item.price ?? 0) * item.quantity}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => deleteFromCart(item.id)}
-                  style={styles.deleteBtn}
-                >
-                  <Ionicons
-                    name="trash-outline"
-                    size={rf(18)}
-                    color="#ef4444"
-                  />
+                  <LinearGradient
+                    colors={['#10B981', '#059669']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ flex: 1, alignItems: 'center', paddingVertical: vs(12), borderRadius: s(12) }}
+                  >
+                    <Text style={{ fontSize: rf(14), fontWeight: 'bold', color: '#ffffff' }}>Save</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             </View>
-          ))}
-
-          <View style={styles.divider} />
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabelSmall}>subtotal</Text>
-            <Text style={styles.totalValueSmall}>
-              ₹{totals.subtotal.toFixed(2)}
-            </Text>
           </View>
-
-          {taxSettings.discountEnabled && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabelSmall}>
-                Discount ({totals.discountRate}%)
-              </Text>
-              <Text style={[styles.totalValueSmall, { color: "#ef4444" }]}>
-                -₹{totals.discountAmount.toFixed(2)}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabelSmall}>Taxable Amount</Text>
-            <Text style={styles.totalValueSmall}>
-              ₹{(totals.taxableAmount || totals.subtotal).toFixed(2)}
-            </Text>
-          </View>
-
-          {totals.globalGstTotal > 0 && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabelSmall}>
-                Global GST ({totals.globalGstRate}%)
-              </Text>
-              <Text style={styles.totalValueSmall}>
-                ₹{totals.globalGstTotal.toFixed(2)}
-              </Text>
-            </View>
-          )}
-
-          {Object.entries(totals.perProductGstTotals).map(([rate, amount]) => (
-            <View key={rate} style={styles.totalRow}>
-              <Text style={styles.totalLabelSmall}>Item GST ({rate}%)</Text>
-              <Text style={styles.totalValueSmall}>
-                ₹{Number(amount).toFixed(2)}
-              </Text>
-            </View>
-          ))}
-
-          {taxSettings.serviceChargeEnabled && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabelSmall}>Service Charge</Text>
-              <Text style={styles.totalValueSmall}>
-                ₹{totals.serviceChargeAmount.toFixed(2)}
-              </Text>
-            </View>
-          )}
-
-          {taxSettings.serviceChargeEnabled &&
-            taxSettings.serviceGstEnabled && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabelSmall}>
-                  GST on Service ({totals.serviceGstRate}%)
-                </Text>
-                <Text style={styles.totalValueSmall}>
-                  ₹{totals.serviceGstAmount.toFixed(2)}
-                </Text>
-              </View>
-            )}
-
-          {taxSettings.deliveryChargeEnabled && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabelSmall}>Delivery Charge</Text>
-              <Text style={styles.totalValueSmall}>
-                ₹{totals.deliveryChargeAmount.toFixed(2)}
-              </Text>
-            </View>
-          )}
-
-          {taxSettings.deliveryChargeEnabled &&
-            taxSettings.deliveryGstEnabled && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabelSmall}>
-                  GST on Delivery ({totals.deliveryGstRate}%)
-                </Text>
-                <Text style={styles.totalValueSmall}>
-                  ₹{totals.deliveryGstAmount.toFixed(2)}
-                </Text>
-              </View>
-            )}
-
-          {taxSettings.packagingChargeEnabled && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabelSmall}>Packaging Charge</Text>
-              <Text style={styles.totalValueSmall}>
-                ₹{totals.packagingChargeAmount.toFixed(2)}
-              </Text>
-            </View>
-          )}
-
-          {taxSettings.packagingChargeEnabled &&
-            taxSettings.packagingGstEnabled && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabelSmall}>
-                  GST on Packaging ({totals.packagingGstRate}%)
-                </Text>
-                <Text style={styles.totalValueSmall}>
-                  ₹{totals.packagingGstAmount.toFixed(2)}
-                </Text>
-              </View>
-            )}
-
-          <View style={[styles.totalRow, { marginTop: vs(15) }]}>
-            <Text style={styles.grandTotalLabel}>Total Due</Text>
-            <Text style={styles.grandTotalValue}>
-              ₹{totals.totalDue.toFixed(2)}
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.printSaveBtn, isProcessing && { opacity: 0.7 }]}
-            onPress={handlePrint}
-            disabled={isProcessing || cart.length === 0}
-          >
-            {isProcessing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons
-                  name="receipt-outline"
-                  size={rf(20)}
-                  color="#fff"
-                  style={{ marginRight: s(10) }}
-                />
-                <Text style={styles.printSaveBtnText}>PRINT & SAVE BILL</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.clearCartBtn} onPress={clearCart}>
-            <Ionicons name="trash-outline" size={rf(16)} color="#94A3B8" />
-            <Text style={styles.clearCartText}>Clear Cart</Text>
-          </TouchableOpacity>
         </View>
-      </ScrollView>
+      </Modal>
+
+      <Modal transparent visible={isDiscountModalVisible} animationType="slide">
+        <View style={styles.modalOverlayCentered}>
+          <View style={[styles.modalContentCentered, { width: SCREEN_WIDTH * 0.75, padding: 0, borderRadius: s(24), overflow: 'hidden' }]}>
+
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ width: '100%', paddingVertical: vs(15), paddingHorizontal: s(20), alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: rf(16), fontWeight: 'bold', color: '#fff' }}>Edit Discount</Text>
+            </LinearGradient>
+
+            <View style={{ padding: s(20), width: '100%' }}>
+              <Text style={{ fontSize: rf(13), color: '#64748B', marginBottom: vs(5) }}>Discount Rate (%)</Text>
+              <TextInput
+                style={[styles.input, { width: '100%', padding: s(10), fontSize: rf(13), marginBottom: vs(15), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0' }]}
+                placeholder="0"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                value={tempDiscountRate}
+                onChangeText={setTempDiscountRate}
+              />
+
+              <View style={{ flexDirection: 'row', gap: s(12), marginTop: vs(5), width: '100%' }}>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: '#F1F5F9', alignItems: 'center', paddingVertical: vs(12), borderRadius: s(12) }}
+                  onPress={() => setIsDiscountModalVisible(false)}
+                >
+                  <Text style={{ fontSize: rf(14), fontWeight: 'bold', color: '#64748B' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1 }}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    const rate = parseFloat(tempDiscountRate) || 0;
+                    setTaxSettings(prev => ({
+                      ...prev,
+                      discountEnabled: rate > 0,
+                      discountRate: rate
+                    }));
+                    setIsDiscountModalVisible(false);
+                  }}
+                >
+                  <LinearGradient
+                    colors={['#10B981', '#059669']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ flex: 1, alignItems: 'center', paddingVertical: vs(12), borderRadius: s(12) }}
+                  >
+                    <Text style={{ fontSize: rf(14), fontWeight: 'bold', color: '#ffffff' }}>Apply</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={isChargesModalVisible} animationType="slide">
+        <View style={styles.modalOverlayCentered}>
+          <View style={[styles.modalContentCentered, { width: SCREEN_WIDTH * 0.75, padding: 0, borderRadius: s(24), overflow: 'hidden' }]}>
+
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ width: '100%', paddingVertical: vs(15), paddingHorizontal: s(20), alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: rf(16), fontWeight: 'bold', color: '#fff' }}>Edit Extra Charges</Text>
+            </LinearGradient>
+
+            <View style={{ padding: s(20), width: '100%' }}>
+              <Text style={{ fontSize: rf(13), color: '#64748B', marginBottom: vs(5) }}>Service Charge (%)</Text>
+              <TextInput
+                style={[styles.input, { width: '100%', padding: s(10), fontSize: rf(13), marginBottom: vs(10), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0' }]}
+                placeholder="0"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                value={tempServiceCharge}
+                onChangeText={setTempServiceCharge}
+              />
+              <Text style={{ fontSize: rf(13), color: '#64748B', marginBottom: vs(5) }}>Delivery Charge (₹)</Text>
+              <TextInput
+                style={[styles.input, { width: '100%', padding: s(10), fontSize: rf(13), marginBottom: vs(10), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0' }]}
+                placeholder="0"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                value={tempDeliveryCharge}
+                onChangeText={setTempDeliveryCharge}
+              />
+              <Text style={{ fontSize: rf(13), color: '#64748B', marginBottom: vs(5) }}>Packaging Charge (₹)</Text>
+              <TextInput
+                style={[styles.input, { width: '100%', padding: s(10), fontSize: rf(13), marginBottom: vs(15), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0' }]}
+                placeholder="0"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                value={tempPackagingCharge}
+                onChangeText={setTempPackagingCharge}
+              />
+
+              <View style={{ flexDirection: 'row', gap: s(12), marginTop: vs(5), width: '100%' }}>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: '#F1F5F9', alignItems: 'center', paddingVertical: vs(12), borderRadius: s(12) }}
+                  onPress={() => setIsChargesModalVisible(false)}
+                >
+                  <Text style={{ fontSize: rf(14), fontWeight: 'bold', color: '#64748B' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1 }}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    const svc = parseFloat(tempServiceCharge) || 0;
+                    const del = parseFloat(tempDeliveryCharge) || 0;
+                    const pkg = parseFloat(tempPackagingCharge) || 0;
+                    setTaxSettings(prev => ({
+                      ...prev,
+                      serviceChargeEnabled: svc > 0,
+                      serviceChargeRate: svc,
+                      deliveryChargeEnabled: del > 0,
+                      deliveryChargeAmount: del,
+                      packagingChargeEnabled: pkg > 0,
+                      packagingChargeAmount: pkg
+                    }));
+                    setIsChargesModalVisible(false);
+                  }}
+                >
+                  <LinearGradient
+                    colors={['#10B981', '#059669']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ flex: 1, alignItems: 'center', paddingVertical: vs(12), borderRadius: s(12) }}
+                  >
+                    <Text style={{ fontSize: rf(14), fontWeight: 'bold', color: '#ffffff' }}>Apply</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal transparent visible={isSuccessModalVisible} animationType="fade">
         <View style={styles.modalOverlayCentered}>
@@ -998,7 +1170,7 @@ export default function CheckoutView({
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </>
   );
 }
 

@@ -73,18 +73,18 @@ export default function TabsLayout() {
   };
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: '#6D28D9' }}>
       <TopNavBar title={getTitle()} showSearch={pathname.includes("menu")} />
 
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: "#1E90FF",
-          tabBarInactiveTintColor: "#6B7280",
+          tabBarActiveTintColor: "#ffffff",
+          tabBarInactiveTintColor: "rgba(255,255,255,0.5)",
           tabBarStyle: {
-            backgroundColor: "#fff",
+            backgroundColor: "#6D28D9",
             borderTopWidth: 1,
-            borderTopColor: "#E5E7EB",
+            borderTopColor: "#5B21B6",
             height: 60 + (insets.bottom || 0),
             paddingBottom: insets.bottom > 0 ? insets.bottom : 6,
           },
@@ -213,6 +213,6 @@ export default function TabsLayout() {
           router.push("/(auth)/sign-in");
         }}
       />
-    </>
+    </View>
   );
 }

@@ -81,6 +81,15 @@ export const PERMISSION_GROUPS = [
     ]
   },
   {
+    title: "Inventory Permissions",
+    permissions: [
+      "View Inventory Dashboard",
+      "Manage Raw Materials",
+      "Manage Finished Products",
+      "View Inventory Reports"
+    ]
+  },
+  {
     title: "Settings Permissions",
     permissions: [
       "App General Settings",

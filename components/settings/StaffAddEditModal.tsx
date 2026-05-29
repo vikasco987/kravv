@@ -140,7 +140,7 @@ const StaffAddEditModal = ({
     return () => {
       subscriptions.forEach((sub) => sub.remove());
       if (Voice && typeof Voice.destroy === "function") {
-        Voice.destroy().catch(() => {});
+        Voice.destroy().catch(() => { });
       }
     };
   }, [visible]);
@@ -153,8 +153,8 @@ const StaffAddEditModal = ({
       // Safety: Try to cancel any existing session before starting
       if (typeof nativeBridge.cancelSpeech === "function") {
         try {
-          await nativeBridge.cancelSpeech(() => {});
-        } catch (e) {}
+          await nativeBridge.cancelSpeech(() => { });
+        } catch (e) { }
       }
 
       if (typeof nativeBridge.startSpeech === "function") {
@@ -164,7 +164,7 @@ const StaffAddEditModal = ({
           EXTRA_PARTIAL_RESULTS: true,
           REQUEST_PERMISSIONS_AUTO: true,
         };
-        await nativeBridge.startSpeech("en-IN", options, () => {});
+        await nativeBridge.startSpeech("en-IN", options, () => { });
       } else {
         await Voice.start("en-IN");
       }
@@ -180,7 +180,7 @@ const StaffAddEditModal = ({
     try {
       const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
       if (nativeBridge && typeof nativeBridge.stopSpeech === "function") {
-        await nativeBridge.stopSpeech(() => {});
+        await nativeBridge.stopSpeech(() => { });
       } else {
         await Voice.stop();
       }
@@ -272,6 +272,10 @@ const StaffAddEditModal = ({
       "Report Permissions": {
         displayTitle: "Sales Reports",
         displaySubtitle: "Report Permissions",
+      },
+      "Inventory Permissions": {
+        displayTitle: "Inventory",
+        displaySubtitle: "Inventory Permissions",
       },
       "Settings Permissions": {
         displayTitle: "General App Settings",
@@ -421,7 +425,7 @@ const StaffAddEditModal = ({
             DeviceEventEmitter.emit("PERMISSIONS_UPDATED");
           }
         }
-      } catch (e) {}
+      } catch (e) { }
 
       onDelete(staff.id);
     }

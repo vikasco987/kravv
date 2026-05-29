@@ -30,6 +30,7 @@ import DeepSaleView from "./DeepSaleView";
 import DeleteHistoryView from "./DeleteHistoryView";
 import MonthlySalesScreen from "./MonthlySalesScreen";
 import SalesSummaryCard from "./SalesSummaryCard";
+import WebDashboardWidgets from "./WebDashboardWidgets";
 import WeeklySalesScreen from "./WeeklySalesScreen";
 
 const COLORS = {
@@ -57,6 +58,11 @@ const MainDashboardView = ({ isLockedUser }) => {
   const [insightVisible, setInsightVisible] = useState(false);
   const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
   const { refreshSignal } = useRefresh();
+
+  // Added state for Dashboard Sync
+  const [activeCombos, setActiveCombos] = useState(0);
+  const [activeOffers, setActiveOffers] = useState(0);
+  const [effectiveId, setEffectiveId] = useState(null);
 
   // State for switching views inside the same tab
   const [currentView, setCurrentView] = useState("main"); // 'main', 'daily', 'weekly', 'monthly', 'deepsale'
@@ -141,7 +147,18 @@ const MainDashboardView = ({ isLockedUser }) => {
 
     try {
       const token = await getToken();
-      const staffToken = await AsyncStorage.getItem("staff_token");
+      let staffToken = await AsyncStorage.getItem("staff_token");
+
+      if (!staffToken) {
+        const sessionStr = await AsyncStorage.getItem("staff_session");
+        if (sessionStr) {
+          try {
+            const sessionData = JSON.parse(sessionStr);
+            staffToken = sessionData.token;
+          } catch (e) { }
+        }
+      }
+
       const finalToken = token || staffToken;
 
       let bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
@@ -171,6 +188,8 @@ const MainDashboardView = ({ isLockedUser }) => {
           console.error("Dashboard Profile Recovery Error:", e);
         }
       }
+
+      setEffectiveId(bId || user?.id);
 
       if (!finalToken) {
         const cached = await AsyncStorage.getItem("@cached_dash_stats");
@@ -203,6 +222,27 @@ const MainDashboardView = ({ isLockedUser }) => {
           setAllBills(billsList);
           await calculateStats(billsList);
         }
+      }
+
+      // Fetch Active Combos & Offers for Web Dashboard
+      try {
+        const comboUrl = bId ? `https://billing.kravy.in/api/combos?businessId=${bId}` : `https://billing.kravy.in/api/combos`;
+        const comboRes = await fetch(comboUrl, { headers: { Authorization: `Bearer ${finalToken}` } });
+        if (comboRes.ok) {
+          const comboData = await comboRes.json();
+          const items = Array.isArray(comboData) ? comboData : (comboData?.data || []);
+          setActiveCombos(items.filter(c => c.isActive).length);
+        }
+
+        const offerUrl = bId ? `https://billing.kravy.in/api/discounts?businessId=${bId}` : `https://billing.kravy.in/api/discounts`;
+        const offerRes = await fetch(offerUrl, { headers: { Authorization: `Bearer ${finalToken}` } });
+        if (offerRes.ok) {
+          const offerData = await offerRes.json();
+          const offers = Array.isArray(offerData) ? offerData : (offerData?.data || offerData?.offers || []);
+          setActiveOffers(offers.filter(o => o.isActive).length);
+        }
+      } catch (e) {
+        console.log("Combo/Offer fetch error", e);
       }
     } catch (err) {
       const cached = await AsyncStorage.getItem("@cached_dash_stats");
@@ -239,11 +279,6 @@ const MainDashboardView = ({ isLockedUser }) => {
     if (isLockedUser) {
       setIsLoginModalVisible(true);
       return;
-    }
-
-    // Permission gate for AI tools
-    if (viewName === "insight" && !canAccessSync("AI Intelligence Tools")) {
-      return; // MenuItem will already show lock and handle disabled state visually
     }
 
     const sessionStr = await AsyncStorage.getItem("staff_session");
@@ -312,10 +347,6 @@ const MainDashboardView = ({ isLockedUser }) => {
   const handleOpenDeleteHistory = () => {
     if (isLockedUser) {
       setIsLoginModalVisible(true);
-      return;
-    }
-    if (!isOwner) {
-      Alert.alert("Access Denied", "Only the owner can delete bill history.");
       return;
     }
     setCurrentView("deleteHistory");
@@ -417,7 +448,7 @@ const MainDashboardView = ({ isLockedUser }) => {
             color={COLORS.primary}
             subtitle={t("performance")}
             onPress={() => handleProtectedAction("daily")}
-            isLocked={isLockedUser || !canAccessSync("Dashboard")}
+            isLocked={isLockedUser}
           />
           <DashboardMenuItem
             title={t("weekly_sales")}
@@ -425,7 +456,7 @@ const MainDashboardView = ({ isLockedUser }) => {
             color={COLORS.secondary}
             subtitle={t("trends")}
             onPress={() => handleProtectedAction("weekly")}
-            isLocked={isLockedUser || !canAccessSync("Dashboard")}
+            isLocked={isLockedUser}
           />
           <DashboardMenuItem
             title={t("monthly_sales")}
@@ -433,7 +464,7 @@ const MainDashboardView = ({ isLockedUser }) => {
             color={COLORS.accent}
             subtitle={t("growth")}
             onPress={() => handleProtectedAction("monthly")}
-            isLocked={isLockedUser || !canAccessSync("Dashboard")}
+            isLocked={isLockedUser}
           />
           <DashboardMenuItem
             title={t("bill_records")}
@@ -441,7 +472,7 @@ const MainDashboardView = ({ isLockedUser }) => {
             color="#6366F1"
             subtitle={t("invoices")}
             onPress={() => handleProtectedAction("deepsale")}
-            isLocked={isLockedUser || !canAccessSync("Reports")}
+            isLocked={isLockedUser}
           />
           <DashboardMenuItem
             title="Profit Intelligence"
@@ -449,7 +480,7 @@ const MainDashboardView = ({ isLockedUser }) => {
             color="#F59E0B"
             subtitle="Optimize your menu items"
             onPress={() => handleProtectedAction("insight")}
-            isLocked={isLockedUser || !canAccessSync("AI Intelligence Tools")}
+            isLocked={isLockedUser}
           />
           <DashboardMenuItem
             title="Delete Bills History"
@@ -457,10 +488,17 @@ const MainDashboardView = ({ isLockedUser }) => {
             color="#EF4444"
             subtitle="Clear all transaction history"
             onPress={handleOpenDeleteHistory}
-            isLocked={isLockedUser || !isOwner}
+            isLocked={isLockedUser}
           />
         </View>
       </View>
+
+      <WebDashboardWidgets
+        allBills={allBills}
+        activeCombosCount={activeCombos}
+        activeOffersCount={activeOffers}
+        effectiveId={effectiveId || user?.id}
+      />
 
       <ProfitEngine
         visible={insightVisible || currentView === "insight"}
