@@ -28,8 +28,10 @@ import DailySalesScreen from "./DailySalesScreen";
 import DashboardMenuItem from "./DashboardMenuItem";
 import DeepSaleView from "./DeepSaleView";
 import DeleteHistoryView from "./DeleteHistoryView";
+import GstReportsView from "./GstReportsView";
 import MonthlySalesScreen from "./MonthlySalesScreen";
 import SalesSummaryCard from "./SalesSummaryCard";
+import TokenHistoryView from "./TokenHistoryView";
 import WebDashboardWidgets from "./WebDashboardWidgets";
 import WeeklySalesScreen from "./WeeklySalesScreen";
 
@@ -352,31 +354,12 @@ const MainDashboardView = ({ isLockedUser }) => {
     setCurrentView("deleteHistory");
   };
 
-  if (currentView === "daily")
-    return (
-      <DailySalesScreen
-        onBack={() => setCurrentView("main")}
-        allBills={allBills}
-      />
-    );
-  if (currentView === "weekly")
-    return (
-      <WeeklySalesScreen
-        onBack={() => setCurrentView("main")}
-        allBills={allBills}
-      />
-    );
-  if (currentView === "monthly")
-    return (
-      <MonthlySalesScreen
-        onBack={() => setCurrentView("main")}
-        allBills={allBills}
-      />
-    );
-  if (currentView === "deepsale")
-    return (
-      <DeepSaleView onBack={() => setCurrentView("main")} allBills={allBills} />
-    );
+  if (currentView === "daily") return <DailySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
+  if (currentView === "weekly") return <WeeklySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
+  if (currentView === "monthly") return <MonthlySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
+  if (currentView === "deepsale") return <DeepSaleView onBack={() => setCurrentView("main")} allBills={allBills} />;
+  if (currentView === "token_history") return <TokenHistoryView onClose={() => setCurrentView("main")} allBills={allBills} />;
+  if (currentView === "gst_reports") return <GstReportsView onClose={() => setCurrentView("main")} allBills={allBills} userProfile={user?.profile || user?.companyProfile || user} />;
   if (currentView === "deleteHistory")
     return (
       <DeleteHistoryView
@@ -498,6 +481,7 @@ const MainDashboardView = ({ isLockedUser }) => {
         activeCombosCount={activeCombos}
         activeOffersCount={activeOffers}
         effectiveId={effectiveId || user?.id}
+        setCurrentView={setCurrentView}
       />
 
       <ProfitEngine
@@ -513,7 +497,7 @@ const MainDashboardView = ({ isLockedUser }) => {
 };
 
 const styles = StyleSheet.create({
-  scrollContent: { padding: s(20), paddingTop: vs(10) },
+  scrollContent: { paddingHorizontal: s(10), paddingBottom: vs(20), paddingTop: vs(10) },
   sectionTitle: {
     fontSize: rf(18),
     fontWeight: "800",

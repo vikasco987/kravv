@@ -90,13 +90,7 @@ const WebRecentBills = ({ recentBills = [], deletedBills = [] }) => {
         icon="receipt"
         accentColor="#6366F1"
       />
-      <BillCardContainer
-        title="Deleted History"
-        bills={deletedBills}
-        icon="history"
-        accentColor="#EF4444"
-        deleted={true}
-      />
+
     </View>
   );
 };
@@ -109,7 +103,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
     borderRadius: s(24),
-    padding: s(20),
+    paddingHorizontal: s(14),
+    paddingVertical: vs(20),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
