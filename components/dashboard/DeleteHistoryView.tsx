@@ -8,6 +8,7 @@ import {
   DeviceEventEmitter,
   FlatList,
   Modal,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -403,7 +404,7 @@ const DeleteHistoryView = ({ onBack, onRefresh }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
   header: {
-    paddingTop: vs(25),
+    paddingTop: Platform.OS === "android" ? vs(50) : vs(25),
     paddingBottom: vs(10),
     paddingHorizontal: s(20),
     flexDirection: "row",

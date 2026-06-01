@@ -11,7 +11,7 @@ import WebWeeklyChart from "./WebWeeklyChart";
 
 const screenWidth = Dimensions.get("window").width;
 
-const WebDashboardWidgets = ({ allBills = [], activeCombosCount = 0, activeOffersCount = 0, effectiveId = "", setCurrentView = () => { } }) => {
+const WebDashboardWidgets = ({ allBills = [], activeCombosCount = 0, activeOffersCount = 0, effectiveId = "", setCurrentView = () => { }, children }) => {
   const [range, setRange] = React.useState(30);
 
   // 1. Date Ranges
@@ -282,17 +282,29 @@ const WebDashboardWidgets = ({ allBills = [], activeCombosCount = 0, activeOffer
       {/* FULL 16-METRIC WEB STATS GRID */}
       <WebStatsGrid data={statsGridData} range={range} />
 
+      {children}
+
       {/* STORE MANAGEMENT */}
       <View style={{ marginBottom: vs(20) }}>
-        <View style={{ flexDirection: "row", gap: s(12), flexWrap: "wrap" }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: s(12), paddingRight: s(20) }}
+        >
           {quickActions.map((act, i) => (
             <TouchableOpacity
               key={i}
+              activeOpacity={0.7}
               onPress={() => {
-                if (act.title === "Token History") setCurrentView("token_history");
-                if (act.title === "GST Reports") setCurrentView("gst_reports");
+                // Use setTimeout to allow the ripple animation to start immediately before freezing JS thread to mount heavy views
+                setTimeout(() => {
+                  if (act.title === "Token History") setCurrentView("token_history");
+                  if (act.title === "GST Reports") setCurrentView("gst_reports");
+                  if (act.title === "Customers") setCurrentView("customers");
+                  if (act.title === "Tables & Area") setCurrentView("tables");
+                }, 0);
               }}
-              style={[styles.chartCard, { width: (screenWidth - s(44)) / 2, paddingHorizontal: s(16), paddingVertical: vs(16), marginBottom: vs(10) }]}
+              style={[styles.chartCard, { width: 170, paddingHorizontal: s(16), paddingVertical: vs(16), marginBottom: 0 }]}
             >
               {/* Top Row: Icon and Pill */}
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: vs(16) }}>
@@ -322,7 +334,7 @@ const WebDashboardWidgets = ({ allBills = [], activeCombosCount = 0, activeOffer
               </View>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       </View>
 
       {/* REVENUE CHART */}
@@ -851,9 +863,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: rf(16),
-    fontWeight: "900",
-    color: "#1E293B",
+    fontSize: rf(13),
+    fontWeight: "700",
+    color: "#334155",
   },
   badgeRow: {
     flexDirection: "row",
@@ -1239,4 +1251,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default WebDashboardWidgets;
+export default React.memo(WebDashboardWidgets);

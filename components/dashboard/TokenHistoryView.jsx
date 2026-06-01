@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useMemo } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 
 export default function TokenHistoryView({ allBills = [], onClose }) {
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: "rgba(255,255,255,0.8)",
     paddingHorizontal: s(20),
-    paddingTop: vs(20),
+    paddingTop: Platform.OS === "android" ? vs(50) : vs(20),
     paddingBottom: vs(15),
     borderBottomWidth: 1,
     borderColor: "#E2E8F0",

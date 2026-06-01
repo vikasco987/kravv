@@ -1,6 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text, View } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
 
 const COLORS = {
@@ -15,15 +14,15 @@ const COLORS = {
 };
 
 const SalesSummaryCard = ({ label, amount, icon, color, isLocked }) => (
-    <View style={[styles.summaryCard, { borderLeftColor: color, opacity: isLocked ? 0.7 : 1 }]}>
+    <View style={[styles.summaryCard, { opacity: isLocked ? 0.7 : 1 }]}>
         <View style={[styles.summaryIconContainer, { backgroundColor: color + '15' }]}>
-            <Ionicons name={isLocked ? "lock-closed" : icon} size={rf(22)} color={color} />
+            <Ionicons name={isLocked ? "lock-closed" : icon} size={rf(18)} color={color} />
         </View>
         <View style={{ flex: 1 }}>
             <Text style={styles.summaryLabel}>{label}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={styles.summaryAmount}>₹{isLocked ? "0" : amount.toLocaleString('en-IN')}</Text>
-                {isLocked && <Ionicons name="lock-closed" size={rf(14)} color={COLORS.textLight} style={{ marginLeft: s(5) }} />}
+                {isLocked && <Ionicons name="lock-closed" size={rf(12)} color={COLORS.textLight} style={{ marginLeft: s(5) }} />}
             </View>
         </View>
     </View>
@@ -31,34 +30,30 @@ const SalesSummaryCard = ({ label, amount, icon, color, isLocked }) => (
 
 const styles = StyleSheet.create({
     summaryCard: {
-        backgroundColor: COLORS.card,
-        borderRadius: s(16),
-        padding: s(16),
+        backgroundColor: 'transparent',
+        paddingVertical: vs(12),
+        paddingHorizontal: s(16),
         flexDirection: 'row',
         alignItems: 'center',
-        borderLeftWidth: s(4),
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
     },
     summaryIconContainer: {
-        width: s(44),
-        height: s(44),
-        borderRadius: s(12),
+        width: s(36),
+        height: s(36),
+        borderRadius: s(10),
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: s(15),
+        marginRight: s(14),
     },
     summaryLabel: {
-        fontSize: rf(12),
+        fontSize: rf(10.5),
         color: COLORS.textLight,
         fontWeight: '600',
         marginBottom: vs(2),
     },
     summaryAmount: {
-        fontSize: rf(20),
+        fontSize: rf(15),
         fontWeight: 'bold',
         color: COLORS.text,
     },

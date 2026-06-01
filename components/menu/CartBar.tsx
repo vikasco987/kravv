@@ -12,8 +12,8 @@ const KOT_BUTTON_COLOR = "#6366F1";
 interface CartBarProps {
   totalItems: number;
   totalAmount: number;
-  paymentMethod: "Cash" | "UPI" | "Card";
-  setPaymentMethod: (method: "Cash" | "UPI" | "Card") => void;
+  paymentMethod: "Cash" | "UPI" | "Card" | "Wallet";
+  setPaymentMethod: (method: "Cash" | "UPI" | "Card" | "Wallet") => void;
   received: boolean;
   setReceived: (val: boolean) => void;
   onViewCart: () => void;
@@ -87,7 +87,7 @@ export const CartBar: React.FC<CartBarProps> = ({
       </View>
 
       <View style={styles.paymentSelector}>
-        {["Cash", "UPI", "Card"].map((method) => (
+        {["Cash", "UPI", "Card", "Wallet"].map((method) => (
           <TouchableOpacity
             key={method}
             style={[
@@ -109,7 +109,9 @@ export const CartBar: React.FC<CartBarProps> = ({
                 ? t("cash")
                 : method === "UPI"
                   ? t("upi")
-                  : t("card")}
+                  : method === "Card"
+                    ? t("card")
+                    : "Wallet"}
             </Text>
           </TouchableOpacity>
         ))}
@@ -258,8 +260,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: "#F8FAFC",
     borderRadius: s(10),
-    marginBottom: vs(8), // Reduced from vs(15)
-    padding: s(4), // Reduced from s(6)
+    marginBottom: vs(6),
+    padding: s(3),
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
@@ -268,8 +270,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: vs(8), // Reduced from vs(12)
-    marginHorizontal: s(2),
+    paddingVertical: vs(6),
+    marginHorizontal: s(1),
     borderRadius: s(8),
     backgroundColor: "#fff",
     borderWidth: 1,

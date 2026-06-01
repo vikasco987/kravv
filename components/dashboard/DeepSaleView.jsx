@@ -348,7 +348,7 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
     <View style={{ flex: 1, backgroundColor: "#F5F7FA" }}>
       <LinearGradient
         colors={isSidebar ? ["#6C63FF", "#4E43E3"] : ["transparent", "transparent"]}
-        style={[styles.header, { paddingTop: isSidebar ? vs(45) : vs(15) }, !isSidebar && { elevation: 0 }]}
+        style={[styles.header, { paddingTop: isSidebar ? vs(45) : Platform.OS === "android" ? vs(50) : vs(15) }, !isSidebar && { elevation: 0 }]}
       >
         <View style={styles.headerTopRow}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>

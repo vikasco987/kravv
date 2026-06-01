@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useMemo, useState } from "react";
 import {
   Dimensions,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -533,7 +534,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F8FAFC",
-    paddingTop: vs(20),
+    paddingTop: Platform.OS === "android" ? vs(50) : vs(20),
     paddingHorizontal: s(24),
   },
   header: {

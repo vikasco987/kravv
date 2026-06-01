@@ -2,12 +2,13 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   BackHandler,
   DeviceEventEmitter,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -22,15 +23,16 @@ import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { useStaffPermissions } from "../staff creat/useStaffPermissions";
 
-// --- Dashboard Logic Components ---
 import ProfitEngine from "../AI intelligence tools/ProfitEngine";
+import CustomersView from "./CustomersView";
 import DailySalesScreen from "./DailySalesScreen";
 import DashboardMenuItem from "./DashboardMenuItem";
 import DeepSaleView from "./DeepSaleView";
 import DeleteHistoryView from "./DeleteHistoryView";
 import GstReportsView from "./GstReportsView";
 import MonthlySalesScreen from "./MonthlySalesScreen";
-import SalesSummaryCard from "./SalesSummaryCard";
+import PremiumSalesChart from "./PremiumSalesChart";
+import TableManagementView from "./TableManagementView";
 import TokenHistoryView from "./TokenHistoryView";
 import WebDashboardWidgets from "./WebDashboardWidgets";
 import WeeklySalesScreen from "./WeeklySalesScreen";
@@ -68,11 +70,33 @@ const MainDashboardView = ({ isLockedUser }) => {
 
   // State for switching views inside the same tab
   const [currentView, setCurrentView] = useState("main"); // 'main', 'daily', 'weekly', 'monthly', 'deepsale'
+  const currentViewRef = useRef(currentView);
+
+  const [previousView, setPreviousView] = useState(null);
+  const [renderReady, setRenderReady] = useState(false);
+
+  useEffect(() => {
+    if (currentView !== "main" && currentView !== "insight") {
+      setPreviousView(currentView);
+      setRenderReady(false);
+      // Give the UI thread 50ms to start the modal animation before freezing JS
+      const timer = setTimeout(() => setRenderReady(true), 50);
+      return () => clearTimeout(timer);
+    } else {
+      // Keep the view rendered for 300ms while it slides down
+      const timer = setTimeout(() => setPreviousView(null), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [currentView]);
+
+  useEffect(() => {
+    currentViewRef.current = currentView;
+  }, [currentView]);
 
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        if (currentView !== "main") {
+        if (currentViewRef.current !== "main") {
           setCurrentView("main");
           return true;
         }
@@ -81,7 +105,7 @@ const MainDashboardView = ({ isLockedUser }) => {
 
       const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
       return () => subscription.remove();
-    }, [currentView])
+    }, [])
   );
 
   const calculateStats = async (bills) => {
@@ -354,22 +378,37 @@ const MainDashboardView = ({ isLockedUser }) => {
     setCurrentView("deleteHistory");
   };
 
-  if (currentView === "daily") return <DailySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
-  if (currentView === "weekly") return <WeeklySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
-  if (currentView === "monthly") return <MonthlySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
-  if (currentView === "deepsale") return <DeepSaleView onBack={() => setCurrentView("main")} allBills={allBills} />;
-  if (currentView === "token_history") return <TokenHistoryView onClose={() => setCurrentView("main")} allBills={allBills} />;
-  if (currentView === "gst_reports") return <GstReportsView onClose={() => setCurrentView("main")} allBills={allBills} userProfile={user?.profile || user?.companyProfile || user} />;
-  if (currentView === "deleteHistory")
-    return (
-      <DeleteHistoryView
-        onBack={() => setCurrentView("main")}
-        bills={allBills}
-        onRefresh={fetchStats}
-      />
-    );
+  const renderSubView = () => {
+    const activeModalView = (currentView !== "main" && currentView !== "insight") ? currentView : previousView;
 
-  return (
+    if (!renderReady && activeModalView) {
+      return (
+        <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      );
+    }
+
+    if (activeModalView === "daily") return <DailySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
+    if (activeModalView === "weekly") return <WeeklySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
+    if (activeModalView === "monthly") return <MonthlySalesScreen onBack={() => setCurrentView("main")} allBills={allBills} />;
+    if (activeModalView === "deepsale") return <DeepSaleView onBack={() => setCurrentView("main")} allBills={allBills} />;
+    if (activeModalView === "token_history") return <TokenHistoryView onClose={() => setCurrentView("main")} allBills={allBills} />;
+    if (activeModalView === "gst_reports") return <GstReportsView onClose={() => setCurrentView("main")} allBills={allBills} userProfile={user?.profile || user?.companyProfile || user} />;
+    if (activeModalView === "customers") return <CustomersView onClose={() => setCurrentView("main")} />;
+    if (activeModalView === "tables") return <TableManagementView onClose={() => setCurrentView("main")} />;
+    if (activeModalView === "deleteHistory")
+      return (
+        <DeleteHistoryView
+          onBack={() => setCurrentView("main")}
+          bills={allBills}
+          onRefresh={fetchStats}
+        />
+      );
+    return null;
+  };
+
+  const dashboardContent = useMemo(() => (
     <ScrollView
       contentContainerStyle={styles.scrollContent}
       refreshControl={
@@ -389,92 +428,7 @@ const MainDashboardView = ({ isLockedUser }) => {
         }}
       />
 
-      <View style={styles.summaryContainer}>
-        <Text style={styles.sectionTitle}>{t("sales_summary")}</Text>
-        {loading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator color={COLORS.primary} size="small" />
-          </View>
-        ) : (
-          <View style={styles.statsRow}>
-            <SalesSummaryCard
-              label={t("today")}
-              amount={stats.daily}
-              icon="today-outline"
-              color={COLORS.primary}
-              isLocked={isLockedUser}
-            />
-            <SalesSummaryCard
-              label={t("weekly")}
-              amount={stats.weekly}
-              icon="trending-up-outline"
-              color={COLORS.secondary}
-              isLocked={isLockedUser}
-            />
-            <SalesSummaryCard
-              label={t("monthly")}
-              amount={stats.monthly}
-              icon="pie-chart-outline"
-              color={COLORS.accent}
-              isLocked={isLockedUser}
-            />
-          </View>
-        )}
-      </View>
-
-      <View style={styles.analyticsSection}>
-        <Text style={styles.sectionTitle}>{t("analytics_reports")}</Text>
-        <View style={styles.menuGrid}>
-          <DashboardMenuItem
-            title={t("daily_sales")}
-            iconName="sunny"
-            color={COLORS.primary}
-            subtitle={t("performance")}
-            onPress={() => handleProtectedAction("daily")}
-            isLocked={isLockedUser}
-          />
-          <DashboardMenuItem
-            title={t("weekly_sales")}
-            iconName="calendar"
-            color={COLORS.secondary}
-            subtitle={t("trends")}
-            onPress={() => handleProtectedAction("weekly")}
-            isLocked={isLockedUser}
-          />
-          <DashboardMenuItem
-            title={t("monthly_sales")}
-            iconName="stats-chart"
-            color={COLORS.accent}
-            subtitle={t("growth")}
-            onPress={() => handleProtectedAction("monthly")}
-            isLocked={isLockedUser}
-          />
-          <DashboardMenuItem
-            title={t("bill_records")}
-            iconName="receipt"
-            color="#6366F1"
-            subtitle={t("invoices")}
-            onPress={() => handleProtectedAction("deepsale")}
-            isLocked={isLockedUser}
-          />
-          <DashboardMenuItem
-            title="Profit Intelligence"
-            iconName="bulb"
-            color="#F59E0B"
-            subtitle="Optimize your menu items"
-            onPress={() => handleProtectedAction("insight")}
-            isLocked={isLockedUser}
-          />
-          <DashboardMenuItem
-            title="Delete Bills History"
-            iconName="trash"
-            color="#EF4444"
-            subtitle="Clear all transaction history"
-            onPress={handleOpenDeleteHistory}
-            isLocked={isLockedUser}
-          />
-        </View>
-      </View>
+      <PremiumSalesChart bills={allBills} />
 
       <WebDashboardWidgets
         allBills={allBills}
@@ -482,7 +436,78 @@ const MainDashboardView = ({ isLockedUser }) => {
         activeOffersCount={activeOffers}
         effectiveId={effectiveId || user?.id}
         setCurrentView={setCurrentView}
-      />
+      >
+        <View style={styles.analyticsSection}>
+          <Text style={styles.sectionTitle}>{t("analytics_reports")}</Text>
+          <View style={styles.menuGrid}>
+            <DashboardMenuItem
+              title={t("daily_sales")}
+              iconName="sunny"
+              color={COLORS.primary}
+              subtitle={t("performance")}
+              onPress={() => handleProtectedAction("daily")}
+              isLocked={isLockedUser}
+            />
+            <DashboardMenuItem
+              title={t("weekly_sales")}
+              iconName="calendar"
+              color={COLORS.secondary}
+              subtitle={t("trends")}
+              onPress={() => handleProtectedAction("weekly")}
+              isLocked={isLockedUser}
+            />
+            <DashboardMenuItem
+              title={t("monthly_sales")}
+              iconName="stats-chart"
+              color={COLORS.accent}
+              subtitle={t("growth")}
+              onPress={() => handleProtectedAction("monthly")}
+              isLocked={isLockedUser}
+            />
+            <DashboardMenuItem
+              title={t("bill_records")}
+              iconName="receipt"
+              color="#6366F1"
+              subtitle={t("invoices")}
+              onPress={() => handleProtectedAction("deepsale")}
+              isLocked={isLockedUser}
+            />
+            <DashboardMenuItem
+              title="Profit Intelligence"
+              iconName="bulb"
+              color="#F59E0B"
+              subtitle="Optimize your menu items"
+              onPress={() => handleProtectedAction("insight")}
+              isLocked={isLockedUser}
+            />
+            <DashboardMenuItem
+              title="Delete Bills History"
+              iconName="trash"
+              color="#EF4444"
+              subtitle="Clear all transaction history"
+              onPress={handleOpenDeleteHistory}
+              isLocked={isLockedUser}
+            />
+          </View>
+        </View>
+      </WebDashboardWidgets>
+
+    </ScrollView>
+  ), [
+    refreshing, isLoginModalVisible, loading, stats, isLockedUser, allBills, activeCombos, activeOffers, effectiveId, t
+  ]);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <Modal
+        visible={currentView !== "main" && currentView !== "insight"}
+        animationType="slide"
+        onRequestClose={() => setCurrentView("main")}
+      >
+        {renderSubView()}
+      </Modal>
+
+      {dashboardContent}
 
       <ProfitEngine
         visible={insightVisible || currentView === "insight"}
@@ -492,22 +517,42 @@ const MainDashboardView = ({ isLockedUser }) => {
         }}
         bills={allBills}
       />
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: s(10), paddingBottom: vs(20), paddingTop: vs(10) },
   sectionTitle: {
-    fontSize: rf(18),
-    fontWeight: "800",
-    color: COLORS.text,
-    marginBottom: vs(15),
+    fontSize: rf(13),
+    fontWeight: "700",
+    color: '#334155',
+    marginBottom: vs(10),
+    marginLeft: s(4),
   },
   summaryContainer: { marginBottom: vs(25) },
-  statsRow: { flexDirection: "column", gap: vs(12) },
+  statsRow: {
+    flexDirection: "column",
+    backgroundColor: '#FFFFFF',
+    borderRadius: s(16),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
   analyticsSection: { marginBottom: vs(25) },
-  menuGrid: { gap: vs(12) },
+  menuGrid: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: s(16),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
   loaderContainer: {
     height: vs(100),
     justifyContent: "center",

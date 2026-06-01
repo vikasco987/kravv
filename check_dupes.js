@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-const content = fs.readFileSync('c:/Users/Deepak/Desktop/kravy-3/context/LanguageContext.tsx', 'utf8');
+const content = fs.readFileSync('c:/Users/RentoBees/Desktop/kravv/context/LanguageContext.tsx', 'utf8');
 
 const regex = /([a-z]{2}):\s*{([\s\S]*?)}/g;
 let match;

@@ -103,7 +103,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cart, setCart] = useState<Record<string, CartItem>>({});
-  const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Card">(
+  const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Card" | "Wallet">(
     "Cash",
   );
   const [received, setReceived] = useState(false);
@@ -1507,6 +1507,34 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       return;
     }
 
+    // CHECK WALLET BEFORE CLEARING CART
+    if (paymentMethod === "Wallet") {
+      if (!activeCustomer) {
+        ToastAndroid.show("Please select a customer for Wallet payment.", ToastAndroid.LONG);
+        return;
+      }
+      try {
+        const token = await getToken();
+        const sessionStr = await AsyncStorage.getItem("staff_session");
+        const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+        const finalToken = token || staffSession?.token;
+        const totalAmountDue = totalOverride || totalAmount;
+
+        const walletRes = await fetch("https://billing.kravy.in/api/wallet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+          body: JSON.stringify({ action: "payment", partyId: activeCustomer.id || activeCustomer._id, amount: totalAmountDue, description: "Quick Bill Payment" })
+        });
+        if (!walletRes.ok) {
+          ToastAndroid.show("Insufficient wallet balance!", ToastAndroid.LONG);
+          return;
+        }
+      } catch (e) {
+        ToastAndroid.show("Wallet verification failed", ToastAndroid.SHORT);
+        return;
+      }
+    }
+
     isPrinting.current = true;
     SoundManager.playPrint();
     try {
@@ -1555,6 +1583,33 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     // 🚀 INSTANT UI FEEDBACK
     const itemsToSave = Object.values(cart);
     if (itemsToSave.length === 0) return;
+
+    // CHECK WALLET BEFORE CLEARING CART
+    if (paymentMethod === "Wallet") {
+      if (!activeCustomer) {
+        ToastAndroid.show("Please select a customer for Wallet payment.", ToastAndroid.LONG);
+        return;
+      }
+      try {
+        const token = await getToken();
+        const sessionStr = await AsyncStorage.getItem("staff_session");
+        const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+        const finalToken = token || staffSession?.token;
+
+        const walletRes = await fetch("https://billing.kravy.in/api/wallet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+          body: JSON.stringify({ action: "payment", partyId: activeCustomer.id || activeCustomer._id, amount: totalAmount, description: "Bill Saved" })
+        });
+        if (!walletRes.ok) {
+          ToastAndroid.show("Insufficient wallet balance!", ToastAndroid.LONG);
+          return;
+        }
+      } catch (e) {
+        ToastAndroid.show("Wallet verification failed", ToastAndroid.SHORT);
+        return;
+      }
+    }
 
     const tableToSave = selectedTable;
     const roomToSave = selectedRoom;

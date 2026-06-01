@@ -532,16 +532,54 @@ export default function CheckoutView({
               businessId: bId,
             }),
           })
-            .then((res) => (res.ok ? res.json() : null))
+            .then(async (res) => {
+              if (res.ok) return res.json();
+              if (res.status === 409) {
+                // Phone already exists, fetch the party by phone
+                const getRes = await fetch(`https://billing.kravy.in/api/parties?phone=${customerPhone}`, {
+                  headers: { Authorization: `Bearer ${finalToken}` }
+                });
+                if (getRes.ok) {
+                  const list = await getRes.json();
+                  if (list && list.length > 0) return { party: list[0] };
+                }
+              }
+              return null;
+            })
             .then(
               (pData) => pData?.party?.id || pData?.party?._id || pData?.id,
             );
         }
       }
 
-      // We start SimpleBill immediately. If partyId is still being created,
-      // it might be null for this specific call, but we prioritize SPEED.
-      // Usually, backend should handle phone-based mapping if partyId is missing.
+      // For Wallet payments, we MUST await party creation first and make deduction
+      if (paymentMode === "Wallet") {
+        const createdPartyId = await partyCreationPromise;
+        if (createdPartyId) finalPartyId = createdPartyId;
+
+        if (!finalPartyId) {
+          setPrintErrorMessage("Please add/select a customer for Wallet payment.");
+          setIsErrorModalVisible(true);
+          setIsProcessing(false);
+          return;
+        }
+
+        const walletRes = await fetch("https://billing.kravy.in/api/wallet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+          body: JSON.stringify({ action: "payment", partyId: finalPartyId, amount: totals.totalDue, description: "Bill Payment" })
+        });
+
+        if (!walletRes.ok) {
+          const errData = await walletRes.json().catch(() => ({}));
+          setPrintErrorMessage(errData.error || "Insufficient wallet balance.");
+          setIsErrorModalVisible(true);
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // We start SimpleBill.
       const result = await SimpleBill(cart, finalToken!, bId!, {
         paymentMode,
         partyId: finalPartyId,
