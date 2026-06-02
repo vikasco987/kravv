@@ -11,7 +11,7 @@ import WebWeeklyChart from "./WebWeeklyChart";
 
 const screenWidth = Dimensions.get("window").width;
 
-const WebDashboardWidgets = ({ allBills = [], activeCombosCount = 0, activeOffersCount = 0, effectiveId = "", setCurrentView = () => { }, children }) => {
+const WebDashboardWidgets = ({ allBills = [], activeCombosCount = 0, activeOffersCount = 0, activeOrderCount = 0, effectiveId = "", setCurrentView = () => { }, children }) => {
   const [range, setRange] = React.useState(30);
 
   // 1. Date Ranges
@@ -71,7 +71,7 @@ const WebDashboardWidgets = ({ allBills = [], activeCombosCount = 0, activeOffer
   const totalRangeCustomers = currentRangeUniquePhones.size + currentRangeAnonymousCount;
 
   // Active / Completed Orders (approx)
-  const activeOrders = 0; // App local view usually shows completed POS bills
+  const activeOrders = activeOrderCount; // Dynamically synced with backend
   const completedOrders = currentBills.filter(b => new Date(b.createdAt || b.date) >= startOfDay).length;
 
   // 4. Daily Revenue Line Chart

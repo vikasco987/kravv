@@ -41,6 +41,7 @@ import { SubscriptionRequiredModal } from "../common/SubscriptionRequiredModal";
 // Menu Components
 import VoiceOrder from "../AI intelligence tools/VoiceOrder";
 import NetworkErrorModal from "../common/NetworkErrorModal";
+import { BillPreviewModal } from "./BillPreviewModal";
 import { CartBar } from "./CartBar";
 import { CartItemsModal } from "./CartItemsModal";
 import { CategorySidebar } from "./CategorySidebar";
@@ -108,6 +109,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   );
   const [received, setReceived] = useState(false);
   const [isCartModalVisible, setIsCartModalVisible] = useState(false);
+  const [isBillPreviewVisible, setIsBillPreviewVisible] = useState(false);
   const [isClearModalVisible, setIsClearModalVisible] = useState(false);
   const [showClearSuccess, setShowClearSuccess] = useState(false);
   const [heldCount, setHeldCount] = useState(0);
@@ -1857,6 +1859,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           received={received}
           setReceived={setReceived}
           onViewCart={() => setIsCartModalVisible(true)}
+          onPreviewBill={() => setIsBillPreviewVisible(true)}
           onPrintKot={handlePrintKot}
           onPrintBill={handlePrintBill}
           onSaveBill={handleSaveBill}
@@ -1897,6 +1900,13 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         onDelete={deleteFromCart}
         onEditPrice={updateCartItemPrice}
         onClear={() => setIsClearModalVisible(true)}
+      />
+
+      <BillPreviewModal
+        visible={isBillPreviewVisible}
+        onClose={() => setIsBillPreviewVisible(false)}
+        cartItems={Object.values(cart)}
+        totalAmount={totalAmount}
       />
 
       <TableSelectionModal

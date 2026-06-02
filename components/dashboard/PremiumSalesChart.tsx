@@ -30,7 +30,9 @@ export default function PremiumSalesChart({ bills }: PremiumSalesChartProps) {
     yesterdayStart.setDate(yesterdayStart.getDate() - 1);
 
     const weekStart = new Date(todayStart);
-    weekStart.setDate(weekStart.getDate() - 7);
+    const day = weekStart.getDay();
+    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+    weekStart.setDate(diff);
 
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -87,12 +89,12 @@ export default function PremiumSalesChart({ bills }: PremiumSalesChartProps) {
         peakLabel = `${peakH % 12 || 12} ${peakH >= 12 ? 'PM' : 'AM'}`;
       }
     } else if (selectedTab === 'week') {
-      // last 7 days
+      // Monday to Sunday of current week
       const dayMap: Record<string, number> = {};
       const days = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
+      for (let i = 0; i <= 6; i++) {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + i);
         days.push(d.toDateString());
         dayMap[d.toDateString()] = 0;
       }

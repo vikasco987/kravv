@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { rf, s, vs } from "../../utils/responsive";
+import { SoundManager } from "../../utils/SoundManager";
 
 const getCategoryIcon = (name: string): any => {
     const lowerName = name.toLowerCase();
@@ -45,6 +46,8 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
     const [activeIndex, setActiveIndex] = useState(0);
 
     const handlePress = (cat: Category, index: number) => {
+        SoundManager.suppressNextPlay();
+        SoundManager.playWebCategory();
         setActiveIndex(index);
         onCategoryPress(cat, index);
     };

@@ -17,6 +17,7 @@ interface CartBarProps {
   received: boolean;
   setReceived: (val: boolean) => void;
   onViewCart: () => void;
+  onPreviewBill: () => void;
   onPrintKot: () => void;
   onPrintBill: () => void;
   onSaveBill: () => void;
@@ -40,6 +41,7 @@ export const CartBar: React.FC<CartBarProps> = ({
   received,
   setReceived,
   onViewCart,
+  onPreviewBill,
   onPrintKot,
   onPrintBill,
   onSaveBill,
@@ -56,17 +58,26 @@ export const CartBar: React.FC<CartBarProps> = ({
   return (
     <View style={styles.cartBar}>
       <View style={styles.summaryRow}>
-        <TouchableOpacity style={styles.viewItemsButton} onPress={onViewCart}>
-          <Feather
-            name="shopping-cart"
-            size={16}
-            color="#fff"
-            style={{ marginRight: 6 }}
-          />
-          <Text style={styles.viewItemsText}>
-            {t("items")} ({totalItems})
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity style={styles.viewItemsButton} onPress={onViewCart}>
+            <Feather
+              name="shopping-cart"
+              size={16}
+              color="#fff"
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.viewItemsText}>
+              {t("items")} ({totalItems})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{ marginLeft: 8, backgroundColor: '#EEF2FF', padding: 4, borderRadius: 12 }}
+            onPress={onPreviewBill}
+          >
+            <Ionicons name="information-circle-outline" size={20} color="#4F46E5" />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={styles.receivedContainer}

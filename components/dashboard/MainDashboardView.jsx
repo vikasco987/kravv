@@ -66,6 +66,7 @@ const MainDashboardView = ({ isLockedUser }) => {
   // Added state for Dashboard Sync
   const [activeCombos, setActiveCombos] = useState(0);
   const [activeOffers, setActiveOffers] = useState(0);
+  const [activeOrderCount, setActiveOrderCount] = useState(0);
   const [effectiveId, setEffectiveId] = useState(null);
 
   // State for switching views inside the same tab
@@ -252,7 +253,7 @@ const MainDashboardView = ({ isLockedUser }) => {
 
       // Fetch Active Combos & Offers for Web Dashboard
       try {
-        const comboUrl = bId ? `https://billing.kravy.in/api/combos?businessId=${bId}` : `https://billing.kravy.in/api/combos`;
+        const comboUrl = bId ? `https://billing.kravy.in/api/combos-offers?type=combo&businessId=${bId}` : `https://billing.kravy.in/api/combos-offers?type=combo`;
         const comboRes = await fetch(comboUrl, { headers: { Authorization: `Bearer ${finalToken}` } });
         if (comboRes.ok) {
           const comboData = await comboRes.json();
@@ -260,12 +261,20 @@ const MainDashboardView = ({ isLockedUser }) => {
           setActiveCombos(items.filter(c => c.isActive).length);
         }
 
-        const offerUrl = bId ? `https://billing.kravy.in/api/discounts?businessId=${bId}` : `https://billing.kravy.in/api/discounts`;
+        const offerUrl = bId ? `https://billing.kravy.in/api/combos-offers?type=offer&businessId=${bId}` : `https://billing.kravy.in/api/combos-offers?type=offer`;
         const offerRes = await fetch(offerUrl, { headers: { Authorization: `Bearer ${finalToken}` } });
         if (offerRes.ok) {
           const offerData = await offerRes.json();
           const offers = Array.isArray(offerData) ? offerData : (offerData?.data || offerData?.offers || []);
           setActiveOffers(offers.filter(o => o.isActive).length);
+        }
+
+        const orderUrl = bId ? `https://billing.kravy.in/api/orders?active=true&includeDeleted=true&businessId=${bId}` : `https://billing.kravy.in/api/orders?active=true&includeDeleted=true`;
+        const orderRes = await fetch(orderUrl, { headers: { Authorization: `Bearer ${finalToken}` } });
+        if (orderRes.ok) {
+          const orderData = await orderRes.json();
+          const activeOrds = Array.isArray(orderData) ? orderData : (orderData?.data || []);
+          setActiveOrderCount(activeOrds.length);
         }
       } catch (e) {
         console.log("Combo/Offer fetch error", e);
@@ -434,6 +443,7 @@ const MainDashboardView = ({ isLockedUser }) => {
         allBills={allBills}
         activeCombosCount={activeCombos}
         activeOffersCount={activeOffers}
+        activeOrderCount={activeOrderCount}
         effectiveId={effectiveId || user?.id}
         setCurrentView={setCurrentView}
       >

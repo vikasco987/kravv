@@ -3,9 +3,11 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   DeviceEventEmitter,
   FlatList,
   LayoutAnimation,
+  Linking,
   Modal,
   Platform,
   RefreshControl,
@@ -17,6 +19,7 @@ import {
 } from "react-native";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
+import { PrintOldBill } from "../../utils/SimpleBill";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 if (Platform.OS === "android") {
@@ -64,6 +67,7 @@ const BillCard = ({
   toggleExpand,
   settings,
   onDelete,
+  onShowAlert,
 }) => {
   const statusStyle = getStatusStyle(bill.status);
 
@@ -361,14 +365,90 @@ const BillCard = ({
         )}
       </View>
 
+      {/* Customer Details Block */}
+      {(bill.customerName || bill.party?.name || bill.customerPhone || bill.phone || bill.party?.phone || bill.customerAddress || bill.party?.address) && (
+        <View style={{ backgroundColor: '#F8FAFC', padding: s(10), borderRadius: s(8), marginBottom: vs(12), borderWidth: 1, borderColor: '#E2E8F0' }}>
+          <Text style={{ fontSize: rf(12), color: '#64748B', fontWeight: 'bold', marginBottom: vs(4) }}>CUSTOMER DETAILS</Text>
+          {(bill.customerName || bill.party?.name) ? <Text style={{ fontSize: rf(13), color: '#1E293B', marginBottom: vs(2) }}><Ionicons name="person-outline" size={rf(12)} color="#64748B" />  {bill.customerName || bill.party?.name}</Text> : null}
+          {(bill.customerPhone || bill.phone || bill.party?.phone) ? <Text style={{ fontSize: rf(13), color: '#1E293B', marginBottom: vs(2) }}><Ionicons name="call-outline" size={rf(12)} color="#64748B" />  {bill.customerPhone || bill.phone || bill.party?.phone}</Text> : null}
+          {(bill.customerAddress || bill.party?.address) ? <Text style={{ fontSize: rf(13), color: '#1E293B' }}><Ionicons name="location-outline" size={rf(12)} color="#64748B" />  {bill.customerAddress || bill.party?.address}</Text> : null}
+        </View>
+      )}
+
       {/* Row 4: Summary & Buttons */}
       <View style={styles.summaryButtonsRow}>
         <Text style={styles.itemsSubtotalText}>
           {(bill.items || []).length} items • Subtotal ₹{itemsSubtotal}
         </Text>
         <View style={styles.buttonsGroup}>
-          <TouchableOpacity style={styles.waButton}>
-            <Text style={styles.buttonText}>WA</Text>
+          <TouchableOpacity
+            style={[styles.waButton, { backgroundColor: '#25D366', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
+            onPress={() => {
+              const phone = bill.customerPhone || bill.phone || bill.party?.phone;
+              if (!phone) {
+                if (onShowAlert) {
+                  onShowAlert({ title: "Missing Number", message: "Oops! We don't have a phone number for this customer.", type: "error" });
+                } else {
+                  Alert.alert("Error", "No phone number available for this customer.");
+                }
+                return;
+              }
+              const customerName = bill.customerName || bill.party?.name || "Customer";
+              const amount = Number(bill.total || 0).toFixed(2);
+              const message = `🌟 *Thank you for shopping with us!*\n\nHello *${customerName}*, Here is your invoice summary:\n\n💰 *Amount Due:* Rs. ${amount}\n\nWe look forward to serving you again! 🌸`;
+              const cleanPhone = phone.replace(/\D/g, "");
+              const finalPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+              const url = `https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`;
+              Linking.canOpenURL(url).then(supported => {
+                if (supported) Linking.openURL(url);
+                else {
+                  if (onShowAlert) {
+                    onShowAlert({ title: "WhatsApp Error", message: "WhatsApp is not installed on this device.", type: "error" });
+                  } else {
+                    Alert.alert("Error", "WhatsApp is not installed on this device.");
+                  }
+                }
+              }).catch(err => console.error("An error occurred", err));
+            }}
+          >
+            <Ionicons name="logo-whatsapp" size={16} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.waButton, { backgroundColor: '#4F46E5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginLeft: 8 }]}
+            onPress={async () => {
+              try {
+                const printData = {
+                  itemsSubtotal,
+                  discountAmount,
+                  discPercent,
+                  taxableAfterDiscount,
+                  globalTaxMap,
+                  itemTaxMap,
+                  gstToShow,
+                  avgGstPercent,
+                  serviceCharge,
+                  serviceGst,
+                  servGstPercent,
+                  deliveryCharge,
+                  deliveryGst,
+                  delGstPercent,
+                  packagingCharge,
+                  packagingGst,
+                  pkgGstPercent,
+                  displayTotal
+                };
+                // Assuming we can pass null for token and userId as it tries to get from local session
+                await PrintOldBill(bill, printData, null, null);
+              } catch (err) {
+                if (onShowAlert) {
+                  onShowAlert({ title: "Print Error", message: err?.message || "Failed to print the old bill.", type: "error" });
+                } else {
+                  Alert.alert("Print Error", err?.message || "Failed to print the old bill.");
+                }
+              }
+            }}
+          >
+            <Ionicons name="print-outline" size={16} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.detailsButton} onPress={toggleExpand}>
             <Text style={styles.buttonText}>
@@ -835,6 +915,7 @@ const DetailedBillListView = ({
             toggleExpand={() => toggleRow(item._id || item.id || String(index))}
             settings={taxSettings}
             onDelete={handleDeleteBill}
+            onShowAlert={(config) => setAlertConfig({ ...config, visible: true })}
           />
         )}
         ListEmptyComponent={() => (
@@ -922,7 +1003,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
   },
   header: {
-    paddingTop: vs(25),
+    paddingTop: vs(60),
     paddingBottom: vs(15),
     paddingHorizontal: s(16),
   },

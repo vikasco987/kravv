@@ -48,7 +48,7 @@ export const MenuItemCard = React.memo(({
             ]}>
                 <TouchableOpacity
                     onPress={() => onAdd(item)}
-                    onPressIn={() => { SoundManager.suppressNextPlay(); SoundManager.playAdd(); }}
+                    onPressIn={() => { SoundManager.suppressNextPlay(); SoundManager.playWebItem(); }}
                     activeOpacity={0.8}
                     style={styles.listCardContent}
                 >
@@ -92,7 +92,7 @@ export const MenuItemCard = React.memo(({
         ]}>
             <TouchableOpacity
                 onPress={() => onAdd(item)}
-                onPressIn={() => { SoundManager.suppressNextPlay(); SoundManager.playAdd(); }}
+                onPressIn={() => { SoundManager.suppressNextPlay(); SoundManager.playWebItem(); }}
                 activeOpacity={0.8}
                 style={styles.cardContent}
             >

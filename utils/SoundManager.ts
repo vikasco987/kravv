@@ -19,7 +19,10 @@ type SoundKey =
   | "delete"
   | "hold"
   | "print"
-  | "success";
+  | "success"
+  | "webAdd"
+  | "webRemove"
+  | "webRemove1";
 
 /* eslint-disable @typescript-eslint/no-var-requires */
 const ASSETS: Record<SoundKey, any> = {
@@ -30,6 +33,9 @@ const ASSETS: Record<SoundKey, any> = {
   hold: require("../assets/sounds/hold.wav"),
   print: require("../assets/sounds/print.wav"),
   success: require("../assets/sounds/success.wav"),
+  webAdd: require("../assets/sounds/web_add.mp3"),
+  webRemove: require("../assets/sounds/web_remove.mp3"),
+  webRemove1: require("../assets/sounds/web_remove1.mp3"),
 };
 /* eslint-enable @typescript-eslint/no-var-requires */
 
@@ -137,6 +143,12 @@ class SoundManagerClass {
 
   /** Printer connected — three ascending tones (600→900→1300 Hz). */
   playSuccess(): void { this.fireSound("success"); }
+
+  /** Website Item Click sound */
+  playWebItem(): void { this.fireSound("webAdd"); }
+
+  /** Website Category Click sound */
+  playWebCategory(): void { this.fireSound("webRemove"); }
 
   async destroy(): Promise<void> {
     for (const sound of Object.values(this.sounds)) {

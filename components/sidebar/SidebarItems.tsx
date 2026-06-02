@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerItem } from "@react-navigation/drawer";
-import React from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { rf, s, vs } from "../../utils/responsive";
 import { useStaffPermissions } from "../staff creat/useStaffPermissions";
 
@@ -21,6 +21,7 @@ const SidebarItems = ({
   onLogout,
 }: SidebarItemsProps) => {
   const { canAccessSync, isOwner } = useStaffPermissions();
+  const [accessDeniedInfo, setAccessDeniedInfo] = useState({ visible: false, permission: "" });
 
   const COLORS = {
     primary: "#6D28D9",
@@ -48,11 +49,7 @@ const SidebarItems = ({
         onAction(screen);
       }
     } else {
-      Alert.alert(
-        "Access Denied",
-        `You don't have permission to access ${permission}. Please contact your administrator.`,
-        [{ text: "OK" }],
-      );
+      setAccessDeniedInfo({ visible: true, permission });
     }
   };
 
@@ -252,6 +249,28 @@ const SidebarItems = ({
           labelStyle={{ color: COLORS.danger }}
         />
       )}
+
+      <Modal transparent visible={accessDeniedInfo.visible} animationType="fade">
+        <View style={{ flex: 1, backgroundColor: "rgba(18, 18, 20, 0.9)", justifyContent: "center", alignItems: "center", zIndex: 9999 }}>
+          <View style={{ backgroundColor: "#1E1E24", width: s(310), borderRadius: s(24), padding: s(24), alignItems: "center", borderWidth: 1, borderColor: "#2C2C2E", elevation: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.35, shadowRadius: 20 }}>
+            <View style={{ width: s(72), height: s(72), borderRadius: s(36), backgroundColor: "rgba(239, 68, 68, 0.1)", justifyContent: "center", alignItems: "center", marginBottom: vs(16), borderWidth: 1, borderColor: "rgba(239, 68, 68, 0.2)" }}>
+              <Ionicons name="lock-closed" size={rf(32)} color="#EF4444" />
+            </View>
+            <Text style={{ fontSize: rf(20), fontWeight: "800", color: "#FFFFFF", textAlign: "center" }}>Access Denied</Text>
+            <Text style={{ fontSize: rf(14), color: "#A1A1AA", textAlign: "center", marginTop: vs(8), lineHeight: vs(20), paddingHorizontal: s(10) }}>
+              You don't have permission to access {accessDeniedInfo.permission}. Please contact your administrator.
+            </Text>
+            <View style={{ flexDirection: "row", marginTop: vs(24), width: "100%" }}>
+              <TouchableOpacity
+                style={{ flex: 1, height: vs(48), borderRadius: s(12), justifyContent: "center", alignItems: "center", backgroundColor: "#EF4444" }}
+                onPress={() => setAccessDeniedInfo({ visible: false, permission: "" })}
+              >
+                <Text style={{ fontSize: rf(14), fontWeight: "700", color: "#FFFFFF" }}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };

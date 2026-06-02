@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  Linking,
   Modal,
   SafeAreaView,
   ScrollView,
@@ -17,7 +18,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
@@ -25,6 +26,7 @@ import { getRecentCompanyProfile } from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill } from "../../utils/SimpleBill";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+import { BillPreviewModal } from "./BillPreviewModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const THEME_COLOR = "#2563EB";
@@ -72,6 +74,7 @@ export default function CheckoutView({
   const [isProcessing, setIsProcessing] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState<string>("");
+  const [isPreviewModalVisible, setIsPreviewModalVisible] = useState(false);
   const [taxSettings, setTaxSettings] = useState({
     enabled: false,
     rate: 0,
@@ -620,6 +623,36 @@ export default function CheckoutView({
     }
   };
 
+  const handleWhatsApp = () => {
+    const customerPhone = newParty.phone.trim();
+    if (!customerPhone) {
+      setPrintErrorMessage("Oops! We don't have a phone number for this customer.");
+      setIsErrorModalVisible(true);
+      return;
+    }
+
+    const customerName = (newParty.name || searchQuery).trim() || "Customer";
+    const businessName = businessProfile?.companyName || "Our Store";
+    const amount = totals.totalDue.toFixed(2);
+
+    const message = `🌟 *Thank you for shopping with us!*\n\nHello *${customerName}*, Here is your invoice summary from *${businessName}*:\n\n💰 *Amount Due:* Rs. ${amount}\n\nWe look forward to serving you again! 🌸`;
+
+    const phone = customerPhone.replace(/\D/g, "");
+    const finalPhone = phone.length === 10 ? `91${phone}` : phone;
+    const url = `https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`;
+
+    Linking.canOpenURL(url)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(url);
+        } else {
+          setPrintErrorMessage("WhatsApp is not installed on this device.");
+          setIsErrorModalVisible(true);
+        }
+      })
+      .catch((err) => console.error("An error occurred", err));
+  };
+
   const handleBack = (clearCart: boolean = false) => {
     if (onBack) onBack(clearCart);
     else router.back();
@@ -939,6 +972,22 @@ export default function CheckoutView({
               </TouchableOpacity>
 
               <TouchableOpacity
+                style={{ marginTop: vs(12), backgroundColor: '#E0E7FF', borderRadius: s(8), paddingVertical: vs(12), flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}
+                onPress={() => setIsPreviewModalVisible(true)}
+              >
+                <Ionicons name="eye-outline" size={rf(18)} color="#4338CA" style={{ marginRight: s(10) }} />
+                <Text style={{ color: '#4338CA', fontSize: rf(14), fontWeight: 'bold' }}>Bill Preview</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{ marginTop: vs(12), backgroundColor: '#25D366', borderRadius: s(8), paddingVertical: vs(12), flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}
+                onPress={handleWhatsApp}
+              >
+                <Ionicons name="logo-whatsapp" size={rf(18)} color="#fff" style={{ marginRight: s(10) }} />
+                <Text style={{ color: '#fff', fontSize: rf(14), fontWeight: 'bold' }}>Send via WhatsApp</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={{ marginTop: vs(12), borderWidth: 1, borderColor: '#D1D5DB', borderRadius: s(8), paddingVertical: vs(12), flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}
                 onPress={clearCart}
               >
@@ -1190,6 +1239,26 @@ export default function CheckoutView({
         </View>
       </Modal>
 
+      <Modal transparent visible={isErrorModalVisible} animationType="fade">
+        <View style={{ flex: 1, backgroundColor: "rgba(18, 18, 20, 0.9)", justifyContent: "center", alignItems: "center" }}>
+          <View style={{ backgroundColor: "#1E1E24", width: s(310), borderRadius: s(24), padding: s(24), alignItems: "center", borderWidth: 1, borderColor: "#2C2C2E", elevation: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.35, shadowRadius: 20 }}>
+            <View style={{ width: s(72), height: s(72), borderRadius: s(36), backgroundColor: "rgba(239, 68, 68, 0.1)", justifyContent: "center", alignItems: "center", marginBottom: vs(16), borderWidth: 1, borderColor: "rgba(239, 68, 68, 0.2)" }}>
+              <Ionicons name="alert-circle" size={rf(40)} color="#EF4444" />
+            </View>
+            <Text style={{ fontSize: rf(20), fontWeight: "800", color: "#FFFFFF", textAlign: "center" }}>Oops!</Text>
+            <Text style={{ fontSize: rf(14), color: "#A1A1AA", textAlign: "center", marginTop: vs(8), lineHeight: vs(20), paddingHorizontal: s(10) }}>{printErrorMessage}</Text>
+            <View style={{ flexDirection: "row", marginTop: vs(24), width: "100%" }}>
+              <TouchableOpacity
+                style={{ flex: 1, height: vs(48), borderRadius: s(12), justifyContent: "center", alignItems: "center", backgroundColor: "#EF4444" }}
+                onPress={() => setIsErrorModalVisible(false)}
+              >
+                <Text style={{ fontSize: rf(14), fontWeight: "700", color: "#FFFFFF" }}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal transparent visible={isSuccessModalVisible} animationType="fade">
         <View style={styles.modalOverlayCentered}>
           <View style={styles.modalContentCentered}>
@@ -1208,6 +1277,20 @@ export default function CheckoutView({
           </View>
         </View>
       </Modal>
+
+      <BillPreviewModal
+        visible={isPreviewModalVisible}
+        onClose={() => setIsPreviewModalVisible(false)}
+        cartItems={cart}
+        totalAmount={totals.totalDue}
+        totals={totals}
+        tokenNo={params?.tokenNo}
+        customerInfo={{
+          name: (newParty.name || searchQuery).trim(),
+          phone: newParty.phone.trim(),
+          address: newParty.address.trim()
+        }}
+      />
     </>
   );
 }
