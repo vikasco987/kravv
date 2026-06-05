@@ -153,7 +153,12 @@ export default function KotView() {
             const checkoutData = {
               items: item.items,
               tableName: item.tableName?.replace("Table ", "") || "Counter",
-              tokenNumber: (item as any).tokenNumber || item.billNumber
+              tokenNumber: (item as any).tokenNumber || item.billNumber,
+              kotId: item.id,
+              customerName: (item as any).customerName || '',
+              customerPhone: (item as any).customerPhone || '',
+              customerAddress: (item as any).customerAddress || '',
+              billNumber: item.billNumber || '',
             };
             await AsyncStorage.setItem('@temp_cart_for_checkout', JSON.stringify(checkoutData));
             // Also remove from KOT list as it's going to checkout

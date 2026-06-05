@@ -25,6 +25,7 @@ import { useRefresh } from "../../context/RefreshContext";
 import { getRecentCompanyProfile } from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill } from "../../utils/SimpleBill";
+import { CustomToast } from "../common/CustomToast";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { BillPreviewModal } from "./BillPreviewModal";
 
@@ -96,6 +97,13 @@ export default function CheckoutView({
   });
   const [businessProfile, setBusinessProfile] = useState<any>(null);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
+
+  const [toastConfig, setToastConfig] = useState({ visible: false, message: "", type: "success" as any });
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToastConfig({ visible: true, message, type });
+    setTimeout(() => setToastConfig({ visible: false, message: "", type }), 3000);
+  };
 
   const loadTaxSettings = async () => {
     try {
@@ -202,11 +210,22 @@ export default function CheckoutView({
         setCart(Object.values(parsed));
         if (params.paymentMethod)
           setPaymentMode(params.paymentMethod as string);
+
+        if (params.customerName || params.customerPhone || params.customerAddress) {
+          setNewParty({
+            name: (params.customerName as string) || "",
+            phone: (params.customerPhone as string) || "",
+            address: (params.customerAddress as string) || "",
+          });
+          if (params.customerName) {
+            setSearchQuery(params.customerName as string);
+          }
+        }
       } catch (e) {
         console.error("Cart parsing error:", e);
       }
     }
-  }, [params.cart]);
+  }, [params.cart, params.paymentMethod, params.customerName, params.customerPhone, params.customerAddress]);
 
   const [isFetchingParties, setIsFetchingParties] = useState(false);
 
@@ -595,20 +614,28 @@ export default function CheckoutView({
         tableName: params.selectedTable || undefined,
         roomName: params.selectedRoom || undefined,
         tokenNo: params.tokenNo,
+        orderId: params.kotId,
       });
 
       if (result?.status === "success") {
+        showToast("Order Marked as Ready!", "success");
         setIsSuccessModalVisible(true);
         triggerRefresh(); // Update dashboard
 
-        // If this checkout originated from a KOT order, mark it as COMPLETED
+        // If this checkout originated from a KOT order, mark it as READY then COMPLETED
         if (params.kotId) {
           try {
             fetch("https://billing.kravy.in/api/orders", {
               method: "PATCH",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
-              body: JSON.stringify({ orderId: params.kotId, status: "COMPLETED" }),
-            }).catch(e => console.log("Failed to complete KOT order in background", e));
+              body: JSON.stringify({ orderId: params.kotId, status: "READY" }),
+            }).then(() => {
+              fetch("https://billing.kravy.in/api/orders", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+                body: JSON.stringify({ orderId: params.kotId, status: "COMPLETED" }),
+              }).catch(e => console.log("Failed to complete KOT order in background", e));
+            }).catch(e => console.log("Failed to ready KOT order in background", e));
           } catch (err) { }
         }
       } else {
@@ -623,7 +650,7 @@ export default function CheckoutView({
     }
   };
 
-  const handleWhatsApp = () => {
+  const handleWhatsApp = async () => {
     const customerPhone = newParty.phone.trim();
     if (!customerPhone) {
       setPrintErrorMessage("Oops! We don't have a phone number for this customer.");
@@ -631,26 +658,86 @@ export default function CheckoutView({
       return;
     }
 
-    const customerName = (newParty.name || searchQuery).trim() || "Customer";
-    const businessName = businessProfile?.companyName || "Our Store";
-    const amount = totals.totalDue.toFixed(2);
+    try {
+      setIsProcessing(true);
+      let finalToken = null;
+      let bId = activeBusinessId;
+      let staffSession = null;
 
-    const message = `🌟 *Thank you for shopping with us!*\n\nHello *${customerName}*, Here is your invoice summary from *${businessName}*:\n\n💰 *Amount Due:* Rs. ${amount}\n\nWe look forward to serving you again! 🌸`;
+      try {
+        const sessionStr = await AsyncStorage.getItem("staff_session");
+        staffSession = sessionStr ? JSON.parse(sessionStr) : null;
 
-    const phone = customerPhone.replace(/\D/g, "");
-    const finalPhone = phone.length === 10 ? `91${phone}` : phone;
-    const url = `https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`;
+        const authToken = await getToken();
+        finalToken =
+          authToken && authToken !== "" ? authToken : staffSession?.token;
 
-    Linking.canOpenURL(url)
-      .then((supported) => {
+        if (!bId) {
+          bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+        }
+      } catch (e) {
+        console.log("Auth fetch failed in WhatsApp Checkout:", e);
+        finalToken = staffSession?.token;
+        bId = bId || staffSession?.businessId;
+      }
+
+      const optionsObj: any = {
+        paymentMode,
+        partyId: selectedParty?.id || selectedParty?._id,
+        billId: params.billId || undefined,
+        customerName: (newParty.name || searchQuery).trim() || "Customer",
+        phone: customerPhone,
+        customerAddress: newParty.address,
+        businessProfile,
+        taxSettings,
+        tableName: params.selectedTable || undefined,
+        roomName: params.selectedRoom || undefined,
+        tokenNo: params.tokenNo,
+        orderId: params.kotId,
+      };
+
+      const result = await SimpleBill(cart, finalToken!, bId!, optionsObj);
+
+      if (result?.status === "success") {
+        const generatedBillId = optionsObj._resolvedBillId || params.kotId || "";
+        const clerkIdToPass = optionsObj._resolvedClerkId || user?.id || bId || "";
+
+        const customerNameDisplay = optionsObj.customerName;
+        const businessNameDisplay = businessProfile?.companyName || "Our Store";
+        const amountDisplay = totals.totalDue.toFixed(2);
+
+        const linkBillId = generatedBillId || "pending_bill";
+        const downloadLink = `https://billing.kravy.in/api/bill-manager/${linkBillId}/pdf?clerkId=${clerkIdToPass}`;
+
+        const billNoDisplay = params.billNumber || params.billNo || params.tokenNo || "Pending";
+
+        const message = `🌟 *Thank you for shopping with us!*\n\nHello *${customerNameDisplay}*, Here is your invoice from *${businessNameDisplay}*:\n\n📄 *Bill No:* ${billNoDisplay}\n💰 *Amount Paid:* Rs. ${amountDisplay}\n🔗 *Bill Preview:* ${downloadLink}\n\nWe look forward to serving you again! 🌸`;
+
+        const phoneNum = customerPhone.replace(/\D/g, "");
+        const finalPhone = phoneNum.length === 10 ? `91${phoneNum}` : phoneNum;
+        const url = `https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`;
+
+        const supported = await Linking.canOpenURL(url);
         if (supported) {
-          Linking.openURL(url);
+          await Linking.openURL(url);
+          showToast("Order Marked as Ready!", "success");
+          setIsSuccessModalVisible(true);
+          triggerRefresh();
         } else {
           setPrintErrorMessage("WhatsApp is not installed on this device.");
           setIsErrorModalVisible(true);
         }
-      })
-      .catch((err) => console.error("An error occurred", err));
+      } else {
+        setPrintErrorMessage(result?.error || "Failed to process bill.");
+        setIsErrorModalVisible(true);
+      }
+    } catch (e) {
+      console.error(e);
+      setPrintErrorMessage("An unexpected error occurred.");
+      setIsErrorModalVisible(true);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleBack = (clearCart: boolean = false) => {
@@ -1290,6 +1377,13 @@ export default function CheckoutView({
           phone: newParty.phone.trim(),
           address: newParty.address.trim()
         }}
+      />
+
+      <CustomToast
+        visible={toastConfig.visible}
+        message={toastConfig.message}
+        type={toastConfig.type}
+        onHide={() => setToastConfig({ ...toastConfig, visible: false })}
       />
     </>
   );

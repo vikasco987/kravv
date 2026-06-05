@@ -25,6 +25,7 @@ import { CustomToast } from "../common/CustomToast";
 import { SimpleKOT } from "../common/SimpleKOT";
 import { CategorySidebar } from "../menu/CategorySidebar";
 import { MenuItemCard } from "../menu/MenuItemCard";
+import { ZoneSelectionModal } from "../menu/ZoneSelectionModal";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 const THEME_PRIMARY = "#5A45FF"; // Purple from screenshot
@@ -77,6 +78,9 @@ export default function TableOrdersView({
   const [menuData, setMenuData] = useState<any[]>([]);
   const [isMenuModalVisible, setIsMenuModalVisible] = useState(false);
   const [menuLoading, setMenuLoading] = useState(false);
+
+  const [multiZoneMenuEnabled, setMultiZoneMenuEnabled] = useState(false);
+  const [selectedZone, setSelectedZone] = useState<string>("Global");
 
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
 
@@ -141,6 +145,20 @@ export default function TableOrdersView({
     const interval = setInterval(fetchOrders, 5000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const multiZone = await AsyncStorage.getItem("multi_zone_menu_enabled");
+        setMultiZoneMenuEnabled(multiZone === "true");
+        const savedZone = await AsyncStorage.getItem("default_selected_zone");
+        if (savedZone) setSelectedZone(savedZone);
+      } catch (e) {
+        console.log("Settings fetch info (local):", e);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const hasAutoCreated = React.useRef(false);
   useEffect(() => {
@@ -211,6 +229,7 @@ export default function TableOrdersView({
             sellingPrice: Number(item.sellingPrice || item.price || item.selling_price || 0),
             imageUrl: item.imageUrl,
             isVeg: item.isVeg === false || item.isVeg === "false" || item.isVeg === 0 ? false : true,
+            zones: item.zones || [],
           };
 
           categoryMap[catId].items.push(newItem);
@@ -246,6 +265,29 @@ export default function TableOrdersView({
       setMenuLoading(false);
     }
   };
+
+  const availableZones = useMemo(() => {
+    const zones = new Set<string>();
+    menuData.forEach((cat) => {
+      cat.items.forEach((item: any) => {
+        if (Array.isArray(item.zones)) {
+          item.zones.forEach((z: string) => zones.add(z));
+        }
+      });
+    });
+    return ["Global", ...Array.from(zones)];
+  }, [menuData]);
+
+  const filteredMenus = useMemo(() => {
+    let zoneFilteredMenus = menuData;
+    if (multiZoneMenuEnabled && selectedZone !== "Global") {
+      zoneFilteredMenus = menuData.map(cat => ({
+        ...cat,
+        items: cat.items.filter((item: any) => item.zones?.includes(selectedZone))
+      })).filter(cat => cat.items.length > 0);
+    }
+    return zoneFilteredMenus;
+  }, [menuData, multiZoneMenuEnabled, selectedZone]);
 
   const createNewOrder = async () => {
     try {
@@ -524,8 +566,9 @@ export default function TableOrdersView({
       {
         orderId: activeOrder.id,
         billNumber: activeOrder.billNumber,
-        customerName: activeOrder.customerName,
-        phone: (activeOrder as any).customerPhone,
+        customerName: activeOrder.customerName || (activeOrder as any).customer?.name,
+        phone: (activeOrder as any).customerPhone || (activeOrder as any).customer?.phone,
+        customerAddress: (activeOrder as any).customerAddress || (activeOrder as any).customer?.address || (activeOrder as any).deliveryAddress?.address,
         tableName: tableName,
         tokenNo: tokenNo,
         source: "POS_TABLE",
@@ -535,11 +578,6 @@ export default function TableOrdersView({
 
     if (result && result.status !== "error") {
       ToastAndroid.show("Bill Printed Successfully", ToastAndroid.SHORT);
-      // Mark as completed so it reflects in Dashboard sales
-      await updateOrderStatus(activeOrder.id, "COMPLETED");
-      if (onBack) {
-        onBack();
-      }
     } else {
       ToastAndroid.show("Failed to print Bill", ToastAndroid.SHORT);
     }
@@ -612,13 +650,19 @@ export default function TableOrdersView({
   const handleCheckout = async () => {
     if (!activeOrder) return;
     try {
+      const backendToken = (activeOrder as any).tokenNumber || (activeOrder as any).dailyTokenNumber || (activeOrder as any).orderNumber || (activeOrder as any).billNumber || (activeOrder as any).kotNumbers?.[0]?.toString();
+      const tokenNo = await resolveOrderToken(activeOrder.id, backendToken);
+
       const checkoutData = {
         items: activeOrder.items,
         totalAmount: activeOrder.total,
         kotId: activeOrder.id,
-        tableNumber: tableName || '',
-        customerName: activeOrder.customerName || '',
-        customerPhone: (activeOrder as any).customerPhone || '',
+        tableName: tableName || '',
+        customerName: activeOrder.customerName || (activeOrder as any).customer?.name || '',
+        customerPhone: (activeOrder as any).customerPhone || (activeOrder as any).customer?.phone || '',
+        customerAddress: (activeOrder as any).customerAddress || (activeOrder as any).customer?.address || (activeOrder as any).deliveryAddress?.address || '',
+        tokenNumber: tokenNo,
+        billNumber: (activeOrder as any).billNumber || (activeOrder as any).billNo || (activeOrder as any).invoiceNo || '',
       };
       await AsyncStorage.setItem('@temp_cart_for_checkout', JSON.stringify(checkoutData));
       DeviceEventEmitter.emit('GOTO_CHECKOUT_FROM_KOT');
@@ -875,9 +919,16 @@ export default function TableOrdersView({
       <FullMenuModal
         visible={isMenuModalVisible}
         onClose={() => setIsMenuModalVisible(false)}
-        categories={menuData}
+        categories={filteredMenus}
         loading={menuLoading}
         onConfirm={(items: any[], printKOT: boolean) => addItemToOrder(activeOrderId as string, items, printKOT)}
+        multiZoneMenuEnabled={multiZoneMenuEnabled}
+        availableZones={availableZones}
+        selectedZone={selectedZone}
+        setSelectedZone={(zone: string) => {
+          setSelectedZone(zone);
+          AsyncStorage.setItem("default_selected_zone", zone).catch(console.error);
+        }}
       />
 
       {/* MERGE BILLS MODAL (DROPDOWN STYLE) */}
@@ -1145,9 +1196,10 @@ export default function TableOrdersView({
   );
 }
 
-const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading }: any) => {
+const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multiZoneMenuEnabled, availableZones, selectedZone, setSelectedZone }: any) => {
   const flatListRef = React.useRef<FlatList>(null);
   const [cart, setCart] = useState<Record<string, any>>({});
+  const [isZoneModalVisible, setIsZoneModalVisible] = useState(false);
 
   const { width: SCREEN_WIDTH } = Dimensions.get("window");
   const CATEGORY_COLUMN_WIDTH = s(90);
@@ -1186,13 +1238,38 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading }: any
   const [printKOT, setPrintKOT] = useState(true); // Default to true
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Add Items to Order</Text>
-            <TouchableOpacity onPress={onClose}><Ionicons name="close" size={rf(24)} /></TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
+              {multiZoneMenuEnabled && availableZones && availableZones.length > 0 && (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: '#ECFDF5',
+                    paddingVertical: vs(4),
+                    paddingHorizontal: s(6),
+                    borderRadius: s(8),
+                    borderWidth: 1,
+                    borderColor: '#A7F3D0',
+                    gap: s(4),
+                    flexShrink: 1,
+                  }}
+                  onPress={() => setIsZoneModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name={selectedZone === "Global" ? "earth-outline" : "location-outline"} size={rf(16)} color="#10B981" />
+                  <Text style={{ fontSize: rf(12), fontWeight: '700', color: '#065F46', flexShrink: 1 }} numberOfLines={1}>{selectedZone}</Text>
+                  <Ionicons name="chevron-down" size={rf(14)} color="#6B7280" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={onClose}><Ionicons name="close" size={rf(24)} /></TouchableOpacity>
+            </View>
           </View>
+
           <View style={[styles.modalBody, { flexDirection: "row", padding: 0 }]}>
             {loading ? (
               <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -1264,6 +1341,17 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading }: any
           )}
         </View>
       </View>
+
+      <ZoneSelectionModal
+        visible={isZoneModalVisible}
+        onClose={() => setIsZoneModalVisible(false)}
+        availableZones={availableZones}
+        selectedZone={selectedZone}
+        onSelectZone={(zone: string) => {
+          setSelectedZone && setSelectedZone(zone);
+          setIsZoneModalVisible(false);
+        }}
+      />
     </Modal>
   );
 };

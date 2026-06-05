@@ -644,6 +644,10 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                 selectedTable: tableName === "Counter" ? null : tableName,
                 tokenNo: tokenNumber,
                 kotId: parsedData.kotId,
+                customerName: parsedData.customerName,
+                customerPhone: parsedData.customerPhone,
+                customerAddress: parsedData.customerAddress,
+                billNumber: parsedData.billNumber,
               });
               setCurrentView("checkout");
             }

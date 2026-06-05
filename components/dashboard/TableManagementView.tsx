@@ -39,11 +39,13 @@ export default function TableManagementView({ onClose }: any) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Search and Zone
   const [search, setSearch] = useState("");
   const [availableZones, setAvailableZones] = useState(["Default"]);
   const [multiZoneEnabled, setMultiZoneEnabled] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const [isCustomNewZone, setIsCustomNewZone] = useState(false);
+  const [isCustomEditZone, setIsCustomEditZone] = useState(false);
 
   // Success Modal State
   const [successModalVisible, setSuccessModalVisible] = useState(false);
@@ -323,19 +325,57 @@ export default function TableManagementView({ onClose }: any) {
                   onChangeText={setNewName}
                 />
               </View>
-              {multiZoneEnabled && (
-                <View style={[styles.inputWrapper, { flex: 0.6 }]}>
-                  <Feather name="layers" size={rf(12)} color="#64748B" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Zone"
-                    placeholderTextColor="#94A3B8"
-                    value={newZone}
-                    onChangeText={setNewZone}
-                  />
-                </View>
-              )}
             </View>
+
+            {multiZoneEnabled && (
+              <View style={{ marginTop: vs(12) }}>
+                <Text style={{ fontSize: rf(10), fontWeight: "800", color: "#64748B", marginBottom: vs(8), textTransform: "uppercase" }}>SELECT ZONE</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(4) }}>
+                  {[...availableZones.filter(z => z !== "Default"), "Default", "+ Custom"].map((zone) => {
+                    const isSelected = zone === "+ Custom" ? isCustomNewZone : (!isCustomNewZone && newZone === zone);
+                    return (
+                      <TouchableOpacity
+                        key={zone}
+                        style={{
+                          paddingHorizontal: s(12),
+                          paddingVertical: vs(6),
+                          backgroundColor: isSelected ? "#4F46E5" : "#F8FAFC",
+                          borderRadius: s(8),
+                          marginRight: s(8),
+                          borderWidth: 1,
+                          borderColor: isSelected ? "#4F46E5" : "#E2E8F0"
+                        }}
+                        onPress={() => {
+                          if (zone === "+ Custom") {
+                            setIsCustomNewZone(true);
+                            setNewZone("");
+                          } else {
+                            setIsCustomNewZone(false);
+                            setNewZone(zone);
+                          }
+                        }}
+                      >
+                        <Text style={{ fontSize: rf(10), fontWeight: "bold", color: isSelected ? "#fff" : "#64748B" }}>
+                          {zone === "Default" ? "None" : zone}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                {isCustomNewZone && (
+                  <View style={[styles.inputWrapper, { marginTop: vs(8) }]}>
+                    <Feather name="edit-2" size={rf(12)} color="#64748B" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter custom zone name"
+                      value={newZone}
+                      onChangeText={setNewZone}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                )}
+              </View>
+            )}
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: vs(12) }}>
               <View style={styles.quickTipsRow}>
                 {["T-01", "VIP-1", "Rooftop"].map(tip => (
@@ -464,7 +504,13 @@ export default function TableManagementView({ onClose }: any) {
                     onPress={() => {
                       setEditingTable(t);
                       setEditName(t.name);
-                      setEditZone(t.zone || "Default");
+                      const z = t.zone || "Default";
+                      setEditZone(z);
+                      if (!availableZones.includes(z) && z !== "Default") {
+                        setIsCustomEditZone(true);
+                      } else {
+                        setIsCustomEditZone(false);
+                      }
                     }}
                   >
                     <Feather name="edit-2" size={rf(9)} color="#4F46E5" />
@@ -514,14 +560,50 @@ export default function TableManagementView({ onClose }: any) {
                 onChangeText={setEditName}
               />
               {multiZoneEnabled && (
-                <>
+                <View style={{ marginTop: vs(12) }}>
                   <Text style={styles.inputLabel}>ZONE</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={editZone}
-                    onChangeText={setEditZone}
-                  />
-                </>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(8) }}>
+                    {[...availableZones.filter(z => z !== "Default"), "Default", "+ Custom"].map((zone) => {
+                      const isSelected = zone === "+ Custom" ? isCustomEditZone : (!isCustomEditZone && editZone === zone);
+                      return (
+                        <TouchableOpacity
+                          key={zone}
+                          style={{
+                            paddingHorizontal: s(12),
+                            paddingVertical: vs(8),
+                            backgroundColor: isSelected ? "#4F46E5" : "#F8FAFC",
+                            borderRadius: s(8),
+                            marginRight: s(8),
+                            borderWidth: 1,
+                            borderColor: isSelected ? "#4F46E5" : "#E2E8F0"
+                          }}
+                          onPress={() => {
+                            if (zone === "+ Custom") {
+                              setIsCustomEditZone(true);
+                              setEditZone("");
+                            } else {
+                              setIsCustomEditZone(false);
+                              setEditZone(zone);
+                            }
+                          }}
+                        >
+                          <Text style={{ fontSize: rf(11), fontWeight: "bold", color: isSelected ? "#fff" : "#64748B" }}>
+                            {zone === "Default" ? "None" : zone}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  {isCustomEditZone && (
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="Enter custom zone name"
+                      value={editZone}
+                      onChangeText={setEditZone}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  )}
+                </View>
               )}
               <View style={styles.modalBtnRow}>
                 <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingTable(null)}>

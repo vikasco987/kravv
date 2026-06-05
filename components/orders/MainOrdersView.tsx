@@ -128,14 +128,16 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                     const tId = t.id || t._id || "";
                     const tableOrders = ordersByTableId[tId] || [];
 
-                    let status: TableStatus = "FREE";
-                    if (tableOrders.some(o => o.status === "READY")) status = "READY";
-                    else if (tableOrders.some(o => o.status === "PREPARING")) status = "PREPARING";
-                    else if (tableOrders.some(o => o.status === "ACCEPTED")) status = "ACCEPTED";
-                    else if (tableOrders.some(o => o.status === "PENDING")) status = "PENDING";
+                    const validTableOrders = tableOrders.filter((o: any) => o.items && o.items.length > 0);
 
-                    const activeCount = tableOrders.length;
-                    const sortedOrders = [...tableOrders].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                    let status: TableStatus = "FREE";
+                    if (validTableOrders.some(o => o.status === "READY")) status = "READY";
+                    else if (validTableOrders.some(o => o.status === "PREPARING")) status = "PREPARING";
+                    else if (validTableOrders.some(o => o.status === "ACCEPTED")) status = "ACCEPTED";
+                    else if (validTableOrders.some(o => o.status === "PENDING")) status = "PENDING";
+
+                    const activeCount = validTableOrders.length;
+                    const sortedOrders = [...validTableOrders].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
                     const startTime = sortedOrders.length > 0 ? sortedOrders[0].createdAt : undefined;
 
                     return {
@@ -372,6 +374,16 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
             const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
             return () => subscription.remove();
         }, [currentView])
+    );
+
+    useFocusEffect(
+        useCallback(() => {
+            return () => {
+                // Reset view when leaving the tab
+                setCurrentView("main");
+                setSelectedTable(null);
+            };
+        }, [])
     );
 
     const navigateToTable = useCallback((item: Table) => {

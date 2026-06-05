@@ -10,9 +10,10 @@ import {
   Printer,
   QrCode,
   Trash2,
-  X,
+  X
 } from "lucide-react-native";
-import React, {
+import * as React from "react";
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -55,6 +56,7 @@ const COLORS = {
 interface Table {
   id: string;
   name: string;
+  zone?: string;
 }
 
 const Shimmer = () => {
@@ -110,6 +112,10 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   const [businessName, setBusinessName] = useState<string>("KRAVY");
   const [tableBookingEnabled, setTableBookingEnabled] = useState(true);
   const [roomBookingEnabled, setRoomBookingEnabled] = useState(false);
+  const [multiZoneMenuEnabled, setMultiZoneMenuEnabled] = useState(false);
+  const [newTableZone, setNewTableZone] = useState("Default");
+  const [isCustomZoneMode, setIsCustomZoneMode] = useState(false);
+  const ZONE_OPTIONS = ["Default", "AC", "Non-AC", "Garden", "Rooftop", "Patio", "Bar"];
 
   const viewShotRef = useRef<ViewShot>(null);
 
@@ -255,7 +261,8 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
 
     // OPTIMISTIC UPDATE: Add table to list immediately
     const tempId = `temp-${Date.now()}`;
-    const optimisticTable = { id: tempId, name: savedName };
+    const finalZone = newTableZone.trim() || "Default";
+    const optimisticTable = { id: tempId, name: savedName, zone: finalZone };
     const updatedTables = [...tables, optimisticTable];
 
     // Update UI and Cache instantly
@@ -264,6 +271,8 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
 
     // Close modal and clear input immediately for "instant" feel
     setNewTableName("");
+    setNewTableZone("Default");
+    setIsCustomZoneMode(false);
     setIsCreateModalVisible(false);
 
     try {
@@ -279,7 +288,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${finalToken}`,
         },
-        body: JSON.stringify({ name: savedName, businessId: bId }),
+        body: JSON.stringify({ name: savedName, businessId: bId, zone: finalZone }),
       });
 
       if (response.ok) {
@@ -398,12 +407,14 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
           }
         }
 
-        const [tEnabled, rEnabled] = await Promise.all([
+        const [tEnabled, rEnabled, multiZone] = await Promise.all([
           AsyncStorage.getItem("table_booking_enabled"),
           AsyncStorage.getItem("room_booking_enabled"),
+          AsyncStorage.getItem("multi_zone_menu_enabled"),
         ]);
         setTableBookingEnabled(tEnabled === "true");
         setRoomBookingEnabled(rEnabled === "true");
+        setMultiZoneMenuEnabled(multiZone === "true");
 
         if (cachedTables) {
           setLoading(false);
@@ -585,7 +596,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
               : roomBookingEnabled
                 ? "Manage your rooms and QR codes"
                 : t("manage_tables_desc") ||
-                  "Manage your dining tables and QR codes"}
+                "Manage your dining tables and QR codes"}
           </Text>
         </View>
       </View>
@@ -741,7 +752,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>{selectedTable?.name}</Text>
                 <Text style={styles.modalSubtitle}>
                   {businessName} Digital Menu
@@ -797,7 +808,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
                         <QRCode
                           key={businessId || "none"}
                           // 🔥 FINAL SYNC FIX: ONLY use Clerk ID (businessId) that matches the website's expectation.
-                          value={`https://billing.kravy.in/menu/${businessId}?tableId=${selectedTable.id}&tableName=${encodeURIComponent(selectedTable.name)}`}
+                          value={`https://billing.kravy.in/menu/${businessId}?tableId=${selectedTable.id}&tableName=${encodeURIComponent(selectedTable.name)}${multiZoneMenuEnabled && selectedTable.zone && selectedTable.zone !== "Default" ? `&zone=${encodeURIComponent(selectedTable.zone)}` : ""}`}
                           size={s(180)}
                           color="#000"
                           backgroundColor="#fff"
@@ -808,6 +819,11 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
                       <Text style={styles.qrTableName}>
                         {selectedTable.name}
                       </Text>
+                      {multiZoneMenuEnabled && selectedTable.zone && selectedTable.zone !== "Default" && (
+                        <Text style={{ fontSize: rf(14), fontWeight: "bold", color: COLORS.PRIMARY, marginTop: vs(2) }}>
+                          {selectedTable.zone} Zone
+                        </Text>
+                      )}
                       <Text style={styles.qrScanPrompt}>
                         {roomBookingEnabled && !tableBookingEnabled
                           ? "Scan to view Room Menu"
@@ -922,6 +938,54 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
               placeholderTextColor="#9CA3AF"
               autoFocus
             />
+
+            {multiZoneMenuEnabled && (
+              <View style={{ marginBottom: vs(25) }}>
+                <Text style={styles.inputLabel}>SELECT ZONE</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: vs(5) }}>
+                  {[...ZONE_OPTIONS, "+ Custom"].map((zone) => {
+                    const isSelected = zone === "+ Custom" ? isCustomZoneMode : (!isCustomZoneMode && newTableZone === zone);
+                    return (
+                      <TouchableOpacity
+                        key={zone}
+                        style={{
+                          paddingHorizontal: s(16),
+                          paddingVertical: vs(10),
+                          backgroundColor: isSelected ? COLORS.SECONDARY : COLORS.BG_LIGHT,
+                          borderRadius: s(12),
+                          marginRight: s(10),
+                          borderWidth: 1,
+                          borderColor: isSelected ? COLORS.SECONDARY : COLORS.LIGHT_GRAY
+                        }}
+                        onPress={() => {
+                          if (zone === "+ Custom") {
+                            setIsCustomZoneMode(true);
+                            setNewTableZone("");
+                          } else {
+                            setIsCustomZoneMode(false);
+                            setNewTableZone(zone);
+                          }
+                        }}
+                      >
+                        <Text style={{ fontSize: rf(13), fontWeight: "bold", color: isSelected ? COLORS.WHITE : COLORS.GRAY }}>
+                          {zone === "Default" ? "None" : zone}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                {isCustomZoneMode && (
+                  <TextInput
+                    style={[styles.input, { marginTop: vs(10), marginBottom: 0 }]}
+                    placeholder="Enter custom zone name"
+                    value={newTableZone}
+                    onChangeText={setNewTableZone}
+                    placeholderTextColor="#9CA3AF"
+                  />
+                )}
+              </View>
+            )}
+
             <TouchableOpacity
               style={[styles.saveBtn, isSaving && { opacity: 0.7 }]}
               onPress={createTable}

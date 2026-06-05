@@ -215,31 +215,41 @@ export const preCacheLogo = (url: string) => {
  * it generates a local token and caches it for future KOTs/Bills of the same order.
  */
 export async function resolveOrderToken(orderId: string | undefined | null, backendToken: any): Promise<string> {
-  if (backendToken) return String(backendToken);
-
   if (orderId) {
     try {
       const storedStr = await AsyncStorage.getItem("@order_tokens");
       const stored = storedStr ? JSON.parse(storedStr) : {};
+
+      // 1. Check cache first
       if (stored[orderId]) {
         return stored[orderId];
       }
 
+      // 2. If backendToken provided, cache and use it
+      if (backendToken) {
+        stored[orderId] = String(backendToken);
+        const keys = Object.keys(stored);
+        if (keys.length > 100) delete stored[keys[0]];
+        await AsyncStorage.setItem("@order_tokens", JSON.stringify(stored));
+        return String(backendToken);
+      }
+
+      // 3. Otherwise generate new local token, cache and use it
       const currentToken = await AsyncStorage.getItem("@token_counter");
       const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
       await AsyncStorage.setItem("@token_counter", String(nextToken));
 
       stored[orderId] = String(nextToken);
       const keys = Object.keys(stored);
-      if (keys.length > 100) {
-        delete stored[keys[0]];
-      }
+      if (keys.length > 100) delete stored[keys[0]];
       await AsyncStorage.setItem("@order_tokens", JSON.stringify(stored));
       return String(nextToken);
     } catch (e) {
       console.log("Error resolving order token:", e);
     }
   }
+
+  if (backendToken) return String(backendToken);
 
   // Fallback
   try {
@@ -641,80 +651,86 @@ export async function SimpleBill(
       : `https://billing.kravy.in/api/bill-manager${finalBusinessId ? `?businessId=${finalBusinessId}` : ""}`;
 
     // 🖨️ & 🌐 2. Combined Sync & Print Process
-    (async () => {
-      let finalBillNoToPrint = options?.billNumber || tempBillNo;
-      let syncSuccess = false;
+    let finalBillNoToPrint = options?.billNumber || tempBillNo;
+    let syncSuccess = false;
 
-      // 🛡️ STEP A: IF NEW BILL, WE MUST SAVE FIRST TO GET MONGODB BILL NUMBER
-      if (!options?.billNumber) {
-        try {
-          const method = isValidBillId ? "PUT" : "POST";
-          const response = await fetch(url, {
-            method: method,
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-              Authorization: `Bearer ${finalToken}`,
-            },
-            body: JSON.stringify({
-              items: productsForBackend,
-              subtotal: Number(totalTaxable.toFixed(2)),
-              taxableAmount: Number(totalTaxable.toFixed(2)),
-              itemsSubtotal: Number(subtotal.toFixed(2)),
-              tax: Number(totalGst.toFixed(2)),
-              total: finalBillTotal,
-              paymentMode: options?.paymentMode || "Cash",
-              paymentStatus: "Paid",
-              isHeld: options?.isHeld ?? false,
-              clerkUserId: finalClerkId || finalBusinessId,
-              businessId: finalBusinessId,
-              orderId: options?.orderId || "",
-              customerName: options?.customerName || "Walk-in",
-              customerPhone: options?.phone || "",
-              customerAddress: options?.customerAddress || "",
-              tableName: options?.tableName || "POS",
-              roomName: options?.roomName || "",
-              tokenNumber: finalTokenNo ? Number(finalTokenNo) : 0,
-              source: options?.source || "POS",
-              discountAmount: Number(totalDiscount.toFixed(2)),
-              discountRate: discountRatePercent,
-              calculatedTaxable: Number(totalTaxable.toFixed(2)),
-              calculatedGlobalGst: Number(globalGstTotal.toFixed(2)),
-              calculatedItemGst: Number(totalItemGstCalculated.toFixed(2)),
-              serviceCharge: Number(serviceCharge.toFixed(2)),
-              serviceGst: Number(serviceGst.toFixed(2)),
-              serviceGstRate: serviceGstRate,
-              deliveryCharges: Number(deliveryCharge.toFixed(2)),
-              deliveryGst: Number(deliveryGst.toFixed(2)),
-              deliveryGstRate: deliveryGstRate,
-              packagingCharges: Number(packagingCharge.toFixed(2)),
-              packagingGst: Number(packagingGst.toFixed(2)),
-              packagingGstRate: packagingGstRate,
-              isKotPrinted: true,
-              auditNote: options?.notes || "App Order",
-            }),
-          });
+    // 🛡️ STEP A: IF NEW BILL, WE MUST SAVE FIRST TO GET MONGODB BILL NUMBER
+    if (!options?.billNumber) {
+      try {
+        const method = isValidBillId ? "PUT" : "POST";
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Authorization: `Bearer ${finalToken}`,
+          },
+          body: JSON.stringify({
+            items: productsForBackend,
+            subtotal: Number(totalTaxable.toFixed(2)),
+            taxableAmount: Number(totalTaxable.toFixed(2)),
+            itemsSubtotal: Number(subtotal.toFixed(2)),
+            tax: Number(totalGst.toFixed(2)),
+            total: finalBillTotal,
+            paymentMode: options?.paymentMode || "Cash",
+            paymentStatus: "Paid",
+            isHeld: options?.isHeld ?? false,
+            clerkUserId: finalClerkId || finalBusinessId,
+            businessId: finalBusinessId,
+            orderId: options?.orderId || "",
+            customerName: options?.customerName || "Walk-in",
+            customerPhone: options?.phone || "",
+            customerAddress: options?.customerAddress || "",
+            tableName: options?.tableName || "POS",
+            roomName: options?.roomName || "",
+            tokenNumber: finalTokenNo ? Number(finalTokenNo) : 0,
+            source: options?.source || "POS",
+            discountAmount: Number(totalDiscount.toFixed(2)),
+            discountRate: discountRatePercent,
+            calculatedTaxable: Number(totalTaxable.toFixed(2)),
+            calculatedGlobalGst: Number(globalGstTotal.toFixed(2)),
+            calculatedItemGst: Number(totalItemGstCalculated.toFixed(2)),
+            serviceCharge: Number(serviceCharge.toFixed(2)),
+            serviceGst: Number(serviceGst.toFixed(2)),
+            serviceGstRate: serviceGstRate,
+            deliveryCharges: Number(deliveryCharge.toFixed(2)),
+            deliveryGst: Number(deliveryGst.toFixed(2)),
+            deliveryGstRate: deliveryGstRate,
+            packagingCharges: Number(packagingCharge.toFixed(2)),
+            packagingGst: Number(packagingGst.toFixed(2)),
+            packagingGstRate: packagingGstRate,
+            isKotPrinted: true,
+            auditNote: options?.notes || "App Order",
+          }),
+        });
 
-          if (response.ok) {
-            syncSuccess = true;
-            const data = await response.json().catch(() => ({}));
-            const serverBillNo = data.bill?.billNumber || data.billNumber;
-            if (serverBillNo) {
-              finalBillNoToPrint = serverBillNo;
-            }
-            DeviceEventEmitter.emit("refresh_orders_list");
-            DeviceEventEmitter.emit("REFRESH_ORDERS");
-            DeviceEventEmitter.emit("REFRESH_DASHBOARD");
+        if (response.ok) {
+          syncSuccess = true;
+          const data = await response.json().catch(() => ({}));
+          const serverBillNo = data.bill?.billNumber || data.billNumber;
+          const serverBillId = data.bill?._id || data.bill?.id || data._id || data.id;
+
+          if (serverBillNo) {
+            finalBillNoToPrint = serverBillNo;
           }
-        } catch (e) {
-          console.log(
-            "Saving failed before print (using fallback bill number):",
-            e,
-          );
+          if (serverBillId && options && typeof options === "object") {
+            (options as any)._resolvedBillId = serverBillId;
+            (options as any)._resolvedClerkId = data.bill?.clerkUserId || data.clerkUserId;
+          }
+          DeviceEventEmitter.emit("refresh_orders_list");
+          DeviceEventEmitter.emit("REFRESH_ORDERS");
+          DeviceEventEmitter.emit("REFRESH_DASHBOARD");
         }
+      } catch (e) {
+        console.log(
+          "Saving failed before print (using fallback bill number):",
+          e,
+        );
       }
+    }
 
-      // 🖨️ STEP B: PRINTING PROCESS
+    // 🖨️ STEP B: PRINTING PROCESS
+    (async () => {
       try {
         const printer: any = await ensurePrinterConnected(options?.silent);
         if (printer) {

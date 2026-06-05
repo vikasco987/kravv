@@ -41,7 +41,6 @@ import { SuccessFeedback } from "./SuccessFeedback";
 import { TaxDiscountsCard } from "./TaxDiscountsCard";
 import { TaxDiscountsModal } from "./TaxDiscountsModal";
 import { WhySignInBox } from "./WhySignInBox";
-
 const LOCAL_COLORS = {
   background: "#F9FAFB",
   primary: "#4F46E5",
