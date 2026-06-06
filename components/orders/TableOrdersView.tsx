@@ -431,7 +431,31 @@ export default function TableOrdersView({
         }
       }
 
-      const combinedItems = [...existingItems, ...newItems];
+      const combinedMap = new Map();
+      existingItems.forEach((item: any) => {
+        const key = item.id || item._id || item.name;
+        if (key) {
+          combinedMap.set(key, { ...item });
+        }
+      });
+
+      newItems.forEach((newItem: any) => {
+        const key = newItem.id || newItem._id || newItem.name;
+        if (key) {
+          if (combinedMap.has(key)) {
+            const existing = combinedMap.get(key);
+            existing.quantity = (existing.quantity || 1) + (newItem.quantity || 1);
+          } else {
+            combinedMap.set(key, { ...newItem });
+          }
+        }
+      });
+
+      // For any item that somehow has no id/name, we'll just keep them (rare edge case)
+      const existingNoKey = existingItems.filter(i => !(i.id || i._id || i.name));
+      const newNoKey = newItems.filter(i => !(i.id || i._id || i.name));
+
+      const combinedItems = [...existingNoKey, ...Array.from(combinedMap.values()), ...newNoKey];
       const newTotal = combinedItems.reduce((acc, item: any) => acc + (item.price || item.sellingPrice || 0) * item.quantity, 0);
 
       let targetStatus = order?.status;

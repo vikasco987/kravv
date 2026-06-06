@@ -69,6 +69,7 @@ const BillCard = ({
   onDelete,
   onShowAlert,
 }) => {
+  const { user } = useUser();
   const statusStyle = getStatusStyle(bill.status);
 
   const isSavedBill = !!(bill._id || bill.id || bill.billNumber);
@@ -383,7 +384,7 @@ const BillCard = ({
         <View style={styles.buttonsGroup}>
           <TouchableOpacity
             style={[styles.waButton, { backgroundColor: '#25D366', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
-            onPress={() => {
+            onPress={async () => {
               const phone = bill.customerPhone || bill.phone || bill.party?.phone;
               if (!phone) {
                 if (onShowAlert) {
@@ -393,12 +394,30 @@ const BillCard = ({
                 }
                 return;
               }
-              const customerName = bill.customerName || bill.party?.name || "Customer";
-              const amount = Number(bill.total || 0).toFixed(2);
-              const message = `🌟 *Thank you for shopping with us!*\n\nHello *${customerName}*, Here is your invoice summary:\n\n💰 *Amount Due:* Rs. ${amount}\n\nWe look forward to serving you again! 🌸`;
+              
+              let clerkIdToPass = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+              if (!clerkIdToPass) {
+                clerkIdToPass = "";
+              }
+
+              const profileStr = await AsyncStorage.getItem("business_profile");
+              const businessProfile = profileStr ? JSON.parse(profileStr) : null;
+
+              const customerNameDisplay = bill.customerName || bill.party?.name || "Customer";
+              const businessNameDisplay = businessProfile?.companyName || "Our Store";
+              const amountDisplay = Number(bill.total || 0).toFixed(2);
+              
+              const linkBillId = bill._id || bill.id || "pending_bill";
+              const downloadLink = `https://billing.kravy.in/api/bill-manager/${linkBillId}/pdf?clerkId=${clerkIdToPass}`;
+              
+              const billNoDisplay = bill.billNumber || bill.billNo || bill.invoiceNo || "Pending";
+
+              const message = `🌟 *Thank you for shopping with us!*\n\nHello *${customerNameDisplay}*, Here is your invoice from *${businessNameDisplay}*:\n\n📄 *Bill No:* ${billNoDisplay}\n💰 *Amount Paid:* Rs. ${amountDisplay}\n🔗 *Bill Preview:* ${downloadLink}\n\nWe look forward to serving you again! 🌸`;
+              
               const cleanPhone = phone.replace(/\D/g, "");
               const finalPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
               const url = `https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`;
+              
               Linking.canOpenURL(url).then(supported => {
                 if (supported) Linking.openURL(url);
                 else {
