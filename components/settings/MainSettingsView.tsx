@@ -109,9 +109,10 @@ const MainSettingsView = ({
   const [businessProfileForPreview, setBusinessProfileForPreview] =
     React.useState<any>(null);
   const [isStaffSignedIn, setIsStaffSignedIn] = React.useState(false);
+  const [hasFullSettingsAccess, setHasFullSettingsAccess] = React.useState(true);
   const [hasSettingsAccess, setHasSettingsAccess] = React.useState(true);
 
-  // Automatically reset currentView to "main" when settings screen loses focus (e.g. user signs out or navigates away)
+  // Automatically reset currentView to "main" when settings screen loses focus
   useFocusEffect(
     React.useCallback(() => {
       return () => {
@@ -147,11 +148,13 @@ const MainSettingsView = ({
     const checkStaff = async () => {
       if (isLockedUser) {
         setHasSettingsAccess(true);
+        setHasFullSettingsAccess(true);
         setIsStaffSignedIn(false);
         return;
       }
       if (user) {
         setHasSettingsAccess(true);
+        setHasFullSettingsAccess(true);
         setIsStaffSignedIn(false);
         return;
       }
@@ -163,9 +166,15 @@ const MainSettingsView = ({
           "Settings",
           false,
         );
-        setHasSettingsAccess(access);
+        const orderAccess = await StaffPermissionEngine.hasCategoryAccess(
+          "Order",
+          false,
+        );
+        setHasFullSettingsAccess(access);
+        setHasSettingsAccess(access || orderAccess);
       } else {
         setHasSettingsAccess(true); // Guest
+        setHasFullSettingsAccess(true);
       }
     };
     checkStaff();
@@ -670,17 +679,21 @@ const MainSettingsView = ({
 
       {!user && !isStaffSignedIn && <WhySignInBox />}
 
-      <BusinessManagementCard
-        user={effectiveUser}
-        onPress={() => setCurrentView("profile")}
-        onLoginRequired={() => setLoginModalVisible(true)}
-      />
+      {hasFullSettingsAccess && (
+        <>
+          <BusinessManagementCard
+            user={effectiveUser}
+            onPress={() => setCurrentView("profile")}
+            onLoginRequired={() => setLoginModalVisible(true)}
+          />
 
-      <TaxDiscountsCard
-        user={effectiveUser}
-        onPress={() => setTaxModalVisible(true)}
-        onLoginRequired={() => setLoginModalVisible(true)}
-      />
+          <TaxDiscountsCard
+            user={effectiveUser}
+            onPress={() => setTaxModalVisible(true)}
+            onLoginRequired={() => setLoginModalVisible(true)}
+          />
+        </>
+      )}
 
       <AppFeaturesCard
         user={effectiveUser}
@@ -692,17 +705,21 @@ const MainSettingsView = ({
         onLoginRequired={() => setLoginModalVisible(true)}
       />
 
-      <StaffCard
-        user={effectiveUser}
-        onPress={() => setStaffModalVisible(true)}
-        onLoginRequired={() => setLoginModalVisible(true)}
-      />
+      {hasFullSettingsAccess && (
+        <>
+          <StaffCard
+            user={effectiveUser}
+            onPress={() => setStaffModalVisible(true)}
+            onLoginRequired={() => setLoginModalVisible(true)}
+          />
 
-      <AdvancedDiscountCard
-        user={effectiveUser}
-        onPress={() => setAdvancedDiscountModalVisible(true)}
-        onLoginRequired={() => setLoginModalVisible(true)}
-      />
+          <AdvancedDiscountCard
+            user={effectiveUser}
+            onPress={() => setAdvancedDiscountModalVisible(true)}
+            onLoginRequired={() => setLoginModalVisible(true)}
+          />
+        </>
+      )}
 
       <LanguageCard
         user={effectiveUser}

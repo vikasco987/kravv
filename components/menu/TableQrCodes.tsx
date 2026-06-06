@@ -115,7 +115,17 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   const [multiZoneMenuEnabled, setMultiZoneMenuEnabled] = useState(false);
   const [newTableZone, setNewTableZone] = useState("Default");
   const [isCustomZoneMode, setIsCustomZoneMode] = useState(false);
-  const ZONE_OPTIONS = ["Default", "AC", "Non-AC", "Garden", "Rooftop", "Patio", "Bar"];
+
+  const ZONE_OPTIONS = useMemo(() => {
+    const defaultZones = ["Default", "AC", "Non-AC", "Garden", "Rooftop", "Patio", "Bar"];
+    const zoneSet = new Set(defaultZones);
+    tables.forEach((t) => {
+      if (t.zone && t.zone.trim() !== "") {
+        zoneSet.add(t.zone);
+      }
+    });
+    return Array.from(zoneSet);
+  }, [tables]);
 
   const viewShotRef = useRef<ViewShot>(null);
 

@@ -585,65 +585,93 @@ export default function TableOrdersView({
 
   const handleMergeBills = async () => {
     const selectedOrders = orders.filter(o => mergeSelection.has(o.id));
-    if (selectedOrders.length === 0) return;
+    if (selectedOrders.length < 2) {
+      ToastAndroid.show("Select at least 2 orders to merge", ToastAndroid.SHORT);
+      return;
+    }
 
-    const mergedItems = selectedOrders.flatMap(o => o.items);
-    const total = mergedItems.reduce((acc, it) => acc + (it.price || (it as any).sellingPrice || 0) * it.quantity, 0);
+    // Sort by createdAt to make the oldest order the primary one
+    const sortedOrders = [...selectedOrders].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const primaryOrder = sortedOrders[0];
+    const secondaryOrders = sortedOrders.slice(1);
 
-    const targetOrder = {
-      id: `ManualMerge-${Date.now().toString().slice(-4)}`,
-      items: mergedItems,
-      total: total,
-      customerName: "Combined Group",
-      billNumber: selectedOrders.map(o => o.billNumber).join(", ")
-    };
+    // Strictly combine all items as they are, without grouping, so checkout sees every single item
+    let mergedItems: any[] = [];
+    selectedOrders.forEach(order => {
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach(it => {
+          mergedItems.push({
+            ...it,
+            // Ensure quantity and price are numbers
+            quantity: Number(it.quantity) || 1,
+            price: Number(it.price) || 0,
+            // Ensure unique ID so items don't accidentally overwrite each other
+            id: Math.random().toString(36).substr(2, 9)
+          });
+        });
+      }
+    });
+
+    const total = mergedItems.reduce((acc, it) => acc + (it.price || it.sellingPrice || 0) * it.quantity, 0);
 
     const authToken = await getToken();
     const staffToken = await AsyncStorage.getItem("staff_token");
     const finalToken = authToken || staffToken || "";
 
-    let clerkId = user?.id;
-    if (!clerkId) {
-      const staffSessionStr = await AsyncStorage.getItem("staff_session");
-      if (staffSessionStr) {
-        const staffSession = JSON.parse(staffSessionStr);
-        clerkId = staffSession?.id || "";
+    ToastAndroid.show("Merging Orders...", ToastAndroid.SHORT);
+
+    try {
+      // 1. Update primary order with all items and new total
+      const updatePrimaryRes = await fetch(`https://billing.kravy.in/api/orders`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+        body: JSON.stringify({
+          orderId: primaryOrder.id,
+          items: mergedItems,
+          total: total
+        }),
+      });
+
+      if (!updatePrimaryRes.ok) {
+        ToastAndroid.show("Failed to update primary order", ToastAndroid.SHORT);
+        return;
       }
-    }
 
-    ToastAndroid.show("Printing Merged Bill...", ToastAndroid.SHORT);
-
-    const result = await SimpleBill(
-      targetOrder.items as any[],
-      finalToken,
-      clerkId || "",
-      {
-        orderId: targetOrder.id,
-        billNumber: targetOrder.billNumber,
-        customerName: targetOrder.customerName,
-        phone: "",
-        tableName: tableName,
-        tokenNo: targetOrder.billNumber,
-        source: "POS_TABLE",
-        isHeld: false,
+      // 2. Mark secondary orders as merged/deleted
+      for (const order of secondaryOrders) {
+        await fetch(`https://billing.kravy.in/api/orders`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+          body: JSON.stringify({
+            orderId: order.id,
+            isDeleted: true,
+            isMerged: true,
+            parentOrderId: primaryOrder.id,
+            caseType: "merge"
+          }),
+        });
       }
-    );
 
-    if (result && result.status !== "error") {
-      ToastAndroid.show("Merged Bill Printed Successfully", ToastAndroid.SHORT);
+      ToastAndroid.show("Orders Merged Successfully", ToastAndroid.SHORT);
 
-      // Mark all selected orders as completed
-      for (const order of selectedOrders) {
-        await updateOrderStatus(order.id, "COMPLETED");
-      }
+      // Optimistically update UI so that Checkout has the merged items immediately
+      setOrders(prev => {
+        return prev.map(o => {
+          if (o.id === primaryOrder.id) {
+            return { ...o, items: mergedItems, total: total };
+          }
+          return o;
+        }).filter(o => !secondaryOrders.find(so => so.id === o.id));
+      });
 
       setIsMergeModalVisible(false);
       setMergeSelection(new Set());
-      if (onBack) {
-        onBack();
-      }
-    } else {
-      ToastAndroid.show("Failed to print Merged Bill", ToastAndroid.SHORT);
+      setActiveOrderId(primaryOrder.id);
+      fetchOrders();
+
+    } catch (error) {
+      console.error("handleMergeBills error:", error);
+      ToastAndroid.show("Network Error while merging", ToastAndroid.SHORT);
     }
   };
 

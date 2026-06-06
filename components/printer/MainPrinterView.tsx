@@ -251,6 +251,28 @@ Thank You\n\n\n`;
         return () => sub.remove();
     }, []);
 
+    if (isLockedUser) {
+        return (
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: '#F9FAFB', padding: s(30) }}>
+                <View style={{ backgroundColor: "#EEF2FF", padding: s(20), borderRadius: s(100), marginBottom: vs(20) }}>
+                    <Ionicons name="lock-closed" size={s(40)} color="#4F46E5" />
+                </View>
+                <Text style={{ fontSize: rf(20), fontWeight: "800", color: "#1e293b", textAlign: "center" }}>
+                    Authentication Required
+                </Text>
+                <Text style={{ fontSize: rf(14), color: "#64748b", textAlign: "center", marginTop: vs(10), lineHeight: vs(20) }}>
+                    Please sign in to your account or staff portal to view and connect Bluetooth printers.
+                </Text>
+                <TouchableOpacity
+                    style={{ backgroundColor: '#4F46E5', paddingHorizontal: s(30), paddingVertical: vs(12), borderRadius: s(12), marginTop: vs(20) }}
+                    onPress={() => router.push("/(auth)/sign-in")}
+                >
+                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: rf(14) }}>Sign In</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
     return (
         <View style={styles.content}>
 

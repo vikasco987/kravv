@@ -11,6 +11,7 @@ import {
   AppState,
   DeviceEventEmitter,
   Dimensions,
+  Modal,
   StyleSheet,
   Text,
   ToastAndroid,
@@ -34,6 +35,7 @@ const NewOrderNotifier = () => {
   const [newOrderInfo, setNewOrderInfo] = useState<any>(null);
   const [latestOrders, setLatestOrders] = useState<any[]>([]);
   const processedOrderIds = useRef(new Set<string>());
+  const isInitialized = useRef(false);
   const { refreshSignal } = useRefresh();
   const [staffData, setStaffData] = useState<{
     token: string;
@@ -119,7 +121,15 @@ const NewOrderNotifier = () => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const staffToken = await AsyncStorage.getItem("staff_token");
+        let staffToken = await AsyncStorage.getItem("staff_token");
+        if (!staffToken) {
+          const sessionStr = await AsyncStorage.getItem("staff_session");
+          if (sessionStr) {
+            const session = JSON.parse(sessionStr);
+            staffToken = session.token;
+          }
+        }
+
         const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
 
         if (staffToken) {
@@ -223,24 +233,24 @@ const NewOrderNotifier = () => {
     hideNotification();
 
     try {
-      let token = null;
+      let authToken = null;
       let userId = "unknown";
 
       if (isSignedIn) {
-        token = await getToken();
+        authToken = await getToken();
         userId = user?.id || "unknown";
       } else if (staffData) {
-        token = staffData.token;
+        // Leave authToken as null so backend falls back to cookie and doesn't reject staff token
         userId = staffData.id;
       }
 
-      if (token && currentOrder) {
+      if (currentOrder) {
         // 🚀 Mark order as PREPARING so it shows up as "Live" in the app and doesn't auto-hold
         await fetch("https://billing.kravy.in/api/orders", {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify({
             orderId: currentOrder._id || currentOrder.id,
@@ -311,7 +321,7 @@ const NewOrderNotifier = () => {
           const tokenNo = await resolveOrderToken(orderId, backendToken);
           await SimpleKOT(
             items,
-            token,
+            authToken,
             userId,
             tableName,
             tokenNo,
@@ -319,6 +329,11 @@ const NewOrderNotifier = () => {
             currentOrder.customerName || currentOrder.customer?.name,
           );
         }
+
+        // 🚀 Force UI Update
+        DeviceEventEmitter.emit("REFRESH_ORDERS");
+        DeviceEventEmitter.emit("refresh_orders_list");
+        fetchOrders();
       }
     } catch (e) {
       console.log("Auto KOT Print Error:", e);
@@ -373,18 +388,12 @@ const NewOrderNotifier = () => {
     try {
       fetchInProgress.current = true;
       const authToken = await getToken();
-      const staffToken = await AsyncStorage.getItem("staff_token");
-      const token = authToken || staffToken;
 
-      if (!token) return;
-
-      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
-      const url = bId
-        ? `https://billing.kravy.in/api/orders?businessId=${bId}&t=${Date.now()}`
-        : `https://billing.kravy.in/api/orders?t=${Date.now()}`;
+      // Use the exact same active=true URL that MainOrdersView uses to ensure staff gets the orders correctly
+      const url = `https://billing.kravy.in/api/orders?active=true&t=${Date.now()}`;
 
       const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
 
       if (response.ok) {
@@ -392,8 +401,9 @@ const NewOrderNotifier = () => {
         const orders: any[] = Array.isArray(oData) ? oData : oData.orders || [];
         setLatestOrders(orders);
 
-        if (processedOrderIds.current.size === 0) {
+        if (!isInitialized.current) {
           orders.forEach((o) => processedOrderIds.current.add(o._id || o.id));
+          isInitialized.current = true;
           return;
         }
 
@@ -446,6 +456,7 @@ const NewOrderNotifier = () => {
   useEffect(() => {
     if (!isSignedIn && !staffData) {
       processedOrderIds.current.clear();
+      isInitialized.current = false;
       setPendingOrders([]);
       stopRingtone();
       return;
@@ -489,60 +500,67 @@ const NewOrderNotifier = () => {
   if (!showNotification || !newOrderInfo) return null;
 
   return (
-    <View style={styles.fullscreenOverlay}>
-      <Animated.View
-        style={[
-          styles.container,
-          { transform: [{ translateY: slideAnim }], opacity: flashAnim },
-        ]}
-      >
-        <View style={styles.emergencyCard}>
-          <View style={styles.topSection}>
-            <View style={styles.dangerBadge}>
-              <Text style={styles.badgeText}>🧨 URGENT ORDER 🧨</Text>
+    <Modal
+      transparent={true}
+      visible={showNotification}
+      animationType="none"
+      onRequestClose={hideNotification}
+    >
+      <View style={styles.fullscreenOverlay}>
+        <Animated.View
+          style={[
+            styles.container,
+            { transform: [{ translateY: slideAnim }], opacity: flashAnim },
+          ]}
+        >
+          <View style={styles.emergencyCard}>
+            <View style={styles.topSection}>
+              <View style={styles.dangerBadge}>
+                <Text style={styles.badgeText}>🧨 URGENT ORDER 🧨</Text>
+              </View>
+              <TouchableOpacity onPress={hideNotification}>
+                <Ionicons name="close-circle" size={rf(30)} color="#7F1D1D" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={hideNotification}>
-              <Ionicons name="close-circle" size={rf(30)} color="#7F1D1D" />
-            </TouchableOpacity>
-          </View>
 
-          <View style={styles.mainInfo}>
-            <View style={styles.pulseBox}>
-              <Ionicons name="notifications" size={rf(40)} color="#EF4444" />
-            </View>
-            <View style={styles.textStack}>
-              <Text style={styles.mainTitle}>NEW ORDER! 🛎️</Text>
-              <Text style={styles.mainSubtitle}>
-                {newOrderInfo?.tableName || "Table"} has sent a new order.{"\n"}
-                <Text style={{ fontWeight: "900", color: "#B91C1C" }}>
-                  ACCEPT IMMEDIATELY!
+            <View style={styles.mainInfo}>
+              <View style={styles.pulseBox}>
+                <Ionicons name="notifications" size={rf(40)} color="#EF4444" />
+              </View>
+              <View style={styles.textStack}>
+                <Text style={styles.mainTitle}>NEW ORDER! 🛎️</Text>
+                <Text style={styles.mainSubtitle}>
+                  {newOrderInfo?.tableName || "Table"} has sent a new order.{"\n"}
+                  <Text style={{ fontWeight: "900", color: "#B91C1C" }}>
+                    ACCEPT IMMEDIATELY!
+                  </Text>
                 </Text>
-              </Text>
+              </View>
+            </View>
+
+            <View style={styles.btnStack}>
+              <TouchableOpacity
+                style={[styles.btnBase, styles.ignoreBtn]}
+                onPress={hideNotification}
+              >
+                <Text style={styles.ignoreTxt}>DISMISS</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnBase, styles.viewBtn]}
+                onPress={handleAccept}
+              >
+                <Text style={styles.viewTxt}>ACCEPT ORDER</Text>
+                <Ionicons
+                  name="checkmark-done-circle"
+                  size={rf(22)}
+                  color="#fff"
+                />
+              </TouchableOpacity>
             </View>
           </View>
-
-          <View style={styles.btnStack}>
-            <TouchableOpacity
-              style={[styles.btnBase, styles.ignoreBtn]}
-              onPress={hideNotification}
-            >
-              <Text style={styles.ignoreTxt}>DISMISS</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btnBase, styles.viewBtn]}
-              onPress={handleAccept}
-            >
-              <Text style={styles.viewTxt}>ACCEPT ORDER</Text>
-              <Ionicons
-                name="checkmark-done-circle"
-                size={rf(22)}
-                color="#fff"
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Animated.View>
-    </View>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 };
 

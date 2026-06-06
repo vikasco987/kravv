@@ -623,11 +623,35 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                 if (fullItem) break;
               }
 
+              const itemPrice = Number(kotItem.price ?? kotItem.sellingPrice ?? kotItem.rate ?? (fullItem?.price || 0));
+
               if (fullItem) {
-                newCart[fullItem.id] = {
-                  ...fullItem,
-                  quantity: kotItem.quantity,
-                };
+                const isCustomPrice = itemPrice !== Number(fullItem.price);
+                const cartKey = isCustomPrice ? `${fullItem.id}_custom_${itemPrice}` : fullItem.id;
+
+                if (newCart[cartKey]) {
+                  newCart[cartKey].quantity += Number(kotItem.quantity || 1);
+                } else {
+                  newCart[cartKey] = {
+                    ...fullItem,
+                    quantity: Number(kotItem.quantity || 1),
+                    ...(isCustomPrice ? { editedPrice: itemPrice } : {})
+                  };
+                }
+              } else {
+                // Fallback for items no longer in menu
+                const cartKey = `fallback_${itemPrice}_${kotItem.name.replace(/\s+/g, '')}`;
+                if (newCart[cartKey]) {
+                  newCart[cartKey].quantity += Number(kotItem.quantity || 1);
+                } else {
+                  newCart[cartKey] = {
+                    id: cartKey,
+                    name: kotItem.name,
+                    price: itemPrice,
+                    quantity: Number(kotItem.quantity || 1),
+                    editedPrice: itemPrice
+                  };
+                }
               }
             });
 

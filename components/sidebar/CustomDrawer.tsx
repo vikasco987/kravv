@@ -171,6 +171,11 @@ export default function CustomDrawerContent(props: any) {
     // 1. Preserve critical non-sensitive preferences
     const currentLang = await AsyncStorage.getItem("app_language");
     const savedPrinter = await AsyncStorage.getItem("saved_printer");
+    const kotEnabled = await AsyncStorage.getItem("kot_enabled");
+    const tableBookingEnabled = await AsyncStorage.getItem("table_booking_enabled");
+    const roomBookingEnabled = await AsyncStorage.getItem("room_booking_enabled");
+    const multiZoneMenuEnabled = await AsyncStorage.getItem("multi_zone_menu_enabled");
+    const orderAutoAccept = await AsyncStorage.getItem("order_auto_accept");
 
     const session = await AsyncStorage.getItem("staff_session");
     if (session) {
@@ -192,6 +197,11 @@ export default function CustomDrawerContent(props: any) {
     // 3. Restore preferences
     if (currentLang) await AsyncStorage.setItem("app_language", currentLang);
     if (savedPrinter) await AsyncStorage.setItem("saved_printer", savedPrinter);
+    if (kotEnabled) await AsyncStorage.setItem("kot_enabled", kotEnabled);
+    if (tableBookingEnabled) await AsyncStorage.setItem("table_booking_enabled", tableBookingEnabled);
+    if (roomBookingEnabled) await AsyncStorage.setItem("room_booking_enabled", roomBookingEnabled);
+    if (multiZoneMenuEnabled) await AsyncStorage.setItem("multi_zone_menu_enabled", multiZoneMenuEnabled);
+    if (orderAutoAccept) await AsyncStorage.setItem("order_auto_accept", orderAutoAccept);
 
     // 4. Sign out from Clerk if active
     if (isSignedIn) {

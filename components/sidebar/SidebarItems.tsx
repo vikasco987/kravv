@@ -127,9 +127,9 @@ const SidebarItems = ({
 
       <DrawerItem
         {...commonDrawerItemProps}
-        label={({ focused }) => renderNavLabel(t("table_qr_codes"), focused, "Menu")}
-        icon={({ focused }) => renderNavIcon("qr-code-outline", focused, "Menu")}
-        onPress={() => checkAndNavigate("Menu", "qr")}
+        label={({ focused }) => renderNavLabel(t("table_qr_codes"), focused, "Order")}
+        icon={({ focused }) => renderNavIcon("qr-code-outline", focused, "Order")}
+        onPress={() => checkAndNavigate("Order", "qr")}
       />
 
       <DrawerItem
