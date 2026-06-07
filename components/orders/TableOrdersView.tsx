@@ -813,7 +813,7 @@ export default function TableOrdersView({
       {/* 2. ORDER TABS */}
       {orders.length > 0 && (
         <View style={styles.tabsContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {orders.map(o => (
               <TouchableOpacity
                 key={o.id}
@@ -856,7 +856,7 @@ export default function TableOrdersView({
       </View>
 
       {/* 4. CART SECTION */}
-      <ScrollView style={styles.cartSection} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.cartSection} showsVerticalScrollIndicator={false} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
         <View style={styles.cartHeader}>
           <View style={styles.breakdownRow}>
             <View style={styles.purpleBar} />
@@ -1015,7 +1015,7 @@ export default function TableOrdersView({
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ flexShrink: 1 }}>
+            <ScrollView style={{ flexShrink: 1 }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
               {orders.length === 0 ? (
                 <Text style={{ textAlign: 'center', marginVertical: 15, color: '#6B7280', fontSize: rf(11) }}>No active orders.</Text>
               ) : (
@@ -1178,7 +1178,7 @@ export default function TableOrdersView({
             </View>
 
             {activeOrder && (
-              <ScrollView style={{ flexShrink: 1, backgroundColor: '#F9FAFB', padding: s(15), borderRadius: s(8), borderWidth: 1, borderColor: '#D1D5DB', borderStyle: 'dashed' }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ flexShrink: 1, backgroundColor: '#F9FAFB', padding: s(15), borderRadius: s(8), borderWidth: 1, borderColor: '#D1D5DB', borderStyle: 'dashed' }} showsVerticalScrollIndicator={false} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                 <Text style={{ textAlign: 'center', fontWeight: 'bold', fontSize: rf(18), marginBottom: vs(5), color: '#111827' }}>RESTAURANT RECEIPT</Text>
                 <Text style={{ textAlign: 'center', fontSize: rf(11), color: '#6B7280', marginBottom: vs(15) }}>
                   Date: {new Date(activeOrder.createdAt).toLocaleDateString()} {new Date(activeOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{'\n'}

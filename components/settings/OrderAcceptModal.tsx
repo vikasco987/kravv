@@ -54,7 +54,7 @@ export const OrderAcceptModal: React.FC<OrderAcceptModalProps> = ({
                         </View>
                     </View>
 
-                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }}>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                         {/* Auto Accept Toggle */}
                         <View style={[styles.featureCard, orderAutoAccept && styles.featureCardActive]}>
                             <View style={styles.featureIconContainer}>

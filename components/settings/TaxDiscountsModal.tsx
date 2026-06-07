@@ -115,7 +115,7 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                         </TouchableOpacity>
                     </View>
 
-                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }}>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                         <View style={styles.sectionHeader}>
                             <View style={styles.sectionIconContainer}>
                                 <Ionicons name="receipt-outline" size={rf(14)} color={COLORS.primary} />

@@ -22,7 +22,7 @@ import {
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
-import { getRecentCompanyProfile } from "../../services/companyService";
+import { getCompanyProfiles, getRecentCompanyProfile } from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill } from "../../utils/SimpleBill";
 import { CustomToast } from "../common/CustomToast";
@@ -169,7 +169,11 @@ export default function CheckoutView({
         if (data) setBusinessProfile(data);
       }
 
-      const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+      let bId = await AsyncStorage.getItem("@active_business_id");
+      if (!bId) {
+        bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+        if (bId) await AsyncStorage.setItem("@active_business_id", bId);
+      }
       setActiveBusinessId(bId);
 
       const token = await getToken();
@@ -180,13 +184,38 @@ export default function CheckoutView({
       if (!finalToken) return;
 
       // Step 2: Refresh from network
-      const profile = await getRecentCompanyProfile(finalToken);
-      if (profile) {
-        setBusinessProfile(profile);
-        await AsyncStorage.setItem(
-          "@cached_business_profile",
-          JSON.stringify(profile),
-        );
+      const pData = await getCompanyProfiles(finalToken);
+      if (pData && pData.profiles && pData.profiles.length > 0) {
+        const matchingProfile = bId ? pData.profiles.find((p: any) => {
+          const pid = p.id || p._id || p.businessId;
+          return String(pid) === String(bId);
+        }) : null;
+
+        if (matchingProfile) {
+          setBusinessProfile(matchingProfile);
+          await AsyncStorage.setItem(
+            "@cached_business_profile",
+            JSON.stringify(matchingProfile),
+          );
+        } else if (!cached) {
+          const profileToSet = pData.profiles[0];
+          setBusinessProfile(profileToSet);
+          await AsyncStorage.setItem(
+            "@cached_business_profile",
+            JSON.stringify(profileToSet),
+          );
+        }
+      } else {
+        if (!cached) {
+          const profile = await getRecentCompanyProfile(finalToken);
+          if (profile) {
+            setBusinessProfile(profile);
+            await AsyncStorage.setItem(
+              "@cached_business_profile",
+              JSON.stringify(profile),
+            );
+          }
+        }
       }
     } catch (e) {
       console.log(
@@ -771,7 +800,7 @@ export default function CheckoutView({
               )}
               <View>
                 <Text style={[styles.headerTitle, { color: '#fff' }]} numberOfLines={1}>
-                  {businessProfile?.companyName || t("checkout")}
+                  {businessProfile?.companyName || businessProfile?.businessName || t("checkout")}
                 </Text>
                 {businessProfile?.gstNumber && (
                   <Text style={[styles.headerGst, { color: 'rgba(255,255,255,0.7)' }]} numberOfLines={1}>
@@ -784,7 +813,7 @@ export default function CheckoutView({
             <View style={{ width: s(40) }} />
           </View>
 
-          <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1 }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {/* Horizontal Items List */}
             <View style={styles.topSection}>
               <Text style={[styles.sectionTitleMain, { color: '#D8B4FE', fontSize: rf(13), textTransform: 'uppercase', letterSpacing: 1, marginLeft: s(20), marginBottom: vs(15) }]}>
@@ -794,7 +823,7 @@ export default function CheckoutView({
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.horizontalScroll}
-              >
+                {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                 {cart.map((item, idx) => (
                   <View key={idx} style={{ width: s(130), marginRight: s(15), alignItems: 'center' }}>
 
@@ -1117,7 +1146,7 @@ export default function CheckoutView({
                 searchQuery.length > 0 &&
                 filteredParties.length > 0 && (
                   <View style={[styles.dropdown, { width: '100%', maxHeight: vs(100), padding: s(5) }]}>
-                    <ScrollView nestedScrollEnabled>
+                    <ScrollView nestedScrollEnabled {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                       {filteredParties.map((p) => (
                         <TouchableOpacity
                           key={p.id}

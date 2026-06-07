@@ -370,7 +370,7 @@ export default function AddItemView({ onBack, categories: initialCategories, onR
             </View>
 
             <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer}>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContainer} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>{t('item_image') || 'Item Image'}</Text>
                         <PermissionGuard requiredPermission="Menu & Items Permissions - Add Menu Items">

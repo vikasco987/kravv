@@ -344,7 +344,7 @@ export const PublicMenuView = ({ clerkId, tableId }: { clerkId: string, tableId?
       </View>
 
       {!searchQuery && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
           {menuData.map(cat => (
             <TouchableOpacity 
               key={cat.id} 
@@ -401,7 +401,7 @@ export const PublicMenuView = ({ clerkId, tableId }: { clerkId: string, tableId?
               <Text style={styles.modalTitle}>Your Order</Text>
               <TouchableOpacity onPress={() => setIsCartModalVisible(false)}><X size={24} color="#000" /></TouchableOpacity>
             </View>
-            <ScrollView style={{ paddingHorizontal: 20 }}>
+            <ScrollView style={{ paddingHorizontal: 20 }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
               {cartItems.map(ci => (
                 <View key={ci.item.id} style={styles.cartRow}>
                   <Text style={styles.cartItemName}>{ci.item.name}</Text>

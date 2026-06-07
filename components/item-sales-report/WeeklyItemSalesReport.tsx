@@ -153,7 +153,7 @@ const WeeklyItemSalesReport = ({ onBack, preloadedData, loadingData, onRefresh: 
 
           {/* Categories Filter */}
           <Text style={styles.sectionTitle}>Categories</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             <TouchableOpacity
               style={[styles.categoryChip, selectedCategory === "All" && styles.activeCategoryChip]}
               onPress={() => setSelectedCategory("All")}

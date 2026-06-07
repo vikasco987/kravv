@@ -160,7 +160,7 @@ export const TableSelectionModal: React.FC<TableSelectionModalProps> = ({
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: vs(10) }}
-              >
+               {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                 <View style={styles.tableGrid}>
                   {tables
                     .filter((t) => {

@@ -70,7 +70,7 @@ export const LanguageSelectionModal: React.FC<LanguageSelectionModalProps> = ({
                         </View>
                     </View>
 
-                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }}>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(40) }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                         {LANGUAGES.map((lang) => (
                             <TouchableOpacity
                                 key={lang.id}

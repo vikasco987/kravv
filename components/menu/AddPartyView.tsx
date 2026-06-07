@@ -105,7 +105,7 @@ export default function AddPartyView({ onBack, onSuccess }: AddPartyViewProps) {
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={styles.container} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
                 <Ionicons name="arrow-back" size={rf(26)} color="#4f46e5" />
                 <Text style={styles.backBtnText}>Back</Text>

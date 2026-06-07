@@ -73,9 +73,10 @@ export async function getRecentCompanyProfile(token: string) {
       trialStartedAt: data.trialStartedAt,
     };
 
-    if (profile.businessId) {
-      await AsyncStorage.setItem("@active_business_id", profile.businessId);
-    }
+    // DO NOT overwrite @active_business_id here, as it overrides user's manual selection
+    // if (profile.businessId) {
+    //   await AsyncStorage.setItem("@active_business_id", profile.businessId);
+    // }
     await AsyncStorage.setItem(
       "@cached_company_profile",
       JSON.stringify(profile),
@@ -120,6 +121,26 @@ export async function updateBusinessSettings(token: string, settings: any) {
     return await res.json();
   } catch (err: any) {
     console.log("❌ updateBusinessSettings Error:", err.message || err);
+    return null;
+  }
+}
+
+/**
+ * Fetch all company profiles from backend.
+ */
+export async function getCompanyProfiles(token: string) {
+  try {
+    if (!token) return null;
+    const res = await fetch(`${BACKEND_URL}/api/profiles`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    console.log("❌ getCompanyProfiles Error:", err.message || err);
     return null;
   }
 }

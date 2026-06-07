@@ -22,6 +22,9 @@ import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
 interface CompanyInfoViewProps {
   onBack?: () => void;
+  profileData?: any;
+  isNew?: boolean;
+  onProfileUpdated?: () => void;
 }
 
 const THEME_COLOR = "#4F46E5";
@@ -29,7 +32,7 @@ const SUCCESS_COLOR = "#10B981";
 const ERROR_COLOR = "#F43F5E";
 const WARNING_COLOR = "#F59E0B";
 
-export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
+export default function CompanyInfoView({ onBack, profileData, isNew, onProfileUpdated }: CompanyInfoViewProps) {
   const router = useRouter();
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
@@ -80,9 +83,20 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
 
   useEffect(() => {
     if (isLoaded && (isSignedIn || isStaffSignedIn)) {
-      loadProfile();
+      if (profileData) {
+        updateFormWithData(profileData);
+        setHasProfile(true);
+        setStep(-1);
+        setIsInitialLoading(false);
+      } else if (isNew) {
+        setHasProfile(false);
+        setStep(1); // skip landing page
+        setIsInitialLoading(false);
+      } else {
+        loadProfile();
+      }
     }
-  }, [isLoaded, isSignedIn, isStaffSignedIn]);
+  }, [isLoaded, isSignedIn, isStaffSignedIn, profileData, isNew]);
 
   const loadProfile = async () => {
     try {
@@ -355,6 +369,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       const token = await getToken();
 
       const payload = {
+        id: profileData?.id || undefined,
         businessName: form.businessName,
         businessType: form.businessType,
         businessTagLine: form.tagline,
@@ -391,6 +406,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
           JSON.stringify(payload),
         );
         showAlert("success", "Success!", "Profile saved successfully!");
+        onProfileUpdated?.();
       } else {
         const errorData = await res.json();
         showAlert(
@@ -449,7 +465,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
-      >
+        {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={rf(20)} color="#1E293B" />
         </TouchableOpacity>
@@ -600,7 +616,7 @@ export default function CompanyInfoView({ onBack }: CompanyInfoViewProps) {
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
-      >
+        {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={rf(20)} color="#1E293B" />
         </TouchableOpacity>

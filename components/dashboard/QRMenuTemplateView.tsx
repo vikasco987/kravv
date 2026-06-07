@@ -70,7 +70,7 @@ export default function QRMenuTemplateView({ onClose, businessName, tableName, q
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
         {/* PREVIEW SECTION */}
         <View style={styles.previewSection}>
           <ViewShot ref={viewShotRef} options={{ format: "png", quality: 1 }}>

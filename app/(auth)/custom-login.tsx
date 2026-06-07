@@ -114,7 +114,7 @@ export default function CustomLoginScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
           {/* Back Button */}
           <TouchableOpacity
             style={styles.backButton}

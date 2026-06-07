@@ -829,7 +829,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
         style={{ flex: 1 }}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-      >
+       {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
         <View style={styles.infoBanner}>
           <Ionicons name="print-outline" size={rf(20)} color={COLORS.primary} />
           <Text style={styles.infoBannerText}>
@@ -858,7 +858,7 @@ const PrintingSetupScreen: React.FC<PrintingSetupScreenProps> = ({ onBack, onPre
                 <Ionicons name="close-circle" size={rf(24)} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: vs(300) }}>
+            <ScrollView style={{ maxHeight: vs(300) }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
               {dropdownConfig.options.map((opt, idx) => (
                 <TouchableOpacity
                   key={idx}

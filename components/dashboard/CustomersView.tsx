@@ -396,7 +396,7 @@ const CustomersView = ({ onClose }) => {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.statsScrollContainer}
-        >
+         {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
           <View style={styles.statBoxScroll}>
             <Feather name="users" size={rf(14)} color="#3B82F6" style={{ marginBottom: vs(4) }} />
             <Text style={styles.statValue}>{parties.length}</Text>
@@ -466,7 +466,7 @@ const CustomersView = ({ onClose }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Full Name <Text style={{ color: "red" }}>*</Text></Text>
                 <TextInput
@@ -615,7 +615,7 @@ const CustomersView = ({ onClose }) => {
             </View>
           )}
 
-          <ScrollView style={styles.historyContent}>
+          <ScrollView style={styles.historyContent} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {historyLoading ? (
               <ActivityIndicator size="large" color="#4F46E5" style={{ marginTop: vs(40) }} />
             ) : historyTab === "invoices" ? (

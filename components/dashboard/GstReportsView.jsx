@@ -316,7 +316,7 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
                     <Text style={styles.colDropAll}>ALL</Text>
                   </TouchableOpacity>
                 </View>
-                <ScrollView style={{ maxHeight: vs(200) }} nestedScrollEnabled>
+                <ScrollView style={{ maxHeight: vs(200) }} nestedScrollEnabled delaysContentTouches={false} keyboardShouldPersistTaps="handled">
                   {allColumns.map(col => (
                     <TouchableOpacity
                       key={col.key}
@@ -338,7 +338,7 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
 
       {/* TABS */}
       <View style={styles.tabsRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: s(8), paddingRight: s(24) }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: s(8), paddingRight: s(24) }} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
           {[
             { id: "GSTR-1", icon: "file-text", label: "GSTR-1 (INVOICES)" },
             { id: "GSTR-3B", icon: "trending-up", label: "GSTR-3B (SUMMARY)" },
@@ -365,7 +365,7 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
       {/* CONTENT */}
       <View style={styles.contentCard}>
         {activeTab === "GSTR-1" && (
-          <ScrollView horizontal style={styles.hScroll}>
+          <ScrollView horizontal style={styles.hScroll} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
             <View>
               <View style={styles.tableHeader}>
                 {allColumns.map(col => visibleColumns.includes(col.key) && (
@@ -374,7 +374,7 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
                   </View>
                 ))}
               </View>
-              <ScrollView style={styles.vScroll} nestedScrollEnabled>
+              <ScrollView style={styles.vScroll} nestedScrollEnabled delaysContentTouches={false} keyboardShouldPersistTaps="handled">
                 {data.gstr1.length === 0 ? (
                   <View style={styles.emptyState}>
                     <Feather name="pie-chart" size={rf(30)} color="#E2E8F0" />
@@ -418,8 +418,8 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
         )}
 
         {activeTab === "GSTR-3B" && (
-          <ScrollView style={{ flex: 1 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.gstr3bGrid, { paddingHorizontal: s(24), paddingTop: vs(24) }]}>
+          <ScrollView style={{ flex: 1 }} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.gstr3bGrid, { paddingHorizontal: s(24), paddingTop: vs(24) }]} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
               {[
                 { label: "Total Taxable", value: data.gstr3b.taxable, color: "#4F46E5", bg: "#EEF2FF" },
                 { label: "CGST", value: data.gstr3b.cgst, color: "#059669", bg: "#ECFDF5" },
@@ -457,7 +457,7 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
         )}
 
         {activeTab === "HSN" && (
-          <ScrollView horizontal style={styles.hScroll}>
+          <ScrollView horizontal style={styles.hScroll} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
             <View>
               <View style={styles.tableHeader}>
                 <View style={[styles.th, { width: s(120) }]}><Text style={styles.thText}>HSN / SAC Code</Text></View>
@@ -467,7 +467,7 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
                 <View style={styles.thRight}><Text style={styles.thText}>SGST</Text></View>
                 <View style={styles.thRight}><Text style={[styles.thText, { color: "#4F46E5" }]}>Total GST</Text></View>
               </View>
-              <ScrollView style={styles.vScroll} nestedScrollEnabled>
+              <ScrollView style={styles.vScroll} nestedScrollEnabled delaysContentTouches={false} keyboardShouldPersistTaps="handled">
                 {data.hsnSummary.length === 0 ? (
                   <View style={styles.emptyState}>
                     <Feather name="pie-chart" size={rf(30)} color="#E2E8F0" />
@@ -491,7 +491,7 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
         )}
 
         {activeTab === "Daily" && (
-          <ScrollView horizontal style={styles.hScroll}>
+          <ScrollView horizontal style={styles.hScroll} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
             <View>
               <View style={styles.tableHeader}>
                 <View style={[styles.th, { width: s(140) }]}><Text style={styles.thText}>Accounting Date</Text></View>
@@ -500,7 +500,7 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
                 <View style={styles.thRight}><Text style={styles.thText}>Taxable</Text></View>
                 <View style={styles.thRight}><Text style={[styles.thText, { color: "#059669" }]}>Daily GST</Text></View>
               </View>
-              <ScrollView style={styles.vScroll} nestedScrollEnabled>
+              <ScrollView style={styles.vScroll} nestedScrollEnabled delaysContentTouches={false} keyboardShouldPersistTaps="handled">
                 {data.dailyTax.length === 0 ? (
                   <View style={styles.emptyState}>
                     <Feather name="pie-chart" size={rf(30)} color="#E2E8F0" />

@@ -304,7 +304,7 @@ export const AdvancedDiscountModal: React.FC<Props> = ({ visible, onClose }) => 
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={{ flex: 1 }}
                 >
-                    <ScrollView contentContainerStyle={styles.scroll}>
+                    <ScrollView contentContainerStyle={styles.scroll} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                         {renderDiscountSection(1, status1, setStatus1, offers1)}
                         {renderDiscountSection(2, status2, setStatus2, offers2)}
                     </ScrollView>

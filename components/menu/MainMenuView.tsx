@@ -29,6 +29,7 @@ import { rf, s, vs } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
 import { useRefresh } from "../../context/RefreshContext";
 import {
+  getCompanyProfiles,
   getRecentCompanyProfile,
   updateBusinessSettings,
 } from "../../services/companyService";
@@ -49,6 +50,7 @@ import { ClearCartModal } from "./ClearCartModal";
 import { ConfirmHoldModal } from "./ConfirmHoldModal";
 import { MenuHeader } from "./MenuHeader";
 import { MenuItemCard } from "./MenuItemCard";
+import { ProfileSelectionModal } from "./ProfileSelectionModal";
 import { QuickAddItemCard } from "./QuickAddItemCard";
 import { QuickAddItemModal } from "./QuickAddItemModal";
 import { TableSelectionModal } from "./TableSelectionModal";
@@ -144,6 +146,10 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   const [activeOwnerClerkId, setActiveOwnerClerkId] = useState<string | null>(
     null,
   );
+
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [enableMultipleProfiles, setEnableMultipleProfiles] = useState(false);
+  const [isProfileSelectionVisible, setIsProfileSelectionVisible] = useState(false);
 
   const [currentView, setCurrentView] = useState<
     "main" | "addItem" | "heldOrders" | "checkout"
@@ -687,11 +693,28 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     }, [menus, paymentMethod]),
   );
 
+  const loadProfiles = useCallback(async () => {
+    try {
+      const clerkToken = await getToken();
+      const sessionStr = await AsyncStorage.getItem("staff_session");
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const token = clerkToken || staffSession?.token;
+      if (token) {
+        const data = await getCompanyProfiles(token);
+        if (data) {
+          setProfiles(data.profiles || []);
+          setEnableMultipleProfiles(data.enableMultipleProfiles || false);
+        }
+      }
+    } catch (e) { }
+  }, []);
+
   useEffect(() => {
     fetchMenus();
     fetchHeldCount();
     fetchSettings();
     loadTaxSettings();
+    loadProfiles();
   }, [isLockedUser]);
 
   useEffect(() => {
@@ -700,6 +723,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       fetchHeldCount();
       fetchSettings();
       loadTaxSettings();
+      loadProfiles();
     }
   }, [refreshSignal]);
 
@@ -765,7 +789,11 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   useFocusEffect(
     useCallback(() => {
       const resetFocus = async () => {
-        const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+        let bId = await AsyncStorage.getItem("@active_business_id");
+        if (!bId) {
+          bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+          if (bId) await AsyncStorage.setItem("@active_business_id", bId);
+        }
 
         // ONLY UPDATE IF CHANGED TO PREVENT LOOP
         if (bId !== activeBusinessId) {
@@ -776,6 +804,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         fetchHeldCount();
         fetchSettings();
         loadTaxSettings();
+        loadProfiles();
 
         try {
           const authToken = await getToken();
@@ -1914,6 +1943,13 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           }}
           selectedTable={selectedTable}
           selectedRoom={selectedRoom}
+          enableMultipleProfiles={enableMultipleProfiles}
+          onSelectProfilePress={() => setIsProfileSelectionVisible(true)}
+          activeProfileName={
+            profiles.find((p) => (p.id || p._id || p.businessId) === activeBusinessId)?.businessName ||
+            profiles.find((p) => (p.id || p._id || p.businessId) === activeBusinessId)?.companyName ||
+            "Business"
+          }
         />
       )}
 
@@ -2010,6 +2046,21 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         onClose={() => setIsSubscriptionModalVisible(false)}
         isBlocked={isAccountBlocked}
         clerkId={activeOwnerClerkId}
+      />
+
+      <ProfileSelectionModal
+        visible={isProfileSelectionVisible}
+        onClose={() => setIsProfileSelectionVisible(false)}
+        profiles={profiles}
+        activeProfileId={activeBusinessId}
+        onSelectProfile={async (profile) => {
+          const pId = profile.id || profile._id || profile.businessId;
+          setActiveBusinessId(pId);
+          await AsyncStorage.setItem("@active_business_id", pId);
+          await AsyncStorage.setItem("@cached_business_profile", JSON.stringify(profile));
+          setIsProfileSelectionVisible(false);
+          triggerRefresh();
+        }}
       />
     </View>
   );

@@ -354,6 +354,11 @@ export const StaffPermissionEngine = {
   // ✅ BUSINESS ID (IMPORTANT FOR STAFF DATA)
 
   async getActiveBusinessId(clerkUserId?: string): Promise<string | null> {
+    try {
+      const explicitId = await AsyncStorage.getItem("@active_business_id");
+      if (explicitId) return explicitId;
+    } catch (e) { }
+
     // 🚀 Priority 1: If Clerk ID is provided (Owner login), use it immediately and EXCLUSIVELY.
     // This prevents stale staff sessions (like Masala House) from polluting owner data.
     if (clerkUserId) return clerkUserId;
@@ -374,7 +379,7 @@ export const StaffPermissionEngine = {
           const data = JSON.parse(cached);
           const id = data._id || data.id || data.businessId;
           if (id) return id;
-        } catch (e) {}
+        } catch (e) { }
       }
 
       // Fallback 2: check if we have it stored elsewhere

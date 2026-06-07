@@ -190,7 +190,7 @@ const ProfitEngine = ({ visible, onClose, bills: propBills }: ProfitEngineProps)
                         <Text style={styles.loadingText}>Analyzing real-time menu performance...</Text>
                     </View>
                 ) : (
-                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                         {!insights ? (
                             <View style={styles.emptyContainer}>
                                 <Ionicons name="analytics-outline" size={rf(60)} color="#cbd5e1" />

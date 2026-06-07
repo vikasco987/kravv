@@ -221,7 +221,7 @@ const WebStatsGrid = ({ data, range = 30 }) => {
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.scrollContent}
-    >
+     delaysContentTouches={false} keyboardShouldPersistTaps="handled">
       {stats.map((item, idx) => (
         <View key={idx} style={styles.cardContainer}>
           {/* Top colored line via LinearGradient */}

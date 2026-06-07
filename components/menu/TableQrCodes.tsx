@@ -614,7 +614,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
       <ScrollView
         contentContainerStyle={styles.listPadding}
         showsVerticalScrollIndicator={false}
-      >
+       {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
         {/* Tables Section */}
         {tableBookingEnabled && (
           <View style={styles.sectionContainer}>
@@ -952,7 +952,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
             {multiZoneMenuEnabled && (
               <View style={{ marginBottom: vs(25) }}>
                 <Text style={styles.inputLabel}>SELECT ZONE</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: vs(5) }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: vs(5) }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                   {[...ZONE_OPTIONS, "+ Custom"].map((zone) => {
                     const isSelected = zone === "+ Custom" ? isCustomZoneMode : (!isCustomZoneMode && newTableZone === zone);
                     return (

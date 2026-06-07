@@ -638,7 +638,7 @@ const ItemWiseSalesDetail = ({
           <View style={styles.editOverlay}>
             <View style={styles.editContainer}>
               <Text style={styles.editTitle}>Edit Bill Items & Charges</Text>
-              <ScrollView style={{ maxHeight: vs(450) }}>
+              <ScrollView style={{ maxHeight: vs(450) }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                 {editedItems.map((it: any, idx: number) => (
                   <View
                     key={idx}
@@ -930,7 +930,7 @@ const ItemWiseSalesDetail = ({
           </View>
         )}
 
-        <ScrollView contentContainerStyle={styles.billPreviewContainer}>
+        <ScrollView contentContainerStyle={styles.billPreviewContainer} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
           <View ref={viewShotRef} style={styles.receiptPaper}>
             {/* Receipt Header */}
             <View style={styles.center}>
@@ -1205,7 +1205,7 @@ const ItemWiseSalesDetail = ({
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
         <Text style={styles.summaryText}>
           Total {itemSalesList.length} sales found
         </Text>

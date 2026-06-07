@@ -233,7 +233,7 @@ export const AddEditProductModal = ({
             <ScrollView
               showsVerticalScrollIndicator={false}
               style={styles.scrollBody}
-            >
+             {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
               <SectionTitle icon="info" title="Primary Details" />
               <CustomInput
                 label="Product Name *"
@@ -249,7 +249,7 @@ export const AddEditProductModal = ({
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
-                    >
+                     {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                       {categories.map((cat) => (
                         <TouchableOpacity
                           key={cat.id}
@@ -518,7 +518,7 @@ export const AddEditMaterialModal = ({
             <ScrollView
               style={styles.scrollBody}
               showsVerticalScrollIndicator={false}
-            >
+             {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
               <CustomInput
                 label="Material Name"
                 value={formData.name}

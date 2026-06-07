@@ -292,7 +292,7 @@ Thank You\n\n\n`;
 
             {isLoading && <ActivityIndicator size="large" color="#4F46E5" style={{ marginVertical: vs(20) }} />}
 
-            <ScrollView style={styles.deviceList}>
+            <ScrollView style={styles.deviceList} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                 {devices.length === 0 && !isLoading && (
                     <View style={styles.emptyState}>
                         <Ionicons name="bluetooth-outline" size={rf(48)} color="#D1D5DB" />

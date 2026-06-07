@@ -24,7 +24,7 @@ const BillCardContainer = ({ title, bills, icon, accentColor, deleted = false })
         </View>
       </View>
 
-      <ScrollView nestedScrollEnabled style={styles.listContainer}>
+      <ScrollView nestedScrollEnabled style={styles.listContainer} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
         {bills.length === 0 ? (
           <Text style={styles.emptyText}>📭 No records found</Text>
         ) : (

@@ -26,11 +26,11 @@ import { AdvancedDiscountCard } from "./AdvancedDiscountCard";
 import { AdvancedDiscountModal } from "./AdvancedDiscountModal";
 import { AppFeaturesCard } from "./AppFeaturesCard";
 import { BusinessManagementCard } from "./BusinessManagementCard";
-import CompanyInfoView from "./CompanyInfoView";
 import { KOTTablesModal } from "./KOTTablesModal";
 import { LanguageCard } from "./LanguageCard";
 import { LanguageSelectionModal } from "./LanguageSelectionModal";
 import { MenuGridModal } from "./MenuGridModal";
+import MultiProfileView from "./MultiProfileView";
 import { OrderAcceptModal } from "./OrderAcceptModal";
 import PrintingPreviewScreen from "./PrintingPreviewScreen";
 import PrintingSetupScreen from "./PrintingSetupScreen";
@@ -591,7 +591,7 @@ const MainSettingsView = ({
     );
 
   if (currentView === "profile")
-    return <CompanyInfoView onBack={() => setCurrentView("main")} />;
+    return <MultiProfileView onBack={() => setCurrentView("main")} />;
 
   if (currentView === "printing")
     return (
@@ -674,7 +674,7 @@ const MainSettingsView = ({
     <ScrollView
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
-    >
+      {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
       <SettingsHeader title={t("settings")} subtitle={t("manage_account")} />
 
       {!user && !isStaffSignedIn && <WhySignInBox />}

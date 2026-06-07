@@ -526,7 +526,7 @@ const InventoryDashboard = () => {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterScroll}
-          >
+           {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {/* Status Filters */}
             <TouchableOpacity
               onPress={() => setFilterStatus("all")}
@@ -677,7 +677,7 @@ const InventoryDashboard = () => {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setCategoryModalVisible(false)}>
           <View style={styles.categoryModalContainer}>
             <Text style={styles.categoryModalTitle}>Select Category</Text>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
               <TouchableOpacity
                 style={[styles.categoryOption, filterCategory === null && styles.categoryOptionActive]}
                 onPress={() => { setFilterCategory(null); setCategoryModalVisible(false); }}
@@ -702,7 +702,7 @@ const InventoryDashboard = () => {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSortModalVisible(false)}>
           <View style={styles.categoryModalContainer}>
             <Text style={styles.categoryModalTitle}>Sort By</Text>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
               <TouchableOpacity
                 style={[styles.categoryOption, sortBy === "name" && styles.categoryOptionActive]}
                 onPress={() => { setSortBy("name"); setSortModalVisible(false); }}

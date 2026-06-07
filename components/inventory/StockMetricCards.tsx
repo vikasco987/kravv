@@ -64,7 +64,7 @@ const StockMetricCards = ({ metrics }: StockMetricCardsProps) => {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.container}
-      >
+       {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
         <MetricCard
           title="Total Assets"
           value={String(metrics.totalAssets)}

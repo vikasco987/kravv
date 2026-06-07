@@ -223,7 +223,7 @@ const PrintingPreviewScreen: React.FC<PrintingPreviewScreenProps> = ({ onBack, p
         style={styles.previewArea}
         contentContainerStyle={styles.previewContent}
         showsVerticalScrollIndicator={false}
-      >
+       {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
         <View style={[styles.paper, {
           transform: [{ scale: zoom }],
           marginVertical: zoom > 1 ? vs(zoom * 40) : vs(10),

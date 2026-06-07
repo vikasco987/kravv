@@ -267,7 +267,7 @@ const WebDashboardWidgets = ({ allBills = [], activeCombosCount = 0, activeOffer
       </View>
 
       {/* DATE FILTER UI */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateFilterContainer}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateFilterContainer} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
         {[{ label: "Today", value: 1 }, { label: "Yesterday", value: 2 }, { label: "7 Days", value: 7 }, { label: "30 Days", value: 30 }].map((opt) => (
           <TouchableOpacity
             key={opt.value}
@@ -290,7 +290,7 @@ const WebDashboardWidgets = ({ allBills = [], activeCombosCount = 0, activeOffer
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: s(12), paddingRight: s(20) }}
-        >
+         delaysContentTouches={false} keyboardShouldPersistTaps="handled">
           {quickActions.map((act, i) => (
             <TouchableOpacity
               key={i}
@@ -398,7 +398,7 @@ const WebDashboardWidgets = ({ allBills = [], activeCombosCount = 0, activeOffer
                 <Text style={{ fontSize: rf(10), fontFamily: "monospace", color: "#94A3B8" }}>No revenue data for this period</Text>
               </View>
             ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
                 <LineChart
                   data={{
                     labels: revenueLabels.length > 5 ? [] : revenueLabels,
@@ -591,7 +591,7 @@ const WebDashboardWidgets = ({ allBills = [], activeCombosCount = 0, activeOffer
       {peakHoursData.length > 0 && (
         <View style={[styles.chartCard, { paddingHorizontal: s(14), paddingVertical: vs(18) }]}>
           <Text style={{ fontSize: rf(14), fontWeight: "900", color: "#1E293B", marginBottom: vs(20) }}>Peak hours today</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
             <BarChart
               data={{
                 labels: peakHoursData.map(d => d.label),

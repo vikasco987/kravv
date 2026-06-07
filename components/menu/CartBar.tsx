@@ -29,6 +29,9 @@ interface CartBarProps {
   onSelectRoom: () => void;
   selectedTable: string | null;
   selectedRoom: string | null;
+  enableMultipleProfiles?: boolean;
+  onSelectProfilePress?: () => void;
+  activeProfileName?: string;
 }
 
 import { PermissionGuard } from "../common/PermissionGuard";
@@ -53,6 +56,9 @@ export const CartBar: React.FC<CartBarProps> = ({
   onSelectRoom,
   selectedTable,
   selectedRoom,
+  enableMultipleProfiles,
+  onSelectProfilePress,
+  activeProfileName,
 }) => {
   const { t } = useLanguage();
   return (
@@ -77,6 +83,21 @@ export const CartBar: React.FC<CartBarProps> = ({
           >
             <Ionicons name="information-circle-outline" size={20} color="#4F46E5" />
           </TouchableOpacity>
+
+          {enableMultipleProfiles && (
+            <TouchableOpacity
+              style={{ marginLeft: 8, backgroundColor: '#EEF2FF', padding: 4, paddingHorizontal: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}
+              onPress={onSelectProfilePress}
+            >
+              <Ionicons name="storefront-outline" size={16} color="#4F46E5" />
+              {activeProfileName && (
+                <Text style={{ fontSize: 12, color: '#4F46E5', fontWeight: 'bold', marginLeft: 4 }}>
+                  {activeProfileName}
+                </Text>
+              )}
+              <Ionicons name="chevron-down" size={14} color="#4F46E5" style={{ marginLeft: 2 }} />
+            </TouchableOpacity>
+          )}
         </View>
 
         <TouchableOpacity

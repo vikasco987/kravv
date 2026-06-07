@@ -89,7 +89,7 @@ export const KOTTablesModal: React.FC<KOTTablesModalProps> = ({
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: vs(40) }}
-          >
+           {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {/* KOT Toggle */}
             <View
               style={[

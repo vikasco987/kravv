@@ -484,7 +484,7 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
 
                 {/* Filters */}
                 <View style={styles.filtersContainer}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                         <View style={styles.filterGroup}>
                             {(["ALL", "RUNNING", "READY"] as const).map(f => (
                                 <TouchableOpacity

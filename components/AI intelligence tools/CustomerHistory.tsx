@@ -560,7 +560,7 @@ const CustomerHistory = ({
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scroll}
-          >
+           {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {!insights ? (
               <View style={styles.emptyContent}>
                 <Ionicons

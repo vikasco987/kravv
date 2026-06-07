@@ -137,7 +137,7 @@ const InventoryReports: React.FC<InventoryReportsProps> = ({
   );
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
       {/* Header Actions */}
       <View style={styles.topActions}>
         <View>

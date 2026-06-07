@@ -477,7 +477,7 @@ const StaffAddEditModal = ({
           key={staff?.id || "new"}
           style={styles.content}
           showsVerticalScrollIndicator={false}
-        >
+         {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
           <View style={styles.formSection}>
             <View style={{ marginBottom: vs(15) }}>
               <Text style={styles.inputLabel}>FULL NAME</Text>

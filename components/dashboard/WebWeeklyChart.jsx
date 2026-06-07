@@ -28,7 +28,7 @@ const WebWeeklyChart = ({ data = [] }) => {
         </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartScroll}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartScroll} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
         {chartData.map((d, index) => {
           const revHeight = (d.revenue / maxRev) * BAR_MAX_HEIGHT;
           const ordHeight = (d.orders / maxOrd) * BAR_MAX_HEIGHT;

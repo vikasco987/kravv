@@ -75,7 +75,7 @@ export const SubscriptionRequiredModal: React.FC<
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
-          >
+           {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {/* Crown Brand Header */}
             <View style={styles.brandHeader}>
               <View style={styles.crownCircle}>

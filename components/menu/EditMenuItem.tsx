@@ -748,7 +748,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.chipContainer}
-        >
+         {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
           <TouchableOpacity
             style={[
               styles.chip,
@@ -1143,7 +1143,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
               )}
             </View>
           </View>
-          <ScrollView style={{ padding: 20 }}>
+          <ScrollView style={{ padding: 20 }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {/* Image Section */}
             <View style={{ alignItems: "center", marginBottom: vs(20) }}>
               <TouchableOpacity
@@ -1378,7 +1378,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
             <View style={{ width: 30 }} />
           </View>
 
-          <ScrollView style={{ padding: s(20) }}>
+          <ScrollView style={{ padding: s(20) }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {/* Category Name Input */}
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Category Name</Text>

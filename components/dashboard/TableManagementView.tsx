@@ -304,7 +304,7 @@ export default function TableManagementView({ onClose }: any) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" {...{ delaysContentTouches: false } as any}>
         {/* ADD TABLE FORM */}
         <View style={styles.addCard}>
           <View style={styles.addCardHeader}>
@@ -330,7 +330,7 @@ export default function TableManagementView({ onClose }: any) {
             {multiZoneEnabled && (
               <View style={{ marginTop: vs(12) }}>
                 <Text style={{ fontSize: rf(10), fontWeight: "800", color: "#64748B", marginBottom: vs(8), textTransform: "uppercase" }}>SELECT ZONE</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(4) }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(4) }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                   {[...availableZones.filter(z => z !== "Default"), "Default", "+ Custom"].map((zone) => {
                     const isSelected = zone === "+ Custom" ? isCustomNewZone : (!isCustomNewZone && newZone === zone);
                     return (
@@ -562,7 +562,7 @@ export default function TableManagementView({ onClose }: any) {
               {multiZoneEnabled && (
                 <View style={{ marginTop: vs(12) }}>
                   <Text style={styles.inputLabel}>ZONE</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(8) }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(8) }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                     {[...availableZones.filter(z => z !== "Default"), "Default", "+ Custom"].map((zone) => {
                       const isSelected = zone === "+ Custom" ? isCustomEditZone : (!isCustomEditZone && editZone === zone);
                       return (

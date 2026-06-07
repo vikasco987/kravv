@@ -54,7 +54,7 @@ export default function TokenHistoryView({ allBills = [], onClose }) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} delaysContentTouches={false} keyboardShouldPersistTaps="handled">
         {stats.length === 0 ? (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconBox}>

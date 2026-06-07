@@ -58,7 +58,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                 style={[styles.categoryColumnList, cartVisible && { marginBottom: vs(210) }]}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: vs(20) }}
-            >
+             {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
                 <View style={styles.rearrangeHeader}>
                     <Text style={styles.rearrangeText}>Long press to</Text>
                     <Text style={styles.rearrangeText}>rearrange</Text>
@@ -90,7 +90,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
             style={[styles.categoryColumn, cartVisible && { marginBottom: vs(210) }]}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: vs(20) }}
-        >
+         {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {categories.map((cat, index) => (
                 <TouchableOpacity
                     key={cat.id}

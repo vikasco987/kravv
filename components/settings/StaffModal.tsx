@@ -350,7 +350,7 @@ export const StaffModal = ({ visible, onClose }: StaffModalProps) => {
         <ScrollView
           style={{ flex: 1, padding: s(15) }}
           showsVerticalScrollIndicator={false}
-        >
+         {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
           <View style={styles.settingRow}>
             <View style={{ flex: 1 }}>
               <Text
