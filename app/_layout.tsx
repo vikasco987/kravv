@@ -20,6 +20,52 @@ import { LanguageProvider, useLanguage } from "../context/LanguageContext";
 import { RefreshProvider, useRefresh } from "../context/RefreshContext";
 import { SoundManager } from "../utils/SoundManager";
 
+// --- BACKGROUND WAKEUP LOGIC FOR NOTIFEE ---
+import notifee, { AndroidCategory, AndroidImportance } from '@notifee/react-native';
+import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
+
+const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
+
+TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => {
+  if (error) return;
+  if (data) {
+    try {
+      const channelId = await notifee.createChannel({
+        id: 'urgent_orders_fullscreen',
+        name: 'Urgent Orders',
+        importance: AndroidImportance.HIGH,
+      });
+
+      await notifee.displayNotification({
+        title: '🚨 NEW URGENT ORDER! 🚨',
+        body: 'Tap to open the app and view the order.',
+        android: {
+          channelId,
+          category: AndroidCategory.CALL,
+          importance: AndroidImportance.HIGH,
+          fullScreenAction: {
+            id: 'default',
+          },
+        },
+      });
+    } catch (e) {
+      console.log('Notifee background error:', e);
+    }
+  }
+});
+
+// Register background task and handle Notifee background actions
+try {
+  Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+  notifee.onBackgroundEvent(async ({ type, detail }) => {
+    // Handle action press in background if needed
+  });
+} catch (e) {
+  console.log('Background task setup error:', e);
+}
+// -------------------------------------------
+
 WebBrowser.maybeCompleteAuthSession();
 
 // Clerk token cache
