@@ -44,6 +44,10 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => 
           channelId,
           category: AndroidCategory.CALL,
           importance: AndroidImportance.HIGH,
+          pressAction: {
+            id: 'default',
+            mainComponent: 'main',
+          },
           fullScreenAction: {
             id: 'default',
           },
@@ -60,6 +64,13 @@ try {
   Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
   notifee.onBackgroundEvent(async ({ type, detail }) => {
     // Handle action press in background if needed
+  });
+
+  // Keep the app alive when Foreground Service is active
+  notifee.registerForegroundService((notification) => {
+    return new Promise(() => {
+      // Promise remains pending to keep the service running indefinitely
+    });
   });
 } catch (e) {
   console.log('Background task setup error:', e);

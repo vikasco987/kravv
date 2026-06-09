@@ -1,5 +1,6 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+import notifee, { AndroidCategory, AndroidImportance } from '@notifee/react-native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
@@ -12,11 +13,12 @@ import {
   DeviceEventEmitter,
   Dimensions,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   ToastAndroid,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
@@ -46,6 +48,7 @@ const NewOrderNotifier = () => {
   const flashAnim = useRef(new Animated.Value(1)).current;
   const fetchInProgress = useRef(false);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const displayedNotifIds = useRef<string[]>([]);
 
   // Setup Notifications Handler
   Notifications.setNotificationHandler({
@@ -56,6 +59,39 @@ const NewOrderNotifier = () => {
         shouldSetBadge: true,
       }) as any,
   });
+
+  // ✅ SILENT AUDIO HACK to keep JS thread 100% awake in Android background
+  useEffect(() => {
+    let bgSound: Audio.Sound | null = null;
+    const playSilentAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          staysActiveInBackground: true,
+          shouldDuckAndroid: false,
+          playThroughEarpieceAndroid: false,
+        });
+        const { sound } = await Audio.Sound.createAsync(
+          require("../../assets/sounds/add.wav"),
+          { isLooping: true, volume: 0 }
+        );
+        bgSound = sound;
+        await bgSound.playAsync();
+      } catch (e) {
+        console.log("Silent audio failed:", e);
+      }
+    };
+
+    if (isSignedIn || staffData) {
+      playSilentAudio();
+    }
+
+    return () => {
+      if (bgSound) {
+        bgSound.stopAsync().catch(() => { });
+        bgSound.unloadAsync().catch(() => { });
+      }
+    };
+  }, [isSignedIn, staffData]);
 
   // Setup Notification Channels and Permissions
   useEffect(() => {
@@ -420,22 +456,38 @@ const NewOrderNotifier = () => {
           const alertableOrders = newlyArrivedOrders.filter((o) => o.source !== "OFFLINE");
 
           if (alertableOrders.length > 0) {
-            // ✅ TRIGGER SYSTEM NOTIFICATION FOR BACKGROUND
-            if (AppState.currentState !== "active") {
-              const firstOrder = alertableOrders[0];
-              const tableName =
-                firstOrder.tableName || firstOrder.table?.name || "Online Order";
-              Notifications.scheduleNotificationAsync({
-                content: {
-                  title: "🚨 NEW URGENT ORDER!",
-                  body: `${tableName} has sent a new order. Open app to accept!`,
-                  data: { orderId: firstOrder._id || firstOrder.id },
-                  sound: true,
-                  priority: "max",
+            // ✅ TRIGGER SYSTEM NOTIFICATION
+            const firstOrder = alertableOrders[0];
+            const tableName =
+              firstOrder.tableName || firstOrder.table?.name || "Online Order";
+
+            const notifId = String(firstOrder._id || firstOrder.id || Date.now());
+            displayedNotifIds.current.push(notifId);
+
+            // Trigger Notifee Full-Screen Alarm directly
+            notifee.createChannel({
+              id: 'urgent_orders_fullscreen',
+              name: 'Urgent Orders',
+              importance: AndroidImportance.HIGH,
+            }).then(channelId => {
+              notifee.displayNotification({
+                id: notifId,
+                title: '🚨 NEW URGENT ORDER! 🚨',
+                body: `${tableName} has sent a new order. Open app to accept!`,
+                android: {
+                  channelId,
+                  category: AndroidCategory.CALL,
+                  importance: AndroidImportance.HIGH,
+                  pressAction: {
+                    id: 'default',
+                    mainComponent: 'main',
+                  },
+                  fullScreenAction: {
+                    id: 'default',
+                  },
                 },
-                trigger: null, // show immediately
               });
-            }
+            }).catch(e => console.log('Notifee alarm failed:', e));
 
             setPendingOrders((prev) => {
               const updated = [...prev, ...alertableOrders];
@@ -479,21 +531,51 @@ const NewOrderNotifier = () => {
       }
     );
 
-    // ✅ Extreme fast polling (1 second) for "instant" feel
-    const interval = setInterval(fetchOrders, 1000);
+    // ✅ Extreme fast polling (1 second) for "instant" feel even in background
+    const intervalId = setInterval(fetchOrders, 1000);
+
+    // ✅ Start Foreground Service to keep app alive
+    const startKeepAlive = async () => {
+      try {
+        const channelId = await notifee.createChannel({
+          id: 'kravy_pos_service',
+          name: 'POS Service',
+          importance: AndroidImportance.MIN,
+        });
+
+        await notifee.displayNotification({
+          title: 'Kravy POS Active',
+          body: 'Monitoring new orders...',
+          android: {
+            channelId,
+            asForegroundService: true,
+            ongoing: true,
+          },
+        });
+      } catch (e) {
+        console.log('Failed to start foreground service:', e);
+      }
+    };
+    startKeepAlive();
 
     // ✅ Refresh immediately when app returns to foreground
     const appStateSub = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
+        displayedNotifIds.current.forEach(id => {
+          notifee.cancelNotification(id).catch(() => { });
+        });
+        displayedNotifIds.current = [];
         fetchOrders();
       }
     });
 
     return () => {
-      clearInterval(interval);
+      clearInterval(intervalId);
       appStateSub.remove();
       refreshSub.remove();
       localOrderSub.remove();
+      // Stop service when unmounted
+      notifee.stopForegroundService().catch(() => { });
     };
   }, [isSignedIn, staffData]);
 
