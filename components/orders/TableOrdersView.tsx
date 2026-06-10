@@ -27,6 +27,7 @@ import { CategorySidebar } from "../menu/CategorySidebar";
 import { MenuItemCard } from "../menu/MenuItemCard";
 import { ZoneSelectionModal } from "../menu/ZoneSelectionModal";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+import DeleteConfirmModal from "./DeleteConfirmModal";
 
 const THEME_PRIMARY = "#5A45FF"; // Purple from screenshot
 const THEME_SUCCESS = "#00A35C"; // Green from screenshot
@@ -94,6 +95,9 @@ export default function TableOrdersView({
   // Customer Details State
   const [isCustomerModalVisible, setIsCustomerModalVisible] = useState(false);
 
+  // Item Delete Confirmation State
+  const [itemToDelete, setItemToDelete] = useState<{ orderId: string, itemIdx: number, itemName: string } | null>(null);
+
   // Custom Toast State
   const [toastState, setToastState] = useState<{ visible: boolean, message: string, type: 'success' | 'error' }>({ visible: false, message: '', type: 'success' });
 
@@ -102,6 +106,9 @@ export default function TableOrdersView({
   };
 
   const fetchInProgress = React.useRef(false);
+  const creatingOrderRef = React.useRef(false);
+  const closeRequestedRef = React.useRef(false);
+  const clearedOrdersRef = React.useRef(new Set<string>());
   const getTokenRef = React.useRef(getToken);
 
   useEffect(() => {
@@ -121,13 +128,14 @@ export default function TableOrdersView({
         const data = await response.json();
         const ordersArray = Array.isArray(data) ? data : data.orders || [];
         const filteredOrders = ordersArray.filter((o: any) => {
+          if (clearedOrdersRef.current.has(String(o.id || o._id))) return false;
           const oTableId = String(o.tableId || (o.table && (typeof o.table === 'string' ? o.table : (o.table.id || o.table._id))) || "");
           return oTableId === tableId && !o.isDeleted && o.status !== "COMPLETED" && o.status !== "SERVED";
         });
         filteredOrders.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setOrders(filteredOrders);
 
-        if (filteredOrders.length > 0 && !filteredOrders.find((o: any) => o.id === activeOrderId)) {
+        if (filteredOrders.length > 0 && activeOrderId !== "dummy_empty" && !filteredOrders.find((o: any) => o.id === activeOrderId)) {
           setActiveOrderId(filteredOrders[0].id);
         }
       }
@@ -146,6 +154,8 @@ export default function TableOrdersView({
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
+  const [menuGridEnabled, setMenuGridEnabled] = useState(false);
+
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -153,6 +163,8 @@ export default function TableOrdersView({
         setMultiZoneMenuEnabled(multiZone === "true");
         const savedZone = await AsyncStorage.getItem("default_selected_zone");
         if (savedZone) setSelectedZone(savedZone);
+        const menuGrid = await AsyncStorage.getItem("menu_grid_enabled");
+        setMenuGridEnabled(menuGrid === "true");
       } catch (e) {
         console.log("Settings fetch info (local):", e);
       }
@@ -160,13 +172,7 @@ export default function TableOrdersView({
     fetchSettings();
   }, []);
 
-  const hasAutoCreated = React.useRef(false);
-  useEffect(() => {
-    if (!loading && orders.length === 0 && !hasAutoCreated.current && !fetchInProgress.current) {
-      hasAutoCreated.current = true;
-      createNewOrder();
-    }
-  }, [loading, orders.length]);
+  // Removed hasAutoCreated to prevent automatic order creation
 
   const fetchMenu = async () => {
     try {
@@ -289,39 +295,11 @@ export default function TableOrdersView({
     return zoneFilteredMenus;
   }, [menuData, multiZoneMenuEnabled, selectedZone]);
 
-  const createNewOrder = async () => {
-    try {
-      const authToken = await getToken();
-      const staffToken = await AsyncStorage.getItem("staff_token");
-      const finalToken = authToken || staffToken;
-
-      const response = await fetch("https://billing.kravy.in/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
-        body: JSON.stringify({
-          tableId,
-          tableName,
-          items: [],
-          total: 0,
-          status: "PENDING",
-          source: "OFFLINE",
-          paymentMode: "Pending"
-        })
-      });
-      if (response.ok) {
-        const newOrder = await response.json();
-        const newId = newOrder.id || newOrder._id || newOrder.order?.id || newOrder.order?._id;
-        ToastAndroid.show("New Order Created", ToastAndroid.SHORT);
-        if (newId) {
-          DeviceEventEmitter.emit('LOCAL_ORDER_CREATED', newId);
-          setActiveOrderId(newId);
-        }
-        fetchOrders();
-        setIsMenuModalVisible(true);
-        fetchMenu();
-      }
-    } catch (error) {
-      ToastAndroid.show("Network Error", ToastAndroid.SHORT);
+  const createNewOrder = async (autoOpenMenu: boolean = true) => {
+    setActiveOrderId("dummy_empty");
+    if (autoOpenMenu === true) {
+      setIsMenuModalVisible(true);
+      fetchMenu();
     }
   };
 
@@ -403,23 +381,59 @@ export default function TableOrdersView({
   };
 
   const addItemToOrder = async (orderId: string, newItems: any[], shouldPrintKOT: boolean = false) => {
-    if (!orderId || orderId === "null" || orderId === "undefined") {
-      ToastAndroid.show("Please select or create an order first!", ToastAndroid.SHORT);
+    if (newItems.length === 0) {
+      ToastAndroid.show("No items selected", ToastAndroid.SHORT);
       return;
     }
+    
+    // Instant UI Feedback: Close menu immediately!
+    setIsMenuModalVisible(false);
 
     try {
       const authToken = await getToken();
       const staffToken = await AsyncStorage.getItem("staff_token");
-      const finalToken = authToken || staffToken;
+      const finalToken = authToken || staffToken || "";
+
+      let targetOrderId = orderId;
+      if (!targetOrderId || targetOrderId === "null" || targetOrderId === "undefined" || targetOrderId === "dummy_empty") {
+        ToastAndroid.show("Creating Order...", ToastAndroid.SHORT);
+        const createRes = await fetch("https://billing.kravy.in/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+          body: JSON.stringify({
+            tableId,
+            tableName,
+            items: [],
+            total: 0,
+            status: "PENDING",
+            source: "OFFLINE",
+            paymentMode: "Pending"
+          })
+        });
+
+        if (createRes.ok) {
+          const newOrder = await createRes.json();
+          targetOrderId = newOrder.id || newOrder._id || newOrder.order?.id || newOrder.order?._id;
+          if (targetOrderId) {
+            DeviceEventEmitter.emit('LOCAL_ORDER_CREATED', targetOrderId);
+            setActiveOrderId(targetOrderId);
+          }
+        } else {
+          ToastAndroid.show("Failed to create new order", ToastAndroid.SHORT);
+          return;
+        }
+      }
 
       let existingItems: any[] = [];
-      const order = orders.find(o => String(o.id) === String(orderId) || String((o as any)._id) === String(orderId));
+      const order = orders.find(o => String(o.id) === String(targetOrderId) || String((o as any)._id) === String(targetOrderId));
 
       if (order) {
         existingItems = order.items || [];
+      } else if (targetOrderId !== orderId) {
+        // We just created it, existingItems is empty!
+        existingItems = [];
       } else {
-        const getRes = await fetch(`https://billing.kravy.in/api/orders/${orderId}`, {
+        const getRes = await fetch(`https://billing.kravy.in/api/orders/${targetOrderId}`, {
           headers: { Authorization: `Bearer ${finalToken}` }
         });
         if (getRes.ok) {
@@ -466,11 +480,10 @@ export default function TableOrdersView({
       const response = await fetch(`https://billing.kravy.in/api/orders`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
-        body: JSON.stringify({ orderId, items: combinedItems, total: newTotal, ...(targetStatus ? { status: targetStatus } : {}) }),
+        body: JSON.stringify({ orderId: targetOrderId, items: combinedItems, total: newTotal, ...(targetStatus ? { status: targetStatus } : {}) }),
       });
 
       if (response.ok) {
-        setIsMenuModalVisible(false);
         fetchOrders();
         ToastAndroid.show("Items Added", ToastAndroid.SHORT);
 
@@ -500,11 +513,32 @@ export default function TableOrdersView({
         newItems.splice(itemIdx, 1);
       }
 
-      const newTotal = newItems.reduce((acc, item: any) => acc + (item.price || item.sellingPrice || 0) * item.quantity, 0);
-
       const authToken = await getToken();
       const staffToken = await AsyncStorage.getItem("staff_token");
       const finalToken = authToken || staffToken;
+
+      if (newItems.length === 0) {
+        const response = await fetch(`https://billing.kravy.in/api/orders/${orderId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${finalToken}` }
+        });
+        
+        if (!response.ok) {
+          await fetch(`https://billing.kravy.in/api/orders`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+            body: JSON.stringify({ orderId, items: [], total: 0, isDeleted: true }),
+          });
+        }
+
+        DeviceEventEmitter.emit('REFRESH_ORDERS');
+        DeviceEventEmitter.emit('REFRESH_TABLES');
+        fetchOrders();
+        showToast("Item & Order deleted successfully", "success");
+        return;
+      }
+
+      const newTotal = newItems.reduce((acc, item: any) => acc + (item.price || item.sellingPrice || 0) * item.quantity, 0);
 
       const response = await fetch(`https://billing.kravy.in/api/orders`, {
         method: "PATCH",
@@ -514,11 +548,67 @@ export default function TableOrdersView({
 
       if (response.ok) {
         fetchOrders();
+        DeviceEventEmitter.emit('REFRESH_ORDERS');
+        DeviceEventEmitter.emit('REFRESH_TABLES');
       } else {
         ToastAndroid.show("Failed to update quantity", ToastAndroid.SHORT);
       }
     } catch (error) {
       ToastAndroid.show("Network Error", ToastAndroid.SHORT);
+    }
+  };
+
+  const deleteItemFromOrder = async (orderId: string, itemIdx: number) => {
+    try {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      const newItems = [...order.items];
+      newItems.splice(itemIdx, 1);
+
+      const authToken = await getToken();
+      const staffToken = await AsyncStorage.getItem("staff_token");
+      const finalToken = authToken || staffToken;
+
+      if (newItems.length === 0) {
+        const response = await fetch(`https://billing.kravy.in/api/orders/${orderId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${finalToken}` }
+        });
+        
+        if (!response.ok) {
+          await fetch(`https://billing.kravy.in/api/orders`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+            body: JSON.stringify({ orderId, items: [], total: 0, isDeleted: true }),
+          });
+        }
+        
+        DeviceEventEmitter.emit('REFRESH_ORDERS');
+        DeviceEventEmitter.emit('REFRESH_TABLES');
+        fetchOrders();
+        showToast("Item & Order deleted successfully", "success");
+        return;
+      }
+
+      const newTotal = newItems.reduce((acc, item: any) => acc + (item.price || item.sellingPrice || 0) * item.quantity, 0);
+
+      const response = await fetch(`https://billing.kravy.in/api/orders`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+        body: JSON.stringify({ orderId, items: newItems, total: newTotal }),
+      });
+
+      if (response.ok) {
+        fetchOrders();
+        DeviceEventEmitter.emit('REFRESH_ORDERS');
+        DeviceEventEmitter.emit('REFRESH_TABLES');
+        showToast("Item deleted successfully", "success");
+      } else {
+        showToast("Failed to delete item", "error");
+      }
+    } catch (error) {
+      showToast("Network Error", "error");
     }
   };
 
@@ -604,6 +694,15 @@ export default function TableOrdersView({
       ToastAndroid.show("Bill Printed Successfully", ToastAndroid.SHORT);
     } else {
       ToastAndroid.show("Failed to print Bill", ToastAndroid.SHORT);
+    }
+
+    if (activeOrder.status === "READY") {
+      updateOrderStatus(activeOrder.id, "COMPLETED");
+      // Instant UI Feedback: Clear order from screen
+      clearedOrdersRef.current.add(String(activeOrder.id));
+      setOrders(prev => prev.filter(o => o.id !== activeOrder.id));
+      if (activeOrderId === activeOrder.id) setActiveOrderId(null);
+      DeviceEventEmitter.emit('REFRESH_TABLES');
     }
   };
 
@@ -726,6 +825,16 @@ export default function TableOrdersView({
   };
 
   const activeOrder = useMemo(() => {
+    if (orders.length === 0) {
+      return {
+        id: 'dummy_empty',
+        billNumber: '-',
+        status: 'PENDING',
+        items: [],
+        total: 0,
+        createdAt: new Date().toISOString()
+      };
+    }
     return orders.find(o => o.id === activeOrderId) || orders[0];
   }, [orders, activeOrderId]);
 
@@ -737,20 +846,7 @@ export default function TableOrdersView({
     );
   }
 
-  // EMPTY STATE WHILE AUTO-CREATING
-  if (orders.length === 0) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.center}>
-          <TouchableOpacity onPress={onBack} style={styles.backBtnAbsolute}>
-            <Ionicons name="arrow-back" size={rf(26)} color="#1F2937" />
-          </TouchableOpacity>
-          <ActivityIndicator size="large" color={THEME_PRIMARY} />
-          <Text style={{ marginTop: 10, color: '#6B7280' }}>Opening Table...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Removed empty state because activeOrder handles it
 
   if (!activeOrder) return null;
 
@@ -789,7 +885,7 @@ export default function TableOrdersView({
         </View>
 
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.newOrderBtn} onPress={createNewOrder}>
+          <TouchableOpacity style={styles.newOrderBtn} onPress={() => createNewOrder(true)}>
             <Ionicons name="add" size={rf(16)} color="#FFF" />
             <Text style={styles.newOrderText}>NEW ORDER</Text>
           </TouchableOpacity>
@@ -822,7 +918,7 @@ export default function TableOrdersView({
               >
                 <Ionicons name="person-outline" size={rf(12)} color={activeOrderId === o.id ? "#FFF" : "#6B7280"} style={{ marginRight: s(5) }} />
                 <View>
-                  <Text style={[styles.tabTitle, activeOrderId === o.id && styles.activeTabTitle]}>ORDER #{o.billNumber}</Text>
+                  <Text style={[styles.tabTitle, activeOrderId === o.id && styles.activeTabTitle]}>ORDER #{o.billNumber || (o as any).orderNo || (o as any).tokenNo || (o.id ? String(o.id).slice(-4).toUpperCase() : '')}</Text>
                   <Text style={[styles.tabTime, activeOrderId === o.id && styles.activeTabTime]}>
                     <Ionicons name="time-outline" size={rf(10)} /> {Math.floor((Date.now() - new Date(o.createdAt).getTime()) / 60000)}M
                   </Text>
@@ -834,26 +930,28 @@ export default function TableOrdersView({
       )}
 
       {/* 3. PROGRESS TRACKER */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressStep}>
-          <View style={[styles.progressCircle, { backgroundColor: THEME_DARK }]}>
-            <Ionicons name="checkmark" size={rf(14)} color="#FFF" />
+      {activeOrder.id !== 'dummy_empty' && (
+        <View style={styles.progressContainer}>
+          <View style={styles.progressStep}>
+            <View style={[styles.progressCircle, { backgroundColor: THEME_DARK }]}>
+              <Ionicons name="checkmark" size={rf(14)} color="#FFF" />
+            </View>
+            <Text style={styles.progressLabel}>ACCEPTED</Text>
           </View>
-          <Text style={styles.progressLabel}>ACCEPTED</Text>
-        </View>
-        <View style={styles.progressLine} />
-        <View style={styles.progressStep}>
-          <View style={[styles.progressCircle, activeOrder.status === "PREPARING" || activeOrder.status === "READY" ? { backgroundColor: THEME_DARK } : { backgroundColor: "#E5E7EB" }]}>
-            {activeOrder.status === "PREPARING" || activeOrder.status === "READY" ? <Ionicons name="checkmark" size={rf(14)} color="#FFF" /> : null}
+          <View style={styles.progressLine} />
+          <View style={styles.progressStep}>
+            <View style={[styles.progressCircle, activeOrder.status === "PREPARING" || activeOrder.status === "READY" ? { backgroundColor: THEME_DARK } : { backgroundColor: "#E5E7EB" }]}>
+              {activeOrder.status === "PREPARING" || activeOrder.status === "READY" ? <Ionicons name="checkmark" size={rf(14)} color="#FFF" /> : null}
+            </View>
+            <Text style={styles.progressLabel}>COOKING</Text>
           </View>
-          <Text style={styles.progressLabel}>COOKING</Text>
+          <View style={styles.progressLine} />
+          <View style={styles.progressStep}>
+            <View style={[styles.progressCircle, activeOrder.status === "READY" ? { backgroundColor: THEME_DARK } : { backgroundColor: "#E5E7EB" }]} />
+            <Text style={styles.progressLabel}>READY</Text>
+          </View>
         </View>
-        <View style={styles.progressLine} />
-        <View style={styles.progressStep}>
-          <View style={[styles.progressCircle, activeOrder.status === "READY" ? { backgroundColor: THEME_DARK } : { backgroundColor: "#E5E7EB" }]} />
-          <Text style={styles.progressLabel}>READY</Text>
-        </View>
-      </View>
+      )}
 
       {/* 4. CART SECTION */}
       <ScrollView style={styles.cartSection} showsVerticalScrollIndicator={false} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
@@ -911,33 +1009,43 @@ export default function TableOrdersView({
                 <Text style={styles.qtyBtnText}>+</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.itemTotalPrice}>₹{it.price * it.quantity}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.itemTotalPrice}>₹{it.price * it.quantity}</Text>
+              <TouchableOpacity 
+                style={{ marginLeft: s(10), padding: s(5), backgroundColor: '#FEE2E2', borderRadius: s(6) }} 
+                onPress={() => setItemToDelete({ orderId: activeOrder.id, itemIdx: idx, itemName: it.name })}
+              >
+                <Ionicons name="trash-outline" size={rf(14)} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
           </View>
         ))}
       </ScrollView>
 
       {/* 5. BOTTOM ACTIONS */}
       <View style={styles.bottomBar}>
-        <View style={styles.kitchenOpsRow}>
-          <View style={{ flexDirection: 'row', gap: s(10) }}>
-            <TouchableOpacity
-              style={[styles.startCookingBtn, activeOrder.status === "PENDING" && { opacity: 1, backgroundColor: '#F3F4F6' }]}
-              onPress={() => updateOrderStatus(activeOrder.id, "PREPARING")}
-              disabled={activeOrder.status !== "PENDING"}
-            >
-              <Text style={styles.startCookingText}>START COOKING</Text>
-            </TouchableOpacity>
+        {activeOrder.id !== 'dummy_empty' && (
+          <View style={styles.kitchenOpsRow}>
+            <View style={{ flexDirection: 'row', gap: s(10) }}>
+              <TouchableOpacity
+                style={[styles.startCookingBtn, activeOrder.status === "PENDING" && { opacity: 1 }]}
+                onPress={() => updateOrderStatus(activeOrder.id, "PREPARING")}
+                disabled={activeOrder.status !== "PENDING"}
+              >
+                <Text style={styles.startCookingText}>START COOKING</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.markReadyBtn, activeOrder.status === "PREPARING" && { opacity: 1 }]}
-              onPress={() => updateOrderStatus(activeOrder.id, "READY")}
-              disabled={activeOrder.status !== "PREPARING"}
-            >
-              <Ionicons name="checkmark" size={rf(14)} color="#FFF" style={{ marginRight: s(5) }} />
-              <Text style={styles.markReadyText}>MARK READY</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.markReadyBtn, activeOrder.status === "PREPARING" && { opacity: 1 }]}
+                onPress={() => updateOrderStatus(activeOrder.id, "READY")}
+                disabled={activeOrder.status !== "PREPARING"}
+              >
+                <Ionicons name="checkmark" size={rf(14)} color="#FFF" style={{ marginRight: s(5) }} />
+                <Text style={styles.markReadyText}>MARK READY</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        )}
 
         <View style={styles.bottomActionsRow}>
           <View style={styles.leftActions}>
@@ -970,7 +1078,13 @@ export default function TableOrdersView({
 
       <FullMenuModal
         visible={isMenuModalVisible}
-        onClose={() => setIsMenuModalVisible(false)}
+        onClose={async () => {
+          setIsMenuModalVisible(false);
+          if (activeOrderId === 'dummy_empty') {
+            if (orders.length > 0) setActiveOrderId(orders[0].id);
+            else setActiveOrderId(null);
+          }
+        }}
         categories={filteredMenus}
         loading={menuLoading}
         onConfirm={(items: any[], printKOT: boolean) => addItemToOrder(activeOrderId as string, items, printKOT)}
@@ -981,6 +1095,7 @@ export default function TableOrdersView({
           setSelectedZone(zone);
           AsyncStorage.setItem("default_selected_zone", zone).catch(console.error);
         }}
+        menuGridEnabled={menuGridEnabled}
       />
 
       {/* MERGE BILLS MODAL (DROPDOWN STYLE) */}
@@ -1044,7 +1159,7 @@ export default function TableOrdersView({
                     >
                       <View>
                         <Text style={{ fontWeight: 'bold', fontSize: rf(12), color: '#111827' }}>
-                          Order #{o.billNumber}
+                          Order #{o.billNumber || (o as any).orderNo || (o as any).tokenNo || (o.id ? String(o.id).slice(-4).toUpperCase() : '')}
                         </Text>
                         <Text style={{ fontSize: rf(10), color: '#6B7280', marginTop: 2 }}>
                           {o.items.length} Items • ₹{o.total}
@@ -1182,7 +1297,7 @@ export default function TableOrdersView({
                 <Text style={{ textAlign: 'center', fontWeight: 'bold', fontSize: rf(18), marginBottom: vs(5), color: '#111827' }}>RESTAURANT RECEIPT</Text>
                 <Text style={{ textAlign: 'center', fontSize: rf(11), color: '#6B7280', marginBottom: vs(15) }}>
                   Date: {new Date(activeOrder.createdAt).toLocaleDateString()} {new Date(activeOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{'\n'}
-                  Table: {tableName} • Order #{activeOrder.billNumber}
+                  Table: {tableName} • Order #{activeOrder.billNumber || (activeOrder as any).orderNo || (activeOrder as any).tokenNo || (activeOrder.id ? String(activeOrder.id).slice(-4).toUpperCase() : '')}
                 </Text>
 
                 <View style={{ borderBottomWidth: 1, borderBottomColor: '#D1D5DB', borderStyle: 'dashed', marginBottom: vs(10) }} />
@@ -1238,6 +1353,18 @@ export default function TableOrdersView({
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+      <DeleteConfirmModal
+        visible={itemToDelete !== null}
+        onClose={() => setItemToDelete(null)}
+        title="Delete Item"
+        message={`Are you sure you want to delete ${itemToDelete?.itemName || 'this item'}?`}
+        onConfirm={() => {
+          if (itemToDelete) {
+            deleteItemFromOrder(itemToDelete.orderId, itemToDelete.itemIdx);
+            setItemToDelete(null);
+          }
+        }}
+      />
       <CustomToast
         visible={toastState.visible}
         message={toastState.message}
@@ -1248,14 +1375,14 @@ export default function TableOrdersView({
   );
 }
 
-const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multiZoneMenuEnabled, availableZones, selectedZone, setSelectedZone }: any) => {
+const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multiZoneMenuEnabled, availableZones, selectedZone, setSelectedZone, menuGridEnabled }: any) => {
   const flatListRef = React.useRef<FlatList>(null);
   const [cart, setCart] = useState<Record<string, any>>({});
   const [isZoneModalVisible, setIsZoneModalVisible] = useState(false);
 
   const { width: SCREEN_WIDTH } = Dimensions.get("window");
   const CATEGORY_COLUMN_WIDTH = s(90);
-  const itemWidth = (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32)) / 3;
+  const itemWidth = (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32)) / (menuGridEnabled ? 2 : 3);
 
   useEffect(() => {
     if (visible) setCart({});
@@ -1323,7 +1450,7 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
           </View>
 
           <View style={[styles.modalBody, { flexDirection: "row", padding: 0 }]}>
-            {loading ? (
+            {loading && (!categories || categories.length === 0) ? (
               <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
                 <ActivityIndicator size="large" color="#4F46E5" />
                 <Text style={{ marginTop: 10, color: "#6B7280" }}>Loading Menu...</Text>
@@ -1429,8 +1556,8 @@ const styles = StyleSheet.create({
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: s(8),
-    gap: s(8),
+    paddingHorizontal: s(4),
+    marginTop: vs(5),
   },
   startBtn: { marginTop: vs(20), backgroundColor: THEME_PRIMARY, paddingHorizontal: s(20), paddingVertical: vs(12), borderRadius: s(10), flexDirection: 'row', alignItems: 'center' },
   startBtnText: { color: '#fff', fontWeight: 'bold', fontSize: rf(14) },
@@ -1505,8 +1632,8 @@ const styles = StyleSheet.create({
   bottomBar: { backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingHorizontal: s(15), paddingBottom: s(15), paddingTop: vs(8) },
   kitchenOpsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', marginBottom: vs(5), gap: vs(10) },
   kitchenOpsText: { fontSize: rf(10), fontWeight: 'bold', color: '#9CA3AF' },
-  startCookingBtn: { paddingHorizontal: s(20), paddingVertical: vs(8), borderRadius: s(8), opacity: 0.5 },
-  startCookingText: { color: '#9CA3AF', fontWeight: 'bold', fontSize: rf(10) },
+  startCookingBtn: { backgroundColor: '#F59E0B', paddingHorizontal: s(20), paddingVertical: vs(8), borderRadius: s(8), opacity: 0.5 },
+  startCookingText: { color: '#FFF', fontWeight: 'bold', fontSize: rf(10) },
   markReadyBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: THEME_SUCCESS, paddingHorizontal: s(30), paddingVertical: vs(8), borderRadius: s(8), opacity: 0.5 },
   markReadyText: { color: '#FFF', fontWeight: 'bold', fontSize: rf(11) },
   bottomActionsRow: { flexDirection: 'row', flexWrap: 'wrap-reverse', justifyContent: 'space-between', gap: vs(10) },

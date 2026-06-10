@@ -1,6 +1,6 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import notifee, { AndroidCategory, AndroidImportance } from '@notifee/react-native';
+import notifee, { AndroidImportance } from '@notifee/react-native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
@@ -20,6 +20,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import BackgroundTimer from 'react-native-background-timer';
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { resolveOrderToken } from "../../utils/SimpleBill";
@@ -75,6 +76,13 @@ const NewOrderNotifier = () => {
           { isLooping: true, volume: 0 }
         );
         bgSound = sound;
+
+        // Force JS bridge to wake up every 1000ms by receiving native audio updates
+        bgSound.setProgressUpdateIntervalAsync(1000);
+        bgSound.setOnPlaybackStatusUpdate((status) => {
+          // Empty callback is enough to keep the JS event loop ticking exactly on time!
+        });
+
         await bgSound.playAsync();
       } catch (e) {
         console.log("Silent audio failed:", e);
@@ -425,7 +433,6 @@ const NewOrderNotifier = () => {
       fetchInProgress.current = true;
       const authToken = await getToken();
 
-      // Use the exact same active=true URL that MainOrdersView uses to ensure staff gets the orders correctly
       const url = `https://billing.kravy.in/api/orders?active=true&t=${Date.now()}`;
 
       const response = await fetch(url, {
@@ -458,36 +465,8 @@ const NewOrderNotifier = () => {
           if (alertableOrders.length > 0) {
             // ✅ TRIGGER SYSTEM NOTIFICATION
             const firstOrder = alertableOrders[0];
-            const tableName =
-              firstOrder.tableName || firstOrder.table?.name || "Online Order";
-
             const notifId = String(firstOrder._id || firstOrder.id || Date.now());
             displayedNotifIds.current.push(notifId);
-
-            // Trigger Notifee Full-Screen Alarm directly
-            notifee.createChannel({
-              id: 'urgent_orders_fullscreen',
-              name: 'Urgent Orders',
-              importance: AndroidImportance.HIGH,
-            }).then(channelId => {
-              notifee.displayNotification({
-                id: notifId,
-                title: '🚨 NEW URGENT ORDER! 🚨',
-                body: `${tableName} has sent a new order. Open app to accept!`,
-                android: {
-                  channelId,
-                  category: AndroidCategory.CALL,
-                  importance: AndroidImportance.HIGH,
-                  pressAction: {
-                    id: 'default',
-                    mainComponent: 'main',
-                  },
-                  fullScreenAction: {
-                    id: 'default',
-                  },
-                },
-              });
-            }).catch(e => console.log('Notifee alarm failed:', e));
 
             setPendingOrders((prev) => {
               const updated = [...prev, ...alertableOrders];
@@ -532,6 +511,9 @@ const NewOrderNotifier = () => {
     );
 
     // ✅ Extreme fast polling (1 second) for "instant" feel even in background
+    if (Platform.OS === 'android') {
+      BackgroundTimer.start(); // Acquires WakeLock so CPU never sleeps!
+    }
     const intervalId = setInterval(fetchOrders, 1000);
 
     // ✅ Start Foreground Service to keep app alive
@@ -571,6 +553,9 @@ const NewOrderNotifier = () => {
 
     return () => {
       clearInterval(intervalId);
+      if (Platform.OS === 'android') {
+        BackgroundTimer.stop(); // Release WakeLock
+      }
       appStateSub.remove();
       refreshSub.remove();
       localOrderSub.remove();

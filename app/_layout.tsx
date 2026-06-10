@@ -68,8 +68,77 @@ try {
 
   // Keep the app alive when Foreground Service is active
   notifee.registerForegroundService((notification) => {
-    return new Promise(() => {
-      // Promise remains pending to keep the service running indefinitely
+    return new Promise(async (resolve) => {
+      let lastProcessedIds = new Set<string>();
+      try {
+        const stored = await AsyncStorage.getItem("processedOrderIds");
+        if (stored) lastProcessedIds = new Set(JSON.parse(stored));
+      } catch (e) { }
+
+      const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+      while (true) {
+        // ✅ 5-second interval is the "Brahmastra"! It's fast enough to be instant,
+        // but gives the OS enough breathing room so it NEVER throws "Close app or wait" (ANR).
+        await sleep(5000);
+        try {
+          const token = await SecureStore.getItemAsync("__clerk_client_jwt");
+          if (!token) continue;
+
+          const url = `https://billing.kravy.in/api/orders?active=true&t=${Date.now()}`;
+
+          // Prevent fetch from hanging indefinitely in Doze mode
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+          const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (res.ok) {
+            const oData = await res.json();
+            const orders: any[] = Array.isArray(oData) ? oData : oData.orders || [];
+
+            const newOrders = orders.filter((o: any) => !lastProcessedIds.has(o._id || o.id));
+
+            if (newOrders.length > 0) {
+              newOrders.forEach(o => lastProcessedIds.add(o._id || o.id));
+              AsyncStorage.setItem("processedOrderIds", JSON.stringify([...lastProcessedIds])).catch(() => { });
+
+              const alertable = newOrders.filter((o: any) => o.source !== "OFFLINE");
+
+              if (alertable.length > 0) {
+                const firstOrder = alertable[0];
+                const tableName = firstOrder.tableName || firstOrder.table?.name || "Online Order";
+
+                const channelId = await notifee.createChannel({
+                  id: 'urgent_orders_fullscreen',
+                  name: 'Urgent Orders',
+                  importance: AndroidImportance.HIGH,
+                });
+
+                await notifee.displayNotification({
+                  id: String(firstOrder._id || firstOrder.id || Date.now()),
+                  title: '🚨 NEW URGENT ORDER! 🚨',
+                  body: `${tableName} has sent a new order. Open app to accept!`,
+                  android: {
+                    channelId,
+                    category: AndroidCategory.CALL,
+                    importance: AndroidImportance.HIGH,
+                    pressAction: { id: 'default', mainComponent: 'main' },
+                    fullScreenAction: { id: 'default' },
+                  },
+                });
+              }
+            }
+          }
+        } catch (err) {
+          // ignore network errors in background
+        }
+      }
     });
   });
 } catch (e) {
