@@ -14,6 +14,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, BackHandler, Platform, ToastAndroid, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import ForceUpdateChecker from "../components/common/ForceUpdateChecker";
 import NewOrderNotifier from "../components/common/NewOrderNotifier";
 import CustomDrawerContent from "../components/sidebar/CustomDrawer";
 import { LanguageProvider, useLanguage } from "../context/LanguageContext";
@@ -344,6 +345,7 @@ function AuthRedirect() {
           return false; // Don't become responder
         }}
       >
+        <ForceUpdateChecker />
         <NewOrderNotifier />
         <Drawer
           drawerContent={(props) => <CustomDrawerContent {...props} />}

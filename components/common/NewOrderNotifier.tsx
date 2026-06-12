@@ -191,16 +191,43 @@ const NewOrderNotifier = () => {
     checkAuth();
   }, [refreshSignal, isSignedIn]);
 
+  // Preload the ringtone once so it's always available in memory (fixes background network block)
+  const preloadedSoundRef = useRef<Audio.Sound | null>(null);
+  useEffect(() => {
+    const initSound = async () => {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: "https://assets.mixkit.co/active_storage/sfx/1357/1357-preview.mp3" }
+        );
+        preloadedSoundRef.current = sound;
+      } catch (e) { }
+    };
+    initSound();
+    return () => {
+      if (preloadedSoundRef.current) {
+        preloadedSoundRef.current.unloadAsync().catch(() => { });
+      }
+    };
+  }, []);
+
   const startRingtone = async () => {
     try {
       if (soundRef.current) return; // Already playing
-      const { sound } = await Audio.Sound.createAsync(
-        {
-          uri: "https://assets.mixkit.co/active_storage/sfx/1357/1357-preview.mp3",
-        },
-        { shouldPlay: true, isLooping: true, volume: 1.0 },
-      );
-      soundRef.current = sound;
+
+      if (preloadedSoundRef.current) {
+        await preloadedSoundRef.current.setIsLoopingAsync(true);
+        await preloadedSoundRef.current.setVolumeAsync(1.0);
+        await preloadedSoundRef.current.playAsync();
+        soundRef.current = preloadedSoundRef.current;
+      } else {
+        const { sound } = await Audio.Sound.createAsync(
+          {
+            uri: "https://assets.mixkit.co/active_storage/sfx/1357/1357-preview.mp3",
+          },
+          { shouldPlay: true, isLooping: true, volume: 1.0 },
+        );
+        soundRef.current = sound;
+      }
 
       Animated.loop(
         Animated.sequence([
@@ -226,7 +253,10 @@ const NewOrderNotifier = () => {
     if (soundRef.current) {
       try {
         await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+        // Do NOT unload if it's the preloaded one, so we can reuse it
+        if (soundRef.current !== preloadedSoundRef.current) {
+          await soundRef.current.unloadAsync();
+        }
         soundRef.current = null;
       } catch (e) { }
     }

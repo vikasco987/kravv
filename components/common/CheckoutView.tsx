@@ -25,9 +25,9 @@ import { useRefresh } from "../../context/RefreshContext";
 import { getCompanyProfiles, getRecentCompanyProfile } from "../../services/companyService";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill } from "../../utils/SimpleBill";
-import { CustomToast } from "../common/CustomToast";
+import { BillPreviewModal } from "../menu/BillPreviewModal";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
-import { BillPreviewModal } from "./BillPreviewModal";
+import { CustomToast } from "./CustomToast";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const THEME_COLOR = "#2563EB";
@@ -666,6 +666,16 @@ export default function CheckoutView({
               }).catch(e => console.log("Failed to complete KOT order in background", e));
             }).catch(e => console.log("Failed to ready KOT order in background", e));
           } catch (err) { }
+
+          // Clear it from the local KOT list now that bill is printed
+          try {
+            const existingData = await AsyncStorage.getItem('@local_kot_list');
+            if (existingData) {
+              const list = JSON.parse(existingData);
+              const filtered = list.filter((o: any) => o.id !== params.kotId);
+              await AsyncStorage.setItem('@local_kot_list', JSON.stringify(filtered));
+            }
+          } catch (e) { }
         }
       } else {
         setPrintErrorMessage(result?.error || "Failed to process bill.");
@@ -752,6 +762,17 @@ export default function CheckoutView({
           showToast("Order Marked as Ready!", "success");
           setIsSuccessModalVisible(true);
           triggerRefresh();
+
+          if (params.kotId) {
+            try {
+              const existingData = await AsyncStorage.getItem('@local_kot_list');
+              if (existingData) {
+                const list = JSON.parse(existingData);
+                const filtered = list.filter((o: any) => o.id !== params.kotId);
+                await AsyncStorage.setItem('@local_kot_list', JSON.stringify(filtered));
+              }
+            } catch (e) { }
+          }
         } else {
           setPrintErrorMessage("WhatsApp is not installed on this device.");
           setIsErrorModalVisible(true);

@@ -21,6 +21,7 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { SimpleBill, resolveOrderToken } from "../../utils/SimpleBill";
+import CheckoutView from "../common/CheckoutView";
 import { CustomToast } from "../common/CustomToast";
 import { SimpleKOT } from "../common/SimpleKOT";
 import { CategorySidebar } from "../menu/CategorySidebar";
@@ -155,6 +156,8 @@ export default function TableOrdersView({
   }, [fetchOrders]);
 
   const [menuGridEnabled, setMenuGridEnabled] = useState(false);
+  const [isCheckoutVisible, setIsCheckoutVisible] = useState(false);
+  const [checkoutParams, setCheckoutParams] = useState<any>(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -385,7 +388,7 @@ export default function TableOrdersView({
       ToastAndroid.show("No items selected", ToastAndroid.SHORT);
       return;
     }
-    
+
     // Instant UI Feedback: Close menu immediately!
     setIsMenuModalVisible(false);
 
@@ -522,7 +525,7 @@ export default function TableOrdersView({
           method: "DELETE",
           headers: { Authorization: `Bearer ${finalToken}` }
         });
-        
+
         if (!response.ok) {
           await fetch(`https://billing.kravy.in/api/orders`, {
             method: "PATCH",
@@ -575,7 +578,7 @@ export default function TableOrdersView({
           method: "DELETE",
           headers: { Authorization: `Bearer ${finalToken}` }
         });
-        
+
         if (!response.ok) {
           await fetch(`https://billing.kravy.in/api/orders`, {
             method: "PATCH",
@@ -583,7 +586,7 @@ export default function TableOrdersView({
             body: JSON.stringify({ orderId, items: [], total: 0, isDeleted: true }),
           });
         }
-        
+
         DeviceEventEmitter.emit('REFRESH_ORDERS');
         DeviceEventEmitter.emit('REFRESH_TABLES');
         fetchOrders();
@@ -805,7 +808,7 @@ export default function TableOrdersView({
       const tokenNo = await resolveOrderToken(activeOrder.id, backendToken);
 
       const checkoutData = {
-        items: activeOrder.items,
+        cart: JSON.stringify(activeOrder.items),
         totalAmount: activeOrder.total,
         kotId: activeOrder.id,
         tableName: tableName || '',
@@ -815,9 +818,8 @@ export default function TableOrdersView({
         tokenNumber: tokenNo,
         billNumber: (activeOrder as any).billNumber || (activeOrder as any).billNo || (activeOrder as any).invoiceNo || '',
       };
-      await AsyncStorage.setItem('@temp_cart_for_checkout', JSON.stringify(checkoutData));
-      DeviceEventEmitter.emit('GOTO_CHECKOUT_FROM_KOT');
-      router.push('/(tabs)/menu');
+      setCheckoutParams(checkoutData);
+      setIsCheckoutVisible(true);
     } catch (e) {
       console.error(e);
       ToastAndroid.show("Failed to open checkout", ToastAndroid.SHORT);
@@ -837,6 +839,21 @@ export default function TableOrdersView({
     }
     return orders.find(o => o.id === activeOrderId) || orders[0];
   }, [orders, activeOrderId]);
+
+  if (isCheckoutVisible && checkoutParams) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#F3F4F6' }}>
+        <CheckoutView
+          cartParams={checkoutParams}
+          onBack={() => {
+            setIsCheckoutVisible(false);
+            setCheckoutParams(null);
+            fetchOrders();
+          }}
+        />
+      </View>
+    );
+  }
 
   if (loading && !refreshing) {
     return (
@@ -1011,8 +1028,8 @@ export default function TableOrdersView({
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={styles.itemTotalPrice}>₹{it.price * it.quantity}</Text>
-              <TouchableOpacity 
-                style={{ marginLeft: s(10), padding: s(5), backgroundColor: '#FEE2E2', borderRadius: s(6) }} 
+              <TouchableOpacity
+                style={{ marginLeft: s(10), padding: s(5), backgroundColor: '#FEE2E2', borderRadius: s(6) }}
                 onPress={() => setItemToDelete({ orderId: activeOrder.id, itemIdx: idx, itemName: it.name })}
               >
                 <Ionicons name="trash-outline" size={rf(14)} color="#EF4444" />

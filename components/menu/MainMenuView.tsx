@@ -59,10 +59,10 @@ import { ZoneSelectionModal } from "./ZoneSelectionModal";
 // Batched Components
 import { SyncManager } from "../../services/SyncManager";
 import { SoundManager } from "../../utils/SoundManager";
+import CheckoutView from "../common/CheckoutView";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 import { useStaffPermissions } from "../staff creat/useStaffPermissions";
 import AddItemView from "./AddItemView";
-import CheckoutView from "./CheckoutView";
 import HeldOrdersView from "./HeldOrdersView";
 
 // --- TYPE DEFINITIONS ---
@@ -165,7 +165,11 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setCart({}); // Clear menu cart so items aren't selected
             setCheckoutParams(null);
             setCurrentView("main");
-            router.push("/(tabs)/orders");
+            if (checkoutParams.source === 'kot') {
+              router.push("/(tabs)/kot");
+            } else {
+              router.push("/(tabs)/orders");
+            }
           } else {
             setCurrentView("main");
           }
@@ -180,6 +184,14 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   );
   const isPrinting = useRef(false);
   const flatListRef = useRef<any>(null);
+  const lastKotTokenRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (Object.keys(cart).length === 0) {
+      lastKotTokenRef.current = null;
+    }
+  }, [cart]);
+
   const isFocused = useIsFocused();
   const login = params.login;
   const [taxSettings, setTaxSettings] = useState<any>(null);
@@ -678,6 +690,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                 customerPhone: parsedData.customerPhone,
                 customerAddress: parsedData.customerAddress,
                 billNumber: parsedData.billNumber,
+                source: parsedData.source,
               });
               setCurrentView("checkout");
             }
@@ -1482,7 +1495,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       if (itemsToPrint.length === 0) return;
 
       // 🚀 INSTANT UI FEEDBACK: Clear cart immediately for large orders
-      if (!itemsOverride) {
+      if (!Array.isArray(itemsOverride)) {
         setCart({});
         setSelectedTable(null);
         setSelectedRoom(null);
@@ -1500,6 +1513,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             (await StaffPermissionEngine.getActiveBusinessId(user?.id));
 
           const tokenNo = await getNextTokenNumber();
+          lastKotTokenRef.current = tokenNo;
 
           // Print (Now non-blocking inside SimpleKOT)
           SimpleKOT(
@@ -1513,10 +1527,11 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           );
 
           // 2. Save KOT Page Locally
+          const kotIdToUse = checkoutParams?.kotId || Date.now().toString();
           const localOrder = {
-            id: Date.now().toString(),
-            tokenNumber: tokenNo,
-            billNumber: Math.floor(1000 + Math.random() * 9000).toString(),
+            id: kotIdToUse,
+            tokenNumber: checkoutParams?.tokenNo || tokenNo,
+            billNumber: checkoutParams?.billNumber || Math.floor(1000 + Math.random() * 9000).toString(),
             tableName:
               tableToPrint && roomToPrint
                 ? `T-${tableToPrint} | R-${roomToPrint}`
@@ -1531,10 +1546,24 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             })),
             createdAt: new Date().toISOString(),
             status: "PENDING",
+            customerName: checkoutParams?.customerName || undefined,
+            customerPhone: checkoutParams?.customerPhone || undefined,
           };
+
           const existingData = await AsyncStorage.getItem("@local_kot_list");
-          const kotList = existingData ? JSON.parse(existingData) : [];
-          kotList.unshift(localOrder);
+          let kotList = existingData ? JSON.parse(existingData) : [];
+
+          if (checkoutParams?.kotId) {
+            const index = kotList.findIndex((k: any) => k.id === checkoutParams.kotId);
+            if (index !== -1) {
+              kotList[index] = { ...kotList[index], ...localOrder };
+            } else {
+              kotList.unshift(localOrder);
+            }
+          } else {
+            kotList.unshift(localOrder);
+          }
+
           await AsyncStorage.setItem(
             "@local_kot_list",
             JSON.stringify(kotList),
@@ -1625,6 +1654,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             roomName: roomToPrint || undefined,
             taxSettings: taxSettings,
             businessId: bId!,
+            tokenNo: lastKotTokenRef.current || undefined,
           });
           fetchHeldCount();
         } catch (e) {
@@ -1753,7 +1783,11 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setCart({}); // Clear menu cart so items aren't selected
             setCheckoutParams(null);
             setCurrentView("main");
-            router.push("/(tabs)/orders");
+            if (checkoutParams.source === 'kot') {
+              router.push("/(tabs)/kot");
+            } else {
+              router.push("/(tabs)/orders");
+            }
           } else {
             setCurrentView("main");
           }
@@ -1922,11 +1956,13 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           onSaveBill={handleSaveBill}
           onProceed={() => {
             setCheckoutParams({
+              ...(checkoutParams || {}),
               cart: JSON.stringify(cart),
               paymentMethod,
               selectedTable,
               selectedRoom,
               billId: activeOrderId, // Crucial for updating existing records
+              tokenNo: lastKotTokenRef.current || undefined,
             });
             setCurrentView("checkout");
           }}

@@ -77,6 +77,7 @@ export default function TabsLayout() {
       <TopNavBar title={getTitle()} showSearch={pathname.includes("menu")} />
 
       <Tabs
+        backBehavior="history"
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: "#ffffff",
