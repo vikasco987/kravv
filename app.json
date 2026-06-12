@@ -2,7 +2,7 @@
   "expo": {
     "name": "kravy",
     "slug": "kravy",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/images/kravlogo.png",
     "scheme": "kravy",
@@ -16,7 +16,7 @@
       }
     },
     "android": {
-      "versionCode": 16,
+      "versionCode": 18,
       "adaptiveIcon": {
         "backgroundColor": "#1e3a8a",
         "foregroundImage": "./assets/images/kravlogo.png",
