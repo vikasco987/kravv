@@ -21,6 +21,7 @@ interface AppFeaturesCardProps {
     onPrintingSetupPress?: () => void;
     onAdvancedControlsPress?: () => void;
     onMenuGridPress?: () => void;
+    onMarketingHubPress?: () => void;
 }
 
 export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
@@ -31,6 +32,7 @@ export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
     onPrintingSetupPress,
     onAdvancedControlsPress,
     onMenuGridPress,
+    onMarketingHubPress,
 }) => {
     const { t } = useLanguage();
 
@@ -130,6 +132,24 @@ export const AppFeaturesCard: React.FC<AppFeaturesCardProps> = ({
                         <View style={{ flex: 1 }}>
                             <Text style={[styles.infoTitle, { marginBottom: 0 }]}>Menu Grid</Text>
                             <Text style={styles.infoText} numberOfLines={1}>Manage your menu layout preferences</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={rf(18)} color={COLORS.textLight} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Marketing Hub Button */}
+                <View style={styles.card}>
+                    <TouchableOpacity
+                        style={styles.sectionHeader}
+                        onPress={() => handlePress(() => onMarketingHubPress && onMarketingHubPress())}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.buttonIconBackground, { backgroundColor: "#F59E0B" + "15" }]}>
+                            <Ionicons name={"sparkles-outline" as any} size={rf(20)} color={"#F59E0B"} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.infoTitle, { marginBottom: 0 }]}>Marketing Hub</Text>
+                            <Text style={styles.infoText} numberOfLines={1}>Offers, Coupons & Growth Tools</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={rf(18)} color={COLORS.textLight} />
                     </TouchableOpacity>

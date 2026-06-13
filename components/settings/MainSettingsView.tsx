@@ -41,6 +41,13 @@ import { SuccessFeedback } from "./SuccessFeedback";
 import { TaxDiscountsCard } from "./TaxDiscountsCard";
 import { TaxDiscountsModal } from "./TaxDiscountsModal";
 import { WhySignInBox } from "./WhySignInBox";
+
+// Import Marketing Screens
+import MarketingCardGeneratorScreen from "./MarketingCardGeneratorScreen";
+import MarketingHubScreen from "./MarketingHubScreen";
+import MarketingOffersScreen from "./MarketingOffersScreen";
+import MarketingReviewGeneratorScreen from "./MarketingReviewGeneratorScreen";
+
 const LOCAL_COLORS = {
   background: "#F9FAFB",
   primary: "#4F46E5",
@@ -102,7 +109,7 @@ const MainSettingsView = ({
   const [menuGridEnabled, setMenuGridEnabled] = React.useState(false);
   const [orderAutoAccept, setOrderAutoAccept] = React.useState(false);
   const [currentView, setCurrentView] = React.useState<
-    "main" | "profile" | "printing" | "printingPreview"
+    "main" | "profile" | "printing" | "printingPreview" | "marketingHub" | "marketingOffers" | "marketingCardGen" | "marketingReviewGen"
   >("main");
   const [printSettingsForPreview, setPrintSettingsForPreview] =
     React.useState<any>(null);
@@ -127,6 +134,12 @@ const MainSettingsView = ({
       const onBackPress = () => {
         if (currentView === "printingPreview") {
           setCurrentView("printing");
+          return true;
+        } else if (currentView === "marketingCardGen" || currentView === "marketingReviewGen") {
+          setCurrentView("marketingOffers");
+          return true;
+        } else if (currentView === "marketingOffers") {
+          setCurrentView("marketingHub");
           return true;
         } else if (currentView !== "main") {
           setCurrentView("main");
@@ -614,6 +627,18 @@ const MainSettingsView = ({
       />
     );
 
+  if (currentView === "marketingHub")
+    return <MarketingHubScreen onBack={() => setCurrentView("main")} onNavigate={(screen) => setCurrentView(screen as any)} />;
+
+  if (currentView === "marketingOffers")
+    return <MarketingOffersScreen onBack={() => setCurrentView("marketingHub")} onNavigate={(screen) => setCurrentView(screen as any)} />;
+
+  if (currentView === "marketingCardGen")
+    return <MarketingCardGeneratorScreen onBack={() => setCurrentView("marketingOffers")} />;
+
+  if (currentView === "marketingReviewGen")
+    return <MarketingReviewGeneratorScreen onBack={() => setCurrentView("marketingOffers")} />;
+
   const effectiveUser = isLockedUser
     ? null
     : user ||
@@ -702,6 +727,7 @@ const MainSettingsView = ({
         onPrintingSetupPress={() => setCurrentView("printing")}
         onAdvancedControlsPress={() => setAdvancedControlsModalVisible(true)}
         onMenuGridPress={() => setMenuGridModalVisible(true)}
+        onMarketingHubPress={() => setCurrentView("marketingHub")}
         onLoginRequired={() => setLoginModalVisible(true)}
       />
 
