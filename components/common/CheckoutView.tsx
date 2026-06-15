@@ -98,11 +98,48 @@ export default function CheckoutView({
   const [businessProfile, setBusinessProfile] = useState<any>(null);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
 
+  const [promoCode, setPromoCode] = useState("");
+  const [appliedOffer, setAppliedOffer] = useState<any>(null);
+
   const [toastConfig, setToastConfig] = useState({ visible: false, message: "", type: "success" as any });
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToastConfig({ visible: true, message, type });
     setTimeout(() => setToastConfig({ visible: false, message: "", type }), 3000);
+  };
+
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return;
+    try {
+      const token = await AsyncStorage.getItem("clerk_token");
+      const res = await fetch(`https://billing.kravy.in/api/discounts`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const found = (data.offers || []).find((o: any) => o.code === promoCode.toUpperCase() && o.isActive);
+
+        if (!found) {
+          showToast("Invalid or expired coupon code", "error");
+          return;
+        }
+
+        const subtotal = cart.reduce((acc, item) => acc + (Number(item.editedPrice ?? item.price ?? 0) * Number(item.quantity || 1)), 0);
+        if (found.minOrderValue && subtotal < found.minOrderValue) {
+          showToast(`Minimum order of ₹${found.minOrderValue} required`, "error");
+          return;
+        }
+
+        setAppliedOffer(found);
+        showToast(`Coupon ${found.code} applied!`, "success");
+      } else {
+        showToast("Failed to verify coupon", "error");
+      }
+    } catch (err) {
+      showToast("Failed to verify coupon", "error");
+    }
   };
 
   const loadTaxSettings = async () => {
@@ -398,9 +435,30 @@ export default function CheckoutView({
     let perProductGstTotals: Record<number, number> = {};
     let globalGstTotal = 0;
 
-    const discountRate = taxSettings.discountEnabled
-      ? taxSettings.discountRate / 100
-      : 0;
+    let discountRate = 0;
+    let customDiscountRate = taxSettings.discountEnabled ? taxSettings.discountRate / 100 : 0;
+
+    if (appliedOffer) {
+      const rawSubtotal = (cart || []).reduce((acc: number, item: any) => {
+        return acc + (Number(item.editedPrice ?? item.price ?? 0) * Number(item.quantity || 1));
+      }, 0);
+
+      let offerDiscountValue = 0;
+      if (appliedOffer.discountType === 'PERCENT') {
+        offerDiscountValue = (rawSubtotal * appliedOffer.discountValue) / 100;
+        if (appliedOffer.maxDiscount && offerDiscountValue > appliedOffer.maxDiscount) {
+          offerDiscountValue = appliedOffer.maxDiscount;
+        }
+      } else {
+        offerDiscountValue = appliedOffer.discountValue;
+      }
+
+      if (rawSubtotal > 0) {
+        discountRate = offerDiscountValue / rawSubtotal;
+      }
+    } else {
+      discountRate = customDiscountRate;
+    }
 
     (cart || []).forEach((item: any) => {
       const price = Number(item.editedPrice ?? item.price ?? 0);
@@ -630,6 +688,24 @@ export default function CheckoutView({
         }
       }
 
+      let finalTaxSettings = { ...taxSettings };
+      if (appliedOffer) {
+        const rawSubtotal = cart.reduce((acc, item) => acc + (Number(item.editedPrice ?? item.price ?? 0) * Number(item.quantity || 1)), 0);
+        let offerDiscountValue = 0;
+        if (appliedOffer.discountType === 'PERCENT') {
+          offerDiscountValue = (rawSubtotal * appliedOffer.discountValue) / 100;
+          if (appliedOffer.maxDiscount && offerDiscountValue > appliedOffer.maxDiscount) {
+            offerDiscountValue = appliedOffer.maxDiscount;
+          }
+        } else {
+          offerDiscountValue = appliedOffer.discountValue;
+        }
+        if (rawSubtotal > 0) {
+          finalTaxSettings.discountEnabled = true;
+          finalTaxSettings.discountRate = (offerDiscountValue / rawSubtotal) * 100;
+        }
+      }
+
       // We start SimpleBill.
       const result = await SimpleBill(cart, finalToken!, bId!, {
         paymentMode,
@@ -639,7 +715,7 @@ export default function CheckoutView({
         phone: customerPhone,
         customerAddress: newParty.address,
         businessProfile,
-        taxSettings,
+        taxSettings: finalTaxSettings,
         tableName: params.selectedTable || undefined,
         roomName: params.selectedRoom || undefined,
         tokenNo: params.tokenNo,
@@ -1091,6 +1167,39 @@ export default function CheckoutView({
               <View style={{ backgroundColor: '#FFF7ED', padding: s(20), borderRadius: s(16), borderWidth: 1, borderColor: '#FFEDD5', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: vs(20) }}>
                 <Text style={{ fontSize: rf(16), color: '#4C1D95' }}>Total Due</Text>
                 <Text style={{ fontSize: rf(24), color: '#F97316' }}>₹{totals.totalDue.toFixed(2)}</Text>
+              </View>
+
+              {/* Promo Code Section */}
+              <View style={{ marginTop: vs(20), padding: s(15), backgroundColor: '#F8FAFC', borderRadius: s(12), borderWidth: 1, borderColor: '#E2E8F0' }}>
+                <Text style={{ fontSize: rf(14), fontWeight: '600', color: '#1E293B', marginBottom: vs(10) }}>Have a Promo Code?</Text>
+                {appliedOffer ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ECFDF5', padding: s(12), borderRadius: s(8), borderWidth: 1, borderColor: '#10B981' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="checkmark-circle" size={rf(20)} color="#10B981" />
+                      <Text style={{ fontSize: rf(14), color: '#065F46', fontWeight: 'bold', marginLeft: s(8) }}>{appliedOffer.code} Applied</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => { setAppliedOffer(null); setPromoCode(""); }}>
+                      <Ionicons name="close-circle" size={rf(20)} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TextInput
+                      style={{ flex: 1, height: vs(45), backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: s(8), paddingHorizontal: s(12), fontSize: rf(14), color: '#1E293B' }}
+                      placeholder="Enter promo code"
+                      placeholderTextColor="#94A3B8"
+                      value={promoCode}
+                      onChangeText={setPromoCode}
+                      autoCapitalize="characters"
+                    />
+                    <TouchableOpacity
+                      style={{ marginLeft: s(10), backgroundColor: '#6D28D9', height: vs(45), paddingHorizontal: s(20), borderRadius: s(8), justifyContent: 'center', alignItems: 'center' }}
+                      onPress={handleApplyPromo}
+                    >
+                      <Text style={{ color: '#FFFFFF', fontSize: rf(14), fontWeight: 'bold' }}>Apply</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
 
               <TouchableOpacity

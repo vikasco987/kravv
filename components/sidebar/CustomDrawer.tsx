@@ -47,6 +47,7 @@ export default function CustomDrawerContent(props: any) {
     history: false,
     billHistory: false,
     inventoryMain: false,
+    expenses: false,
   });
 
   // Data for AI features
@@ -154,7 +155,14 @@ export default function CustomDrawerContent(props: any) {
       case "inventoryMain":
         props.navigation.closeDrawer();
         setTimeout(
-          () => setModals((prev) => ({ ...prev, inventoryMain: true })),
+          () => setModals((prev: any) => ({ ...prev, inventoryMain: true })),
+          400,
+        );
+        break;
+      case "expenses":
+        props.navigation.closeDrawer();
+        setTimeout(
+          () => setModals((prev: any) => ({ ...prev, expenses: true })),
           400,
         );
         break;

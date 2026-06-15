@@ -9,6 +9,7 @@ import MainInventoryView from "../inventory/MainInventoryView";
 import ItemSalesReport from "../item-sales-report/item-sales-report";
 import { EditMenuItem } from "../menu/EditMenuItem";
 import { TableQrCodes } from "../menu/TableQrCodes";
+import RestaurantExpensesMain from "../Restaurant Expenses/RestaurantExpensesMain";
 
 interface SidebarModalsProps {
   modals: {
@@ -21,6 +22,7 @@ interface SidebarModalsProps {
     history: boolean;
     billHistory: boolean;
     inventoryMain: boolean;
+    expenses: boolean;
   };
   setModals: (modals: any) => void;
   data: {
@@ -129,6 +131,18 @@ const SidebarModals = ({
           }
           isSidebar={true}
           allBills={data.allBills}
+        />
+      </Modal>
+
+      <Modal
+        visible={modals.expenses}
+        animationType="slide"
+        onRequestClose={() =>
+          setModals((prev: any) => ({ ...prev, expenses: false }))
+        }
+      >
+        <RestaurantExpensesMain
+          onBack={() => setModals((prev: any) => ({ ...prev, expenses: false }))}
         />
       </Modal>
     </>

@@ -155,6 +155,13 @@ const SidebarItems = ({
 
       <DrawerItem
         {...commonDrawerItemProps}
+        label={({ focused }) => renderNavLabel("Restaurant Expenses", focused, "Dashboard")}
+        icon={({ focused }) => renderNavIcon("cash-outline", focused, "Dashboard")}
+        onPress={() => checkAndNavigate("Dashboard", "expenses")}
+      />
+
+      <DrawerItem
+        {...commonDrawerItemProps}
         label={({ focused }) => renderNavLabel("Inventory", focused, "Inventory")}
         icon={({ focused }) => renderNavIcon("archive-outline", focused, "Inventory")}
         onPress={() => checkAndNavigate("Inventory", "inventoryMain")}
