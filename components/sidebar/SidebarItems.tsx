@@ -148,16 +148,23 @@ const SidebarItems = ({
 
       <DrawerItem
         {...commonDrawerItemProps}
-        label={({ focused }) => renderNavLabel("Bill History", focused, "Dashboard")}
+        label={({ focused }) => renderNavLabel("Past Bills / History", focused, "Dashboard")}
         icon={({ focused }) => renderNavIcon("document-text-outline", focused, "Dashboard")}
+        onPress={() => checkAndNavigate("Dashboard", "pastBills")}
+      />
+
+      <DrawerItem
+        {...commonDrawerItemProps}
+        label={({ focused }) => renderNavLabel("Bill Records", focused, "Dashboard")}
+        icon={({ focused }) => renderNavIcon("receipt-outline", focused, "Dashboard")}
         onPress={() => checkAndNavigate("Dashboard", "billHistory")}
       />
 
       <DrawerItem
         {...commonDrawerItemProps}
-        label={({ focused }) => renderNavLabel("Restaurant Expenses", focused, "Dashboard")}
-        icon={({ focused }) => renderNavIcon("cash-outline", focused, "Dashboard")}
-        onPress={() => checkAndNavigate("Dashboard", "expenses")}
+        label={({ focused }) => renderNavLabel("Restaurant Expenses", focused, "Access Restaurant Expenses")}
+        icon={({ focused }) => renderNavIcon("cash-outline", focused, "Access Restaurant Expenses")}
+        onPress={() => checkAndNavigate("Access Restaurant Expenses", "expenses")}
       />
 
       <DrawerItem

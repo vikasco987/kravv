@@ -570,7 +570,7 @@ export default function DeepSaleView({ onBack, isSidebar = false, allBills }) {
       <View
         style={[
           styles.paginationRow,
-          { paddingBottom: isSidebar ? vs(50) : vs(10) },
+          { paddingBottom: isSidebar ? vs(50) : vs(60) },
         ]}
       >
         <TouchableOpacity

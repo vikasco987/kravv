@@ -4,20 +4,26 @@ import {
   addMonths,
   addWeeks,
   addYears,
+  eachDayOfInterval,
+  eachMonthOfInterval,
   endOfDay,
   endOfMonth,
   endOfWeek,
   endOfYear,
   format,
+  isSameDay,
+  isSameMonth,
   startOfDay,
   startOfMonth,
   startOfWeek,
   startOfYear
 } from "date-fns";
-import { ArrowLeft, BarChart3, Calendar as CalendarIcon, ChevronLeft, ChevronRight, History, TrendingDown, Zap } from 'lucide-react-native';
-import React, { useEffect, useMemo, useState } from 'react';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { ArrowLeft, BarChart3, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Download, History, TrendingDown, Zap } from 'lucide-react-native';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { PieChart } from 'react-native-chart-kit';
+import { LineChart, PieChart } from 'react-native-chart-kit';
 
 import { rf, s, vs } from '../../utils/responsive';
 import { fetchCategories, fetchExpenses } from './ExpensesAPI';
@@ -30,7 +36,7 @@ interface ExpenseReportsProps {
   onBack: () => void;
 }
 
-export default function ExpenseReports({ onBack }: ExpenseReportsProps) {
+const ExpenseReports = forwardRef(({ onBack }: ExpenseReportsProps, ref) => {
   const [filterMode, setFilterMode] = useState<FilterMode>('Month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [customRange, setCustomRange] = useState({ start: new Date(), end: new Date() });
@@ -43,6 +49,16 @@ export default function ExpenseReports({ onBack }: ExpenseReportsProps) {
   useEffect(() => {
     loadData();
   }, []);
+
+  useImperativeHandle(ref, () => ({
+    handleBack: () => {
+      if (showPicker.visible) {
+        setShowPicker(prev => ({ ...prev, visible: false }));
+        return true;
+      }
+      return false;
+    }
+  }));
 
   const loadData = async () => {
     try {
@@ -112,7 +128,58 @@ export default function ExpenseReports({ onBack }: ExpenseReportsProps) {
     return data.sort((a, b) => b.population - a.population);
   }, [categories, filtered]);
 
+  const trendData = useMemo(() => {
+    if (!filtered || filtered.length === 0) return { labels: [], amounts: [] };
+
+    let intervals: Date[] = [];
+    if (filterMode === 'Week' || filterMode === 'Month' || filterMode === 'Custom') {
+      intervals = eachDayOfInterval({ start: range.start, end: range.end });
+    } else if (filterMode === 'Year') {
+      intervals = eachMonthOfInterval({ start: range.start, end: range.end });
+    }
+
+    if (intervals.length === 0) return { labels: [], amounts: [] };
+
+    const labels = intervals.map(d => filterMode === 'Year' ? format(d, 'MMM') : format(d, 'dd MMM'));
+    const amounts = intervals.map(d => {
+      const expInInterval = filtered.filter(e => {
+        const ed = new Date(e.date);
+        return filterMode === 'Year' ? isSameMonth(ed, d) : isSameDay(ed, d);
+      });
+      return expInInterval.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+    });
+
+    return { labels, amounts };
+  }, [filtered, filterMode, range]);
+
   const topCategory = chartData.length > 0 ? chartData[0] : null;
+
+  const exportToCSV = async () => {
+    try {
+      const headerRow = "Category,Total Amount,Contribution (%)\n";
+      const rows = chartData.map(cat => {
+        const percentage = totalAmount > 0 ? ((cat.population / totalAmount) * 100) : 0;
+        return `${cat.name},${cat.population},${percentage.toFixed(2)}%`;
+      }).join('\n');
+      const csv = headerRow + rows;
+
+      const docDir = FileSystem.documentDirectory;
+      if (!docDir) return;
+
+      const fileUri = docDir + `Expense_Report_${format(new Date(), "yyyyMMdd_HHmmss")}.csv`;
+
+      await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Export Expense Report'
+        });
+      }
+    } catch (e) {
+      console.log('Error exporting CSV:', e);
+    }
+  };
 
   if (loading) {
     return (
@@ -136,6 +203,10 @@ export default function ExpenseReports({ onBack }: ExpenseReportsProps) {
           </View>
           <Text style={styles.title}>Expense Reporting</Text>
         </View>
+        <TouchableOpacity style={styles.exportBtn} onPress={exportToCSV}>
+          <Download size={rf(14)} color="#FFFFFF" />
+          <Text style={styles.exportBtnText}>Export CSV</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.filterRow}>
@@ -241,6 +312,70 @@ export default function ExpenseReports({ onBack }: ExpenseReportsProps) {
           </View>
         </View>
 
+        {/* Spending Curve */}
+        <View style={[styles.chartCard, { marginBottom: vs(20) }]}>
+          <View style={{ marginBottom: vs(20) }}>
+            <Text style={styles.chartTitle}>Spending Curve</Text>
+            <Text style={styles.chartSubtitle}>Expense flow for the selected period</Text>
+          </View>
+
+          {filterMode === 'Day' ? (
+            <View style={{ height: vs(200), justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={{ color: '#94A3B8', fontSize: rf(12), fontWeight: '800', textTransform: 'uppercase' }}>Single Day View</Text>
+            </View>
+          ) : trendData.labels.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <LineChart
+                data={{
+                  labels: trendData.labels,
+                  datasets: [{
+                    data: trendData.amounts,
+                    color: (opacity = 1) => `rgba(244, 63, 94, ${opacity})`,
+                    strokeWidth: 6
+                  }]
+                }}
+                width={Math.max(width - s(70), trendData.labels.length * s(80))}
+                height={vs(200)}
+                yAxisLabel="₹"
+                yAxisSuffix=""
+                withShadow={true}
+                withInnerLines={true}
+                withOuterLines={false}
+                withDots={false}
+                fromZero={true}
+                chartConfig={{
+                  backgroundColor: "#FFFFFF",
+                  backgroundGradientFrom: "#FFFFFF",
+                  backgroundGradientTo: "#FFFFFF",
+                  color: (opacity = 1) => `rgba(241, 245, 249, 1)`,
+                  labelColor: (opacity = 1) => `#94A3B8`,
+                  fillShadowGradientFrom: "#F43F5E",
+                  fillShadowGradientFromOpacity: 0.2,
+                  fillShadowGradientTo: "#F43F5E",
+                  fillShadowGradientToOpacity: 0,
+                  strokeWidth: 6,
+                  useShadowColorFromDataset: false,
+                  decimalPlaces: 0,
+                  propsForBackgroundLines: {
+                    strokeDasharray: "3 3",
+                    stroke: "rgba(0,0,0,0.05)"
+                  },
+                  propsForLabels: {
+                    fontSize: 9,
+                    fontWeight: '700'
+                  }
+                }}
+                bezier
+                style={{ borderRadius: s(16), marginLeft: -s(15) }}
+              />
+            </ScrollView>
+          ) : (
+            <View style={{ height: vs(200), justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={{ color: '#94A3B8', fontSize: rf(12), fontWeight: '800', textTransform: 'uppercase' }}>No Data</Text>
+            </View>
+          )}
+        </View>
+
         <View style={styles.chartCard}>
           <View style={{ marginBottom: vs(20) }}>
             <Text style={styles.chartTitle}>Distribution</Text>
@@ -290,10 +425,48 @@ export default function ExpenseReports({ onBack }: ExpenseReportsProps) {
             })}
           </View>
         </View>
+
+        {/* Category Intelligence */}
+        <View style={[styles.chartCard, { marginBottom: vs(40), marginTop: vs(20) }]}>
+          <View style={{ marginBottom: vs(20) }}>
+            <Text style={styles.chartTitle}>Category Intelligence</Text>
+            <Text style={styles.chartSubtitle}>Deep analysis of operational costs</Text>
+          </View>
+          <View style={{ gap: vs(15) }}>
+            {categories.map((cat, idx) => {
+              const amount = filtered.filter(exp => exp.category === cat.name).reduce((acc, curr) => acc + (curr.amount || 0), 0);
+              const percentage = totalAmount > 0 ? (amount / totalAmount) * 100 : 0;
+              return (
+                <View key={cat.id || idx} style={{ padding: s(15), backgroundColor: '#F8FAFC', borderRadius: s(16), gap: vs(15) }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(12) }}>
+                      <View style={{ width: s(40), height: s(40), borderRadius: s(12), backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
+                        <Zap size={rf(18)} color={cat.color || "#94A3B8"} />
+                      </View>
+                      <View>
+                        <Text style={{ fontSize: rf(14), fontWeight: '900', color: '#0F172A' }}>{cat.name}</Text>
+                        <Text style={{ fontSize: rf(9), fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', marginTop: vs(2) }}>{percentage.toFixed(1)}% contribution</Text>
+                      </View>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ fontSize: rf(16), fontWeight: '900', color: '#0F172A' }}>₹{amount.toLocaleString()}</Text>
+                      <Text style={{ fontSize: rf(8), fontWeight: '900', color: '#F43F5E', textTransform: 'uppercase', marginTop: vs(2) }}>Outflow</Text>
+                    </View>
+                  </View>
+                  <View style={{ height: vs(8), backgroundColor: '#E2E8F0', borderRadius: s(4), overflow: 'hidden' }}>
+                    <View style={{ width: `${percentage}%`, height: '100%', backgroundColor: cat.color || "#10B981", borderRadius: s(4) }} />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
-}
+});
+
+export default ExpenseReports;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
@@ -303,6 +476,8 @@ const styles = StyleSheet.create({
   breadcrumb: { flexDirection: 'row', alignItems: 'center', gap: s(5), marginBottom: vs(2) },
   breadcrumbText: { fontSize: rf(10), fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1 },
   title: { fontSize: rf(20), fontWeight: '900', color: '#0F172A', letterSpacing: -0.5 },
+  exportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0F172A', paddingHorizontal: s(15), height: vs(36), borderRadius: s(12), gap: s(8) },
+  exportBtnText: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '800' },
   filterRow: { backgroundColor: '#FFFFFF', paddingTop: vs(10), paddingBottom: vs(10) },
   filterScroll: { paddingHorizontal: s(20), gap: s(10) },
   filterBtn: { paddingHorizontal: s(20), height: vs(36), borderRadius: s(12), backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },

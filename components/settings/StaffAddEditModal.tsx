@@ -281,6 +281,10 @@ const StaffAddEditModal = ({
         displayTitle: "General App Settings",
         displaySubtitle: "Settings Permissions",
       },
+      "Restaurant Expenses": {
+        displayTitle: "Restaurant Expenses",
+        displaySubtitle: "P&L & Expense Tracking",
+      },
     };
     return mappings[title] || { displayTitle: title, displaySubtitle: title };
   };
@@ -477,7 +481,7 @@ const StaffAddEditModal = ({
           key={staff?.id || "new"}
           style={styles.content}
           showsVerticalScrollIndicator={false}
-         {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
+          {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
           <View style={styles.formSection}>
             <View style={{ marginBottom: vs(15) }}>
               <Text style={styles.inputLabel}>FULL NAME</Text>

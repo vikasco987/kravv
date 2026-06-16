@@ -98,7 +98,13 @@ export const PERMISSION_GROUPS = [
       "Printer Settings",
       "WhatsApp Bill Notifications"
     ]
+  },
+  {
+    title: "Restaurant Expenses",
+    permissions: [
+      "Access Restaurant Expenses"
+    ]
   }
 ];
 
-export const TOTAL_PERMISSIONS_COUNT = 44;
+export const TOTAL_PERMISSIONS_COUNT = 45;

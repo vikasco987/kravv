@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Modal } from "react-native";
 import CustomerHistory from "../AI intelligence tools/CustomerHistory";
 import ProfitEngine from "../AI intelligence tools/ProfitEngine";
@@ -9,6 +9,7 @@ import MainInventoryView from "../inventory/MainInventoryView";
 import ItemSalesReport from "../item-sales-report/item-sales-report";
 import { EditMenuItem } from "../menu/EditMenuItem";
 import { TableQrCodes } from "../menu/TableQrCodes";
+import PastBillsHistoryMain from "../Past Bills History/PastBillsHistoryMain";
 import RestaurantExpensesMain from "../Restaurant Expenses/RestaurantExpensesMain";
 
 interface SidebarModalsProps {
@@ -23,6 +24,7 @@ interface SidebarModalsProps {
     billHistory: boolean;
     inventoryMain: boolean;
     expenses: boolean;
+    pastBills: boolean;
   };
   setModals: (modals: any) => void;
   data: {
@@ -39,6 +41,8 @@ const SidebarModals = ({
   data,
   onSignIn,
 }: SidebarModalsProps) => {
+  const expensesRef = useRef<any>(null);
+
   return (
     <>
       <LoginRequiredModal
@@ -137,12 +141,30 @@ const SidebarModals = ({
       <Modal
         visible={modals.expenses}
         animationType="slide"
-        onRequestClose={() =>
-          setModals((prev: any) => ({ ...prev, expenses: false }))
-        }
+        onRequestClose={() => {
+          if (expensesRef.current && expensesRef.current.handleBack()) {
+            return;
+          }
+          setModals((prev: any) => ({ ...prev, expenses: false }));
+        }}
       >
         <RestaurantExpensesMain
+          ref={expensesRef}
           onBack={() => setModals((prev: any) => ({ ...prev, expenses: false }))}
+        />
+      </Modal>
+
+      <Modal
+        visible={modals.pastBills}
+        animationType="slide"
+        onRequestClose={() =>
+          setModals((prev: any) => ({ ...prev, pastBills: false }))
+        }
+      >
+        <PastBillsHistoryMain
+          onBack={() =>
+            setModals((prev: any) => ({ ...prev, pastBills: false }))
+          }
         />
       </Modal>
     </>

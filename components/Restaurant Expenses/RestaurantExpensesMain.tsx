@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Alert, SafeAreaView, StyleSheet } from "react-native";
 import ExpenseHeader from "./ExpenseHeader";
 import ExpenseList from "./ExpenseList";
@@ -16,7 +16,7 @@ const DEFAULT_CATEGORIES = [
   { name: "Others", icon: "MoreHorizontal", color: "#64748B" },
 ];
 
-export default function RestaurantExpensesMain({ onBack }: { onBack: () => void }) {
+const RestaurantExpensesMain = forwardRef(({ onBack }: { onBack: () => void }, ref) => {
   const [currentView, setCurrentView] = useState<'main' | 'pnl' | 'reports'>('main');
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>(DEFAULT_CATEGORIES);
@@ -47,6 +47,39 @@ export default function RestaurantExpensesMain({ onBack }: { onBack: () => void 
   useEffect(() => {
     loadData();
   }, []);
+
+  const stateRef = useRef({ currentView, deleteData, showCategoryModal, showAddModal });
+  const childRef = useRef<any>(null);
+
+  useEffect(() => {
+    stateRef.current = { currentView, deleteData, showCategoryModal, showAddModal };
+  }, [currentView, deleteData, showCategoryModal, showAddModal]);
+
+  useImperativeHandle(ref, () => ({
+    handleBack: () => {
+      if (childRef.current && childRef.current.handleBack()) {
+        return true;
+      }
+      const state = stateRef.current;
+      if (state.deleteData) {
+        setDeleteData(null);
+        return true;
+      }
+      if (state.showCategoryModal) {
+        setShowCategoryModal(false);
+        return true;
+      }
+      if (state.showAddModal) {
+        setShowAddModal(false);
+        return true;
+      }
+      if (state.currentView !== 'main') {
+        setCurrentView('main');
+        return true;
+      }
+      return false;
+    }
+  }));
 
   const loadData = async () => {
     setLoading(true);
@@ -171,11 +204,11 @@ export default function RestaurantExpensesMain({ onBack }: { onBack: () => void 
   const primaryMode = Object.keys(modeCounts).sort((a, b) => modeCounts[b] - modeCounts[a])[0] || 'N/A';
 
   if (currentView === 'pnl') {
-    return <ExpensePnL onBack={() => setCurrentView('main')} />;
+    return <ExpensePnL ref={childRef} onBack={() => setCurrentView('main')} />;
   }
 
   if (currentView === 'reports') {
-    return <ExpenseReports onBack={() => setCurrentView('main')} />;
+    return <ExpenseReports ref={childRef} onBack={() => setCurrentView('main')} />;
   }
 
   return (
@@ -232,7 +265,9 @@ export default function RestaurantExpensesMain({ onBack }: { onBack: () => void 
       />
     </SafeAreaView>
   );
-}
+});
+
+export default RestaurantExpensesMain;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },

@@ -54,7 +54,12 @@ export default function ExpenseHeader({
           </View>
         </View>
 
-        <View style={styles.headerActions}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.headerActionsScroll}
+          contentContainerStyle={styles.headerActionsContent}
+        >
           <TouchableOpacity style={styles.actionBtnLight} onPress={onOpenCategory}>
             <Settings size={rf(14)} color="#475569" />
             <Text style={styles.actionBtnTextLight}> Categories</Text>
@@ -71,7 +76,7 @@ export default function ExpenseHeader({
             <Plus size={rf(14)} color="#FFF" />
             <Text style={styles.actionBtnTextRose}> Add Expense</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
 
       {/* 3 Stats Cards - Horizontally Scrollable on Mobile, fixed on Tablet */}
@@ -153,7 +158,8 @@ const styles = StyleSheet.create({
   backBtn: { width: s(40), height: s(40), borderRadius: s(20), backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center', marginRight: s(15) },
   headerTitle: { fontSize: rf(20), fontWeight: '800', color: '#0F172A' },
   headerSubtitle: { fontSize: rf(10), fontWeight: '600', color: '#64748B', textTransform: 'uppercase', letterSpacing: 1, marginTop: vs(2), marginLeft: s(25) },
-  headerActions: { flexDirection: 'row', gap: s(10), alignItems: 'center', alignSelf: isTablet ? 'center' : 'flex-end' },
+  headerActionsScroll: { marginTop: vs(10) },
+  headerActionsContent: { flexDirection: 'row', gap: s(10), alignItems: 'center' },
   actionBtnLight: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', paddingHorizontal: s(15), height: vs(42), borderRadius: s(12) },
   actionBtnTextLight: { color: '#475569', fontSize: rf(11), fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginLeft: s(5) },
   actionBtnRose: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E11D48', paddingHorizontal: s(15), height: vs(42), borderRadius: s(12) },

@@ -21,7 +21,7 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { ArrowLeft, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Download, Scale, ShoppingCart, TrendingDown, TrendingUp, Wallet } from 'lucide-react-native';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 
@@ -36,7 +36,7 @@ interface ExpensePnLProps {
   onBack: () => void;
 }
 
-export default function ExpensePnL({ onBack }: ExpensePnLProps) {
+const ExpensePnL = forwardRef(({ onBack }: ExpensePnLProps, ref) => {
   const [filterMode, setFilterMode] = useState<FilterMode>('Month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [customRange, setCustomRange] = useState({ start: new Date(), end: new Date() });
@@ -50,10 +50,22 @@ export default function ExpensePnL({ onBack }: ExpensePnLProps) {
     loadData();
   }, []);
 
+  useImperativeHandle(ref, () => ({
+    handleBack: () => {
+      if (showPicker.visible) {
+        setShowPicker(prev => ({ ...prev, visible: false }));
+        return true;
+      }
+      return false;
+    }
+  }));
+
   const loadData = async () => {
     try {
-      const expRes = await fetchExpenses();
-      const billsRes = await fetchBills();
+      const [expRes, billsRes] = await Promise.all([
+        fetchExpenses(),
+        fetchBills()
+      ]);
       setExpenses(expRes);
       setOrders(billsRes.bills || []);
     } catch (e) {
@@ -484,7 +496,9 @@ export default function ExpensePnL({ onBack }: ExpensePnLProps) {
       </ScrollView>
     </SafeAreaView>
   );
-}
+});
+
+export default ExpensePnL;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },

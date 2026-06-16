@@ -91,7 +91,7 @@ export default function ExpenseModals({
   return (
     <>
       {/* Add/Edit Modal */}
-      <Modal visible={showAddModal} transparent animationType="slide">
+      <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView
           behavior="padding"
           keyboardVerticalOffset={Platform.OS === 'android' ? -35 : 0}
@@ -153,7 +153,7 @@ export default function ExpenseModals({
       </Modal>
 
       {/* Categories Modal */}
-      <Modal visible={showCategoryModal} transparent animationType="slide">
+      <Modal visible={showCategoryModal} transparent animationType="slide" onRequestClose={() => setShowCategoryModal(false)}>
         <KeyboardAvoidingView
           behavior="padding"
           keyboardVerticalOffset={Platform.OS === 'android' ? -35 : 0}
@@ -244,7 +244,7 @@ export default function ExpenseModals({
       </Modal>
 
       {/* Beautiful Delete Confirmation Modal */}
-      <Modal visible={!!deleteData} transparent animationType="fade">
+      <Modal visible={!!deleteData} transparent animationType="fade" onRequestClose={() => setDeleteData(null)}>
         <View style={styles.modalOverlayCenter}>
           <View style={styles.deleteModalContent}>
             <View style={styles.deleteIconWrapper}>
