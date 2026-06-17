@@ -835,7 +835,18 @@ export async function SimpleBill(
 
           await printer.write(detailsSizeCmd);
           await printer.write(detailsWeightCmd);
-          let printBody = `Bill No: ${finalBillNoToPrint}\nDate: ${date.toLocaleString()}\n`;
+          
+          const dd = String(date.getDate()).padStart(2, '0');
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const yyyy = date.getFullYear();
+          let hrs = date.getHours();
+          const mins = String(date.getMinutes()).padStart(2, '0');
+          const ampm = hrs >= 12 ? 'PM' : 'AM';
+          hrs = hrs % 12;
+          hrs = hrs ? hrs : 12;
+          const formattedDate = `${dd}/${mm}/${yyyy} ${hrs}:${mins} ${ampm}`;
+          
+          let printBody = `Bill No: ${finalBillNoToPrint}\nDate: ${formattedDate}\n`;
           if (options?.tableName) printBody += `Table: ${options.tableName}\n`;
           await printer.write(utf8Encode(printBody));
 
@@ -863,12 +874,17 @@ export async function SimpleBill(
 
           await printer.write(itemsSizeCmd);
           await printer.write(detailsBoldCmd);
+          
+          const LINE_WIDTH = 32;
+          const justify = (left: string, right: string) => left.padEnd(LINE_WIDTH - right.length) + right;
+          const formatLine = (char = "-") => char.repeat(LINE_WIDTH);
+
           let itemsHeader = "";
           if (printSettings.sepItemsHeader) {
-            itemsHeader += line("-") + "\n";
+            itemsHeader += formatLine("-") + "\n";
           }
-          itemsHeader += "Item         Qty  Price   Total\n";
-          itemsHeader += line("-") + "\n";
+          itemsHeader += "Item".padEnd(16) + "Qty" + "Price".padStart(6) + "Total".padStart(7) + "\n";
+          itemsHeader += formatLine("-") + "\n";
           await printer.write(utf8Encode(itemsHeader));
 
           await printer.write(itemsWeightCmd);
@@ -880,11 +896,14 @@ export async function SimpleBill(
               const isVeg = (i as any).isVeg ?? (i as any).veg ?? !/\b(nv|egg|chicken|mutton|fish|meat|pork|beef|non-veg|nonveg)\b/i.test(i.name);
               suffix = isVeg ? "(V)" : "(NV)";
             }
-            const displayName =
-              i.gstRate > 0
-                ? `${i.name.slice(0, 7)}${suffix}(${i.gstRate}%)`
-                : `${i.name.slice(0, 12)}${suffix}`;
-            printBody += `${displayName.padEnd(12)} ${String(i.qty).padStart(3)} ${i.rate.toFixed(2).padStart(6)} ${i.total.toFixed(2).padStart(8)}\n`;
+            const gstStr = i.gstRate > 0 ? `(${i.gstRate}%)` : "";
+            const displayName = (i.name + suffix + gstStr).padEnd(16).slice(0, 16);
+            
+            const qtyStr = String(i.qty).padStart(3);
+            const rateStr = i.rate.toFixed(2).padStart(6);
+            const totStr = i.total.toFixed(2).padStart(7);
+            
+            printBody += `${displayName}${qtyStr}${rateStr}${totStr}\n`;
           });
 
           await printer.write(utf8Encode(printBody));
@@ -893,61 +912,61 @@ export async function SimpleBill(
           await printer.write(detailsWeightCmd);
           let taxBody = "";
           if (printSettings.sepTotalTop) {
-            taxBody += `${line("-")}\n`;
+            taxBody += `${formatLine("-")}\n`;
           }
           if (printSettings.showSubtotal)
-            taxBody += `${"Subtotal:".padEnd(20)}${subtotal.toFixed(2).padStart(12)}\n`;
+            taxBody += justify("Subtotal:", subtotal.toFixed(2)) + "\n";
           if (printSettings.showDiscount && isDiscountEnabled)
-            taxBody += `${`Disc (${discountRatePercent}%):`.padEnd(20)}${`-${totalDiscount.toFixed(2)}`.padStart(12)}\n`;
+            taxBody += justify(`Disc (${discountRatePercent}%):`, `-${totalDiscount.toFixed(2)}`) + "\n";
           if (printSettings.showTaxableAmt)
-            taxBody += `${"Taxable:".padEnd(20)}${taxableAfterDiscount.toFixed(2).padStart(12)}\n`;
+            taxBody += justify("Taxable:", taxableAfterDiscount.toFixed(2)) + "\n";
           if (printSettings.showTotalTax && globalGstTotal > 0)
-            taxBody += `${`Global GST(${globalTaxRate}%):`.padEnd(20)}${globalGstTotal.toFixed(2).padStart(12)}\n`;
+            taxBody += justify(`Global GST(${globalTaxRate}%):`, globalGstTotal.toFixed(2)) + "\n";
 
           // Tax Breakup
           if (printSettings.showTaxBreakup) {
             if (globalGstTotal > 0) {
               const halfTax = globalGstTotal / 2;
               const halfRate = globalTaxRate / 2;
-              taxBody += `${`CGST (${halfRate}%):`.padEnd(20)}${halfTax.toFixed(2).padStart(12)}\n`;
-              taxBody += `${`SGST (${halfRate}%):`.padEnd(20)}${halfTax.toFixed(2).padStart(12)}\n`;
+              taxBody += justify(`CGST (${halfRate}%):`, halfTax.toFixed(2)) + "\n";
+              taxBody += justify(`SGST (${halfRate}%):`, halfTax.toFixed(2)) + "\n";
             }
             Object.entries(perProductGstTotals).forEach(([rate, amount]) => {
               if (amount > 0) {
                 const r = parseFloat(rate);
                 const halfTax = amount / 2;
                 const halfRate = r / 2;
-                taxBody += `${`CGST (${halfRate}%):`.padEnd(20)}${halfTax.toFixed(2).padStart(12)}\n`;
-                taxBody += `${`SGST (${halfRate}%):`.padEnd(20)}${halfTax.toFixed(2).padStart(12)}\n`;
+                taxBody += justify(`CGST (${halfRate}%):`, halfTax.toFixed(2)) + "\n";
+                taxBody += justify(`SGST (${halfRate}%):`, halfTax.toFixed(2)) + "\n";
               }
             });
           }
 
           if (printSettings.showServiceCharge && serviceCharge > 0) {
-            taxBody += `${"Service:".padEnd(20)}${serviceCharge.toFixed(2).padStart(12)}\n`;
+            taxBody += justify("Service:", serviceCharge.toFixed(2)) + "\n";
             if (serviceGst > 0)
-              taxBody += `${`Serv GST(${serviceGstRate}%):`.padEnd(20)}${serviceGst.toFixed(2).padStart(12)}\n`;
+              taxBody += justify(`Serv GST(${serviceGstRate}%):`, serviceGst.toFixed(2)) + "\n";
           }
           if (printSettings.showDeliveryCharges && deliveryCharge > 0) {
-            taxBody += `${"Delivery:".padEnd(20)}${deliveryCharge.toFixed(2).padStart(12)}\n`;
+            taxBody += justify("Delivery:", deliveryCharge.toFixed(2)) + "\n";
             if (deliveryGst > 0)
-              taxBody += `${`Del GST(${deliveryGstRate}%):`.padEnd(20)}${deliveryGst.toFixed(2).padStart(12)}\n`;
+              taxBody += justify(`Del GST(${deliveryGstRate}%):`, deliveryGst.toFixed(2)) + "\n";
           }
           if (printSettings.showPackagingCharges && packagingCharge > 0) {
-            taxBody += `${"Packaging:".padEnd(20)}${packagingCharge.toFixed(2).padStart(12)}\n`;
+            taxBody += justify("Packaging:", packagingCharge.toFixed(2)) + "\n";
             if (packagingGst > 0)
-              taxBody += `${`Pkg GST(${packagingGstRate}%):`.padEnd(20)}${packagingGst.toFixed(2).padStart(12)}\n`;
+              taxBody += justify(`Pkg GST(${packagingGstRate}%):`, packagingGst.toFixed(2)) + "\n";
           }
 
           if (printSettings.sepTotalBottom) {
-            taxBody += `${line("-")}\n`;
+            taxBody += `${formatLine("-")}\n`;
           }
           await printer.write(utf8Encode(taxBody));
 
           await printer.write(totalSizeCmd);
           await printer.write(totalWeightCmd);
           const totalStr = `Rs.${finalGrandTotal.toFixed(2)}`;
-          await printer.write(utf8Encode(`${"TOTAL:".padEnd(32 - totalStr.length)}${totalStr}\n`));
+          await printer.write(utf8Encode(justify("TOTAL:", totalStr) + "\n"));
           await printer.write(BOLD_OFF);
 
           await printer.write(itemsSizeCmd);

@@ -1646,10 +1646,16 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             staffSession?.businessId ||
             (await StaffPermissionEngine.getActiveBusinessId(user?.id));
 
+          const activeProfile = profiles.find((p) => (p.id || p._id || p.businessId) === bId) || profiles[0];
+
           await SimpleBill(itemsToPrint, finalToken!, bId!, {
             paymentMode: paymentMethod,
             billId: activeOrderId || undefined,
             partyId: activeCustomer?.id || activeCustomer?._id,
+            customerName: activeCustomer?.name,
+            phone: activeCustomer?.phone,
+            customerAddress: activeCustomer?.address,
+            businessProfile: activeProfile,
             tableName: tableToPrint || undefined,
             roomName: roomToPrint || undefined,
             taxSettings: taxSettings,
