@@ -148,9 +148,9 @@ const SidebarItems = ({
 
       <DrawerItem
         {...commonDrawerItemProps}
-        label={({ focused }) => renderNavLabel("Past Bills / History", focused, "Dashboard")}
-        icon={({ focused }) => renderNavIcon("document-text-outline", focused, "Dashboard")}
-        onPress={() => checkAndNavigate("Dashboard", "pastBills")}
+        label={({ focused }) => renderNavLabel("Past Bills / History", focused, "Past Bills / History")}
+        icon={({ focused }) => renderNavIcon("document-text-outline", focused, "Past Bills / History")}
+        onPress={() => checkAndNavigate("Past Bills / History", "pastBills")}
       />
 
       <DrawerItem

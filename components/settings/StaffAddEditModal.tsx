@@ -285,6 +285,10 @@ const StaffAddEditModal = ({
         displayTitle: "Restaurant Expenses",
         displaySubtitle: "P&L & Expense Tracking",
       },
+      "Past Bills History": {
+        displayTitle: "Past Bills / History",
+        displaySubtitle: "Access Past Bills Records",
+      },
     };
     return mappings[title] || { displayTitle: title, displaySubtitle: title };
   };

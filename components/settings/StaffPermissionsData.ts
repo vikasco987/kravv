@@ -104,7 +104,13 @@ export const PERMISSION_GROUPS = [
     permissions: [
       "Access Restaurant Expenses"
     ]
+  },
+  {
+    title: "Past Bills History",
+    permissions: [
+      "Access Past Bills / History"
+    ]
   }
 ];
 
-export const TOTAL_PERMISSIONS_COUNT = 45;
+export const TOTAL_PERMISSIONS_COUNT = 46;
