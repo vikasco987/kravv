@@ -12,6 +12,13 @@ const centerText = (text: string, width = 32) => {
   return " ".repeat(pad) + text;
 };
 
+const justify = (left: string, right: string, width = 32) => {
+  const L = left || "";
+  const R = right || "";
+  const pad = Math.max(0, width - L.length - R.length);
+  return L + " ".repeat(pad) + R;
+};
+
 const line = (c = "-", width = 32) => c.repeat(width);
 
 const getEscPosSize = (size: number) => {
@@ -94,7 +101,7 @@ export async function SimpleKOT(
     // @ts-ignore
     const encoder = new TextEncoder();
 
-    const lineWidth = printSettings.paperWidth === "80mm" ? 48 : 32;
+    const lineWidth = 32;
 
     // --- Start Printing (Backgrounded for speed) ---
     (async () => {
@@ -127,79 +134,78 @@ export async function SimpleKOT(
         // @ts-ignore
         await printer.write(new Uint8Array([0x1b, 0x61, 0x01])); // Align center
 
-        let kotHeader1 = "";
-        kotHeader1 += line("=", lineWidth) + "\n";
-        kotHeader1 += "KITCHEN ORDER TICKET\n";
-        kotHeader1 += line("-", lineWidth) + "\n";
-
-        if (printSettings.showKOTBillNo) {
-          kotHeader1 += `KOT No: ${kotNo}\n`;
-        }
-
-        if (tableNumber) {
-          const cleanName = tableNumber
-            .replace(/^Table\s+/i, "")
-            .replace(/^T-/i, "");
-          kotHeader1 += `Table T-${cleanName}\n`;
-        }
-        if (roomNumber) {
-          const cleanName = roomNumber
-            .replace(/^Room\s+/i, "")
-            .replace(/^R-/i, "");
-          kotHeader1 += `Room R-${cleanName}\n`;
-        }
-
-        if (printSettings.showKOTCustomer && customerName) {
-          kotHeader1 += `Cust: ${customerName}\n`;
-        }
-
+        // K.O.T header
         // @ts-ignore
-        await printer.write(encoder.encode(kotHeader1));
+        await printer.write(getEscPosSize(18));
+        // @ts-ignore
+        await printer.write(getEscPosWeight("bold", globalWeight, "bold"));
+        // @ts-ignore
+        await printer.write(encoder.encode("K.O.T\n"));
+        // @ts-ignore
+        await printer.write(getEscPosSize(0));
+        // @ts-ignore
+        await printer.write(new Uint8Array([0x1b, 0x45, 0x00])); // BOLD OFF
 
-        if (printSettings.showKOTToken && tokenNumber) {
-          // @ts-ignore
-          await printer.write(kotTokenSizeCmd);
-          // @ts-ignore
-          await printer.write(kotTokenWeightCmd);
-          // @ts-ignore
-          await printer.write(encoder.encode(`TOKEN NO: #${tokenNumber}\n`));
-          // @ts-ignore
-          await printer.write(new Uint8Array([0x1b, 0x45, 0x00])); // BOLD OFF
-          // @ts-ignore
-          await printer.write(new Uint8Array([0x1b, 0x21, 0x00])); // Reset Size
-        }
+        let headerStr = "";
+        headerStr += line("-", lineWidth) + "\n";
 
-        let kotHeader2 = "";
+        let leftBox = "[ COUNTER ]";
+        if (tableNumber) leftBox = `[ TABLE ${tableNumber.replace(/^Table\s+/i, "").replace(/^T-/i, "")} ]`;
+        else if (roomNumber) leftBox = `[ ROOM ${roomNumber.replace(/^Room\s+/i, "").replace(/^R-/i, "")} ]`;
+
+        let rightTop = "TOKEN NO.";
+        let rightBot = printSettings.showKOTToken && tokenNumber ? `#${tokenNumber}` : `#${kotNo.slice(-4)}`;
+
+        headerStr += justify(leftBox, rightTop, lineWidth) + "\n";
+        headerStr += justify("", rightBot, lineWidth) + "\n\n";
+
+        let subHeader = "";
+        if (printSettings.showKOTCustomer && customerName) subHeader += `Cust: ${customerName}`;
+        if (subHeader) headerStr += subHeader.trim() + "\n";
+
         if (printSettings.showKOTTime) {
-          kotHeader2 += `Date: ${date.toLocaleString()}\n`;
+          const dd = String(date.getDate()).padStart(2, '0');
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const yy = date.getFullYear();
+          let hr = date.getHours();
+          const min = String(date.getMinutes()).padStart(2, '0');
+          const ampm = hr >= 12 ? 'pm' : 'am';
+          hr = hr % 12 || 12;
+          headerStr += `Date: ${dd}/${mm}/${yy} - ${String(hr).padStart(2, '0')}:${min} ${ampm}\n`;
         }
-        kotHeader2 += line("-", lineWidth) + "\n";
 
-        // @ts-ignore
-        await printer.write(encoder.encode(kotHeader2));
+        headerStr += line("-", lineWidth) + "\n";
+        headerStr += justify("ITEM DESCRIPTION", "QTY", lineWidth) + "\n";
+        headerStr += line("=", lineWidth) + "\n";
+
         // @ts-ignore
         await printer.write(new Uint8Array([0x1b, 0x61, 0x00])); // Align left
+        // @ts-ignore
+        await printer.write(encoder.encode(headerStr));
 
         // Print items one by one for buffer safety
-        for (const item of cartItems) {
-          // @ts-ignore
-          await printer.write(kotItemsSizeCmd);
-          // @ts-ignore
-          await printer.write(kotItemsWeightCmd);
-          // @ts-ignore
-          await printer.write(encoder.encode(`${item.name}\n`));
+        for (let i = 0; i < cartItems.length; i++) {
+          const item = cartItems[i];
 
-          // @ts-ignore
-          await printer.write(kotQtySizeCmd);
-          // @ts-ignore
-          await printer.write(kotQtyWeightCmd);
-          // @ts-ignore
-          await printer.write(encoder.encode(`Qty: ${item.quantity}\n`));
+          let itemName = item.name;
+          const qtyStr = `${item.quantity}`;
 
           // @ts-ignore
           await printer.write(kotItemsSizeCmd);
           // @ts-ignore
           await printer.write(kotItemsWeightCmd);
+
+          const availableNameLen = lineWidth - qtyStr.length - 1;
+          const nameLine1 = itemName.length > availableNameLen ? itemName.substring(0, availableNameLen) : itemName;
+
+          // @ts-ignore
+          await printer.write(encoder.encode(justify(nameLine1, qtyStr, lineWidth) + "\n"));
+
+          if (itemName.length > availableNameLen) {
+            const remainingName = itemName.substring(availableNameLen);
+            // @ts-ignore
+            await printer.write(encoder.encode(remainingName + "\n"));
+          }
 
           let extraText = "";
           if (printSettings.showKOTInstructions) {
@@ -215,9 +221,15 @@ export async function SimpleKOT(
             }
           }
 
-          extraText += line("-", lineWidth) + "\n";
-          // @ts-ignore
-          await printer.write(encoder.encode(extraText));
+          if (extraText) {
+            // @ts-ignore
+            await printer.write(encoder.encode(extraText));
+          }
+
+          if (i < cartItems.length - 1) {
+            // @ts-ignore
+            await printer.write(encoder.encode(line("-", lineWidth) + "\n"));
+          }
         }
 
         // Reset Size after items
@@ -226,8 +238,22 @@ export async function SimpleKOT(
 
         // @ts-ignore
         await printer.write(new Uint8Array([0x1b, 0x61, 0x01])); // Align center
+
+        let footerStr = "";
+        footerStr += line("=", lineWidth) + "\n";
+        footerStr += "END OF KOT\n";
+
+        const fdd = String(date.getDate()).padStart(2, '0');
+        const fmm = String(date.getMonth() + 1).padStart(2, '0');
+        const fyy = date.getFullYear();
+        let fhr = date.getHours();
+        const fmin = String(date.getMinutes()).padStart(2, '0');
+        const fampm = fhr >= 12 ? 'pm' : 'am';
+        fhr = fhr % 12 || 12;
+        footerStr += `${fdd}/${fmm}/${fyy} - ${String(fhr).padStart(2, '0')}:${fmin} ${fampm}\n\n`;
+
         // @ts-ignore
-        await printer.write(encoder.encode("PREPARE FAST\n\n"));
+        await printer.write(encoder.encode(footerStr));
 
         // Feed lines based on padding
         const feedLines = Math.max(2, Math.round((printSettings.paperBottomPadding || 80) / 24));

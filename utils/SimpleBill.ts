@@ -112,6 +112,7 @@ const SIZE_LARGE = new Uint8Array([0x1b, 0x21, 0x10]);
 const SIZE_NORMAL = new Uint8Array([0x1b, 0x21, 0x00]);
 const BOLD_ON = new Uint8Array([0x1b, 0x45, 0x01]);
 const BOLD_OFF = new Uint8Array([0x1b, 0x45, 0x00]);
+const SET_LINE_SPACING = new Uint8Array([0x1b, 0x33, 40]);
 
 const getEscPosSize = (size: number) => {
   if (!size) return SIZE_NORMAL;
@@ -749,6 +750,7 @@ export async function SimpleBill(
           const bizFSSAI = companyInfo?.fssaiNumber || companyInfo?.businessFSSAI || "";
           const reviewLink = companyInfo?.googleReviewLink || "";
 
+          await printer.write(SET_LINE_SPACING);
           await printer.write(ALIGN_CENTER);
 
           // Top Separator
@@ -835,7 +837,7 @@ export async function SimpleBill(
 
           await printer.write(detailsSizeCmd);
           await printer.write(detailsWeightCmd);
-          
+
           const dd = String(date.getDate()).padStart(2, '0');
           const mm = String(date.getMonth() + 1).padStart(2, '0');
           const yyyy = date.getFullYear();
@@ -845,7 +847,7 @@ export async function SimpleBill(
           hrs = hrs % 12;
           hrs = hrs ? hrs : 12;
           const formattedDate = `${dd}/${mm}/${yyyy} ${hrs}:${mins} ${ampm}`;
-          
+
           let printBody = `Bill No: ${finalBillNoToPrint}\nDate: ${formattedDate}\n`;
           if (options?.tableName) printBody += `Table: ${options.tableName}\n`;
           await printer.write(utf8Encode(printBody));
@@ -874,7 +876,7 @@ export async function SimpleBill(
 
           await printer.write(itemsSizeCmd);
           await printer.write(detailsBoldCmd);
-          
+
           const LINE_WIDTH = 32;
           const justify = (left: string, right: string) => left.padEnd(LINE_WIDTH - right.length) + right;
           const formatLine = (char = "-") => char.repeat(LINE_WIDTH);
@@ -898,11 +900,11 @@ export async function SimpleBill(
             }
             const gstStr = i.gstRate > 0 ? `(${i.gstRate}%)` : "";
             const displayName = (i.name + suffix + gstStr).padEnd(16).slice(0, 16);
-            
+
             const qtyStr = String(i.qty).padStart(3);
             const rateStr = i.rate.toFixed(2).padStart(6);
             const totStr = i.total.toFixed(2).padStart(7);
-            
+
             printBody += `${displayName}${qtyStr}${rateStr}${totStr}\n`;
           });
 
@@ -987,7 +989,9 @@ export async function SimpleBill(
             if (printSettings.sepPayment) {
               footerBody += `${line("-")}\n`;
             }
-            footerBody += `[ PAID - ${options?.paymentMode || "CASH"} ]\n`;
+            const paymentText = `[ PAID - ${options?.paymentMode || "CASH"} ]`;
+            const padLen = Math.floor((32 - paymentText.length) / 2);
+            footerBody += " ".repeat(Math.max(0, padLen)) + paymentText + "\n";
           }
 
           await printer.write(utf8Encode(footerBody));
@@ -1156,6 +1160,7 @@ export async function PrintOldBill(
     const bizFSSAI = companyInfo?.fssaiNumber || companyInfo?.businessFSSAI || "";
     const reviewLink = companyInfo?.googleReviewLink || "";
 
+    await printer.write(SET_LINE_SPACING);
     await printer.write(ALIGN_CENTER);
     if (printSettings.sepTop) await printer.write(utf8Encode(line("-") + "\n"));
 
@@ -1331,7 +1336,9 @@ export async function PrintOldBill(
     }
     if (printSettings.showPaymentStatus) {
       if (printSettings.sepPayment) footerBody += `${line("-")}\n`;
-      footerBody += `[ ${(bill.status || "PAID").toUpperCase()} - ${bill.paymentMethod || bill.paymentMode || "CASH"} ]\n`;
+      const paymentText = `[ ${(bill.status || "PAID").toUpperCase()} - ${bill.paymentMethod || bill.paymentMode || "CASH"} ]`;
+      const padLen = Math.floor((32 - paymentText.length) / 2);
+      footerBody += " ".repeat(Math.max(0, padLen)) + paymentText + "\n";
     }
     await printer.write(utf8Encode(footerBody));
 
