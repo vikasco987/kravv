@@ -541,10 +541,8 @@ const NewOrderNotifier = () => {
     );
 
     // ✅ Extreme fast polling (1 second) for "instant" feel even in background
-    if (Platform.OS === 'android') {
-      BackgroundTimer.start(); // Acquires WakeLock so CPU never sleeps!
-    }
-    const intervalId = setInterval(fetchOrders, 1000);
+    // Poll every 5 seconds instead of 1s to prevent OOM memory leak crashes
+    const intervalId = setInterval(fetchOrders, 5000);
 
     // ✅ Start Foreground Service to keep app alive
     const startKeepAlive = async () => {
@@ -583,9 +581,6 @@ const NewOrderNotifier = () => {
 
     return () => {
       clearInterval(intervalId);
-      if (Platform.OS === 'android') {
-        BackgroundTimer.stop(); // Release WakeLock
-      }
       appStateSub.remove();
       refreshSub.remove();
       localOrderSub.remove();

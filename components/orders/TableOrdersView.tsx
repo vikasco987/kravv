@@ -160,6 +160,16 @@ export default function TableOrdersView({
   const [checkoutParams, setCheckoutParams] = useState<any>(null);
 
   useEffect(() => {
+    // Auto-close if all orders are billed/completed
+    if (initialOrders && initialOrders.length > 0 && orders.length === 0) {
+      const t = setTimeout(() => {
+        if (onBack) onBack();
+      }, 500);
+      return () => clearTimeout(t);
+    }
+  }, [orders.length, initialOrders, onBack]);
+
+  useEffect(() => {
     const fetchSettings = async () => {
       try {
         const multiZone = await AsyncStorage.getItem("multi_zone_menu_enabled");

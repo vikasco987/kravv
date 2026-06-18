@@ -167,12 +167,18 @@ function utf8Encode(str: string): Uint8Array {
 async function ensurePrinterConnected(silent = false): Promise<any> {
   try {
     const connected = await RNBluetoothClassic.getConnectedDevices();
-    if (connected && connected.length > 0) return connected[0];
+    if (connected && connected.length > 0) {
+      try { await connected[0].clear(); } catch(e){}
+      return connected[0];
+    }
     const bonded = await RNBluetoothClassic.getBondedDevices();
     if (bonded && bonded.length > 0) {
       const dev = bonded[0];
       const success = await dev.connect();
-      if (success) return dev;
+      if (success) {
+        try { await dev.clear(); } catch(e){}
+        return dev;
+      }
     }
   } catch (err) {
     if (!silent) console.log("BT Error:", err);
@@ -752,7 +758,12 @@ export async function SimpleBill(
           if (String(printSettings.showLogo) === "true" && logoUrl) {
             const logoResult = await fetchAndRasterizeLogo(logoUrl);
             if (logoResult && !(logoResult as any).error) {
-              await printer.write(logoResult);
+              const logoData = logoResult as Uint8Array;
+              const chunkSize = 512;
+              for (let i = 0; i < logoData.length; i += chunkSize) {
+                await printer.write(logoData.slice(i, i + chunkSize));
+                await new Promise(r => setTimeout(r, 50));
+              }
               await printer.write(utf8Encode("\n"));
             } else {
               const errDetails = logoResult ? (logoResult as any).error : "Unknown";
@@ -1157,7 +1168,12 @@ export async function PrintOldBill(
     if (String(printSettings.showLogo) === "true" && logoUrl) {
       const logoResult = await fetchAndRasterizeLogo(logoUrl);
       if (logoResult && !(logoResult as any).error) {
-        await printer.write(logoResult);
+        const logoData = logoResult as Uint8Array;
+        const chunkSize = 512;
+        for (let i = 0; i < logoData.length; i += chunkSize) {
+          await printer.write(logoData.slice(i, i + chunkSize));
+          await new Promise(r => setTimeout(r, 50));
+        }
         await printer.write(utf8Encode("\n"));
       }
     }
