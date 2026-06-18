@@ -221,28 +221,19 @@ export async function resolveOrderToken(orderId: string | undefined | null, back
       const storedStr = await AsyncStorage.getItem("@order_tokens");
       const stored = storedStr ? JSON.parse(storedStr) : {};
 
-      // 1. Check cache first
+      // 1. Check cache first so the same order gets the same sequential token
       if (stored[orderId]) {
         return stored[orderId];
       }
 
-      // 2. If backendToken provided, cache and use it
-      if (backendToken) {
-        stored[orderId] = String(backendToken);
-        const keys = Object.keys(stored);
-        if (keys.length > 100) delete stored[keys[0]];
-        await AsyncStorage.setItem("@order_tokens", JSON.stringify(stored));
-        return String(backendToken);
-      }
-
-      // 3. Otherwise generate new local token, cache and use it
+      // 2. Always generate new local strict sequential token (Ignore backendToken)
       const currentToken = await AsyncStorage.getItem("@token_counter");
       const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
       await AsyncStorage.setItem("@token_counter", String(nextToken));
 
       stored[orderId] = String(nextToken);
       const keys = Object.keys(stored);
-      if (keys.length > 100) delete stored[keys[0]];
+      if (keys.length > 200) delete stored[keys[0]];
       await AsyncStorage.setItem("@order_tokens", JSON.stringify(stored));
       return String(nextToken);
     } catch (e) {
@@ -250,9 +241,7 @@ export async function resolveOrderToken(orderId: string | undefined | null, back
     }
   }
 
-  if (backendToken) return String(backendToken);
-
-  // Fallback
+  // Fallback for orders without ID
   try {
     const currentToken = await AsyncStorage.getItem("@token_counter");
     const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;

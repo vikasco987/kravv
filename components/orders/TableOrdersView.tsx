@@ -318,7 +318,7 @@ export default function TableOrdersView({
       // Auto-print KOT if we just accepted it
       const order = orders.find(o => o.id === orderId);
       if (order && order.status === "PENDING" && order.items && order.items.length > 0) {
-        handlePrintSpecificKOT(order.items);
+        handlePrintSpecificKOT(order.items, order);
       }
     } else if (newStatus === "READY") {
       showToast("Order Marked as Ready!", "success");
@@ -350,8 +350,9 @@ export default function TableOrdersView({
     }
   };
 
-  const handlePrintSpecificKOT = async (itemsToPrint: any[]) => {
-    if (!activeOrder || itemsToPrint.length === 0) return;
+  const handlePrintSpecificKOT = async (itemsToPrint: any[], explicitOrderObj?: any) => {
+    const orderObj = explicitOrderObj || activeOrder;
+    if (!orderObj || itemsToPrint.length === 0) return;
     const authToken = await getToken();
     const staffToken = await AsyncStorage.getItem("staff_token");
     const finalToken = authToken || staffToken || "";
@@ -366,8 +367,8 @@ export default function TableOrdersView({
     }
 
     ToastAndroid.show("Printing KOT...", ToastAndroid.SHORT);
-    const backendToken = (activeOrder as any).tokenNumber || (activeOrder as any).dailyTokenNumber || (activeOrder as any).orderNumber || (activeOrder as any).billNumber || (activeOrder as any).kotNumbers?.[0]?.toString();
-    const tokenNo = await resolveOrderToken(activeOrder.id, backendToken);
+    const backendToken = (orderObj as any).tokenNumber || (orderObj as any).dailyTokenNumber || (orderObj as any).orderNumber || (orderObj as any).billNumber || (orderObj as any).kotNumbers?.[0]?.toString();
+    const tokenNo = await resolveOrderToken(orderObj.id || orderObj._id, backendToken);
 
     const success = await SimpleKOT(
       itemsToPrint,
@@ -376,7 +377,7 @@ export default function TableOrdersView({
       tableName,
       tokenNo,
       null,
-      (activeOrder as any).customerName
+      (orderObj as any).customerName
     );
     if (success) {
       ToastAndroid.show("KOT Printed Successfully", ToastAndroid.SHORT);
@@ -487,11 +488,20 @@ export default function TableOrdersView({
       });
 
       if (response.ok) {
+        let updatedOrderObj: any = order;
+        try {
+          const resData = await response.clone().json();
+          updatedOrderObj = resData?.order || resData || order;
+        } catch (e) { }
+        if (!updatedOrderObj && targetOrderId) {
+          updatedOrderObj = { id: targetOrderId };
+        }
+
         fetchOrders();
         ToastAndroid.show("Items Added", ToastAndroid.SHORT);
 
         if (shouldPrintKOT) {
-          handlePrintSpecificKOT(newItems);
+          handlePrintSpecificKOT(newItems, updatedOrderObj);
         }
       } else {
         const errorText = await response.text();

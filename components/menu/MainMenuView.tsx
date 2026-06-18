@@ -33,7 +33,7 @@ import {
   getRecentCompanyProfile,
   updateBusinessSettings,
 } from "../../services/companyService";
-import { preCacheLogo, SimpleBill } from "../../utils/SimpleBill";
+import { preCacheLogo, resolveOrderToken, SimpleBill } from "../../utils/SimpleBill";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
 import { SaveBill } from "../common/SaveBill";
 import { SimpleKOT } from "../common/SimpleKOT";
@@ -1473,6 +1473,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   };
 
   const getNextTokenNumber = async () => {
+    // Deprecated in favor of resolveOrderToken for strict sequential matching
     try {
       const currentToken = await AsyncStorage.getItem("@token_counter");
       const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
@@ -1512,7 +1513,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             staffSession?.businessId ||
             (await StaffPermissionEngine.getActiveBusinessId(user?.id));
 
-          const tokenNo = await getNextTokenNumber();
+          const kotIdToUse = checkoutParams?.kotId || Date.now().toString();
+          const tokenNo = await resolveOrderToken(kotIdToUse, null);
           lastKotTokenRef.current = tokenNo;
 
           // Print (Now non-blocking inside SimpleKOT)
@@ -1527,10 +1529,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           );
 
           // 2. Save KOT Page Locally
-          const kotIdToUse = checkoutParams?.kotId || Date.now().toString();
           const localOrder = {
             id: kotIdToUse,
-            tokenNumber: checkoutParams?.tokenNo || tokenNo,
+            tokenNumber: tokenNo,
             billNumber: checkoutParams?.billNumber || Math.floor(1000 + Math.random() * 9000).toString(),
             tableName:
               tableToPrint && roomToPrint
