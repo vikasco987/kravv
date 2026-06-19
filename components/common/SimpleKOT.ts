@@ -5,6 +5,8 @@ import { ToastAndroid } from "react-native";
 // @ts-ignore
 import RNBluetoothClassic from "react-native-bluetooth-classic";
 
+let kotPrintQueueLock: Promise<any> = Promise.resolve();
+
 /* ---------- Helpers ---------- */
 const centerText = (text: string, width = 32) => {
   if (text.length >= width) return text;
@@ -104,7 +106,7 @@ export async function SimpleKOT(
     const lineWidth = 32;
 
     // --- Start Printing (Backgrounded for speed) ---
-    (async () => {
+    kotPrintQueueLock = kotPrintQueueLock.then(async () => {
       try {
         const globalWeight = printSettings.kotFontWeight;
         const kotTokenSizeCmd = getEscPosSize(Number(printSettings.kotTokenSize) || 16);
@@ -267,7 +269,7 @@ export async function SimpleKOT(
       } catch (e) {
         console.log("KOT Print background error:", e);
       }
-    })();
+    }).catch(e => console.error("KOT Queue Error:", e));
 
     return true;
   } catch (err) {

@@ -5,6 +5,8 @@ import RNBluetoothClassic from "react-native-bluetooth-classic";
 import { StaffPermissionEngine } from "../components/staff creat/StaffPermissionEngine";
 import { getRecentCompanyProfile } from "../services/companyService";
 
+let printQueueLock: Promise<any> = Promise.resolve();
+
 export type CartItem = {
   id: string;
   _id?: string;
@@ -168,7 +170,7 @@ async function ensurePrinterConnected(silent = false): Promise<any> {
   try {
     const connected = await RNBluetoothClassic.getConnectedDevices();
     if (connected && connected.length > 0) {
-      try { await connected[0].clear(); } catch(e){}
+      try { await connected[0].clear(); } catch (e) { }
       return connected[0];
     }
     const bonded = await RNBluetoothClassic.getBondedDevices();
@@ -176,7 +178,7 @@ async function ensurePrinterConnected(silent = false): Promise<any> {
       const dev = bonded[0];
       const success = await dev.connect();
       if (success) {
-        try { await dev.clear(); } catch(e){}
+        try { await dev.clear(); } catch (e) { }
         return dev;
       }
     }
@@ -222,6 +224,10 @@ export const preCacheLogo = (url: string) => {
  * it generates a local token and caches it for future KOTs/Bills of the same order.
  */
 export async function resolveOrderToken(orderId: string | undefined | null, backendToken: any): Promise<string> {
+  if (backendToken && backendToken !== "null" && backendToken !== "undefined" && backendToken !== 0) {
+    return String(backendToken);
+  }
+
   if (orderId) {
     try {
       const storedStr = await AsyncStorage.getItem("@order_tokens");
@@ -232,7 +238,7 @@ export async function resolveOrderToken(orderId: string | undefined | null, back
         return stored[orderId];
       }
 
-      // 2. Always generate new local strict sequential token (Ignore backendToken)
+      // 2. Generate new local sequential token (Fallback)
       const currentToken = await AsyncStorage.getItem("@token_counter");
       const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
       await AsyncStorage.setItem("@token_counter", String(nextToken));
@@ -679,7 +685,7 @@ export async function SimpleBill(
             customerAddress: options?.customerAddress || "",
             tableName: options?.tableName || "POS",
             roomName: options?.roomName || "",
-            tokenNumber: finalTokenNo ? Number(finalTokenNo) : 0,
+            tokenNumber: options?.tokenNo ? Number(options.tokenNo) : 0, // Let backend generate sequential token if not provided
             source: options?.source || "POS",
             discountAmount: Number(totalDiscount.toFixed(2)),
             discountRate: discountRatePercent,
@@ -705,9 +711,13 @@ export async function SimpleBill(
           const data = await response.json().catch(() => ({}));
           const serverBillNo = data.bill?.billNumber || data.billNumber;
           const serverBillId = data.bill?._id || data.bill?.id || data._id || data.id;
+          const serverTokenNo = data.bill?.tokenNumber || data.tokenNumber;
 
           if (serverBillNo) {
             finalBillNoToPrint = serverBillNo;
+          }
+          if (serverTokenNo) {
+            finalTokenNo = String(serverTokenNo);
           }
           if (serverBillId && options && typeof options === "object") {
             (options as any)._resolvedBillId = serverBillId;
@@ -726,7 +736,7 @@ export async function SimpleBill(
     }
 
     // 🖨️ STEP B: PRINTING PROCESS
-    (async () => {
+    printQueueLock = printQueueLock.then(async () => {
       try {
         const printer: any = await ensurePrinterConnected(options?.silent);
         if (printer) {
@@ -1115,7 +1125,7 @@ export async function SimpleBill(
           console.log("Background sync retry failed:", e);
         }
       }
-    })();
+    }).catch(e => console.error("Print queue error:", e));
 
     return { status: "success" };
   } catch (e: any) {
@@ -1130,266 +1140,276 @@ export async function PrintOldBill(
   token: any,
   userClerkId: any
 ): Promise<{ status: string; error?: string }> {
-  try {
-    const sessionStr = await AsyncStorage.getItem("staff_session");
-    const session = sessionStr ? JSON.parse(sessionStr) : null;
-    let finalToken: any = token && token !== "null" ? token : session?.token || null;
+  return new Promise((resolve, reject) => {
+    printQueueLock = printQueueLock.then(async () => {
+      try {
+        const sessionStr = await AsyncStorage.getItem("staff_session");
+        const session = sessionStr ? JSON.parse(sessionStr) : null;
+        let finalToken: any = token && token !== "null" ? token : session?.token || null;
 
-    const companyInfo = await getRecentCompanyProfile(finalToken || "");
+        const companyInfo = await getRecentCompanyProfile(finalToken || "");
 
-    let printSettings: any = { ...DEFAULT_PRINT_SETTINGS };
-    try {
-      const cachedSettings = await AsyncStorage.getItem("print_settings");
-      if (cachedSettings) {
-        printSettings = { ...printSettings, ...JSON.parse(cachedSettings) };
-      } else if (companyInfo?.printSettings) {
-        printSettings = { ...printSettings, ...companyInfo.printSettings };
-      }
-    } catch (e) {
-      console.log("Failed to load print settings in PrintOldBill:", e);
-    }
-
-    const printer: any = await ensurePrinterConnected(false);
-    if (!printer) return { status: "error", error: "Printer not connected" };
-
-    const businessName = (companyInfo?.businessName || companyInfo?.businessProfile?.companyName || companyInfo?.companyName || "KRAVY").toUpperCase();
-    const businessAddress = companyInfo?.businessAddress || companyInfo?.companyAddress || "";
-    const businessTagLine = companyInfo?.businessTagline || companyInfo?.businessTagLine || "";
-    const gstNumber = companyInfo?.gstNumber || "";
-    const bizPhone = companyInfo?.companyPhone || companyInfo?.businessPhone || companyInfo?.phone || "";
-    const bizFSSAI = companyInfo?.fssaiNumber || companyInfo?.businessFSSAI || "";
-    const reviewLink = companyInfo?.googleReviewLink || "";
-
-    await printer.write(SET_LINE_SPACING);
-    await printer.write(ALIGN_CENTER);
-    if (printSettings.sepTop) await printer.write(utf8Encode(line("-") + "\n"));
-
-    const logoUrl = companyInfo?.logoUrl || companyInfo?.logo;
-    if (String(printSettings.showLogo) === "true" && logoUrl) {
-      const logoResult = await fetchAndRasterizeLogo(logoUrl);
-      if (logoResult && !(logoResult as any).error) {
-        const logoData = logoResult as Uint8Array;
-        const chunkSize = 512;
-        for (let i = 0; i < logoData.length; i += chunkSize) {
-          await printer.write(logoData.slice(i, i + chunkSize));
-          await new Promise(r => setTimeout(r, 50));
+        let printSettings: any = { ...DEFAULT_PRINT_SETTINGS };
+        try {
+          const cachedSettings = await AsyncStorage.getItem("print_settings");
+          if (cachedSettings) {
+            printSettings = { ...printSettings, ...JSON.parse(cachedSettings) };
+          } else if (companyInfo?.printSettings) {
+            printSettings = { ...printSettings, ...companyInfo.printSettings };
+          }
+        } catch (e) {
+          console.log("Failed to load print settings in PrintOldBill:", e);
         }
-        await printer.write(utf8Encode("\n"));
+
+        const printer: any = await ensurePrinterConnected(false);
+        if (!printer) {
+          resolve({ status: "error", error: "Printer not connected" });
+          return;
+        }
+
+        const businessName = (companyInfo?.businessName || companyInfo?.businessProfile?.companyName || companyInfo?.companyName || "KRAVY").toUpperCase();
+        const businessAddress = companyInfo?.businessAddress || companyInfo?.companyAddress || "";
+        const businessTagLine = companyInfo?.businessTagline || companyInfo?.businessTagLine || "";
+        const gstNumber = companyInfo?.gstNumber || "";
+        const bizPhone = companyInfo?.companyPhone || companyInfo?.businessPhone || companyInfo?.phone || "";
+        const bizFSSAI = companyInfo?.fssaiNumber || companyInfo?.businessFSSAI || "";
+        const reviewLink = companyInfo?.googleReviewLink || "";
+
+        await printer.write(SET_LINE_SPACING);
+        await printer.write(ALIGN_CENTER);
+        if (printSettings.sepTop) await printer.write(utf8Encode(line("-") + "\n"));
+
+        const logoUrl = companyInfo?.logoUrl || companyInfo?.logo;
+        if (String(printSettings.showLogo) === "true" && logoUrl) {
+          const logoResult = await fetchAndRasterizeLogo(logoUrl);
+          if (logoResult && !(logoResult as any).error) {
+            const logoData = logoResult as Uint8Array;
+            const chunkSize = 512;
+            for (let i = 0; i < logoData.length; i += chunkSize) {
+              await printer.write(logoData.slice(i, i + chunkSize));
+              await new Promise(r => setTimeout(r, 50));
+            }
+            await printer.write(utf8Encode("\n"));
+          }
+        }
+
+        const globalWeight = printSettings.fontWeight;
+        const bizNameSizeCmd = getEscPosSize(printSettings.businessNameSize || 18);
+        const bizNameWeightCmd = getEscPosWeight(printSettings.businessNameWeight, globalWeight, "bold");
+        const addressSizeCmd = getEscPosSize(printSettings.businessAddressSize || 11);
+        const addressWeightCmd = getEscPosWeight(printSettings.businessAddressWeight, globalWeight, "normal");
+        const taglineSizeCmd = getEscPosSize(printSettings.taglineSize || 11);
+        const taglineWeightCmd = getEscPosWeight(printSettings.taglineWeight, globalWeight, "normal");
+        const detailsSizeCmd = getEscPosSize(printSettings.detailsFontSize || 10);
+        const detailsWeightCmd = getEscPosWeight(printSettings.detailsWeight, globalWeight, "normal");
+        const detailsBoldCmd = getEscPosWeight(printSettings.detailsWeight, globalWeight, "bold");
+        const itemsSizeCmd = getEscPosSize(printSettings.itemsFontSize || 11);
+        const itemsWeightCmd = getEscPosWeight(printSettings.itemsWeight, globalWeight, "normal");
+        const totalSizeCmd = getEscPosSize(printSettings.totalFontSize || 13);
+        const totalWeightCmd = getEscPosWeight(printSettings.totalWeight, globalWeight, "bold");
+        const tokenSizeCmd = getEscPosSize(printSettings.receiptTokenSize || 28);
+        const tokenWeightCmd = getEscPosWeight(printSettings.receiptTokenWeight, globalWeight, "bold");
+        const greetingSizeCmd = getEscPosSize(printSettings.greetingFontSize || 12);
+        const greetingWeightCmd = getEscPosWeight(printSettings.greetingWeight, globalWeight, "normal");
+
+        // Header
+        await printer.write(bizNameSizeCmd);
+        await printer.write(bizNameWeightCmd);
+        await printer.write(utf8Encode(businessName + "\n"));
+        await printer.write(BOLD_OFF);
+        await printer.write(SIZE_NORMAL);
+
+        if (printSettings.showTagline && businessTagLine) {
+          await printer.write(taglineSizeCmd);
+          await printer.write(taglineWeightCmd);
+          await printer.write(utf8Encode(businessTagLine + "\n"));
+          await printer.write(BOLD_OFF);
+          await printer.write(SIZE_NORMAL);
+        }
+
+        if (printSettings.showAddress && businessAddress) {
+          await printer.write(addressSizeCmd);
+          await printer.write(addressWeightCmd);
+          await printer.write(utf8Encode(businessAddress + "\n"));
+          await printer.write(BOLD_OFF);
+          await printer.write(SIZE_NORMAL);
+        }
+
+        await printer.write(detailsSizeCmd);
+        await printer.write(detailsBoldCmd);
+        if (printSettings.showContact && bizPhone) await printer.write(utf8Encode(`Mob: ${bizPhone}\n`));
+        if (printSettings.showGST && gstNumber) await printer.write(utf8Encode(`GSTIN: ${gstNumber}\n`));
+        if (printSettings.showFSSAI && bizFSSAI) await printer.write(utf8Encode(`FSSAI: ${bizFSSAI}\n`));
+
+        await printer.write(BOLD_OFF);
+        await printer.write(utf8Encode(line("-") + "\n"));
+        await printer.write(ALIGN_LEFT);
+
+        await printer.write(detailsSizeCmd);
+        await printer.write(detailsWeightCmd);
+
+        let printBody = `Bill No: ${bill.billNumber || bill.billNo || bill.invoiceNo || bill._id || "N/A"}\nDate: ${new Date(bill.createdAt).toLocaleString()}\n`;
+        if (bill.tableName) printBody += `Table: ${bill.tableName}\n`;
+        await printer.write(utf8Encode(printBody));
+
+        if (printSettings.showToken && bill.tokenNo) {
+          await printer.write(tokenSizeCmd);
+          await printer.write(tokenWeightCmd);
+          await printer.write(utf8Encode(`Token No: #${bill.tokenNo}\n`));
+          await printer.write(BOLD_OFF);
+          await printer.write(detailsSizeCmd);
+          await printer.write(detailsWeightCmd);
+        }
+
+        if (printSettings.showCustomerDetails) {
+          if (printSettings.sepCustomer) await printer.write(utf8Encode(line("-") + "\n"));
+          let custBody = "";
+          const cName = bill.customerName || bill.party?.name;
+          const cPhone = bill.customerPhone || bill.phone || bill.party?.phone;
+          const cAddr = bill.customerAddress || bill.party?.address;
+          if (cName) custBody += `Cust: ${cName}\n`;
+          if (cPhone) custBody += `Phone: ${cPhone}\n`;
+          if (cAddr) custBody += `Addr: ${cAddr}\n`;
+          if (custBody) await printer.write(utf8Encode(custBody));
+        }
+
+        await printer.write(itemsSizeCmd);
+        await printer.write(detailsBoldCmd);
+        let itemsHeader = "";
+        if (printSettings.sepItemsHeader) itemsHeader += line("-") + "\n";
+        itemsHeader += "Item         Qty  Price   Total\n";
+        itemsHeader += line("-") + "\n";
+        await printer.write(utf8Encode(itemsHeader));
+
+        await printer.write(itemsWeightCmd);
+
+        printBody = "";
+        (bill.items || []).forEach((i: any) => {
+          let suffix = "";
+          if (printSettings.showFoodTypeSuffix) {
+            const isVeg = i.isVeg ?? i.veg ?? !/\b(nv|egg|chicken|mutton|fish|meat|pork|beef|non-veg|nonveg)\b/i.test(i.name);
+            suffix = isVeg ? "(V)" : "(NV)";
+          }
+          const qty = Number(i.qty || i.quantity || 1);
+          const rate = Number(i.rate || i.price || 0);
+          const total = qty * rate;
+          const gstRate = Number(i.gstRate || i.gst || i.gst_rate || 0);
+
+          const displayName = gstRate > 0 ? `${i.name.slice(0, 7)}${suffix}(${gstRate}%)` : `${i.name.slice(0, 12)}${suffix}`;
+          printBody += `${displayName.padEnd(12)} ${String(qty).padStart(3)} ${rate.toFixed(2).padStart(6)} ${total.toFixed(2).padStart(8)}\n`;
+        });
+
+        await printer.write(utf8Encode(printBody));
+
+        await printer.write(itemsSizeCmd);
+        await printer.write(detailsWeightCmd);
+        let taxBody = "";
+        if (printSettings.sepTotalTop) taxBody += `${line("-")}\n`;
+
+        if (printSettings.showSubtotal) taxBody += `${"Subtotal:".padEnd(20)}${Number(printData.itemsSubtotal).toFixed(2).padStart(12)}\n`;
+        if (printSettings.showDiscount && Number(printData.discountAmount) > 0) taxBody += `${`Disc (${printData.discPercent}%):`.padEnd(20)}${`-${Number(printData.discountAmount).toFixed(2)}`.padStart(12)}\n`;
+        if (printSettings.showTaxableAmt) taxBody += `${"Taxable:".padEnd(20)}${Number(printData.taxableAfterDiscount).toFixed(2).padStart(12)}\n`;
+
+        Object.entries(printData.globalTaxMap).forEach(([rate, amount]) => {
+          const amt = Number(amount);
+          if (amt > 0) taxBody += `${`Global GST(${rate}%):`.padEnd(20)}${amt.toFixed(2).padStart(12)}\n`;
+        });
+        Object.entries(printData.itemTaxMap).forEach(([rate, amount]) => {
+          const amt = Number(amount);
+          if (amt > 0) taxBody += `${`Item GST(${rate}%):`.padEnd(20)}${amt.toFixed(2).padStart(12)}\n`;
+        });
+
+        if (Object.keys(printData.globalTaxMap).length === 0 && Object.keys(printData.itemTaxMap).length === 0 && Number(printData.gstToShow) > 0) {
+          taxBody += `${`GST(${printData.avgGstPercent}%):`.padEnd(20)}${Number(printData.gstToShow).toFixed(2).padStart(12)}\n`;
+        }
+
+        if (printSettings.showServiceCharge && Number(printData.serviceCharge) > 0) {
+          taxBody += `${"Service:".padEnd(20)}${Number(printData.serviceCharge).toFixed(2).padStart(12)}\n`;
+          if (Number(printData.serviceGst) > 0) taxBody += `${`Serv GST(${printData.servGstPercent}%):`.padEnd(20)}${Number(printData.serviceGst).toFixed(2).padStart(12)}\n`;
+        }
+        if (printSettings.showDeliveryCharges && Number(printData.deliveryCharge) > 0) {
+          taxBody += `${"Delivery:".padEnd(20)}${Number(printData.deliveryCharge).toFixed(2).padStart(12)}\n`;
+          if (Number(printData.deliveryGst) > 0) taxBody += `${`Del GST(${printData.delGstPercent}%):`.padEnd(20)}${Number(printData.deliveryGst).toFixed(2).padStart(12)}\n`;
+        }
+        if (printSettings.showPackagingCharges && Number(printData.packagingCharge) > 0) {
+          taxBody += `${"Packaging:".padEnd(20)}${Number(printData.packagingCharge).toFixed(2).padStart(12)}\n`;
+          if (Number(printData.packagingGst) > 0) taxBody += `${`Pkg GST(${printData.pkgGstPercent}%):`.padEnd(20)}${Number(printData.packagingGst).toFixed(2).padStart(12)}\n`;
+        }
+
+        if (printSettings.sepTotalBottom) taxBody += `${line("-")}\n`;
+        await printer.write(utf8Encode(taxBody));
+
+        await printer.write(totalSizeCmd);
+        await printer.write(totalWeightCmd);
+        const finalTotal = Number(printData.displayTotal);
+        const totalStr = `Rs.${finalTotal.toFixed(2)}`;
+        await printer.write(utf8Encode(`${"TOTAL:".padEnd(32 - totalStr.length)}${totalStr}\n`));
+        await printer.write(BOLD_OFF);
+
+        await printer.write(itemsSizeCmd);
+        await printer.write(detailsWeightCmd);
+        let footerBody = "";
+        if (printSettings.sepTotalBottom) footerBody += `${line("-")}\n`;
+        if (printSettings.showAmountInWords) {
+          const amtWords = numberToWords(Math.round(finalTotal));
+          footerBody += `${amtWords} Rupees Only\n`;
+        }
+        if (printSettings.showPaymentStatus) {
+          if (printSettings.sepPayment) footerBody += `${line("-")}\n`;
+          const paymentText = `[ ${(bill.status || "PAID").toUpperCase()} - ${bill.paymentMethod || bill.paymentMode || "CASH"} ]`;
+          const padLen = Math.floor((32 - paymentText.length) / 2);
+          footerBody += " ".repeat(Math.max(0, padLen)) + paymentText + "\n";
+        }
+        await printer.write(utf8Encode(footerBody));
+
+        await printer.write(ALIGN_CENTER);
+        await printer.write(greetingSizeCmd);
+        await printer.write(greetingWeightCmd);
+        if (printSettings.showGreetings || printSettings.showVisitAgain) {
+          if (printSettings.sepFooter) await printer.write(utf8Encode(line("-") + "\n"));
+          if (printSettings.showGreetings) await printer.write(utf8Encode("Thank You! Visit Again\n"));
+          if (printSettings.showVisitAgain) await printer.write(utf8Encode("Please visit again soon\n"));
+        }
+        await printer.write(BOLD_OFF);
+        await printer.write(SIZE_NORMAL);
+
+        const upiId = companyInfo?.upi || companyInfo?.upiId;
+        if (upiId) {
+          await printer.write(utf8Encode(line("-") + "\n"));
+          await printer.write(BOLD_ON);
+          await printer.write(utf8Encode("SCAN TO PAY\n"));
+          await printer.write(BOLD_OFF);
+          await printer.write(utf8Encode(`UPI ID: ${upiId}\n`));
+          const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
+          await printQRCode(printer, upiUri);
+          await printer.write(utf8Encode("\n"));
+        }
+
+        if (printSettings.showReviewQR && reviewLink) {
+          await printer.write(utf8Encode(line("-") + "\n"));
+          await printer.write(BOLD_ON);
+          await printer.write(utf8Encode("Rate Us on Google\n"));
+          await printer.write(BOLD_OFF);
+          await printQRCode(printer, reviewLink);
+          await printer.write(utf8Encode("\n"));
+        }
+
+        if (printSettings.showPoweredBy) {
+          await printer.write(utf8Encode(line("-") + "\n"));
+          await printer.write(utf8Encode("Powered by Kravy Billing\n"));
+        }
+
+        await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
+        await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
+
+        resolve({ status: "success" });
+      } catch (err: any) {
+        console.log("PrintOldBill error:", err);
+        resolve({ status: "error", error: err.message || "Unknown error" });
       }
-    }
-
-    const globalWeight = printSettings.fontWeight;
-    const bizNameSizeCmd = getEscPosSize(printSettings.businessNameSize || 18);
-    const bizNameWeightCmd = getEscPosWeight(printSettings.businessNameWeight, globalWeight, "bold");
-    const addressSizeCmd = getEscPosSize(printSettings.businessAddressSize || 11);
-    const addressWeightCmd = getEscPosWeight(printSettings.businessAddressWeight, globalWeight, "normal");
-    const taglineSizeCmd = getEscPosSize(printSettings.taglineSize || 11);
-    const taglineWeightCmd = getEscPosWeight(printSettings.taglineWeight, globalWeight, "normal");
-    const detailsSizeCmd = getEscPosSize(printSettings.detailsFontSize || 10);
-    const detailsWeightCmd = getEscPosWeight(printSettings.detailsWeight, globalWeight, "normal");
-    const detailsBoldCmd = getEscPosWeight(printSettings.detailsWeight, globalWeight, "bold");
-    const itemsSizeCmd = getEscPosSize(printSettings.itemsFontSize || 11);
-    const itemsWeightCmd = getEscPosWeight(printSettings.itemsWeight, globalWeight, "normal");
-    const totalSizeCmd = getEscPosSize(printSettings.totalFontSize || 13);
-    const totalWeightCmd = getEscPosWeight(printSettings.totalWeight, globalWeight, "bold");
-    const tokenSizeCmd = getEscPosSize(printSettings.receiptTokenSize || 28);
-    const tokenWeightCmd = getEscPosWeight(printSettings.receiptTokenWeight, globalWeight, "bold");
-    const greetingSizeCmd = getEscPosSize(printSettings.greetingFontSize || 12);
-    const greetingWeightCmd = getEscPosWeight(printSettings.greetingWeight, globalWeight, "normal");
-
-    // Header
-    await printer.write(bizNameSizeCmd);
-    await printer.write(bizNameWeightCmd);
-    await printer.write(utf8Encode(businessName + "\n"));
-    await printer.write(BOLD_OFF);
-    await printer.write(SIZE_NORMAL);
-
-    if (printSettings.showTagline && businessTagLine) {
-      await printer.write(taglineSizeCmd);
-      await printer.write(taglineWeightCmd);
-      await printer.write(utf8Encode(businessTagLine + "\n"));
-      await printer.write(BOLD_OFF);
-      await printer.write(SIZE_NORMAL);
-    }
-
-    if (printSettings.showAddress && businessAddress) {
-      await printer.write(addressSizeCmd);
-      await printer.write(addressWeightCmd);
-      await printer.write(utf8Encode(businessAddress + "\n"));
-      await printer.write(BOLD_OFF);
-      await printer.write(SIZE_NORMAL);
-    }
-
-    await printer.write(detailsSizeCmd);
-    await printer.write(detailsBoldCmd);
-    if (printSettings.showContact && bizPhone) await printer.write(utf8Encode(`Mob: ${bizPhone}\n`));
-    if (printSettings.showGST && gstNumber) await printer.write(utf8Encode(`GSTIN: ${gstNumber}\n`));
-    if (printSettings.showFSSAI && bizFSSAI) await printer.write(utf8Encode(`FSSAI: ${bizFSSAI}\n`));
-
-    await printer.write(BOLD_OFF);
-    await printer.write(utf8Encode(line("-") + "\n"));
-    await printer.write(ALIGN_LEFT);
-
-    await printer.write(detailsSizeCmd);
-    await printer.write(detailsWeightCmd);
-
-    let printBody = `Bill No: ${bill.billNumber || bill.billNo || bill.invoiceNo || bill._id || "N/A"}\nDate: ${new Date(bill.createdAt).toLocaleString()}\n`;
-    if (bill.tableName) printBody += `Table: ${bill.tableName}\n`;
-    await printer.write(utf8Encode(printBody));
-
-    if (printSettings.showToken && bill.tokenNo) {
-      await printer.write(tokenSizeCmd);
-      await printer.write(tokenWeightCmd);
-      await printer.write(utf8Encode(`Token No: #${bill.tokenNo}\n`));
-      await printer.write(BOLD_OFF);
-      await printer.write(detailsSizeCmd);
-      await printer.write(detailsWeightCmd);
-    }
-
-    if (printSettings.showCustomerDetails) {
-      if (printSettings.sepCustomer) await printer.write(utf8Encode(line("-") + "\n"));
-      let custBody = "";
-      const cName = bill.customerName || bill.party?.name;
-      const cPhone = bill.customerPhone || bill.phone || bill.party?.phone;
-      const cAddr = bill.customerAddress || bill.party?.address;
-      if (cName) custBody += `Cust: ${cName}\n`;
-      if (cPhone) custBody += `Phone: ${cPhone}\n`;
-      if (cAddr) custBody += `Addr: ${cAddr}\n`;
-      if (custBody) await printer.write(utf8Encode(custBody));
-    }
-
-    await printer.write(itemsSizeCmd);
-    await printer.write(detailsBoldCmd);
-    let itemsHeader = "";
-    if (printSettings.sepItemsHeader) itemsHeader += line("-") + "\n";
-    itemsHeader += "Item         Qty  Price   Total\n";
-    itemsHeader += line("-") + "\n";
-    await printer.write(utf8Encode(itemsHeader));
-
-    await printer.write(itemsWeightCmd);
-
-    printBody = "";
-    (bill.items || []).forEach((i: any) => {
-      let suffix = "";
-      if (printSettings.showFoodTypeSuffix) {
-        const isVeg = i.isVeg ?? i.veg ?? !/\b(nv|egg|chicken|mutton|fish|meat|pork|beef|non-veg|nonveg)\b/i.test(i.name);
-        suffix = isVeg ? "(V)" : "(NV)";
-      }
-      const qty = Number(i.qty || i.quantity || 1);
-      const rate = Number(i.rate || i.price || 0);
-      const total = qty * rate;
-      const gstRate = Number(i.gstRate || i.gst || i.gst_rate || 0);
-
-      const displayName = gstRate > 0 ? `${i.name.slice(0, 7)}${suffix}(${gstRate}%)` : `${i.name.slice(0, 12)}${suffix}`;
-      printBody += `${displayName.padEnd(12)} ${String(qty).padStart(3)} ${rate.toFixed(2).padStart(6)} ${total.toFixed(2).padStart(8)}\n`;
+    }).catch(e => {
+      console.error("PrintOldBill queue error:", e);
+      resolve({ status: "error", error: "Queue error" });
     });
-
-    await printer.write(utf8Encode(printBody));
-
-    await printer.write(itemsSizeCmd);
-    await printer.write(detailsWeightCmd);
-    let taxBody = "";
-    if (printSettings.sepTotalTop) taxBody += `${line("-")}\n`;
-
-    if (printSettings.showSubtotal) taxBody += `${"Subtotal:".padEnd(20)}${Number(printData.itemsSubtotal).toFixed(2).padStart(12)}\n`;
-    if (printSettings.showDiscount && Number(printData.discountAmount) > 0) taxBody += `${`Disc (${printData.discPercent}%):`.padEnd(20)}${`-${Number(printData.discountAmount).toFixed(2)}`.padStart(12)}\n`;
-    if (printSettings.showTaxableAmt) taxBody += `${"Taxable:".padEnd(20)}${Number(printData.taxableAfterDiscount).toFixed(2).padStart(12)}\n`;
-
-    Object.entries(printData.globalTaxMap).forEach(([rate, amount]) => {
-      const amt = Number(amount);
-      if (amt > 0) taxBody += `${`Global GST(${rate}%):`.padEnd(20)}${amt.toFixed(2).padStart(12)}\n`;
-    });
-    Object.entries(printData.itemTaxMap).forEach(([rate, amount]) => {
-      const amt = Number(amount);
-      if (amt > 0) taxBody += `${`Item GST(${rate}%):`.padEnd(20)}${amt.toFixed(2).padStart(12)}\n`;
-    });
-
-    if (Object.keys(printData.globalTaxMap).length === 0 && Object.keys(printData.itemTaxMap).length === 0 && Number(printData.gstToShow) > 0) {
-      taxBody += `${`GST(${printData.avgGstPercent}%):`.padEnd(20)}${Number(printData.gstToShow).toFixed(2).padStart(12)}\n`;
-    }
-
-    if (printSettings.showServiceCharge && Number(printData.serviceCharge) > 0) {
-      taxBody += `${"Service:".padEnd(20)}${Number(printData.serviceCharge).toFixed(2).padStart(12)}\n`;
-      if (Number(printData.serviceGst) > 0) taxBody += `${`Serv GST(${printData.servGstPercent}%):`.padEnd(20)}${Number(printData.serviceGst).toFixed(2).padStart(12)}\n`;
-    }
-    if (printSettings.showDeliveryCharges && Number(printData.deliveryCharge) > 0) {
-      taxBody += `${"Delivery:".padEnd(20)}${Number(printData.deliveryCharge).toFixed(2).padStart(12)}\n`;
-      if (Number(printData.deliveryGst) > 0) taxBody += `${`Del GST(${printData.delGstPercent}%):`.padEnd(20)}${Number(printData.deliveryGst).toFixed(2).padStart(12)}\n`;
-    }
-    if (printSettings.showPackagingCharges && Number(printData.packagingCharge) > 0) {
-      taxBody += `${"Packaging:".padEnd(20)}${Number(printData.packagingCharge).toFixed(2).padStart(12)}\n`;
-      if (Number(printData.packagingGst) > 0) taxBody += `${`Pkg GST(${printData.pkgGstPercent}%):`.padEnd(20)}${Number(printData.packagingGst).toFixed(2).padStart(12)}\n`;
-    }
-
-    if (printSettings.sepTotalBottom) taxBody += `${line("-")}\n`;
-    await printer.write(utf8Encode(taxBody));
-
-    await printer.write(totalSizeCmd);
-    await printer.write(totalWeightCmd);
-    const finalTotal = Number(printData.displayTotal);
-    const totalStr = `Rs.${finalTotal.toFixed(2)}`;
-    await printer.write(utf8Encode(`${"TOTAL:".padEnd(32 - totalStr.length)}${totalStr}\n`));
-    await printer.write(BOLD_OFF);
-
-    await printer.write(itemsSizeCmd);
-    await printer.write(detailsWeightCmd);
-    let footerBody = "";
-    if (printSettings.sepTotalBottom) footerBody += `${line("-")}\n`;
-    if (printSettings.showAmountInWords) {
-      const amtWords = numberToWords(Math.round(finalTotal));
-      footerBody += `${amtWords} Rupees Only\n`;
-    }
-    if (printSettings.showPaymentStatus) {
-      if (printSettings.sepPayment) footerBody += `${line("-")}\n`;
-      const paymentText = `[ ${(bill.status || "PAID").toUpperCase()} - ${bill.paymentMethod || bill.paymentMode || "CASH"} ]`;
-      const padLen = Math.floor((32 - paymentText.length) / 2);
-      footerBody += " ".repeat(Math.max(0, padLen)) + paymentText + "\n";
-    }
-    await printer.write(utf8Encode(footerBody));
-
-    await printer.write(ALIGN_CENTER);
-    await printer.write(greetingSizeCmd);
-    await printer.write(greetingWeightCmd);
-    if (printSettings.showGreetings || printSettings.showVisitAgain) {
-      if (printSettings.sepFooter) await printer.write(utf8Encode(line("-") + "\n"));
-      if (printSettings.showGreetings) await printer.write(utf8Encode("Thank You! Visit Again\n"));
-      if (printSettings.showVisitAgain) await printer.write(utf8Encode("Please visit again soon\n"));
-    }
-    await printer.write(BOLD_OFF);
-    await printer.write(SIZE_NORMAL);
-
-    const upiId = companyInfo?.upi || companyInfo?.upiId;
-    if (upiId) {
-      await printer.write(utf8Encode(line("-") + "\n"));
-      await printer.write(BOLD_ON);
-      await printer.write(utf8Encode("SCAN TO PAY\n"));
-      await printer.write(BOLD_OFF);
-      await printer.write(utf8Encode(`UPI ID: ${upiId}\n`));
-      const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${finalTotal.toFixed(2)}&cu=INR`;
-      await printQRCode(printer, upiUri);
-      await printer.write(utf8Encode("\n"));
-    }
-
-    if (printSettings.showReviewQR && reviewLink) {
-      await printer.write(utf8Encode(line("-") + "\n"));
-      await printer.write(BOLD_ON);
-      await printer.write(utf8Encode("Rate Us on Google\n"));
-      await printer.write(BOLD_OFF);
-      await printQRCode(printer, reviewLink);
-      await printer.write(utf8Encode("\n"));
-    }
-
-    if (printSettings.showPoweredBy) {
-      await printer.write(utf8Encode(line("-") + "\n"));
-      await printer.write(utf8Encode("Powered by Kravy Billing\n"));
-    }
-
-    await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
-    await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
-
-    return { status: "success" };
-  } catch (err: any) {
-    console.log("PrintOldBill error:", err);
-    return { status: "error", error: err.message || "Unknown error" };
-  }
+  });
 }
