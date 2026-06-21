@@ -166,9 +166,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setCheckoutParams(null);
             setCurrentView("main");
             if (checkoutParams.source === 'kot') {
-              router.push("/(tabs)/kot");
+              router.replace("/(tabs)/kot");
             } else {
-              router.push("/(tabs)/orders");
+              router.replace("/(tabs)/orders");
             }
           } else {
             setCurrentView("main");
@@ -1791,9 +1791,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setCheckoutParams(null);
             setCurrentView("main");
             if (checkoutParams.source === 'kot') {
-              router.push("/(tabs)/kot");
+              router.replace("/(tabs)/kot");
             } else {
-              router.push("/(tabs)/orders");
+              router.replace("/(tabs)/orders");
             }
           } else {
             setCurrentView("main");

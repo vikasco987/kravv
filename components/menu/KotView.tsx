@@ -98,7 +98,7 @@ export default function KotView() {
             const previousRoute = state.routes.find((r: any) => r.key === previousKey);
 
             if (previousRoute && previousRoute.name && previousRoute.name !== 'kot') {
-              router.push(`/(tabs)/${previousRoute.name}` as any);
+              router.replace(`/(tabs)/${previousRoute.name}` as any);
               return true;
             }
           }
@@ -110,7 +110,7 @@ export default function KotView() {
           router.back();
           return true;
         } else {
-          router.push('/(tabs)/orders');
+          router.replace('/(tabs)/orders');
           return true;
         }
       };
@@ -288,7 +288,7 @@ export default function KotView() {
               source: 'kot',
             };
             await AsyncStorage.setItem('@temp_cart_for_checkout', JSON.stringify(checkoutData));
-            router.push('/(tabs)/menu');
+            router.replace('/(tabs)/menu');
             DeviceEventEmitter.emit('GOTO_CHECKOUT_FROM_KOT');
           }}
         >

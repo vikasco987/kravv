@@ -60,6 +60,18 @@ export async function SaveBill(
     return;
   }
 
+  // --- STRICT INTERNET CHECK ---
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 4000);
+    await fetch("https://billing.kravy.in", { method: "GET", signal: controller.signal });
+    clearTimeout(id);
+  } catch (e) {
+    ToastAndroid.show("⚠️ Internet required! Cannot save offline.", ToastAndroid.LONG);
+    return { status: "error", error: "Offline" };
+  }
+
+
   try {
     const settings = await AsyncStorage.multiGet([
       "tax_enabled",
@@ -412,26 +424,8 @@ export async function SaveBill(
       throw new Error(`Server error (${res.status})`);
     }
   } catch (err) {
-    console.log("SaveBill: Network failure, saving to local queue...");
-    try {
-      // Re-calculate URL/Method for queue
-      const billId = options?.billId;
-      const isValidBillId =
-        billId && typeof billId === "string" && /^[a-f\d]{24}$/i.test(billId);
-      const method = isValidBillId ? "PUT" : "POST";
-      const url = isValidBillId
-        ? `${API_BASE}/api/bill-manager/${billId}`
-        : `${API_BASE}/api/bill-manager`;
-
-      const queueStr = await AsyncStorage.getItem("@pending_bills");
-      const queue = queueStr ? JSON.parse(queueStr) : [];
-
-      // We can't easily get the 'body' here without re-calculating or moving it.
-      // But SimpleBill is the main one used for most POS orders.
-      // For SaveBill (manual), we'll just show the toast for now to avoid complexity,
-      // as moving 'body' out of try requires careful re-scoping.
-    } catch (qErr) {}
-    ToastAndroid.show("Offline: Saved locally", ToastAndroid.SHORT);
-    return { status: "saved", offline: true };
+    console.log("SaveBill: Network failure, rejecting save...");
+    ToastAndroid.show("⚠️ Internet required! Failed to save.", ToastAndroid.LONG);
+    return { status: "error", error: "Offline" };
   }
 }

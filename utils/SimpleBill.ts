@@ -166,18 +166,71 @@ function utf8Encode(str: string): Uint8Array {
   return new Uint8Array(codePoints);
 }
 
+let globalPrinter: any = null;
+
 async function ensurePrinterConnected(silent = false): Promise<any> {
   try {
+    if (globalPrinter) {
+      try {
+        const isConnected = await globalPrinter.isConnected();
+        if (isConnected) return globalPrinter;
+      } catch (e) { }
+      globalPrinter = null;
+    }
+
     const connected = await RNBluetoothClassic.getConnectedDevices();
     if (connected && connected.length > 0) {
-      try { await connected[0].clear(); } catch (e) { }
-      return connected[0];
+      globalPrinter = connected[0];
+      if (!globalPrinter._isSafeWrapped) {
+        const _origWrite = globalPrinter.write.bind(globalPrinter);
+        globalPrinter.write = async (data: any) => {
+          const d = data instanceof Uint8Array ? data : new Uint8Array(data);
+          for (let i = 0; i < d.length; i += 64) {
+            await _origWrite(d.slice(i, i + 64));
+            await new Promise(r => setTimeout(r, 40));
+          }
+        };
+        globalPrinter._isSafeWrapped = true;
+      }
+      try { await globalPrinter.clear(); } catch (e) { }
+      return globalPrinter;
     }
     const bonded = await RNBluetoothClassic.getBondedDevices();
     if (bonded && bonded.length > 0) {
       const dev = bonded[0];
+      try {
+        const isConnected = await dev.isConnected();
+        if (isConnected) {
+          globalPrinter = dev;
+          if (!globalPrinter._isSafeWrapped) {
+            const _origWrite = globalPrinter.write.bind(globalPrinter);
+            globalPrinter.write = async (data: any) => {
+              const d = data instanceof Uint8Array ? data : new Uint8Array(data);
+              for (let i = 0; i < d.length; i += 64) {
+                await _origWrite(d.slice(i, i + 64));
+                await new Promise(r => setTimeout(r, 40));
+              }
+            };
+            globalPrinter._isSafeWrapped = true;
+          }
+          return dev;
+        }
+      } catch (e) { }
+
       const success = await dev.connect();
       if (success) {
+        globalPrinter = dev;
+        if (!globalPrinter._isSafeWrapped) {
+          const _origWrite = globalPrinter.write.bind(globalPrinter);
+          globalPrinter.write = async (data: any) => {
+            const d = data instanceof Uint8Array ? data : new Uint8Array(data);
+            for (let i = 0; i < d.length; i += 64) {
+              await _origWrite(d.slice(i, i + 64));
+              await new Promise(r => setTimeout(r, 40));
+            }
+          };
+          globalPrinter._isSafeWrapped = true;
+        }
         try { await dev.clear(); } catch (e) { }
         return dev;
       }
@@ -429,6 +482,19 @@ export async function SimpleBill(
     const date = new Date();
     const tempBillNo = `NEW-${Date.now().toString().slice(-4)}`;
 
+    // --- STRICT INTERNET CHECK ---
+    if (options?.billNumber) {
+      try {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 4000);
+        await fetch("https://billing.kravy.in", { method: "GET", signal: controller.signal });
+        clearTimeout(id);
+      } catch (e) {
+        ToastAndroid.show("⚠️ Internet required to print!", ToastAndroid.LONG);
+        return { status: "error", error: "Offline" };
+      }
+    }
+
     // --- AUTO-GENERATE OR FETCH TOKEN IF NOT PROVIDED ---
     let finalTokenNo = await resolveOrderToken(options?.orderId, options?.tokenNo);
 
@@ -660,8 +726,11 @@ export async function SimpleBill(
     if (!options?.billNumber) {
       try {
         const method = isValidBillId ? "PUT" : "POST";
+        const controller = new AbortController();
+        const fetchTimeout = setTimeout(() => controller.abort(), 6000);
         const response = await fetch(url, {
           method: method,
+          signal: controller.signal,
           headers: {
             "Content-Type": "application/json",
             Accept: "application/json",
@@ -726,12 +795,14 @@ export async function SimpleBill(
           DeviceEventEmitter.emit("refresh_orders_list");
           DeviceEventEmitter.emit("REFRESH_ORDERS");
           DeviceEventEmitter.emit("REFRESH_DASHBOARD");
+        } else {
+          console.log("Server rejected bill save, but internet is working. Proceeding to print.");
         }
+        clearTimeout(fetchTimeout);
       } catch (e) {
-        console.log(
-          "Saving failed before print (using fallback bill number):",
-          e,
-        );
+        console.log("Saving failed due to network error:", e);
+        ToastAndroid.show("⚠️ Internet disconnected! Cannot print.", ToastAndroid.LONG);
+        return { status: "error", error: "Offline" };
       }
     }
 
@@ -769,10 +840,10 @@ export async function SimpleBill(
             const logoResult = await fetchAndRasterizeLogo(logoUrl);
             if (logoResult && !(logoResult as any).error) {
               const logoData = logoResult as Uint8Array;
-              const chunkSize = 512;
+              const chunkSize = 256;
               for (let i = 0; i < logoData.length; i += chunkSize) {
                 await printer.write(logoData.slice(i, i + chunkSize));
-                await new Promise(r => setTimeout(r, 50));
+                await new Promise(r => setTimeout(r, 60));
               }
               await printer.write(utf8Encode("\n"));
             } else {
@@ -860,7 +931,12 @@ export async function SimpleBill(
 
           let printBody = `Bill No: ${finalBillNoToPrint}\nDate: ${formattedDate}\n`;
           if (options?.tableName) printBody += `Table: ${options.tableName}\n`;
-          await printer.write(utf8Encode(printBody));
+          const printBodyBytesOld = utf8Encode(printBody);
+          const pbChunkSizeOld = 128;
+          for (let i = 0; i < printBodyBytesOld.length; i += pbChunkSizeOld) {
+            await printer.write(printBodyBytesOld.slice(i, i + pbChunkSizeOld));
+            await new Promise(r => setTimeout(r, 40));
+          }
 
           if (printSettings.showToken && finalTokenNo) {
             await printer.write(tokenSizeCmd);
@@ -918,7 +994,12 @@ export async function SimpleBill(
             printBody += `${displayName}${qtyStr}${rateStr}${totStr}\n`;
           });
 
-          await printer.write(utf8Encode(printBody));
+          const printBodyBytes = utf8Encode(printBody);
+          const pbChunkSize = 128;
+          for (let i = 0; i < printBodyBytes.length; i += pbChunkSize) {
+            await printer.write(printBodyBytes.slice(i, i + pbChunkSize));
+            await new Promise(r => setTimeout(r, 40));
+          }
 
           await printer.write(itemsSizeCmd);
           await printer.write(detailsWeightCmd);
@@ -1055,76 +1136,13 @@ export async function SimpleBill(
 
           await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
           await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
+
+          await new Promise(r => setTimeout(r, 4500)); // Spooler Delay increased to prevent buffer overload
         }
       } catch (err) {
         console.error("❌ Printer Error:", err);
       }
 
-      // 🌐 STEP C: RETRY SYNC IF IT FAILED IN STEP A
-      if (!syncSuccess) {
-        try {
-          const maxRetries = 2;
-          let attempt = 0;
-          while (attempt < maxRetries && !syncSuccess) {
-            attempt++;
-            const response = await fetch(url, {
-              method: isValidBillId ? "PUT" : "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                Authorization: `Bearer ${finalToken}`,
-              },
-              body: JSON.stringify({
-                items: productsForBackend,
-                subtotal: Number(totalTaxable.toFixed(2)),
-                taxableAmount: Number(totalTaxable.toFixed(2)),
-                itemsSubtotal: Number(subtotal.toFixed(2)),
-                tax: Number(totalGst.toFixed(2)),
-                total: finalBillTotal,
-                paymentMode: options?.paymentMode || "Cash",
-                paymentStatus: "Paid",
-                isHeld: options?.isHeld ?? false,
-                clerkUserId: finalClerkId || finalBusinessId,
-                businessId: finalBusinessId,
-                orderId: options?.orderId || "",
-                customerName: options?.customerName || "Walk-in",
-                customerPhone: options?.phone || "",
-                customerAddress: options?.customerAddress || "",
-                tableName: options?.tableName || "POS",
-                roomName: options?.roomName || "",
-                tokenNumber: finalTokenNo ? Number(finalTokenNo) : 0,
-                source: options?.source || "POS",
-                discountAmount: Number(totalDiscount.toFixed(2)),
-                discountRate: discountRatePercent,
-                calculatedTaxable: Number(totalTaxable.toFixed(2)),
-                calculatedGlobalGst: Number(globalGstTotal.toFixed(2)),
-                calculatedItemGst: Number(totalItemGstCalculated.toFixed(2)),
-                serviceCharge: Number(serviceCharge.toFixed(2)),
-                serviceGst: Number(serviceGst.toFixed(2)),
-                serviceGstRate: serviceGstRate,
-                deliveryCharges: Number(deliveryCharge.toFixed(2)),
-                deliveryGst: Number(deliveryGst.toFixed(2)),
-                deliveryGstRate: deliveryGstRate,
-                packagingCharges: Number(packagingCharge.toFixed(2)),
-                packagingGst: Number(packagingGst.toFixed(2)),
-                packagingGstRate: packagingGstRate,
-                isKotPrinted: true,
-                auditNote: options?.notes || "App Order",
-              }),
-            });
-            if (response.ok) {
-              syncSuccess = true;
-              DeviceEventEmitter.emit("refresh_orders_list");
-              DeviceEventEmitter.emit("REFRESH_ORDERS");
-              DeviceEventEmitter.emit("REFRESH_DASHBOARD");
-            } else {
-              await new Promise((r) => setTimeout(r, 1000));
-            }
-          }
-        } catch (e) {
-          console.log("Background sync retry failed:", e);
-        }
-      }
     }).catch(e => console.error("Print queue error:", e));
 
     return { status: "success" };
@@ -1250,7 +1268,12 @@ export async function PrintOldBill(
 
         let printBody = `Bill No: ${bill.billNumber || bill.billNo || bill.invoiceNo || bill._id || "N/A"}\nDate: ${new Date(bill.createdAt).toLocaleString()}\n`;
         if (bill.tableName) printBody += `Table: ${bill.tableName}\n`;
-        await printer.write(utf8Encode(printBody));
+        const printBodyBytesOld = utf8Encode(printBody);
+        const pbChunkSizeOld = 128;
+        for (let i = 0; i < printBodyBytesOld.length; i += pbChunkSizeOld) {
+          await printer.write(printBodyBytesOld.slice(i, i + pbChunkSizeOld));
+          await new Promise(r => setTimeout(r, 40));
+        }
 
         if (printSettings.showToken && bill.tokenNo) {
           await printer.write(tokenSizeCmd);
@@ -1299,7 +1322,12 @@ export async function PrintOldBill(
           printBody += `${displayName.padEnd(12)} ${String(qty).padStart(3)} ${rate.toFixed(2).padStart(6)} ${total.toFixed(2).padStart(8)}\n`;
         });
 
-        await printer.write(utf8Encode(printBody));
+        const printBodyBytesOld2 = utf8Encode(printBody);
+        const pbChunkSizeOld2 = 128;
+        for (let i = 0; i < printBodyBytesOld2.length; i += pbChunkSizeOld2) {
+          await printer.write(printBodyBytesOld2.slice(i, i + pbChunkSizeOld2));
+          await new Promise(r => setTimeout(r, 40));
+        }
 
         await printer.write(itemsSizeCmd);
         await printer.write(detailsWeightCmd);
@@ -1401,6 +1429,8 @@ export async function PrintOldBill(
 
         await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
         await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
+
+        await new Promise(r => setTimeout(r, 4500)); // Spooler Delay increased to prevent buffer overload
 
         resolve({ status: "success" });
       } catch (err: any) {

@@ -44,12 +44,101 @@ let connectedPrinter: any = null;
 /* ---------- Ensure Printer ---------- */
 async function ensurePrinterConnected() {
   try {
-    if (connectedPrinter) return connectedPrinter;
+    if (connectedPrinter) {
+      try {
+        const isConnected = await connectedPrinter.isConnected();
+        if (isConnected) {
+          if (!connectedPrinter._isSafeWrapped) {
+            const _origWrite = connectedPrinter.write.bind(connectedPrinter);
+            connectedPrinter.write = async (data: any) => {
+              const d = data instanceof Uint8Array ? data : new Uint8Array(data);
+              for (let i = 0; i < d.length; i += 64) {
+                await _origWrite(d.slice(i, i + 64));
+                await new Promise(r => setTimeout(r, 40));
+              }
+            };
+            connectedPrinter._isSafeWrapped = true;
+          }
+          return connectedPrinter;
+        }
+      } catch (e) { }
+      connectedPrinter = null;
+    }
+
+    const connected = await RNBluetoothClassic.getConnectedDevices();
+    if (connected && connected.length > 0) {
+      connectedPrinter = connected[0];
+      if (!connectedPrinter._isSafeWrapped) {
+        const _origWrite = connectedPrinter.write.bind(connectedPrinter);
+        connectedPrinter.write = async (data: any) => {
+          const d = data instanceof Uint8Array ? data : new Uint8Array(data);
+          for (let i = 0; i < d.length; i += 64) {
+            await _origWrite(d.slice(i, i + 64));
+            await new Promise(r => setTimeout(r, 40));
+          }
+        };
+        connectedPrinter._isSafeWrapped = true;
+      }
+      try { await connectedPrinter.clear(); } catch (e) { }
+      return connectedPrinter;
+    }
+
+    const bonded = await RNBluetoothClassic.getBondedDevices();
+    if (bonded && bonded.length > 0) {
+      const dev = bonded[0];
+      try {
+        const isConnected = await dev.isConnected();
+        if (isConnected) {
+          connectedPrinter = dev;
+          if (!connectedPrinter._isSafeWrapped) {
+            const _origWrite = connectedPrinter.write.bind(connectedPrinter);
+            connectedPrinter.write = async (data: any) => {
+              const d = data instanceof Uint8Array ? data : new Uint8Array(data);
+              for (let i = 0; i < d.length; i += 64) {
+                await _origWrite(d.slice(i, i + 64));
+                await new Promise(r => setTimeout(r, 40));
+              }
+            };
+            connectedPrinter._isSafeWrapped = true;
+          }
+          return dev;
+        }
+      } catch (e) { }
+      
+      const success = await dev.connect();
+      if (success) {
+        connectedPrinter = dev;
+        if (!connectedPrinter._isSafeWrapped) {
+          const _origWrite = connectedPrinter.write.bind(connectedPrinter);
+          connectedPrinter.write = async (data: any) => {
+            const d = data instanceof Uint8Array ? data : new Uint8Array(data);
+            for (let i = 0; i < d.length; i += 64) {
+              await _origWrite(d.slice(i, i + 64));
+              await new Promise(r => setTimeout(r, 40));
+            }
+          };
+          connectedPrinter._isSafeWrapped = true;
+        }
+        try { await dev.clear(); } catch (e) { }
+        return dev;
+      }
+    }
 
     const saved = await AsyncStorage.getItem("saved_printer");
     if (!saved) return null;
 
     connectedPrinter = await RNBluetoothClassic.connectToDevice(saved);
+    if (connectedPrinter && !connectedPrinter._isSafeWrapped) {
+      const _origWrite = connectedPrinter.write.bind(connectedPrinter);
+      connectedPrinter.write = async (data: any) => {
+        const d = data instanceof Uint8Array ? data : new Uint8Array(data);
+        for (let i = 0; i < d.length; i += 64) {
+          await _origWrite(d.slice(i, i + 64));
+          await new Promise(r => setTimeout(r, 40));
+        }
+      };
+      connectedPrinter._isSafeWrapped = true;
+    }
     return connectedPrinter;
   } catch (err) {
     connectedPrinter = null;
@@ -96,6 +185,17 @@ export async function SimpleKOT(
       }
     } catch (e) {
       console.log("Failed to load print settings in SimpleKOT:", e);
+    }
+
+    // --- STRICT INTERNET CHECK ---
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 4000);
+      await fetch("https://billing.kravy.in", { method: "GET", signal: controller.signal });
+      clearTimeout(id);
+    } catch (e) {
+      ToastAndroid.show("⚠️ Internet required for KOT!", ToastAndroid.LONG);
+      return false;
     }
 
     const date = new Date();
@@ -265,7 +365,7 @@ export async function SimpleKOT(
         await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
 
         // Spooler Delay to prevent buffer freeze
-        await new Promise(r => setTimeout(r, printSettings.spoolerDelay || 1500));
+        await new Promise(r => setTimeout(r, 4500));
       } catch (e) {
         console.log("KOT Print background error:", e);
       }
