@@ -21,131 +21,7 @@ import { LanguageProvider, useLanguage } from "../context/LanguageContext";
 import { RefreshProvider, useRefresh } from "../context/RefreshContext";
 import { SoundManager } from "../utils/SoundManager";
 
-// --- BACKGROUND WAKEUP LOGIC FOR NOTIFEE ---
-import notifee, { AndroidCategory, AndroidImportance } from '@notifee/react-native';
-import * as Notifications from 'expo-notifications';
-import * as TaskManager from 'expo-task-manager';
-
-const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
-
-TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => {
-  if (error) return;
-  if (data) {
-    try {
-      const channelId = await notifee.createChannel({
-        id: 'urgent_orders_fullscreen',
-        name: 'Urgent Orders',
-        importance: AndroidImportance.HIGH,
-      });
-
-      await notifee.displayNotification({
-        title: '🚨 NEW URGENT ORDER! 🚨',
-        body: 'Tap to open the app and view the order.',
-        android: {
-          channelId,
-          category: AndroidCategory.CALL,
-          importance: AndroidImportance.HIGH,
-          pressAction: {
-            id: 'default',
-            mainComponent: 'main',
-          },
-          fullScreenAction: {
-            id: 'default',
-          },
-        },
-      });
-    } catch (e) {
-      console.log('Notifee background error:', e);
-    }
-  }
-});
-
-// Register background task and handle Notifee background actions
-try {
-  Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
-  notifee.onBackgroundEvent(async ({ type, detail }) => {
-    // Handle action press in background if needed
-  });
-
-  // Keep the app alive when Foreground Service is active
-  notifee.registerForegroundService((notification) => {
-    return new Promise(async (resolve) => {
-      let lastProcessedIds = new Set<string>();
-      try {
-        const stored = await AsyncStorage.getItem("processedOrderIds");
-        if (stored) lastProcessedIds = new Set(JSON.parse(stored));
-      } catch (e) { }
-
-      const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-
-      while (true) {
-        // ✅ 5-second interval is the "Brahmastra"! It's fast enough to be instant,
-        // but gives the OS enough breathing room so it NEVER throws "Close app or wait" (ANR).
-        await sleep(5000);
-        try {
-          const token = await SecureStore.getItemAsync("__clerk_client_jwt");
-          if (!token) continue;
-
-          const url = `https://billing.kravy.in/api/orders?active=true&t=${Date.now()}`;
-
-          // Prevent fetch from hanging indefinitely in Doze mode
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-          const res = await fetch(url, {
-            headers: { Authorization: `Bearer ${token}` },
-            signal: controller.signal
-          });
-
-          clearTimeout(timeoutId);
-
-          if (res.ok) {
-            const oData = await res.json();
-            const orders: any[] = Array.isArray(oData) ? oData : oData.orders || [];
-
-            const newOrders = orders.filter((o: any) => !lastProcessedIds.has(o._id || o.id));
-
-            if (newOrders.length > 0) {
-              newOrders.forEach(o => lastProcessedIds.add(o._id || o.id));
-              AsyncStorage.setItem("processedOrderIds", JSON.stringify([...lastProcessedIds])).catch(() => { });
-
-              const alertable = newOrders.filter((o: any) => o.source !== "OFFLINE");
-
-              if (alertable.length > 0) {
-                const firstOrder = alertable[0];
-                const tableName = firstOrder.tableName || firstOrder.table?.name || "Online Order";
-
-                const channelId = await notifee.createChannel({
-                  id: 'urgent_orders_fullscreen',
-                  name: 'Urgent Orders',
-                  importance: AndroidImportance.HIGH,
-                });
-
-                await notifee.displayNotification({
-                  id: String(firstOrder._id || firstOrder.id || Date.now()),
-                  title: '🚨 NEW URGENT ORDER! 🚨',
-                  body: `${tableName} has sent a new order. Open app to accept!`,
-                  android: {
-                    channelId,
-                    category: AndroidCategory.CALL,
-                    importance: AndroidImportance.HIGH,
-                    pressAction: { id: 'default', mainComponent: 'main' },
-                    fullScreenAction: { id: 'default' },
-                  },
-                });
-              }
-            }
-          }
-        } catch (err) {
-          // ignore network errors in background
-        }
-      }
-    });
-  });
-} catch (e) {
-  console.log('Background task setup error:', e);
-}
-// -------------------------------------------
+// Removed background notification logic as requested.
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -301,21 +177,25 @@ function AuthRedirect() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <View
           style={{ flex: 1 }}
-          onStartShouldSetResponderCapture={() => {
-            // Fires for EVERY touch — schedule sound tentatively
-            soundTimerRef.current = setTimeout(() => {
-              SoundManager.play();
-              soundTimerRef.current = null;
-            }, 0);
-            return false; // Don't capture — let children handle
+          onTouchStart={(e) => {
+            soundTimerRef.current = {
+              x: e.nativeEvent.pageX,
+              y: e.nativeEvent.pageY,
+              time: Date.now(),
+            } as any;
           }}
-          onStartShouldSetResponder={() => {
-            // Fires ONLY when no child claimed the touch (empty area tap) — cancel sound
-            if (soundTimerRef.current) {
-              clearTimeout(soundTimerRef.current);
-              soundTimerRef.current = null;
+          onTouchEnd={(e) => {
+            const start = soundTimerRef.current as any;
+            if (start) {
+              const dx = Math.abs(e.nativeEvent.pageX - start.x);
+              const dy = Math.abs(e.nativeEvent.pageY - start.y);
+              const dt = Date.now() - start.time;
+              if (dx < 15 && dy < 15 && dt < 800) {
+                // It's a tap, not a scroll. Delay slightly to allow child onPress to suppress.
+                setTimeout(() => { SoundManager.play(); }, 10);
+              }
             }
-            return false; // Don't become responder
+            soundTimerRef.current = null;
           }}
         >
           <Stack screenOptions={{ headerShown: false }} />
@@ -328,21 +208,24 @@ function AuthRedirect() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View
         style={{ flex: 1 }}
-        onStartShouldSetResponderCapture={() => {
-          // Fires for EVERY touch — schedule sound tentatively
-          soundTimerRef.current = setTimeout(() => {
-            SoundManager.play();
-            soundTimerRef.current = null;
-          }, 0);
-          return false; // Don't capture — let children handle
+        onTouchStart={(e) => {
+          soundTimerRef.current = {
+            x: e.nativeEvent.pageX,
+            y: e.nativeEvent.pageY,
+            time: Date.now(),
+          } as any;
         }}
-        onStartShouldSetResponder={() => {
-          // Fires ONLY when no child claimed the touch (empty area tap) — cancel sound
-          if (soundTimerRef.current) {
-            clearTimeout(soundTimerRef.current);
-            soundTimerRef.current = null;
+        onTouchEnd={(e) => {
+          const start = soundTimerRef.current as any;
+          if (start) {
+            const dx = Math.abs(e.nativeEvent.pageX - start.x);
+            const dy = Math.abs(e.nativeEvent.pageY - start.y);
+            const dt = Date.now() - start.time;
+            if (dx < 15 && dy < 15 && dt < 800) {
+              setTimeout(() => { SoundManager.play(); }, 10);
+            }
           }
-          return false; // Don't become responder
+          soundTimerRef.current = null;
         }}
       >
         <ForceUpdateChecker />

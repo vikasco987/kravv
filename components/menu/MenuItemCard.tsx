@@ -47,8 +47,9 @@ export const MenuItemCard = React.memo(({
                 isSelected ? styles.gridItemSelected : styles.gridItemUnselected
             ]}>
                 <TouchableOpacity
-                    onPress={() => onAdd(item)}
-                    onPressIn={() => { SoundManager.suppressNextPlay(); SoundManager.playWebItem(); }}
+                    onPress={() => { SoundManager.playWebItem(); onAdd(item); }}
+                    onPressIn={() => { SoundManager.suppressNextPlay(); }}
+                    delayPressIn={0}
                     activeOpacity={0.8}
                     style={styles.listCardContent}
                 >
@@ -71,9 +72,11 @@ export const MenuItemCard = React.memo(({
                             style={styles.listQuantityTag}
                             onPress={(e) => {
                                 e.stopPropagation();
+                                SoundManager.playRemove();
                                 onRemove(item);
                             }}
-                            onPressIn={(e) => { e.stopPropagation(); SoundManager.suppressNextPlay(); SoundManager.playRemove(); }}
+                            onPressIn={(e) => { e.stopPropagation(); SoundManager.suppressNextPlay(); }}
+                            delayPressIn={0}
                             activeOpacity={0.6}
                         >
                             <Text style={styles.quantityTagText}>x{quantity}</Text>
@@ -91,8 +94,9 @@ export const MenuItemCard = React.memo(({
             isSelected ? styles.gridItemSelected : styles.gridItemUnselected
         ]}>
             <TouchableOpacity
-                onPress={() => onAdd(item)}
-                onPressIn={() => { SoundManager.suppressNextPlay(); SoundManager.playWebItem(); }}
+                onPress={() => { SoundManager.playWebItem(); onAdd(item); }}
+                onPressIn={() => { SoundManager.suppressNextPlay(); }}
+                delayPressIn={0}
                 activeOpacity={0.8}
                 style={styles.cardContent}
             >
@@ -123,9 +127,11 @@ export const MenuItemCard = React.memo(({
                             style={styles.quantityTag}
                             onPress={(e) => {
                                 e.stopPropagation();
+                                SoundManager.playRemove();
                                 onRemove(item);
                             }}
-                            onPressIn={(e) => { e.stopPropagation(); SoundManager.suppressNextPlay(); SoundManager.playRemove(); }}
+                            onPressIn={(e) => { e.stopPropagation(); SoundManager.suppressNextPlay(); }}
+                            delayPressIn={0}
                             activeOpacity={0.6}
                         >
                             <Text style={styles.quantityTagText}>x{quantity}</Text>

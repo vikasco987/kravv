@@ -28,6 +28,7 @@ type HeldOrder = {
   timestamp: string;
   customerName?: string;
   customerPhone?: string;
+  tokenNumber?: string | number;
 };
 
 interface HeldOrdersViewProps {
@@ -82,72 +83,8 @@ export default function HeldOrdersView({
 
   const fetchHeldOrders = async () => {
     if (!isLoaded) return;
-
     try {
-      // 1. FAST PATH: Load hidden IDs and Local Orders immediately
-      const hiddenIdsStr = await AsyncStorage.getItem("@hidden_bill_ids");
-      const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
-
-      const localData = await AsyncStorage.getItem("@held_orders");
-      let initialOrders: HeldOrder[] = localData ? JSON.parse(localData) : [];
-      initialOrders = initialOrders.filter((o) => !hiddenIds.includes(o.id));
-
-      // Load cached backend orders if they exist
-      const cachedBackend = await AsyncStorage.getItem("@cached_held_orders");
-      const orderMap = new Map<string, any>();
-
-      // 1. Add Backend (Cached) First
-      if (cachedBackend) {
-        const parsedCached = JSON.parse(cachedBackend);
-        parsedCached.forEach((bo: any) => {
-          orderMap.set(bo.id.toString(), bo);
-        });
-
-        // 2. Add Local (Live) only if not in backend
-        initialOrders.forEach((lo: any) => {
-          const lid = lo.id.toString();
-          const isAlreadyInBackend = parsedCached.some((bo: any) => {
-            const sameId =
-              bo.id.toString() === lid ||
-              (bo.orderId && bo.orderId.toString() === lid);
-            if (sameId) return true;
-
-            const sameTotal = Math.abs(bo.total - lo.total) < 0.1;
-            const sameItemsCount = bo.items?.length === lo.items?.length;
-            const sameFirstItem = bo.items?.[0]?.name === lo.items?.[0]?.name;
-            const isRecent =
-              new Date().getTime() - new Date(lo.timestamp).getTime() < 60000;
-
-            return sameTotal && sameItemsCount && sameFirstItem && isRecent;
-          });
-
-          if (!isAlreadyInBackend && !hiddenIds.includes(lid)) {
-            orderMap.set(lid, lo);
-          }
-        });
-      } else {
-        // No cache, just add local
-        initialOrders.forEach((lo: any) => {
-          const lid = lo.id.toString();
-          if (!hiddenIds.includes(lid)) {
-            orderMap.set(lid, lo);
-          }
-        });
-      }
-
-      // 3. Final list
-      const combinedInitial = Array.from(orderMap.values());
-
-      // Immediately show what we have
-      setHeldOrders(
-        combinedInitial.sort(
-          (a, b) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-        ),
-      );
-      setLoading(false); // Stop loading regardless of count to show empty state fast if needed
-
-      // 2. BACKGROUND PATH: Fetch fresh data from API
+      setLoading(true);
       const sessionStr = await AsyncStorage.getItem("staff_session");
       const isStaff = !!sessionStr;
       if (!isSignedIn && !isStaff) {
@@ -163,9 +100,10 @@ export default function HeldOrdersView({
       );
 
       if (finalToken || bId) {
+        const timestamp = Date.now();
         const url = bId
-          ? `https://billing.kravy.in/api/bill-manager?isHeld=true&businessId=${bId}`
-          : "https://billing.kravy.in/api/bill-manager?isHeld=true";
+          ? `https://billing.kravy.in/api/bill-manager?isHeld=true&businessId=${bId}&t=${timestamp}`
+          : `https://billing.kravy.in/api/bill-manager?isHeld=true&t=${timestamp}`;
         const response = await fetch(url, {
           headers: finalToken ? { Authorization: `Bearer ${finalToken}` } : {},
         });
@@ -173,83 +111,33 @@ export default function HeldOrdersView({
         if (response.ok) {
           const data = await response.json();
           const bills = data.bills || [];
+
           const backendHeld = bills
-            .filter(
-              (b: any) =>
-                b.isHeld !== false &&
-                !hiddenIds.includes(b.billNumber) &&
-                !hiddenIds.includes(b._id) &&
-                !hiddenIds.includes(b.id),
-            )
+            .filter((b: any) => b.isHeld !== false)
             .map((b: any) => ({
               id: b._id || b.id || b.billNumber,
-              items: (b.items || []).map((i: any) => ({
-                ...i,
-                id: i.productId || i.id || i._id || Math.random().toString(),
-                quantity: i.quantity || i.qty || 0,
-                price: i.price || i.rate || 0,
-              })),
+              items: (b.items || []).map((i: any) => {
+                const extractedId = (i.productId && i.productId._id)
+                  ? i.productId._id
+                  : (i.productId || i.id || i._id || Math.random().toString());
+                return {
+                  ...i,
+                  id: String(extractedId),
+                  quantity: i.quantity || i.qty || 0,
+                  price: i.price || i.rate || 0,
+                };
+              }),
               total: b.total || 0,
               timestamp: b.createdAt || new Date().toISOString(),
               customerName: b.customerName,
               customerPhone: b.customerPhone,
-              orderId: b.orderId, // 🚀 Capture the linked local ID
+              tokenNumber: b.tokenNumber || b.tokenNo || undefined,
+              orderId: b.orderId,
             }));
 
-          // Cachefresh backend fresh result
-          await AsyncStorage.setItem(
-            "@cached_held_orders",
-            JSON.stringify(backendHeld),
-          );
-
-          // --- ROBUST MERGE LOGIC (Eliminates all duplicates) ---
-          const freshLocal = localData ? JSON.parse(localData) : [];
-          const orderMap = new Map<string, any>();
-
-          // 1. Add Backend Orders First (Source of Truth)
-          backendHeld.forEach((bo: any) => {
-            orderMap.set(bo.id.toString(), bo);
-          });
-
-          // 2. Add Local Orders only if they don't overlap with backend
-          freshLocal.forEach((lo: any) => {
-            const lid = lo.id.toString();
-
-            // Check if this local order is already in backend
-            const isAlreadyInBackend = backendHeld.some((bo: any) => {
-              const bid = bo.id.toString();
-              const bOrderId = bo.orderId ? bo.orderId.toString() : null;
-
-              // Direct ID Match
-              if (bid === lid || bOrderId === lid) return true;
-
-              // Conservative Fuzzy Match (for orders synced but ID not perfectly linked)
-              const sameTotal = Math.abs(bo.total - lo.total) < 0.1;
-              const sameItemsCount = bo.items?.length === lo.items?.length;
-              if (sameTotal && sameItemsCount) {
-                const sameFirstItem =
-                  bo.items?.[0]?.name === lo.items?.[0]?.name;
-                const isRecent =
-                  Math.abs(
-                    new Date(bo.timestamp).getTime() -
-                      new Date(lo.timestamp).getTime(),
-                  ) < 300000; // 5 mins
-                if (sameFirstItem && isRecent) return true;
-              }
-
-              return false;
-            });
-
-            if (!isAlreadyInBackend && !hiddenIds.includes(lid)) {
-              orderMap.set(lid, lo);
-            }
-          });
-
-          const freshCombined = Array.from(orderMap.values());
-
           setHeldOrders(
-            freshCombined.sort(
-              (a, b) =>
+            backendHeld.sort(
+              (a: any, b: any) =>
                 new Date(b.timestamp).getTime() -
                 new Date(a.timestamp).getTime(),
             ),
@@ -269,26 +157,29 @@ export default function HeldOrdersView({
 
   const confirmBulkDelete = async () => {
     const idsToDelete = [...selectedOrders];
-    setHeldOrders((prev) => prev.filter((o) => !idsToDelete.includes(o.id)));
     setSelectedOrders([]);
     setIsBulkDeleteModalVisible(false);
+    setLoading(true);
 
-    triggerRefresh();
-    if (onRefreshCount) onRefreshCount();
     const authToken = await getToken();
     const sessionStr = await AsyncStorage.getItem("staff_session");
     const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
     const finalToken = authToken || staffSession?.token;
 
     for (const id of idsToDelete) {
-      await cleanupOrderData(id);
       if (finalToken) {
-        fetch(`https://billing.kravy.in/api/bill-manager/${id}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${finalToken}` },
-        }).catch(() => {});
+        try {
+          await fetch(`https://billing.kravy.in/api/bill-manager/${id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${finalToken}` },
+          });
+        } catch (e) { }
       }
     }
+
+    await fetchHeldOrders();
+    if (onRefreshCount) onRefreshCount();
+
     ToastAndroid.show(
       `${idsToDelete.length} orders deleted`,
       ToastAndroid.SHORT,
@@ -301,68 +192,14 @@ export default function HeldOrdersView({
     }, []),
   );
 
-  const hideOrderLocally = async (id: string) => {
-    const hiddenIdsStr = await AsyncStorage.getItem("@hidden_bill_ids");
-    const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
-    if (!hiddenIds.includes(id)) {
-      hiddenIds.push(id);
-      await AsyncStorage.setItem("@hidden_bill_ids", JSON.stringify(hiddenIds));
-    }
-  };
 
-  const cleanupOrderData = async (id: string) => {
-    try {
-      // 1. Remove from local held orders
-      const localData = await AsyncStorage.getItem("@held_orders");
-      if (localData) {
-        const orders = JSON.parse(localData);
-        const filtered = orders.filter(
-          (o: any) => o.id.toString() !== id.toString(),
-        );
-        await AsyncStorage.setItem("@held_orders", JSON.stringify(filtered));
-      }
-
-      // 2. Remove from cached backend orders
-      const cachedData = await AsyncStorage.getItem("@cached_held_orders");
-      if (cachedData) {
-        const cached = JSON.parse(cachedData);
-        const filtered = cached.filter(
-          (o: any) => o.id.toString() !== id.toString(),
-        );
-        await AsyncStorage.setItem(
-          "@cached_held_orders",
-          JSON.stringify(filtered),
-        );
-      }
-
-      // 3. Add to hidden IDs (as a safeguard)
-      const hiddenIdsStr = await AsyncStorage.getItem("@hidden_bill_ids");
-      const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
-      if (!hiddenIds.includes(id)) {
-        hiddenIds.push(id);
-        await AsyncStorage.setItem(
-          "@hidden_bill_ids",
-          JSON.stringify(hiddenIds),
-        );
-      }
-    } catch (e) {
-      console.log("Cleanup error:", e);
-    }
-  };
 
   const confirmDeleteOrder = async () => {
     if (!orderToDelete) return;
     const id = orderToDelete.id;
 
-    // 🚀 INSTANT UI UPDATE
-    setHeldOrders((prev) => prev.filter((o) => o.id !== id));
     setIsDeleteModalVisible(false);
-
-    // 🚀 BACKGROUND CLEANUP
-    await cleanupOrderData(id);
-
-    triggerRefresh();
-    if (onRefreshCount) onRefreshCount();
+    setLoading(true);
 
     try {
       const authToken = await getToken();
@@ -376,7 +213,10 @@ export default function HeldOrdersView({
           headers: { Authorization: `Bearer ${finalToken}` },
         });
       }
-    } catch (e) {}
+    } catch (e) { }
+
+    await fetchHeldOrders();
+    if (onRefreshCount) onRefreshCount();
 
     ToastAndroid.show("Order Deleted", ToastAndroid.SHORT);
     setOrderToDelete(null);
@@ -385,30 +225,48 @@ export default function HeldOrdersView({
   const confirmResumeOrder = async () => {
     if (!orderToResume) return;
     try {
-      const cleanItems = orderToResume.items.map((i) => ({
-        id: i.id,
+      const cleanItems = orderToResume.items.map((i: any) => ({
+        id: i.id, // fetchHeldOrders maps this to productId
+        productId: i.id,
         name: i.name,
         quantity: i.quantity,
         price: i.price,
       }));
 
-      // 🚀 Prepare for MainMenuView
+      // 🚀 Prepare for MainMenuView (DO NOT set @resume_cart_id so it becomes a fresh cart)
       await AsyncStorage.setItem("@resume_cart", JSON.stringify(cleanItems));
-      await AsyncStorage.setItem("@resume_cart_id", orderToResume.id);
+      if (orderToResume.tokenNumber) {
+        await AsyncStorage.setItem("@resume_token", String(orderToResume.tokenNumber));
+      }
 
-      // 🚀 INSTANT UI UPDATE
-      setHeldOrders((prev) => prev.filter((o) => o.id !== orderToResume.id));
       setIsResumeModalVisible(false);
-
-      // 🚀 BACKGROUND CLEANUP (Crucial for preventing duplicates)
-      await cleanupOrderData(orderToResume.id);
-
-      triggerRefresh();
-      if (onRefreshCount) onRefreshCount();
+      const resumedId = orderToResume.id;
 
       ToastAndroid.show("Order Resumed", ToastAndroid.SHORT);
       setOrderToResume(null);
-      handleBack();
+      handleBack(); // Instantly go back to menu, super fast!
+
+      // 🚀 BACKGROUND TASK: DELETE from backend so it completely leaves the hold list immediately
+      (async () => {
+        try {
+          const authToken = await getToken();
+          const sessionStr = await AsyncStorage.getItem("staff_session");
+          const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+          const finalToken = authToken || staffSession?.token;
+
+          if (finalToken) {
+            await fetch(`https://billing.kravy.in/api/bill-manager/${resumedId}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${finalToken}` },
+            });
+          }
+
+          await fetchHeldOrders();
+          if (onRefreshCount) onRefreshCount();
+        } catch (e) {
+          console.log("Failed to delete resumed order from backend", e);
+        }
+      })();
     } catch (error) {
       ToastAndroid.show("Failed to resume order", ToastAndroid.SHORT);
     }
@@ -442,15 +300,14 @@ export default function HeldOrdersView({
           phone: order.customerPhone || "",
           paymentMode: "Cash",
           isHeld: false, // Ensure it is finalized
-          source: "ONLINE",
+          source: "POS",
         },
       );
 
       if (res.status === "success") {
         ToastAndroid.show("Bill Printed & Finalized", ToastAndroid.SHORT);
-        await hideOrderLocally(order.id);
         setSelectedOrderDetail(null);
-        fetchHeldOrders(); // Refresh list
+        await fetchHeldOrders();
         if (onRefreshCount) onRefreshCount();
         triggerRefresh();
       } else {

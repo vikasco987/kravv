@@ -166,9 +166,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setCheckoutParams(null);
             setCurrentView("main");
             if (checkoutParams.source === 'kot') {
-              router.replace("/(tabs)/kot");
+              router.replace("/(tabs)/kot" as any);
             } else {
-              router.replace("/(tabs)/orders");
+              router.replace("/(tabs)/orders" as any);
             }
           } else {
             setCurrentView("main");
@@ -543,52 +543,12 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         return;
       }
 
-      // Standardize ID comparison
-      const hiddenIdsStr = await AsyncStorage.getItem("@hidden_bill_ids");
-      const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
-
-      const localData = await AsyncStorage.getItem("@held_orders");
-      const localOrders = localData ? JSON.parse(localData) : [];
-
-      const cachedBackendStr = await AsyncStorage.getItem(
-        "@cached_held_orders",
-      );
-      const cachedBackend = cachedBackendStr
-        ? JSON.parse(cachedBackendStr)
-        : [];
-
-      const getConsolidatedCount = (backend: any[], local: any[]) => {
-        const uniqueIds = new Set();
-        let count = 0;
-
-        const process = (item: any) => {
-          if (!item) return;
-          if (item.isHeld === false) return;
-          const id = item.id || item._id || item.billNumber;
-          if (!id) return;
-          const cleanId = id.toString();
-          if (!hiddenIds.includes(cleanId) && !uniqueIds.has(cleanId)) {
-            uniqueIds.add(cleanId);
-            count++;
-          }
-        };
-
-        backend.forEach((b) => process(b));
-        local.forEach((l) => process(l));
-        return count;
-      };
-
-      // 1. Instant show from cache
-      const initialCount = getConsolidatedCount(cachedBackend, localOrders);
-      setHeldCount((prev) => (prev !== initialCount ? initialCount : prev));
-
       const bId = activeBusinessId || session?.businessId;
-
-      // 2. Refresh from API
+      const timestamp = Date.now();
       const res = await fetch(
         bId
-          ? `https://billing.kravy.in/api/bill-manager?isHeld=true&businessId=${bId}`
-          : "https://billing.kravy.in/api/bill-manager?isHeld=true",
+          ? `https://billing.kravy.in/api/bill-manager?isHeld=true&businessId=${bId}&t=${timestamp}`
+          : `https://billing.kravy.in/api/bill-manager?isHeld=true&t=${timestamp}`,
         {
           headers: {
             Authorization: `Bearer ${finalToken}`,
@@ -600,11 +560,11 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       if (res.ok) {
         const data = await res.json();
         const bills = data.bills || [];
-        const nextCount = getConsolidatedCount(bills, localOrders);
-        setHeldCount((prev) => (prev !== nextCount ? nextCount : prev));
+        const count = bills.filter((b: any) => b.isHeld !== false).length;
+        setHeldCount((prev) => (prev !== count ? count : prev));
       }
     } catch (e: any) {
-      console.log("Fetch held count info (using cache):", e.message);
+      console.log("Fetch held count info:", e.message);
     } finally {
       isFetchingHeldCount.current = false;
     }
@@ -1049,7 +1009,19 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         }
       };
       resetFocus();
+    }, [
+      isLoaded,
+      isSignedIn,
+      user?.id,
+      refreshSignal,
+      activeCustomer,
+      activeBusinessId,
+      menus,
+    ]),
+  );
 
+  useEffect(() => {
+    if (currentView === "main" && menus.length > 0) {
       const checkResumeCart = async () => {
         try {
           const data = await AsyncStorage.getItem("@resume_cart");
@@ -1058,26 +1030,63 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             const newCart: Record<string, CartItem> = {};
 
             resumedItems.forEach((item: any) => {
-              let enrichedItem = { ...item };
-              // Try to find image in menus if missing
-              if (!enrichedItem.imageUrl) {
-                for (const cat of menus) {
-                  const found = cat.items.find(
-                    (mi) => mi.id === item.id || mi.name === item.name,
-                  );
-                  if (found && found.imageUrl) {
-                    enrichedItem.imageUrl = found.imageUrl;
-                    break;
-                  }
+              let foundInMenu = null;
+
+              for (const cat of menus) {
+                const found = cat.items.find(
+                  (mi) =>
+                    String(mi.id) === String(item.id) ||
+                    String(mi.id) === String(item.productId) ||
+                    String(mi.name).trim().toLowerCase() === String(item.name).trim().toLowerCase() ||
+                    (item.productId && String(mi.id) === String(item.productId._id)),
+                );
+                if (found) {
+                  foundInMenu = found;
+                  break;
                 }
               }
-              newCart[item.id] = enrichedItem;
+
+              const itemPrice = Number(item.price || item.rate || 0);
+
+              if (foundInMenu) {
+                const isCustomPrice = itemPrice !== foundInMenu.price;
+
+                if (newCart[foundInMenu.id]) {
+                  newCart[foundInMenu.id].quantity += Number(item.quantity || 1);
+                } else {
+                  newCart[foundInMenu.id] = {
+                    ...foundInMenu,
+                    quantity: Number(item.quantity || 1),
+                    ...(isCustomPrice ? { editedPrice: itemPrice } : {})
+                  };
+                }
+              } else {
+                // Fallback for items no longer in menu
+                const cartKey = `fallback_${itemPrice}_${item.name.replace(/\s+/g, '')}`;
+                if (newCart[cartKey]) {
+                  newCart[cartKey].quantity += Number(item.quantity || 1);
+                } else {
+                  newCart[cartKey] = {
+                    id: cartKey,
+                    name: item.name,
+                    price: itemPrice,
+                    quantity: Number(item.quantity || 1),
+                    editedPrice: itemPrice
+                  };
+                }
+              }
             });
 
             setCart(newCart);
             await AsyncStorage.removeItem("@resume_cart");
             const id = await AsyncStorage.getItem("@resume_cart_id");
             const isEdit = await AsyncStorage.getItem("@is_bill_edit");
+            const token = await AsyncStorage.getItem("@resume_token");
+
+            if (token) {
+              lastKotTokenRef.current = token;
+              await AsyncStorage.removeItem("@resume_token");
+            }
 
             if (id) {
               setActiveOrderId(id);
@@ -1108,15 +1117,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         }
       };
       checkResumeCart();
-    }, [
-      isLoaded,
-      isSignedIn,
-      user?.id,
-      refreshSignal,
-      activeCustomer,
-      activeBusinessId,
-    ]),
-  );
+    }
+  }, [currentView, menus]);
 
   useEffect(() => {
     if (refreshSignal > 0) {
@@ -1277,84 +1279,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     const totalValue = totalOverride || totalAmount;
     if (itemsSnapshot.length === 0) return;
 
-    // 🚀 STEP 1: Remove from Hidden IDs if re-holding (resumed items are hidden)
-    if (activeOrderId) {
-      try {
-        const hiddenIdsStr = await AsyncStorage.getItem("@hidden_bill_ids");
-        if (hiddenIdsStr) {
-          let hiddenIds = JSON.parse(hiddenIdsStr);
-          if (hiddenIds.includes(activeOrderId)) {
-            hiddenIds = hiddenIds.filter((id: string) => id !== activeOrderId);
-            await AsyncStorage.setItem(
-              "@hidden_bill_ids",
-              JSON.stringify(hiddenIds),
-            );
-          }
-        }
-      } catch (e) {
-        console.log("Error cleaning hidden IDs:", e);
-      }
-    }
-
     const originalActiveId = activeOrderId;
-    // 🚀 Consistent ID for this transaction
-    const finalIdToUse = originalActiveId || "BILL-" + Date.now();
-
-    const saveToLocalFallback = async (
-      snapshot: any[],
-      totalVal: number,
-      idToUse: string,
-    ) => {
-      try {
-        const localData = await AsyncStorage.getItem("@held_orders");
-        let orders = localData ? JSON.parse(localData) : [];
-
-        const index = orders.findIndex((o: any) => o.id === idToUse);
-        if (index !== -1) {
-          orders[index] = {
-            ...orders[index],
-            items: snapshot,
-            total: totalVal,
-            customerName: cName || orders[index].customerName || "Walk-in",
-            customerPhone: cPhone || orders[index].customerPhone || "",
-            timestamp: new Date().toISOString(),
-          };
-        } else {
-          orders.push({
-            id: idToUse,
-            items: snapshot,
-            total: totalVal,
-            customerName: cName || "Walk-in",
-            customerPhone: cPhone || "",
-            timestamp: new Date().toISOString(),
-          });
-        }
-
-        await AsyncStorage.setItem("@held_orders", JSON.stringify(orders));
-        fetchHeldCount();
-        triggerRefresh(); // 🚀 Notify HeldOrdersView to refresh
-      } catch (e) {
-        console.error("Local fallback failed:", e);
-      }
-    };
-
-    // 🚀 INSTANT LOCAL SAVE (fixes the 4-5s delay)
-    await saveToLocalFallback(itemsSnapshot, totalValue, finalIdToUse);
-
-    // 🚀 INSTANT UI FEEDBACK
-    setShowHoldSuccess(true);
-    SoundManager.playHold();
-    setIsHoldModalVisible(false);
-    setCart({});
-    const orderIdToSync = originalActiveId; // Capture before clearing
-    setActiveOrderId(null);
-    setSelectedTable(null);
-    setSelectedRoom(null);
-    // Instant Feedback:
-    setHeldCount((prev) => prev + 1);
-
-    // Auto-hide success message shortly after
-    setTimeout(() => setShowHoldSuccess(false), 800);
+    const finalIdToUse = originalActiveId && /^[a-fA-F0-9]{24}$/.test(originalActiveId) ? originalActiveId : undefined;
+    const capturedToken = lastKotTokenRef.current;
 
     try {
       const token = await getToken();
@@ -1364,12 +1291,11 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
 
       if (finalToken && bId) {
-        const method = orderIdToSync ? "PUT" : "POST";
-        const url = orderIdToSync
-          ? `https://billing.kravy.in/api/bill-manager/${orderIdToSync}`
+        const method = finalIdToUse ? "PUT" : "POST";
+        const url = finalIdToUse
+          ? `https://billing.kravy.in/api/bill-manager/${finalIdToUse}`
           : "https://billing.kravy.in/api/bill-manager";
 
-        // --- CALCULATE PROPER TOTALS (Fixes 220 -> 246 issue) ---
         let totalTaxable = 0;
         let totalGst = 0;
         const productsPayload = itemsSnapshot.map((i) => {
@@ -1377,7 +1303,6 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           const qty = Number(i.quantity || 1);
           const lineTotal = rate * qty;
 
-          // Use proper GST rate based on settings
           let itemGstRate = 0;
           if (taxSettings.enabled) {
             itemGstRate = taxSettings.perProduct
@@ -1385,7 +1310,6 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
               : Number(taxSettings.rate || 0);
           }
 
-          // Assume prices are INCLUSIVE ("With Tax") for hold to preserve the 220 total
           const taxable = lineTotal / (1 + itemGstRate / 100);
           const gstAmount = lineTotal - taxable;
 
@@ -1393,6 +1317,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           totalGst += gstAmount;
 
           return {
+            id: i.id || Math.random().toString(16).padEnd(24, "0"),
             itemId: i.id || Math.random().toString(16).padEnd(24, "0"),
             productId: i.id,
             name: i.name,
@@ -1411,8 +1336,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           };
         });
 
-        // Background fetch (don't await for UI)
-        fetch(url, {
+        // 🚀 Await API call
+        const res = await fetch(url, {
           method: method,
           headers: {
             "Content-Type": "application/json",
@@ -1428,47 +1353,43 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             isHeld: true,
             clerkUserId: bId,
             userClerkId: bId,
-            orderId: finalIdToUse, // 🚀 Link local ID to backend for deduping
+            orderId: finalIdToUse,
             customerName: cName || "Walk-in Customer",
             customerPhone: cPhone || "",
             customerAddress: null,
             tableName: selectedTable || selectedRoom || "POS",
             roomName: selectedRoom || null,
-            tokenNumber: null,
+            tokenNumber: capturedToken ? Number(capturedToken) : null,
             discountAmount: 0,
             discountCode: null,
             auditNote: "Held Order",
+            source: "POS",
             businessId: bId,
           }),
-        })
-          .then(async (res) => {
-            if (res.ok) {
-              // 🚀 SUCCESS! Now remove the local temporary order to prevent duplicates
-              try {
-                const localData = await AsyncStorage.getItem("@held_orders");
-                if (localData) {
-                  let orders = JSON.parse(localData);
-                  // Remove the synced item from local storage
-                  const filtered = orders.filter(
-                    (o: any) => o.id.toString() !== finalIdToUse.toString(),
-                  );
-                  await AsyncStorage.setItem(
-                    "@held_orders",
-                    JSON.stringify(filtered),
-                  );
-                  // Refresh count and UI immediately after cleanup
-                  fetchHeldCount();
-                  triggerRefresh();
-                }
-              } catch (e) { }
-            }
-          })
-          .catch(async () => {
-            // Keep local on error
-          });
+        });
+
+        if (res.ok) {
+          setShowHoldSuccess(true);
+          SoundManager.playHold();
+          setIsHoldModalVisible(false);
+          setCart({});
+          setActiveOrderId(null);
+          setSelectedTable(null);
+          setSelectedRoom(null);
+
+          await fetchHeldCount();
+          triggerRefresh();
+
+          setTimeout(() => setShowHoldSuccess(false), 800);
+        } else {
+          const errText = await res.text();
+          console.error("Hold POST Error:", errText);
+          ToastAndroid.show("Failed to hold bill on server", ToastAndroid.SHORT);
+        }
       }
     } catch (e) {
       console.error("Hold process error:", e);
+      ToastAndroid.show("Network error holding bill", ToastAndroid.SHORT);
     }
   };
 
@@ -1495,11 +1416,23 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         : Object.values(cart);
       if (itemsToPrint.length === 0) return;
 
-      // 🚀 INSTANT UI FEEDBACK: Clear cart immediately for large orders
+      // 🌐 INTERNET CHECK
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        await fetch("https://billing.kravy.in", { method: "HEAD", signal: controller.signal });
+        clearTimeout(timeoutId);
+      } catch (e) {
+        ToastAndroid.show("❌ No Internet Connection! KOT not printed.", ToastAndroid.LONG);
+        isPrinting.current = false;
+        return;
+      }
+
+      // 🚀 INSTANT UI FEEDBACK: Do NOT clear cart after KOT (as requested)
       if (!Array.isArray(itemsOverride)) {
-        setCart({});
-        setSelectedTable(null);
-        setSelectedRoom(null);
+        // setCart({});
+        // setSelectedTable(null);
+        // setSelectedRoom(null);
       }
 
       // 1. Background Work
@@ -1513,8 +1446,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             staffSession?.businessId ||
             (await StaffPermissionEngine.getActiveBusinessId(user?.id));
 
-          const kotIdToUse = checkoutParams?.kotId || Date.now().toString();
-          const tokenNo = await resolveOrderToken(kotIdToUse, null);
+          const kotIdToUse = activeOrderId || checkoutParams?.kotId || Date.now().toString();
+          const tokenNo = await resolveOrderToken(kotIdToUse, lastKotTokenRef.current, bId!, finalToken!);
           lastKotTokenRef.current = tokenNo;
 
           // Print (Now non-blocking inside SimpleKOT)
@@ -1593,6 +1526,17 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
       : Object.values(cart);
     if (itemsToPrint.length === 0) {
       ToastAndroid.show(t("no_items"), ToastAndroid.SHORT);
+      return;
+    }
+
+    // 🌐 INTERNET CHECK
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      await fetch("https://billing.kravy.in", { method: "HEAD", signal: controller.signal });
+      clearTimeout(timeoutId);
+    } catch (e) {
+      ToastAndroid.show("❌ No Internet Connection! Bill not printed.", ToastAndroid.LONG);
       return;
     }
 
@@ -1680,6 +1624,17 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     const itemsToSave = Object.values(cart);
     if (itemsToSave.length === 0) return;
 
+    // 🌐 INTERNET CHECK
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      await fetch("https://billing.kravy.in", { method: "HEAD", signal: controller.signal });
+      clearTimeout(timeoutId);
+    } catch (e) {
+      ToastAndroid.show("❌ No Internet Connection! Bill not saved.", ToastAndroid.LONG);
+      return;
+    }
+
     // CHECK WALLET BEFORE CLEARING CART
     if (paymentMethod === "Wallet") {
       if (!activeCustomer) {
@@ -1736,6 +1691,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
           tableName: tableToSave || undefined,
           roomName: roomToSave || undefined,
           taxSettings: taxSettings,
+          tokenNo: lastKotTokenRef.current || undefined,
         });
         fetchHeldCount();
       } catch (e) {
@@ -1791,9 +1747,9 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             setCheckoutParams(null);
             setCurrentView("main");
             if (checkoutParams.source === 'kot') {
-              router.replace("/(tabs)/kot");
+              router.replace("/(tabs)/kot" as any);
             } else {
-              router.replace("/(tabs)/orders");
+              router.replace("/(tabs)/orders" as any);
             }
           } else {
             setCurrentView("main");
@@ -1889,6 +1845,7 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
         <FlatList
           ref={flatListRef}
           data={filteredMenus}
+          extraData={cart}
           keyExtractor={(cat) => cat.id}
           contentContainerStyle={{ paddingBottom: 450, flexGrow: 1 }}
           initialNumToRender={4}

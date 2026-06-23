@@ -3,9 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // @ts-ignore
 import { ToastAndroid } from "react-native";
 // @ts-ignore
-import RNBluetoothClassic from "react-native-bluetooth-classic";
 
-let kotPrintQueueLock: Promise<any> = Promise.resolve();
+import { enqueuePrintTask, ensurePrinterConnected } from "../../utils/SimpleBill";
 
 /* ---------- Helpers ---------- */
 const centerText = (text: string, width = 32) => {
@@ -31,120 +30,17 @@ const getEscPosSize = (size: number) => {
   return new Uint8Array([0x1b, 0x21, 0x30]); // Double Width & Height
 };
 
+const BOLD_ON = new Uint8Array([0x1b, 0x45, 0x01]);
+const BOLD_OFF = new Uint8Array([0x1b, 0x45, 0x00]);
+
 const getEscPosWeight = (specific: string | undefined | null, global: string | undefined | null, fallback: string): Uint8Array => {
   const w = specific || global || fallback;
-  if (!w) return new Uint8Array([0x1b, 0x45, 0x00]);
-  const lw = w.toLowerCase();
-  if (lw === "bold" || lw === "700" || lw === "800" || lw === "900") return new Uint8Array([0x1b, 0x45, 0x01]);
-  return new Uint8Array([0x1b, 0x45, 0x00]);
+  if (!w) return BOLD_OFF;
+  const lw = String(w).toLowerCase();
+  if (lw === "bold" || lw === "700" || lw === "800" || lw === "900") return BOLD_ON;
+  return BOLD_OFF;
 };
 
-let connectedPrinter: any = null;
-
-/* ---------- Ensure Printer ---------- */
-async function ensurePrinterConnected() {
-  try {
-    if (connectedPrinter) {
-      try {
-        const isConnected = await connectedPrinter.isConnected();
-        if (isConnected) {
-          if (!connectedPrinter._isSafeWrapped) {
-            const _origWrite = connectedPrinter.write.bind(connectedPrinter);
-            connectedPrinter.write = async (data: any) => {
-              const d = data instanceof Uint8Array ? data : new Uint8Array(data);
-              for (let i = 0; i < d.length; i += 64) {
-                await _origWrite(d.slice(i, i + 64));
-                await new Promise(r => setTimeout(r, 40));
-              }
-            };
-            connectedPrinter._isSafeWrapped = true;
-          }
-          return connectedPrinter;
-        }
-      } catch (e) { }
-      connectedPrinter = null;
-    }
-
-    const connected = await RNBluetoothClassic.getConnectedDevices();
-    if (connected && connected.length > 0) {
-      connectedPrinter = connected[0];
-      if (!connectedPrinter._isSafeWrapped) {
-        const _origWrite = connectedPrinter.write.bind(connectedPrinter);
-        connectedPrinter.write = async (data: any) => {
-          const d = data instanceof Uint8Array ? data : new Uint8Array(data);
-          for (let i = 0; i < d.length; i += 64) {
-            await _origWrite(d.slice(i, i + 64));
-            await new Promise(r => setTimeout(r, 40));
-          }
-        };
-        connectedPrinter._isSafeWrapped = true;
-      }
-      try { await connectedPrinter.clear(); } catch (e) { }
-      return connectedPrinter;
-    }
-
-    const bonded = await RNBluetoothClassic.getBondedDevices();
-    if (bonded && bonded.length > 0) {
-      const dev = bonded[0];
-      try {
-        const isConnected = await dev.isConnected();
-        if (isConnected) {
-          connectedPrinter = dev;
-          if (!connectedPrinter._isSafeWrapped) {
-            const _origWrite = connectedPrinter.write.bind(connectedPrinter);
-            connectedPrinter.write = async (data: any) => {
-              const d = data instanceof Uint8Array ? data : new Uint8Array(data);
-              for (let i = 0; i < d.length; i += 64) {
-                await _origWrite(d.slice(i, i + 64));
-                await new Promise(r => setTimeout(r, 40));
-              }
-            };
-            connectedPrinter._isSafeWrapped = true;
-          }
-          return dev;
-        }
-      } catch (e) { }
-      
-      const success = await dev.connect();
-      if (success) {
-        connectedPrinter = dev;
-        if (!connectedPrinter._isSafeWrapped) {
-          const _origWrite = connectedPrinter.write.bind(connectedPrinter);
-          connectedPrinter.write = async (data: any) => {
-            const d = data instanceof Uint8Array ? data : new Uint8Array(data);
-            for (let i = 0; i < d.length; i += 64) {
-              await _origWrite(d.slice(i, i + 64));
-              await new Promise(r => setTimeout(r, 40));
-            }
-          };
-          connectedPrinter._isSafeWrapped = true;
-        }
-        try { await dev.clear(); } catch (e) { }
-        return dev;
-      }
-    }
-
-    const saved = await AsyncStorage.getItem("saved_printer");
-    if (!saved) return null;
-
-    connectedPrinter = await RNBluetoothClassic.connectToDevice(saved);
-    if (connectedPrinter && !connectedPrinter._isSafeWrapped) {
-      const _origWrite = connectedPrinter.write.bind(connectedPrinter);
-      connectedPrinter.write = async (data: any) => {
-        const d = data instanceof Uint8Array ? data : new Uint8Array(data);
-        for (let i = 0; i < d.length; i += 64) {
-          await _origWrite(d.slice(i, i + 64));
-          await new Promise(r => setTimeout(r, 40));
-        }
-      };
-      connectedPrinter._isSafeWrapped = true;
-    }
-    return connectedPrinter;
-  } catch (err) {
-    connectedPrinter = null;
-    return null;
-  }
-}
 
 const DEFAULT_PRINT_SETTINGS = {
   showKOTToken: true,
@@ -170,13 +66,7 @@ export async function SimpleKOT(
   customerName?: string | null,
 ) {
   try {
-    const printer = await ensurePrinterConnected();
-    if (!printer) {
-      ToastAndroid.show("⚠️ Printer not connected!", ToastAndroid.SHORT);
-      return false;
-    }
-
-    // Load KOT print settings from AsyncStorage or fallback
+    // Connection logic moved inside the queue for safety    // Load KOT print settings from AsyncStorage or fallback
     let printSettings: any = { ...DEFAULT_PRINT_SETTINGS };
     try {
       const cachedSettings = await AsyncStorage.getItem("print_settings");
@@ -190,7 +80,7 @@ export async function SimpleKOT(
     // --- STRICT INTERNET CHECK ---
     try {
       const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 4000);
+      const id = setTimeout(() => controller.abort(), 8000);
       await fetch("https://billing.kravy.in", { method: "GET", signal: controller.signal });
       clearTimeout(id);
     } catch (e) {
@@ -206,8 +96,13 @@ export async function SimpleKOT(
     const lineWidth = 32;
 
     // --- Start Printing (Backgrounded for speed) ---
-    kotPrintQueueLock = kotPrintQueueLock.then(async () => {
+    enqueuePrintTask(async () => {
       try {
+        const printer = await ensurePrinterConnected();
+        if (!printer) {
+          ToastAndroid.show("⚠️ Printer not connected!", ToastAndroid.SHORT);
+          return;
+        }
         const globalWeight = printSettings.kotFontWeight;
         const kotTokenSizeCmd = getEscPosSize(Number(printSettings.kotTokenSize) || 16);
         const kotTokenWeightCmd = getEscPosWeight(printSettings.kotTokenWeight, globalWeight, "bold");
@@ -369,7 +264,7 @@ export async function SimpleKOT(
       } catch (e) {
         console.log("KOT Print background error:", e);
       }
-    }).catch(e => console.error("KOT Queue Error:", e));
+    });
 
     return true;
   } catch (err) {

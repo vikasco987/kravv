@@ -490,7 +490,7 @@ const NewOrderNotifier = () => {
           );
 
           // Only alert for online/QR orders
-          const alertableOrders = newlyArrivedOrders.filter((o) => o.source !== "OFFLINE");
+          const alertableOrders = newlyArrivedOrders.filter((o) => o.source !== "OFFLINE" && o.source !== "POS");
 
           if (alertableOrders.length > 0) {
             // ✅ TRIGGER SYSTEM NOTIFICATION
@@ -544,36 +544,11 @@ const NewOrderNotifier = () => {
     // Poll every 5 seconds instead of 1s to prevent OOM memory leak crashes
     const intervalId = setInterval(fetchOrders, 5000);
 
-    // ✅ Start Foreground Service to keep app alive
-    const startKeepAlive = async () => {
-      try {
-        const channelId = await notifee.createChannel({
-          id: 'kravy_pos_service',
-          name: 'POS Service',
-          importance: AndroidImportance.MIN,
-        });
-
-        await notifee.displayNotification({
-          title: 'Kravy POS Active',
-          body: 'Monitoring new orders...',
-          android: {
-            channelId,
-            asForegroundService: true,
-            ongoing: true,
-          },
-        });
-      } catch (e) {
-        console.log('Failed to start foreground service:', e);
-      }
-    };
-    startKeepAlive();
+    // Foreground Service removed as requested.
 
     // ✅ Refresh immediately when app returns to foreground
     const appStateSub = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
-        displayedNotifIds.current.forEach(id => {
-          notifee.cancelNotification(id).catch(() => { });
-        });
         displayedNotifIds.current = [];
         fetchOrders();
       }
@@ -584,8 +559,7 @@ const NewOrderNotifier = () => {
       appStateSub.remove();
       refreshSub.remove();
       localOrderSub.remove();
-      // Stop service when unmounted
-      notifee.stopForegroundService().catch(() => { });
+      // Foreground service removed
     };
   }, [isSignedIn, staffData]);
 

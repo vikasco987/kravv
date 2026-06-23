@@ -197,13 +197,7 @@ export default function TabsLayout() {
             ),
           }}
         />
-        <Tabs.Screen
-          name="kot"
-          options={{
-            title: "KOT",
-            href: null,
-          }}
-        />
+
       </Tabs>
 
       <LoginRequiredModal

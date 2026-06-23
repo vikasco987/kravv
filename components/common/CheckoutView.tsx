@@ -733,12 +733,12 @@ export default function CheckoutView({
             fetch("https://billing.kravy.in/api/orders", {
               method: "PATCH",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
-              body: JSON.stringify({ orderId: params.kotId, status: "READY" }),
+              body: JSON.stringify({ orderId: params.kotId, status: "READY", source: "POS" }),
             }).then(() => {
               fetch("https://billing.kravy.in/api/orders", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
-                body: JSON.stringify({ orderId: params.kotId, status: "COMPLETED" }),
+                body: JSON.stringify({ orderId: params.kotId, status: "COMPLETED", source: "POS" }),
               }).catch(e => console.log("Failed to complete KOT order in background", e));
             }).catch(e => console.log("Failed to ready KOT order in background", e));
           } catch (err) { }

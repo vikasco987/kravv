@@ -24,6 +24,7 @@ export async function SaveBill(
     paymentMode?: string;
     notes?: string;
     billId?: string;
+    orderId?: string;
     partyId?: string;
     customerName?: string;
     customerPhone?: string;
@@ -31,6 +32,7 @@ export async function SaveBill(
     tableName?: string;
     roomName?: string;
     taxSettings?: any;
+    tokenNo?: string | number;
   },
 ) {
   console.log("🔥 SaveBill called");
@@ -46,7 +48,7 @@ export async function SaveBill(
         if (!finalToken) finalToken = session.token || session.token_id || "";
         if (!finalUserId) finalUserId = session.id || session._id || "";
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   if (!finalToken || finalToken === "") {
@@ -63,7 +65,7 @@ export async function SaveBill(
   // --- STRICT INTERNET CHECK ---
   try {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 4000);
+    const id = setTimeout(() => controller.abort(), 8000);
     await fetch("https://billing.kravy.in", { method: "GET", signal: controller.signal });
     clearTimeout(id);
   } catch (e) {
@@ -346,9 +348,10 @@ export async function SaveBill(
         customerName: options?.customerName || "Walk-in Customer",
         customerPhone: options?.customerPhone || null,
         customerAddress: options?.customerAddress || null,
+        source: "POS",
         tableName: options?.tableName || "POS",
         roomName: options?.roomName || null,
-        tokenNumber: null,
+        tokenNumber: options?.tokenNo ? Number(options.tokenNo) : null,
         partyId: options?.partyId || null,
         discountAmount: Number(discountAmount.toFixed(2)),
         discount_amount: Number(discountAmount.toFixed(2)),
@@ -383,29 +386,19 @@ export async function SaveBill(
       }
 
       try {
-        const hiddenIdsStr = await AsyncStorage.getItem("@hidden_bill_ids");
-        const hiddenIds = hiddenIdsStr ? JSON.parse(hiddenIdsStr) : [];
-        const billData = data.bill || data || {};
-        const newId = billData._id || billData.id;
-        if (options?.billId && !hiddenIds.includes(options.billId))
-          hiddenIds.push(options.billId);
-        if (newId && !hiddenIds.includes(newId)) hiddenIds.push(newId);
-        await AsyncStorage.setItem(
-          "@hidden_bill_ids",
-          JSON.stringify(hiddenIds),
-        );
-
-        const localData = await AsyncStorage.getItem("@held_orders");
-        if (localData) {
-          let orders = JSON.parse(localData);
-          if (options?.billId)
-            orders = orders.filter((o: any) => o.id !== options.billId);
-          if (newId) orders = orders.filter((o: any) => o.id !== newId);
-          await AsyncStorage.setItem("@held_orders", JSON.stringify(orders));
-        }
         await AsyncStorage.removeItem("@resume_cart");
         await AsyncStorage.removeItem("@resume_cart_id");
-      } catch (err) {}
+
+        try {
+          const storedProcessed = await AsyncStorage.getItem("processedOrderIds");
+          const processedIds = storedProcessed ? new Set(JSON.parse(storedProcessed)) : new Set();
+          if (data.bill?.id) processedIds.add(data.bill.id);
+          if (options?.billId) processedIds.add(options.billId);
+          if (options?.orderId) processedIds.add(options.orderId);
+          if (data.bill?.orderId) processedIds.add(data.bill.orderId);
+          await AsyncStorage.setItem("processedOrderIds", JSON.stringify([...processedIds]));
+        } catch (e) { }
+      } catch (err) { }
 
       return {
         status: "saved",

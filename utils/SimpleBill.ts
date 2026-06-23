@@ -7,6 +7,11 @@ import { getRecentCompanyProfile } from "../services/companyService";
 
 let printQueueLock: Promise<any> = Promise.resolve();
 
+export function enqueuePrintTask(task: () => Promise<any>): Promise<any> {
+  printQueueLock = printQueueLock.then(task).catch(e => console.error("Print Queue Error:", e));
+  return printQueueLock;
+}
+
 export type CartItem = {
   id: string;
   _id?: string;
@@ -114,7 +119,7 @@ const SIZE_LARGE = new Uint8Array([0x1b, 0x21, 0x10]);
 const SIZE_NORMAL = new Uint8Array([0x1b, 0x21, 0x00]);
 const BOLD_ON = new Uint8Array([0x1b, 0x45, 0x01]);
 const BOLD_OFF = new Uint8Array([0x1b, 0x45, 0x00]);
-const SET_LINE_SPACING = new Uint8Array([0x1b, 0x33, 40]);
+const SET_LINE_SPACING = new Uint8Array([0x1b, 0x33, 30]);
 
 const getEscPosSize = (size: number) => {
   if (!size) return SIZE_NORMAL;
@@ -127,7 +132,7 @@ const getEscPosSize = (size: number) => {
 const getEscPosWeight = (specific: string | undefined | null, global: string | undefined | null, fallback: string): Uint8Array => {
   const w = specific || global || fallback;
   if (!w) return BOLD_OFF;
-  const lw = w.toLowerCase();
+  const lw = String(w).toLowerCase();
   if (lw === "bold" || lw === "700" || lw === "800" || lw === "900") return BOLD_ON;
   return BOLD_OFF;
 };
@@ -168,7 +173,7 @@ function utf8Encode(str: string): Uint8Array {
 
 let globalPrinter: any = null;
 
-async function ensurePrinterConnected(silent = false): Promise<any> {
+export async function ensurePrinterConnected(silent = false): Promise<any> {
   try {
     if (globalPrinter) {
       try {
@@ -185,9 +190,9 @@ async function ensurePrinterConnected(silent = false): Promise<any> {
         const _origWrite = globalPrinter.write.bind(globalPrinter);
         globalPrinter.write = async (data: any) => {
           const d = data instanceof Uint8Array ? data : new Uint8Array(data);
-          for (let i = 0; i < d.length; i += 64) {
-            await _origWrite(d.slice(i, i + 64));
-            await new Promise(r => setTimeout(r, 40));
+          for (let i = 0; i < d.length; i += 512) {
+            await _origWrite(d.slice(i, i + 512));
+            await new Promise(r => setTimeout(r, 10));
           }
         };
         globalPrinter._isSafeWrapped = true;
@@ -206,9 +211,9 @@ async function ensurePrinterConnected(silent = false): Promise<any> {
             const _origWrite = globalPrinter.write.bind(globalPrinter);
             globalPrinter.write = async (data: any) => {
               const d = data instanceof Uint8Array ? data : new Uint8Array(data);
-              for (let i = 0; i < d.length; i += 64) {
-                await _origWrite(d.slice(i, i + 64));
-                await new Promise(r => setTimeout(r, 40));
+              for (let i = 0; i < d.length; i += 512) {
+                await _origWrite(d.slice(i, i + 512));
+                await new Promise(r => setTimeout(r, 10));
               }
             };
             globalPrinter._isSafeWrapped = true;
@@ -224,9 +229,9 @@ async function ensurePrinterConnected(silent = false): Promise<any> {
           const _origWrite = globalPrinter.write.bind(globalPrinter);
           globalPrinter.write = async (data: any) => {
             const d = data instanceof Uint8Array ? data : new Uint8Array(data);
-            for (let i = 0; i < d.length; i += 64) {
-              await _origWrite(d.slice(i, i + 64));
-              await new Promise(r => setTimeout(r, 40));
+            for (let i = 0; i < d.length; i += 512) {
+              await _origWrite(d.slice(i, i + 512));
+              await new Promise(r => setTimeout(r, 10));
             }
           };
           globalPrinter._isSafeWrapped = true;
@@ -276,7 +281,7 @@ export const preCacheLogo = (url: string) => {
  * Ensures an order gets a consistent token number. If the backend didn't provide one, 
  * it generates a local token and caches it for future KOTs/Bills of the same order.
  */
-export async function resolveOrderToken(orderId: string | undefined | null, backendToken: any): Promise<string> {
+export async function resolveOrderToken(orderId: string | undefined | null, backendToken: any, businessId?: string, authToken?: string): Promise<string> {
   if (backendToken && backendToken !== "null" && backendToken !== "undefined" && backendToken !== 0) {
     return String(backendToken);
   }
@@ -291,18 +296,41 @@ export async function resolveOrderToken(orderId: string | undefined | null, back
         return stored[orderId];
       }
 
-      // 2. Generate new local sequential token (Fallback)
-      const currentToken = await AsyncStorage.getItem("@token_counter");
-      const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
-      await AsyncStorage.setItem("@token_counter", String(nextToken));
+      // 2. Fetch fresh token from backend so Web and App are 100% perfectly synced
+      let nextTokenStr = null;
+      if (businessId && authToken) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 sec timeout for fast printing
+          const res = await fetch(`https://billing.kravy.in/api/public/orders/token?businessId=${businessId}`, {
+            headers: { Authorization: `Bearer ${authToken}` },
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.tokenNumber) nextTokenStr = String(data.tokenNumber);
+          }
+        } catch (e) {
+          console.log("Failed to fetch backend token, falling back to local.");
+        }
+      }
 
-      stored[orderId] = String(nextToken);
+      // 3. Fallback to Local Sequence if offline or API fails
+      if (!nextTokenStr) {
+        const currentToken = await AsyncStorage.getItem("@token_counter");
+        const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
+        await AsyncStorage.setItem("@token_counter", String(nextToken));
+        nextTokenStr = String(nextToken);
+      }
+
+      stored[orderId] = nextTokenStr;
       const keys = Object.keys(stored);
-      if (keys.length > 200) delete stored[keys[0]];
+      if (keys.length > 200) delete stored[keys[0]]; // Keep cache small
       await AsyncStorage.setItem("@order_tokens", JSON.stringify(stored));
-      return String(nextToken);
+      return nextTokenStr;
     } catch (e) {
-      console.log("Error resolving order token:", e);
+      console.error("Token resolution error:", e);
     }
   }
 
@@ -486,7 +514,7 @@ export async function SimpleBill(
     if (options?.billNumber) {
       try {
         const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 4000);
+        const id = setTimeout(() => controller.abort(), 8000);
         await fetch("https://billing.kravy.in", { method: "GET", signal: controller.signal });
         clearTimeout(id);
       } catch (e) {
@@ -496,7 +524,7 @@ export async function SimpleBill(
     }
 
     // --- AUTO-GENERATE OR FETCH TOKEN IF NOT PROVIDED ---
-    let finalTokenNo = await resolveOrderToken(options?.orderId, options?.tokenNo);
+    let finalTokenNo = await resolveOrderToken(options?.orderId, options?.tokenNo, options?.businessId, token);
 
     const settings = await AsyncStorage.multiGet([
       "tax_enabled",
@@ -727,7 +755,7 @@ export async function SimpleBill(
       try {
         const method = isValidBillId ? "PUT" : "POST";
         const controller = new AbortController();
-        const fetchTimeout = setTimeout(() => controller.abort(), 6000);
+        const fetchTimeout = setTimeout(() => controller.abort(), 12000);
         const response = await fetch(url, {
           method: method,
           signal: controller.signal,
@@ -792,6 +820,16 @@ export async function SimpleBill(
             (options as any)._resolvedBillId = serverBillId;
             (options as any)._resolvedClerkId = data.bill?.clerkUserId || data.clerkUserId;
           }
+
+          try {
+            const storedProcessed = await AsyncStorage.getItem("processedOrderIds");
+            const processedIds = storedProcessed ? new Set(JSON.parse(storedProcessed)) : new Set();
+            if (serverBillId) processedIds.add(serverBillId);
+            if (options?.orderId) processedIds.add(options.orderId);
+            if (data.orderId) processedIds.add(data.orderId);
+            if (data.bill?.orderId) processedIds.add(data.bill.orderId);
+            await AsyncStorage.setItem("processedOrderIds", JSON.stringify([...processedIds]));
+          } catch (e) { }
           DeviceEventEmitter.emit("refresh_orders_list");
           DeviceEventEmitter.emit("REFRESH_ORDERS");
           DeviceEventEmitter.emit("REFRESH_DASHBOARD");
@@ -807,7 +845,7 @@ export async function SimpleBill(
     }
 
     // 🖨️ STEP B: PRINTING PROCESS
-    printQueueLock = printQueueLock.then(async () => {
+    await enqueuePrintTask(async () => {
       try {
         const printer: any = await ensurePrinterConnected(options?.silent);
         if (printer) {
@@ -840,10 +878,9 @@ export async function SimpleBill(
             const logoResult = await fetchAndRasterizeLogo(logoUrl);
             if (logoResult && !(logoResult as any).error) {
               const logoData = logoResult as Uint8Array;
-              const chunkSize = 256;
+              const chunkSize = 1024;
               for (let i = 0; i < logoData.length; i += chunkSize) {
                 await printer.write(logoData.slice(i, i + chunkSize));
-                await new Promise(r => setTimeout(r, 60));
               }
               await printer.write(utf8Encode("\n"));
             } else {
@@ -932,11 +969,7 @@ export async function SimpleBill(
           let printBody = `Bill No: ${finalBillNoToPrint}\nDate: ${formattedDate}\n`;
           if (options?.tableName) printBody += `Table: ${options.tableName}\n`;
           const printBodyBytesOld = utf8Encode(printBody);
-          const pbChunkSizeOld = 128;
-          for (let i = 0; i < printBodyBytesOld.length; i += pbChunkSizeOld) {
-            await printer.write(printBodyBytesOld.slice(i, i + pbChunkSizeOld));
-            await new Promise(r => setTimeout(r, 40));
-          }
+          await printer.write(printBodyBytesOld);
 
           if (printSettings.showToken && finalTokenNo) {
             await printer.write(tokenSizeCmd);
@@ -995,11 +1028,7 @@ export async function SimpleBill(
           });
 
           const printBodyBytes = utf8Encode(printBody);
-          const pbChunkSize = 128;
-          for (let i = 0; i < printBodyBytes.length; i += pbChunkSize) {
-            await printer.write(printBodyBytes.slice(i, i + pbChunkSize));
-            await new Promise(r => setTimeout(r, 40));
-          }
+          await printer.write(printBodyBytes);
 
           await printer.write(itemsSizeCmd);
           await printer.write(detailsWeightCmd);
@@ -1137,7 +1166,7 @@ export async function SimpleBill(
           await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
           await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
 
-          await new Promise(r => setTimeout(r, 4500)); // Spooler Delay increased to prevent buffer overload
+          await new Promise(r => setTimeout(r, 1500)); // Spooler Delay increased to prevent buffer overload
         }
       } catch (err) {
         console.error("❌ Printer Error:", err);
@@ -1202,10 +1231,9 @@ export async function PrintOldBill(
           const logoResult = await fetchAndRasterizeLogo(logoUrl);
           if (logoResult && !(logoResult as any).error) {
             const logoData = logoResult as Uint8Array;
-            const chunkSize = 512;
+            const chunkSize = 1024;
             for (let i = 0; i < logoData.length; i += chunkSize) {
               await printer.write(logoData.slice(i, i + chunkSize));
-              await new Promise(r => setTimeout(r, 50));
             }
             await printer.write(utf8Encode("\n"));
           }
@@ -1269,11 +1297,7 @@ export async function PrintOldBill(
         let printBody = `Bill No: ${bill.billNumber || bill.billNo || bill.invoiceNo || bill._id || "N/A"}\nDate: ${new Date(bill.createdAt).toLocaleString()}\n`;
         if (bill.tableName) printBody += `Table: ${bill.tableName}\n`;
         const printBodyBytesOld = utf8Encode(printBody);
-        const pbChunkSizeOld = 128;
-        for (let i = 0; i < printBodyBytesOld.length; i += pbChunkSizeOld) {
-          await printer.write(printBodyBytesOld.slice(i, i + pbChunkSizeOld));
-          await new Promise(r => setTimeout(r, 40));
-        }
+        await printer.write(printBodyBytesOld);
 
         if (printSettings.showToken && bill.tokenNo) {
           await printer.write(tokenSizeCmd);
@@ -1323,11 +1347,7 @@ export async function PrintOldBill(
         });
 
         const printBodyBytesOld2 = utf8Encode(printBody);
-        const pbChunkSizeOld2 = 128;
-        for (let i = 0; i < printBodyBytesOld2.length; i += pbChunkSizeOld2) {
-          await printer.write(printBodyBytesOld2.slice(i, i + pbChunkSizeOld2));
-          await new Promise(r => setTimeout(r, 40));
-        }
+        await printer.write(printBodyBytesOld2);
 
         await printer.write(itemsSizeCmd);
         await printer.write(detailsWeightCmd);
@@ -1430,7 +1450,7 @@ export async function PrintOldBill(
         await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
         await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
 
-        await new Promise(r => setTimeout(r, 4500)); // Spooler Delay increased to prevent buffer overload
+        await new Promise(r => setTimeout(r, 1500)); // Spooler Delay increased to prevent buffer overload
 
         resolve({ status: "success" });
       } catch (err: any) {

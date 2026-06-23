@@ -118,12 +118,6 @@ const SidebarItems = ({
         onPress={() => checkAndNavigate("Order", "orders")}
       />
 
-      <DrawerItem
-        {...commonDrawerItemProps}
-        label={({ focused }) => renderNavLabel("KOT", focused, "Menu")}
-        icon={({ focused }) => renderNavIcon("receipt-outline", focused, "Menu")}
-        onPress={() => navigation.navigate("(tabs)", { screen: "kot" })}
-      />
 
       <DrawerItem
         {...commonDrawerItemProps}

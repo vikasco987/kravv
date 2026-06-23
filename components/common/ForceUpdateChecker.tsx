@@ -22,6 +22,11 @@ export default function ForceUpdateChecker() {
         // If API doesn't exist yet (404 etc.), do nothing silently
         if (!response.ok) return;
 
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          return;
+        }
+
         const data = await response.json();
 
         const currentVersionCode = Constants.expoConfig?.android?.versionCode || 0;

@@ -835,7 +835,7 @@ export default function TableOrdersView({
         customerName: activeOrder.customerName || (activeOrder as any).customer?.name || '',
         customerPhone: (activeOrder as any).customerPhone || (activeOrder as any).customer?.phone || '',
         customerAddress: (activeOrder as any).customerAddress || (activeOrder as any).customer?.address || (activeOrder as any).deliveryAddress?.address || '',
-        tokenNumber: tokenNo,
+        tokenNo: tokenNo,
         billNumber: (activeOrder as any).billNumber || (activeOrder as any).billNo || (activeOrder as any).invoiceNo || '',
       };
       setCheckoutParams(checkoutData);

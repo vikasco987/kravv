@@ -73,6 +73,8 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                                 isActive ? styles.categoryButtonListActive : null
                             ]}
                             onPress={() => handlePress(cat, index)}
+                            onPressIn={() => SoundManager.suppressNextPlay()}
+                            delayPressIn={0}
                         >
                             <Text style={[
                                 styles.categoryTextList,
@@ -96,6 +98,8 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                     key={cat.id}
                     style={styles.categoryButton}
                     onPress={() => handlePress(cat, index)}
+                    onPressIn={() => SoundManager.suppressNextPlay()}
+                    delayPressIn={0}
                 >
                     <MaterialCommunityIcons name={getCategoryIcon(cat.name)} size={rf(20)} color="#9CA3AF" />
                     <Text style={styles.categoryText} numberOfLines={2}>{cat.name}</Text>
