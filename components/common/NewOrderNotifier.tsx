@@ -1,6 +1,5 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import notifee, { AndroidImportance } from '@notifee/react-native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
@@ -13,14 +12,12 @@ import {
   DeviceEventEmitter,
   Dimensions,
   Modal,
-  Platform,
   StyleSheet,
   Text,
   ToastAndroid,
   TouchableOpacity,
   View
 } from "react-native";
-import BackgroundTimer from 'react-native-background-timer';
 import { useRefresh } from "../../context/RefreshContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { resolveOrderToken } from "../../utils/SimpleBill";
