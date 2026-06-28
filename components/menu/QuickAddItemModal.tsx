@@ -2,7 +2,7 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { menuService, uploadToCloudinary } from "../../services/menuService";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     ActivityIndicator,
     Image,
@@ -14,7 +14,8 @@ import {
     ToastAndroid,
     TouchableOpacity,
     View,
-    DeviceEventEmitter
+    DeviceEventEmitter,
+    ScrollView
 } from 'react-native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { rf, s, vs } from "../../utils/responsive";
@@ -44,6 +45,7 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
     const [isSaving, setIsSaving] = useState(false);
     const [uploadedImageUrl, setUploadedImageUrl] = useState("");
     const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [variants, setVariants] = useState<{ name: string, price: string }[]>([]);
 
     const gstOptions = [5, 12, 18, 28];
 
@@ -56,7 +58,14 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
         setHsnCode("");
         setUploadedImageUrl("");
         setIsUploadingImage(false);
+        setVariants([]);
     };
+
+    useEffect(() => {
+        if (!visible) {
+            resetForm();
+        }
+    }, [visible]);
 
     const pickImage = async () => {
         try {
@@ -141,7 +150,8 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
                             unit: "pcs",
                             taxType: taxType,
                             gst: gstPercent,
-                            hsnCode: hsnCode.trim()
+                            hsnCode: hsnCode.trim(),
+                            variants: variants.filter(v => v.price !== "")
                         };
                         if (!menus[catIndex].items) menus[catIndex].items = [];
                         menus[catIndex].items = [optimisticItem, ...menus[catIndex].items];
@@ -175,7 +185,8 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
                     hsnCode: hsnCode.trim(),
                     isVeg: true,
                     currentStock: 0,
-                    businessId: bId
+                    businessId: bId,
+                    variants: variants.filter(v => v.price !== "")
                 });
                 DeviceEventEmitter.emit('refresh_menu_data');
             }
@@ -204,7 +215,7 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
                         </TouchableOpacity>
                     </View>
 
-                    <View style={styles.form}>
+                    <ScrollView style={styles.form} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: vs(20), gap: vs(16) }}>
                         <View style={styles.imageGroup}>
                             <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
                                 {image ? (
@@ -247,6 +258,50 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
                                     placeholderTextColor="#9CA3AF"
                                 />
                             </View>
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: vs(8) }}>
+                                <Text style={[styles.label, { marginBottom: 0, marginRight: s(10) }]}>Variants Category</Text>
+                                <TouchableOpacity onPress={() => setVariants([...variants, { name: "", price: "" }])}>
+                                    <View style={styles.addCategoryBtnSmall}><Ionicons name="add" size={rf(16)} color="#4F46E5" /></View>
+                                </TouchableOpacity>
+                            </View>
+                            
+                            {variants.map((v, index) => (
+                                <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: vs(10) }}>
+                                    <TextInput 
+                                        style={[styles.input, { flex: 1, padding: s(10), marginRight: s(4) }]} 
+                                        placeholder="Variant Name (e.g. Half)" 
+                                        placeholderTextColor="#9CA3AF"
+                                        value={v.name} 
+                                        onChangeText={(txt) => {
+                                            const newV = [...variants];
+                                            newV[index].name = txt;
+                                            setVariants(newV);
+                                        }}
+                                    />
+                                    <TextInput 
+                                        style={[styles.input, { flex: 1, padding: s(10), marginLeft: s(4), marginRight: s(4) }]} 
+                                        placeholder="Price" 
+                                        placeholderTextColor="#9CA3AF"
+                                        keyboardType="numeric" 
+                                        value={v.price} 
+                                        onChangeText={(txt) => {
+                                            const newV = [...variants];
+                                            newV[index].price = txt;
+                                            setVariants(newV);
+                                        }}
+                                    />
+                                    <TouchableOpacity onPress={() => {
+                                        const newV = [...variants];
+                                        newV.splice(index, 1);
+                                        setVariants(newV);
+                                    }}>
+                                        <Ionicons name="trash-outline" size={rf(20)} color="#EF4444" />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
                         </View>
 
                         <View style={styles.inputGroup}>
@@ -307,7 +362,7 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
                                 <Text style={styles.submitBtnText}>Add Item</Text>
                             )}
                         </TouchableOpacity>
-                    </View>
+                    </ScrollView>
                 </View>
             </View>
         </Modal>
@@ -329,6 +384,7 @@ const styles = StyleSheet.create({
         borderTopRightRadius: s(24),
         padding: s(20),
         paddingBottom: vs(60),
+        maxHeight: '90%',
     },
     header: {
         flexDirection: 'row',
@@ -487,5 +543,15 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: rf(16),
         fontWeight: '600',
+    },
+    addCategoryBtnSmall: { 
+        backgroundColor: '#EEF2FF', 
+        borderRadius: s(8), 
+        width: s(24), 
+        height: s(24), 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        borderWidth: 1, 
+        borderColor: '#4F46E5' 
     },
 });

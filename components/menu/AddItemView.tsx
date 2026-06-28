@@ -88,6 +88,7 @@ export default function AddItemView({ onBack, categories: initialCategories, onR
         taxType: "Without Tax" as "Without Tax" | "With Tax",
         gst: null as number | null,
         hsnCode: "",
+        variants: [] as { name: string, price: string }[],
     });
 
     const taxTypeOptions: ("Without Tax" | "With Tax")[] = ["Without Tax", "With Tax"];
@@ -266,7 +267,8 @@ export default function AddItemView({ onBack, categories: initialCategories, onR
             imageUrl: "",
             taxType: "Without Tax",
             gst: null,
-            hsnCode: ""
+            hsnCode: "",
+            variants: []
         });
         setUploadedImageUrl("");
         // Optional: show a small toast or visual feedback
@@ -307,7 +309,8 @@ export default function AddItemView({ onBack, categories: initialCategories, onR
                             unit: "pcs",
                             taxType: newItem.taxType || "Without Tax",
                             gst: Number(newItem.gst) || 0,
-                            hsnCode: newItem.hsnCode || ""
+                            hsnCode: newItem.hsnCode || "",
+                            variants: newItem.variants.filter(v => v.price !== "")
                         };
                         if (!menus[catIndex].items) menus[catIndex].items = [];
                         menus[catIndex].items = [optimisticItem, ...menus[catIndex].items];
@@ -342,7 +345,8 @@ export default function AddItemView({ onBack, categories: initialCategories, onR
                     hsnCode: newItem.hsnCode,
                     isVeg: true,
                     currentStock: 0,
-                    businessId: bId // Pass businessId for staff support
+                    businessId: bId, // Pass businessId for staff support
+                    variants: newItem.variants.filter(v => v.price !== "")
                 });
                 if (onRefresh) onRefresh();
                 triggerRefresh();
@@ -419,6 +423,50 @@ export default function AddItemView({ onBack, categories: initialCategories, onR
                                 <Ionicons name="chevron-down" size={rf(20)} color="#6B7280" />
                             </TouchableOpacity>
                         </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: vs(8) }}>
+                            <Text style={[styles.label, { marginBottom: 0, marginRight: s(10) }]}>Variants Category</Text>
+                            <TouchableOpacity onPress={() => setNewItem({...newItem, variants: [...(newItem.variants || []), { name: "", price: "" }]})}>
+                                <View style={styles.addCategoryBtnSmall}><Ionicons name="add" size={rf(16)} color={THEME_PRIMARY} /></View>
+                            </TouchableOpacity>
+                        </View>
+                        
+                        {newItem.variants?.map((v, index) => (
+                            <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: vs(10) }}>
+                                <TextInput 
+                                    style={[styles.input, { flex: 1, padding: s(10), marginRight: s(4) }]} 
+                                    placeholder="Variant Name (e.g. Half)" 
+                                    placeholderTextColor="#9CA3AF"
+                                    value={v.name} 
+                                    onChangeText={(txt) => {
+                                        const newV = [...(newItem.variants || [])];
+                                        newV[index].name = txt;
+                                        setNewItem({...newItem, variants: newV});
+                                    }}
+                                />
+                                <TextInput 
+                                    style={[styles.input, { flex: 1, padding: s(10), marginLeft: s(4), marginRight: s(4) }]} 
+                                    placeholder="Price" 
+                                    placeholderTextColor="#9CA3AF"
+                                    keyboardType="numeric" 
+                                    value={v.price} 
+                                    onChangeText={(txt) => {
+                                        const newV = [...(newItem.variants || [])];
+                                        newV[index].price = txt;
+                                        setNewItem({...newItem, variants: newV});
+                                    }}
+                                />
+                                <TouchableOpacity onPress={() => {
+                                    const newV = [...(newItem.variants || [])];
+                                    newV.splice(index, 1);
+                                    setNewItem({...newItem, variants: newV});
+                                }}>
+                                    <Ionicons name="trash-outline" size={rf(20)} color="#EF4444" />
+                                </TouchableOpacity>
+                            </View>
+                        ))}
                     </View>
 
                     <View style={styles.inputGroup}>
