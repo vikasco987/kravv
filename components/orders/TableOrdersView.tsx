@@ -1629,7 +1629,8 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
                         ...selectedItemForSize,
                         id: `${selectedItemForSize.id}_${v.name}`,
                         name: `${selectedItemForSize.name} (${v.name})`,
-                        price: Number(v.price) || 0
+                        price: Number(v.price) || 0,
+                        sellingPrice: Number(v.price) || 0
                       });
                       setSelectedItemForSize(null);
                     }

@@ -74,6 +74,7 @@ type MenuItem = {
   id: string;
   name: string;
   price?: number;
+  sellingPrice?: number;
   imageUrl?: string;
   unit?: string;
   gst?: number;
@@ -2129,7 +2130,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                         ...selectedItemForSize,
                         id: `${selectedItemForSize.id}_${v.name}`,
                         name: `${selectedItemForSize.name} (${v.name})`,
-                        price: Number(v.price) || 0
+                        price: Number(v.price) || 0,
+                        sellingPrice: Number(v.price) || 0
                       });
                       setSelectedItemForSize(null);
                     }
