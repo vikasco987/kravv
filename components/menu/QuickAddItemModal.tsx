@@ -1,23 +1,23 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { menuService, uploadToCloudinary } from "../../services/menuService";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    DeviceEventEmitter,
     Image,
     Modal,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     ToastAndroid,
     TouchableOpacity,
-    View,
-    DeviceEventEmitter,
-    ScrollView
+    View
 } from 'react-native';
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { menuService, uploadToCloudinary } from "../../services/menuService";
 import { rf, s, vs } from "../../utils/responsive";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
 
@@ -125,7 +125,7 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
 
         try {
             setIsSaving(true);
-            
+
             let finalImageUrl = uploadedImageUrl || "";
             if (!finalImageUrl && image && !image.startsWith('http')) {
                 finalImageUrl = await uploadImageToCloudinary(image);
@@ -162,7 +162,7 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
             } catch (e) { console.error("Quick Add Optimistic Error:", e); }
 
             // Instant Feedback
-            onSuccess(); 
+            onSuccess();
             onClose();
             ToastAndroid.show("Item added successfully", ToastAndroid.SHORT);
 
@@ -267,26 +267,26 @@ export const QuickAddItemModal: React.FC<QuickAddItemModalProps> = ({
                                     <View style={styles.addCategoryBtnSmall}><Ionicons name="add" size={rf(16)} color="#4F46E5" /></View>
                                 </TouchableOpacity>
                             </View>
-                            
+
                             {variants.map((v, index) => (
                                 <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: vs(10) }}>
-                                    <TextInput 
-                                        style={[styles.input, { flex: 1, padding: s(10), marginRight: s(4) }]} 
-                                        placeholder="Variant Name (e.g. Half)" 
+                                    <TextInput
+                                        style={[styles.input, { flex: 1, padding: s(10), marginRight: s(4) }]}
+                                        placeholder="Variant Name (e.g. Half)"
                                         placeholderTextColor="#9CA3AF"
-                                        value={v.name} 
+                                        value={v.name}
                                         onChangeText={(txt) => {
                                             const newV = [...variants];
                                             newV[index].name = txt;
                                             setVariants(newV);
                                         }}
                                     />
-                                    <TextInput 
-                                        style={[styles.input, { flex: 1, padding: s(10), marginLeft: s(4), marginRight: s(4) }]} 
-                                        placeholder="Price" 
+                                    <TextInput
+                                        style={[styles.input, { flex: 1, padding: s(10), marginLeft: s(4), marginRight: s(4) }]}
+                                        placeholder="Price"
                                         placeholderTextColor="#9CA3AF"
-                                        keyboardType="numeric" 
-                                        value={v.price} 
+                                        keyboardType="numeric"
+                                        value={v.price}
                                         onChangeText={(txt) => {
                                             const newV = [...variants];
                                             newV[index].price = txt;
@@ -544,14 +544,14 @@ const styles = StyleSheet.create({
         fontSize: rf(16),
         fontWeight: '600',
     },
-    addCategoryBtnSmall: { 
-        backgroundColor: '#EEF2FF', 
-        borderRadius: s(8), 
-        width: s(24), 
-        height: s(24), 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        borderWidth: 1, 
-        borderColor: '#4F46E5' 
+    addCategoryBtnSmall: {
+        backgroundColor: '#EEF2FF',
+        borderRadius: s(8),
+        width: s(24),
+        height: s(24),
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#4F46E5'
     },
 });

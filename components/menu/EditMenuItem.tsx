@@ -4,29 +4,29 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import {
-    ArrowLeft,
-    ChevronRight,
-    Image as ImageIcon,
-    Plus,
-    Search,
-    Sparkles,
+  ArrowLeft,
+  ChevronRight,
+  Image as ImageIcon,
+  Plus,
+  Search,
+  Sparkles,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    BackHandler,
-    Dimensions,
-    FlatList,
-    Image,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  Dimensions,
+  FlatList,
+  Image,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
 import { menuService, uploadToCloudinary } from "../../services/menuService";
@@ -58,6 +58,7 @@ type MenuItem = {
   categoryId?: string;
   isVeg?: boolean;
   description?: string;
+  variants?: { name: string; price: number | string }[];
 };
 
 type MenuCategory = {
@@ -98,6 +99,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
   const [editUnit, setEditUnit] = useState("");
   const [editIsVeg, setEditIsVeg] = useState(true);
   const [editDescription, setEditDescription] = useState("");
+  const [variants, setVariants] = useState<{ name: string, price: string | number }[]>([]);
 
   // New Category States
   const [isCreateCategoryModalVisible, setIsCreateCategoryModalVisible] =
@@ -148,11 +150,11 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
       const data = await menuService.getCategories(finalToken, bId);
       const normalized = Array.isArray(data)
         ? data
-            .map((c) => ({
-              id: String(c.id || c._id || ""),
-              name: String(c.name || ""),
-            }))
-            .filter((c) => c.id !== "")
+          .map((c) => ({
+            id: String(c.id || c._id || ""),
+            name: String(c.name || ""),
+          }))
+          .filter((c) => c.id !== "")
         : [];
 
       setAllCategories(normalized);
@@ -315,6 +317,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
       setEditUnit(item.unit || "");
       setEditIsVeg(item.isVeg !== undefined ? item.isVeg : true);
       setEditDescription(item.description || "");
+      setVariants(item.variants || []);
 
       setIsEditModalVisible(true);
       setIsFetchingItemDetails(true);
@@ -346,6 +349,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         setEditUnit(details.unit || item.unit || "");
         setEditIsVeg(details.isVeg !== undefined ? details.isVeg : true);
         setEditDescription(details.description || "");
+        setVariants(details.variants || item.variants || []);
       }
     } catch (err) {
       console.log("Background details fetch info:", err);
@@ -544,6 +548,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
       price: parseFloat(editPrice),
       imageUrl: editImageUrl,
       categoryId: editCategoryId,
+      variants,
     };
 
     setMenus((prev) =>
@@ -607,6 +612,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         isVeg: editIsVeg,
         description: editDescription,
         businessId: bId,
+        variants,
       });
 
       fetchMenus(); // Silently sync
@@ -748,7 +754,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.chipContainer}
-         {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
+          {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
           <TouchableOpacity
             style={[
               styles.chip,
@@ -1143,7 +1149,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
               )}
             </View>
           </View>
-          <ScrollView style={{ padding: 20 }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
+          <ScrollView style={{ paddingHorizontal: 20 }} contentContainerStyle={{ paddingVertical: 20, paddingBottom: vs(80) }} {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {/* Image Section */}
             <View style={{ alignItems: "center", marginBottom: vs(20) }}>
               <TouchableOpacity
@@ -1194,6 +1200,50 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 onChangeText={setEditPrice}
                 keyboardType="numeric"
               />
+            </View>
+
+            <View style={styles.formGroup}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: vs(8) }}>
+                <Text style={[styles.formLabel, { marginBottom: 0, marginRight: s(10) }]}>Variants Category</Text>
+                <TouchableOpacity onPress={() => setVariants([...variants, { name: "", price: "" }])}>
+                  <View style={styles.addCategoryBtnSmall}><Ionicons name="add" size={rf(16)} color="#4F46E5" /></View>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ gap: vs(8) }}>
+                {variants.map((v, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', gap: s(8), alignItems: 'center' }}>
+                    <TextInput
+                      style={[styles.formInput, { flex: 1.5, marginBottom: 0 }]}
+                      placeholder="Name (e.g. Half)"
+                      value={v.name}
+                      onChangeText={(text) => {
+                        const newVars = [...variants];
+                        newVars[idx].name = text;
+                        setVariants(newVars);
+                      }}
+                    />
+                    <TextInput
+                      style={[styles.formInput, { flex: 1, marginBottom: 0 }]}
+                      placeholder="Price"
+                      keyboardType="numeric"
+                      value={v.price?.toString()}
+                      onChangeText={(text) => {
+                        const newVars = [...variants];
+                        newVars[idx].price = text;
+                        setVariants(newVars);
+                      }}
+                    />
+                    <TouchableOpacity onPress={() => {
+                      const newVars = [...variants];
+                      newVars.splice(idx, 1);
+                      setVariants(newVars);
+                    }} style={{ padding: s(8), backgroundColor: '#FEE2E2', borderRadius: s(8) }}>
+                      <Ionicons name="trash-outline" size={rf(18)} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
             </View>
 
             <View style={styles.formGroup}>
@@ -1313,7 +1363,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                         style={[
                           styles.categorySelectText,
                           editCategoryId === item.id &&
-                            styles.categorySelectedText,
+                          styles.categorySelectedText,
                         ]}
                       >
                         {item.name}

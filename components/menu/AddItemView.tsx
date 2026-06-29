@@ -1,8 +1,8 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { menuService, uploadToCloudinary } from "../../services/menuService";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from "expo-router";
+import { menuService, uploadToCloudinary } from "../../services/menuService";
 // @ts-ignore
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -167,18 +167,18 @@ export default function AddItemView({ onBack, categories: initialCategories, onR
     // Optimized Category Selection (Standard Modal used for reliability, but optimized content)
     const CategorySelectionSheet = React.memo(({ visible, onClose, data, renderItem }: any) => {
         if (!visible) return null;
-        
+
         return (
-            <Modal 
-                animationType="fade" 
-                transparent 
-                visible={visible} 
+            <Modal
+                animationType="fade"
+                transparent
+                visible={visible}
                 onRequestClose={onClose}
                 statusBarTranslucent
             >
-                <TouchableOpacity 
-                    activeOpacity={1} 
-                    style={styles.modalOverlay} 
+                <TouchableOpacity
+                    activeOpacity={1}
+                    style={styles.modalOverlay}
                     onPress={onClose}
                 >
                     <View style={styles.modalContent}>
@@ -283,7 +283,7 @@ export default function AddItemView({ onBack, categories: initialCategories, onR
         }
         try {
             setIsSaving(true);
-            
+
             let finalImageUrl = uploadedImageUrl || "";
             // If we have a local URI but no uploaded URL yet (rare if eager worked)
             if (!finalImageUrl && newItem.imageUrl && !newItem.imageUrl.startsWith('http')) {
@@ -428,40 +428,40 @@ export default function AddItemView({ onBack, categories: initialCategories, onR
                     <View style={styles.inputGroup}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: vs(8) }}>
                             <Text style={[styles.label, { marginBottom: 0, marginRight: s(10) }]}>Variants Category</Text>
-                            <TouchableOpacity onPress={() => setNewItem({...newItem, variants: [...(newItem.variants || []), { name: "", price: "" }]})}>
+                            <TouchableOpacity onPress={() => setNewItem({ ...newItem, variants: [...(newItem.variants || []), { name: "", price: "" }] })}>
                                 <View style={styles.addCategoryBtnSmall}><Ionicons name="add" size={rf(16)} color={THEME_PRIMARY} /></View>
                             </TouchableOpacity>
                         </View>
-                        
+
                         {newItem.variants?.map((v, index) => (
                             <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: vs(10) }}>
-                                <TextInput 
-                                    style={[styles.input, { flex: 1, padding: s(10), marginRight: s(4) }]} 
-                                    placeholder="Variant Name (e.g. Half)" 
+                                <TextInput
+                                    style={[styles.input, { flex: 1, padding: s(10), marginRight: s(4) }]}
+                                    placeholder="Variant Name (e.g. Half)"
                                     placeholderTextColor="#9CA3AF"
-                                    value={v.name} 
+                                    value={v.name}
                                     onChangeText={(txt) => {
                                         const newV = [...(newItem.variants || [])];
                                         newV[index].name = txt;
-                                        setNewItem({...newItem, variants: newV});
+                                        setNewItem({ ...newItem, variants: newV });
                                     }}
                                 />
-                                <TextInput 
-                                    style={[styles.input, { flex: 1, padding: s(10), marginLeft: s(4), marginRight: s(4) }]} 
-                                    placeholder="Price" 
+                                <TextInput
+                                    style={[styles.input, { flex: 1, padding: s(10), marginLeft: s(4), marginRight: s(4) }]}
+                                    placeholder="Price"
                                     placeholderTextColor="#9CA3AF"
-                                    keyboardType="numeric" 
-                                    value={v.price} 
+                                    keyboardType="numeric"
+                                    value={v.price}
                                     onChangeText={(txt) => {
                                         const newV = [...(newItem.variants || [])];
                                         newV[index].price = txt;
-                                        setNewItem({...newItem, variants: newV});
+                                        setNewItem({ ...newItem, variants: newV });
                                     }}
                                 />
                                 <TouchableOpacity onPress={() => {
                                     const newV = [...(newItem.variants || [])];
                                     newV.splice(index, 1);
-                                    setNewItem({...newItem, variants: newV});
+                                    setNewItem({ ...newItem, variants: newV });
                                 }}>
                                     <Ionicons name="trash-outline" size={rf(20)} color="#EF4444" />
                                 </TouchableOpacity>

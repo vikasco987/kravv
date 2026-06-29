@@ -370,6 +370,7 @@ export default function CompanyInfoView({ onBack, profileData, isNew, onProfileU
 
       const payload = {
         id: profileData?.id || undefined,
+        isNewProfile: !profileData?.id,
         businessName: form.businessName,
         businessType: form.businessType,
         businessTagLine: form.tagline,

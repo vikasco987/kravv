@@ -9,6 +9,7 @@ import {
   DeviceEventEmitter,
   Dimensions,
   FlatList,
+  Image,
   Modal,
   SafeAreaView,
   ScrollView,
@@ -249,6 +250,7 @@ export default function TableOrdersView({
             imageUrl: item.imageUrl,
             isVeg: item.isVeg === false || item.isVeg === "false" || item.isVeg === 0 ? false : true,
             zones: item.zones || [],
+            variants: item.variants || [],
           };
 
           categoryMap[catId].items.push(newItem);
@@ -1416,6 +1418,7 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
   const flatListRef = React.useRef<FlatList>(null);
   const [cart, setCart] = useState<Record<string, any>>({});
   const [isZoneModalVisible, setIsZoneModalVisible] = useState(false);
+  const [selectedItemForSize, setSelectedItemForSize] = useState<any>(null);
 
   const { width: SCREEN_WIDTH } = Dimensions.get("window");
   const CATEGORY_COLUMN_WIDTH = s(90);
@@ -1523,7 +1526,7 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
                             item={item}
                             itemWidth={itemWidth}
                             quantity={cart[item.id]?.quantity || 0}
-                            onAdd={addToCart}
+                            onAdd={(item: any) => setSelectedItemForSize(item)}
                             onRemove={removeFromCart}
                           />
                         ))}
@@ -1568,6 +1571,78 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
           setIsZoneModalVisible(false);
         }}
       />
+
+      <Modal
+        visible={!!selectedItemForSize}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedItemForSize(null)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          activeOpacity={1}
+          onPress={() => setSelectedItemForSize(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={{ width: '85%', backgroundColor: '#FFF', borderRadius: s(16), padding: s(20), elevation: 5, alignItems: 'center' }}
+          >
+            {selectedItemForSize?.imageUrl ? (
+              <Image source={{ uri: selectedItemForSize.imageUrl }} style={{ width: s(100), height: s(100), borderRadius: s(12), marginBottom: vs(15) }} resizeMode="cover" />
+            ) : (
+              <View style={{ width: s(100), height: s(100), borderRadius: s(12), backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginBottom: vs(15) }}>
+                <Text style={{ color: '#9CA3AF', fontSize: rf(12) }}>No Image</Text>
+              </View>
+            )}
+
+            <Text style={{ fontSize: rf(18), fontWeight: 'bold', color: '#1F2937', marginBottom: vs(5), textAlign: 'center' }}>
+              {selectedItemForSize?.name}
+            </Text>
+
+            <Text style={{ fontSize: rf(14), color: '#6B7280', marginBottom: vs(20) }}>
+              {selectedItemForSize?.variants && selectedItemForSize.variants.length > 0 ? "Select Variant" : "Add to Cart"}
+            </Text>
+
+            <ScrollView style={{ width: '100%', maxHeight: vs(250) }} showsVerticalScrollIndicator={false}>
+              {(!selectedItemForSize?.variants || selectedItemForSize.variants.length === 0) && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F9FAFB', padding: s(15), borderRadius: s(10), marginBottom: vs(10), borderWidth: 1, borderColor: '#E5E7EB' }}
+                  onPress={() => {
+                    if (selectedItemForSize) {
+                      addToCart(selectedItemForSize);
+                      setSelectedItemForSize(null);
+                    }
+                  }}
+                >
+                  <Text style={{ fontSize: rf(15), fontWeight: '600', color: '#374151' }}>Regular</Text>
+                  <Text style={{ fontSize: rf(15), fontWeight: 'bold', color: '#4F46E5' }}>₹{selectedItemForSize?.price}</Text>
+                </TouchableOpacity>
+              )}
+
+              {selectedItemForSize?.variants?.map((v: any, idx: number) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F9FAFB', padding: s(15), borderRadius: s(10), marginBottom: vs(10), borderWidth: 1, borderColor: '#E5E7EB' }}
+                  onPress={() => {
+                    if (selectedItemForSize) {
+                      addToCart({
+                        ...selectedItemForSize,
+                        id: `${selectedItemForSize.id}_${v.name}`,
+                        name: `${selectedItemForSize.name} (${v.name})`,
+                        price: Number(v.price) || 0
+                      });
+                      setSelectedItemForSize(null);
+                    }
+                  }}
+                >
+                  <Text style={{ fontSize: rf(15), fontWeight: '600', color: '#374151' }}>{v.name}</Text>
+                  <Text style={{ fontSize: rf(15), fontWeight: 'bold', color: '#4F46E5' }}>₹{v.price}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </Modal>
   );
 };
