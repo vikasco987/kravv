@@ -22,6 +22,10 @@ interface TaxDiscountsModalProps {
     setTaxEnabled: (val: boolean) => void;
     perProductTax: boolean;
     setPerProductTax: (val: boolean) => void;
+    taxInclusive?: boolean;
+    setTaxInclusive?: (val: boolean) => void;
+    qrMenuPriceInclusive?: boolean;
+    setQrMenuPriceInclusive?: (val: boolean) => void;
     taxRate: string;
     setTaxRate: (val: string) => void;
     discountEnabled: boolean;
@@ -62,6 +66,10 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
     setTaxEnabled,
     perProductTax,
     setPerProductTax,
+    taxInclusive,
+    setTaxInclusive,
+    qrMenuPriceInclusive,
+    setQrMenuPriceInclusive,
     taxRate,
     setTaxRate,
     discountEnabled,
@@ -164,6 +172,54 @@ export const TaxDiscountsModal: React.FC<TaxDiscountsModalProps> = ({
                                     onValueChange={(val) => {
                                         setPerProductTax(val);
                                         onSave("per_product_tax", val, "Per-product GST");
+                                    }}
+                                    trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+                                    thumbColor="#fff"
+                                />
+                            </View>
+
+                            <View style={styles.innerDivider} />
+
+                            {/* Exclusive GST (POS & Bills) */}
+                            <View style={styles.rowItem}>
+                                <View style={[styles.iconBox, { backgroundColor: '#F9FAFB' }]}>
+                                    <View style={styles.innerIconBox}>
+                                        <Ionicons name="document-text-outline" size={rf(20)} color="#9CA3AF" />
+                                    </View>
+                                </View>
+                                <View style={styles.rowText}>
+                                    <Text style={styles.rowLabel}>{taxInclusive ? "Inclusive GST (POS & Bills)" : "Exclusive GST (POS & Bills)"}</Text>
+                                    <Text style={styles.rowSubLabel}>{t('gst_pos_bills_desc') || 'Calculate GST included or excluded on bills'}</Text>
+                                </View>
+                                <Switch
+                                    value={taxInclusive ?? false}
+                                    onValueChange={(val) => {
+                                        setTaxInclusive?.(val);
+                                        onSave("tax_inclusive", val, taxInclusive ? "Exclusive GST" : "Inclusive GST");
+                                    }}
+                                    trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+                                    thumbColor="#fff"
+                                />
+                            </View>
+
+                            <View style={styles.innerDivider} />
+
+                            {/* Exclusive GST Pricing */}
+                            <View style={styles.rowItem}>
+                                <View style={[styles.iconBox, { backgroundColor: '#F9FAFB' }]}>
+                                    <View style={styles.innerIconBox}>
+                                        <Ionicons name="pricetags-outline" size={rf(20)} color="#9CA3AF" />
+                                    </View>
+                                </View>
+                                <View style={styles.rowText}>
+                                    <Text style={styles.rowLabel}>{qrMenuPriceInclusive ? "Inclusive GST Pricing" : "Exclusive GST Pricing"}</Text>
+                                    <Text style={styles.rowSubLabel}>{t('gst_pricing_desc') || 'Menu pricing includes or excludes GST'}</Text>
+                                </View>
+                                <Switch
+                                    value={qrMenuPriceInclusive ?? false}
+                                    onValueChange={(val) => {
+                                        setQrMenuPriceInclusive?.(val);
+                                        onSave("qr_menu_price_inclusive", val, qrMenuPriceInclusive ? "Exclusive GST Pricing" : "Inclusive GST Pricing");
                                     }}
                                     trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
                                     thumbColor="#fff"

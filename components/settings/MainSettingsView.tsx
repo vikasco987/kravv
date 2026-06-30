@@ -73,6 +73,8 @@ const MainSettingsView = ({
   const [taxEnabled, setTaxEnabled] = React.useState(false);
   const [perProductTax, setPerProductTax] = React.useState(false);
   const [taxRate, setTaxRate] = React.useState("0");
+  const [taxInclusive, setTaxInclusive] = React.useState(false);
+  const [qrMenuPriceInclusive, setQrMenuPriceInclusive] = React.useState(false);
   const [discountEnabled, setDiscountEnabled] = React.useState(false);
   const [discountRate, setDiscountRate] = React.useState("0.00");
   const [serviceChargeEnabled, setServiceChargeEnabled] = React.useState(false);
@@ -208,6 +210,8 @@ const MainSettingsView = ({
       setTaxEnabled(false);
       setPerProductTax(false);
       setTaxRate("0");
+      setTaxInclusive(false);
+      setQrMenuPriceInclusive(false);
       setDiscountEnabled(false);
       setDiscountRate("0.00");
       setServiceChargeEnabled(false);
@@ -250,6 +254,14 @@ const MainSettingsView = ({
             syncTasks.push(
               AsyncStorage.setItem("tax_rate", String(profile.taxRate)),
             );
+          }
+          if (profile.taxInclusive !== undefined) {
+            setTaxInclusive(profile.taxInclusive);
+            syncTasks.push(AsyncStorage.setItem("tax_inclusive", String(profile.taxInclusive)));
+          }
+          if (profile.qrMenuPriceInclusive !== undefined) {
+            setQrMenuPriceInclusive(profile.qrMenuPriceInclusive);
+            syncTasks.push(AsyncStorage.setItem("qr_menu_price_inclusive", String(profile.qrMenuPriceInclusive)));
           }
           if (profile.enableDeliveryCharges !== undefined) {
             setDeliveryChargeEnabled(profile.enableDeliveryCharges);
@@ -395,6 +407,8 @@ const MainSettingsView = ({
         "tax_enabled",
         "per_product_tax",
         "tax_rate",
+        "tax_inclusive",
+        "qr_menu_price_inclusive",
         "discount_enabled",
         "discount_rate",
         "service_charge_enabled",
@@ -428,6 +442,12 @@ const MainSettingsView = ({
               break;
             case "tax_rate":
               setTaxRate(value);
+              break;
+            case "tax_inclusive":
+              setTaxInclusive(value === "true");
+              break;
+            case "qr_menu_price_inclusive":
+              setQrMenuPriceInclusive(value === "true");
               break;
             case "discount_enabled":
               setDiscountEnabled(value === "true");
@@ -525,6 +545,12 @@ const MainSettingsView = ({
             break;
           case "tax_rate":
             payload.taxRate = parseFloat(String(value));
+            break;
+          case "tax_inclusive":
+            payload.taxInclusive = value;
+            break;
+          case "qr_menu_price_inclusive":
+            payload.qrMenuPriceInclusive = value;
             break;
           case "delivery_charge_enabled":
             payload.enableDeliveryCharges = value;
@@ -766,6 +792,10 @@ const MainSettingsView = ({
         setTaxEnabled={setTaxEnabled}
         perProductTax={perProductTax}
         setPerProductTax={setPerProductTax}
+        taxInclusive={taxInclusive}
+        setTaxInclusive={setTaxInclusive}
+        qrMenuPriceInclusive={qrMenuPriceInclusive}
+        setQrMenuPriceInclusive={setQrMenuPriceInclusive}
         taxRate={taxRate}
         setTaxRate={setTaxRate}
         discountEnabled={discountEnabled}

@@ -72,6 +72,7 @@ const MainClientView = ({
   const [taxEnabled, setTaxEnabled] = useState(false);
   const [perProductTax, setPerProductTax] = useState(false);
   const [taxRate, setTaxRate] = useState(0);
+  const [taxInclusive, setTaxInclusive] = useState(false);
   const [discountEnabled, setDiscountEnabled] = useState(false);
   const [discountRate, setDiscountRate] = useState(0);
   const [serviceChargeEnabled, setServiceChargeEnabled] = useState(false);
@@ -83,6 +84,7 @@ const MainClientView = ({
         "tax_enabled",
         "per_product_tax",
         "tax_rate",
+        "tax_inclusive",
         "discount_enabled",
         "discount_rate",
         "service_charge_enabled",
@@ -94,6 +96,7 @@ const MainClientView = ({
       setTaxEnabled(sMap["tax_enabled"] === "true");
       setPerProductTax(sMap["per_product_tax"] === "true");
       setTaxRate(parseFloat(sMap["tax_rate"] || "0"));
+      setTaxInclusive(sMap["tax_inclusive"] === "true");
       setDiscountEnabled(sMap["discount_enabled"] === "true");
       setDiscountRate(parseFloat(sMap["discount_rate"] || "0"));
       setServiceChargeEnabled(sMap["service_charge_enabled"] === "true");
@@ -331,7 +334,16 @@ const MainClientView = ({
           gst = 0;
         const mode = item.taxStatus || item.taxType || "Without Tax";
 
-        if (mode === "With Tax") {
+        let isInclusive = false;
+        if (perProductTax && Number(item.gst || 0) > 0) {
+          isInclusive = mode === "With Tax";
+        } else if (taxEnabled) {
+          isInclusive = taxInclusive;
+        } else if (perProductTax) {
+          isInclusive = mode === "With Tax";
+        }
+
+        if (isInclusive) {
           taxable = lineTotal / (1 + itemGstRate / 100);
           gst = lineTotal - taxable;
         } else {
@@ -397,7 +409,17 @@ const MainClientView = ({
           Number(item.quantity || item.qty || 1);
         let gRate = taxEnabled ? taxRate : Number(item.gst || 0);
         let mode = item.taxStatus || item.taxType || "Without Tax";
-        if (mode === "With Tax") {
+
+        let isInclusive = false;
+        if (perProductTax && Number(item.gst || 0) > 0) {
+          isInclusive = mode === "With Tax";
+        } else if (taxEnabled) {
+          isInclusive = taxInclusive;
+        } else if (perProductTax) {
+          isInclusive = mode === "With Tax";
+        }
+
+        if (isInclusive) {
           const t = line / (1 + gRate / 100);
           billTaxable += t;
           billGst += line - t;

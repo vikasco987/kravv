@@ -78,6 +78,7 @@ export async function SaveBill(
     const settings = await AsyncStorage.multiGet([
       "tax_enabled",
       "tax_rate",
+      "tax_inclusive",
       "per_product_tax",
       "discount_enabled",
       "discount_rate",
@@ -102,6 +103,7 @@ export async function SaveBill(
 
     const isTaxEnabled = tS ? tS.enabled : sMap["tax_enabled"] === "true";
     const globalTaxRate = tS ? tS.rate : parseFloat(sMap["tax_rate"] || "0.00");
+    const globalTaxInclusive = tS ? tS.taxInclusive : sMap["tax_inclusive"] === "true";
     const perProductTaxEnabled = tS
       ? tS.perProduct
       : sMap["per_product_tax"] === "true";
@@ -171,10 +173,19 @@ export async function SaveBill(
         itemGstRate = productGst;
       }
 
+      let isInclusive = false;
+      if (perProductTaxEnabled && productGst > 0) {
+        isInclusive = (item.taxStatus || item.taxType) === "With Tax";
+      } else if (isTaxEnabled) {
+        isInclusive = globalTaxInclusive;
+      } else if (perProductTaxEnabled) {
+        isInclusive = (item.taxStatus || item.taxType) === "With Tax";
+      }
+
       let taxable = 0;
       let gst = 0;
 
-      if (item.taxType === "With Tax") {
+      if (isInclusive) {
         taxable = lineTotal / (1 + itemGstRate / 100);
         gst = lineTotal - taxable;
       } else {

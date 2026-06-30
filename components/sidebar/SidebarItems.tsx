@@ -128,9 +128,9 @@ const SidebarItems = ({
 
       <DrawerItem
         {...commonDrawerItemProps}
-        label={({ focused }) => renderNavLabel(t("edit_menu_item"), focused, "Menu")}
-        icon={({ focused }) => renderNavIcon("create-outline", focused, "Menu")}
-        onPress={() => checkAndNavigate("Menu", "editMenu")}
+        label={({ focused }) => renderNavLabel(t("edit_menu_item"), focused, "Dedicated Item Editor")}
+        icon={({ focused }) => renderNavIcon("create-outline", focused, "Dedicated Item Editor")}
+        onPress={() => checkAndNavigate("Dedicated Item Editor", "editMenu")}
       />
 
       <DrawerItem

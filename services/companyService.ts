@@ -48,6 +48,8 @@ export async function getRecentCompanyProfile(token: string) {
       // Sync tax settings properties
       taxEnabled: data.taxEnabled,
       perProductTaxEnabled: data.perProductTaxEnabled,
+      taxInclusive: data.taxInclusive,
+      qrMenuPriceInclusive: data.qrMenuPriceInclusive,
       taxRate: data.taxRate,
       enableDeliveryCharges: data.enableDeliveryCharges,
       deliveryChargeAmount: data.deliveryChargeAmount,

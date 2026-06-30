@@ -16,7 +16,7 @@
       }
     },
     "android": {
-      "versionCode": 28,
+      "versionCode": 29,
       "adaptiveIcon": {
         "backgroundColor": "#1e3a8a",
         "foregroundImage": "./assets/images/kravlogo.png",

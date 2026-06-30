@@ -1,0 +1,1397 @@
+{
+  "totalFiles": 172,
+  "totalLines": 64249,
+  "componentsFound": 105,
+  "todosFound": 0,
+  "complexFiles": [
+    {
+      "path": "\\components\\menu\\MainMenuView.tsx",
+      "lines": 2224,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\EditMenuItem.tsx",
+      "lines": 2110,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\item-sales-report\\ItemWiseSalesDetail.tsx",
+      "lines": 1848,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\orders\\TableOrdersView.tsx",
+      "lines": 1844,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\CheckoutView.tsx",
+      "lines": 1792,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\TableQrCodes.tsx",
+      "lines": 1547,
+      "todos": 0
+    },
+    {
+      "path": "\\utils\\SimpleBill.ts",
+      "lines": 1466,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\PrintingSetupScreen.tsx",
+      "lines": 1365,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\CustomersView.tsx",
+      "lines": 1323,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\TableManagementView.tsx",
+      "lines": 1289,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\CompanyInfoView.tsx",
+      "lines": 1274,
+      "todos": 0
+    },
+    {
+      "path": "\\context\\LanguageContext.tsx",
+      "lines": 1190,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\AI intelligence tools\\CustomerHistory.tsx",
+      "lines": 1070,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\StaffAddEditModal.tsx",
+      "lines": 1064,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\CustomerHistory.tsx",
+      "lines": 1055,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MarketingCardGeneratorScreen.tsx",
+      "lines": 991,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\HeldOrdersView.tsx",
+      "lines": 952,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MainSettingsView.tsx",
+      "lines": 887,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MarketingReviewGeneratorScreen.tsx",
+      "lines": 845,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\TaxDiscountsModal.tsx",
+      "lines": 827,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\SubscriptionRequiredModal.tsx",
+      "lines": 820,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\InventoryModals.tsx",
+      "lines": 777,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\orders\\MainOrdersView.tsx",
+      "lines": 751,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\InventoryDashboard.tsx",
+      "lines": 733,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\AddItemView.tsx",
+      "lines": 730,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\StaffModal.tsx",
+      "lines": 728,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\NewOrderNotifier.tsx",
+      "lines": 713,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\AI intelligence tools\\VoiceOrder.tsx",
+      "lines": 704,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\client\\MainClientView.tsx",
+      "lines": 692,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\DeleteHistoryView.tsx",
+      "lines": 604,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\QuickAddItemModal.tsx",
+      "lines": 558,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\OfferEditorPopup.tsx",
+      "lines": 547,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Restaurant Expenses\\ExpensePnL.tsx",
+      "lines": 544,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Past Bills History\\BillTable.tsx",
+      "lines": 542,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\InventoryReports.tsx",
+      "lines": 541,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(auth)\\sign-in.tsx",
+      "lines": 534,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\PrintingPreviewScreen.tsx",
+      "lines": 533,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\PublicMenuView.tsx",
+      "lines": 530,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\QRMenuTemplateView.tsx",
+      "lines": 522,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\KotView.tsx",
+      "lines": 519,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Restaurant Expenses\\ExpenseReports.tsx",
+      "lines": 511,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\sidebar\\SidebarItems.tsx",
+      "lines": 487,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\BillPreviewModal.tsx",
+      "lines": 483,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MarketingOffersScreen.tsx",
+      "lines": 468,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\staff creat\\StaffLogin.tsx",
+      "lines": 461,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\AddItemCategory.tsx",
+      "lines": 442,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\client\\CustomerDetailsModal.tsx",
+      "lines": 436,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\SaveBill.ts",
+      "lines": 425,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\AdvancedDiscountModal.tsx",
+      "lines": 425,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\AI intelligence tools\\ProfitEngine.tsx",
+      "lines": 420,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\ProfitEngine.tsx",
+      "lines": 420,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\TableSelectionModal.tsx",
+      "lines": 420,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\printer\\MainPrinterView.tsx",
+      "lines": 415,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Past Bills History\\PastBillsHistoryMain.tsx",
+      "lines": 409,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\staff creat\\StaffPermissionEngine.ts",
+      "lines": 400,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(auth)\\custom-login.tsx",
+      "lines": 390,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\item-sales-report\\item-sales-report.tsx",
+      "lines": 388,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MultiProfileView.tsx",
+      "lines": 377,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\CartBar.tsx",
+      "lines": 373,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\FinishedProductList.tsx",
+      "lines": 355,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Restaurant Expenses\\ExpenseModals.tsx",
+      "lines": 350,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\item-sales-report\\WeeklyItemSalesReport.tsx",
+      "lines": 338,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\CartItemsModal.tsx",
+      "lines": 337,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\KOTTablesModal.tsx",
+      "lines": 336,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\item-sales-report\\MonthlyItemSalesReport.tsx",
+      "lines": 332,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(auth)\\reset-password.tsx",
+      "lines": 323,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\PremiumSalesChart.tsx",
+      "lines": 322,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\item-sales-report\\DailyItemSalesReport.tsx",
+      "lines": 321,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\RawMaterialList.tsx",
+      "lines": 318,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\MenuItemCard.tsx",
+      "lines": 318,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\table-insights\\TableRotation.tsx",
+      "lines": 318,
+      "todos": 0
+    }
+  ],
+  "fileStats": [
+    {
+      "path": "\\components\\menu\\MainMenuView.tsx",
+      "lines": 2224,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\EditMenuItem.tsx",
+      "lines": 2110,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\item-sales-report\\ItemWiseSalesDetail.tsx",
+      "lines": 1848,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\orders\\TableOrdersView.tsx",
+      "lines": 1844,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\CheckoutView.tsx",
+      "lines": 1792,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\TableQrCodes.tsx",
+      "lines": 1547,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\utils\\SimpleBill.ts",
+      "lines": 1466,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\PrintingSetupScreen.tsx",
+      "lines": 1365,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\CustomersView.tsx",
+      "lines": 1323,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\TableManagementView.tsx",
+      "lines": 1289,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\CompanyInfoView.tsx",
+      "lines": 1274,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\context\\LanguageContext.tsx",
+      "lines": 1190,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\AI intelligence tools\\CustomerHistory.tsx",
+      "lines": 1070,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\StaffAddEditModal.tsx",
+      "lines": 1064,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\CustomerHistory.tsx",
+      "lines": 1055,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MarketingCardGeneratorScreen.tsx",
+      "lines": 991,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\HeldOrdersView.tsx",
+      "lines": 952,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MainSettingsView.tsx",
+      "lines": 887,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MarketingReviewGeneratorScreen.tsx",
+      "lines": 845,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\TaxDiscountsModal.tsx",
+      "lines": 827,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\SubscriptionRequiredModal.tsx",
+      "lines": 820,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\InventoryModals.tsx",
+      "lines": 777,
+      "components": 3,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\orders\\MainOrdersView.tsx",
+      "lines": 751,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\InventoryDashboard.tsx",
+      "lines": 733,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\AddItemView.tsx",
+      "lines": 730,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\StaffModal.tsx",
+      "lines": 728,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\NewOrderNotifier.tsx",
+      "lines": 713,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\AI intelligence tools\\VoiceOrder.tsx",
+      "lines": 704,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\client\\MainClientView.tsx",
+      "lines": 692,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\DeleteHistoryView.tsx",
+      "lines": 604,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\QuickAddItemModal.tsx",
+      "lines": 558,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\OfferEditorPopup.tsx",
+      "lines": 547,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Restaurant Expenses\\ExpensePnL.tsx",
+      "lines": 544,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Past Bills History\\BillTable.tsx",
+      "lines": 542,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\InventoryReports.tsx",
+      "lines": 541,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(auth)\\sign-in.tsx",
+      "lines": 534,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\PrintingPreviewScreen.tsx",
+      "lines": 533,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\PublicMenuView.tsx",
+      "lines": 530,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\QRMenuTemplateView.tsx",
+      "lines": 522,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\KotView.tsx",
+      "lines": 519,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Restaurant Expenses\\ExpenseReports.tsx",
+      "lines": 511,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\sidebar\\SidebarItems.tsx",
+      "lines": 487,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\BillPreviewModal.tsx",
+      "lines": 483,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MarketingOffersScreen.tsx",
+      "lines": 468,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\staff creat\\StaffLogin.tsx",
+      "lines": 461,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\AddItemCategory.tsx",
+      "lines": 442,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\client\\CustomerDetailsModal.tsx",
+      "lines": 436,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\SaveBill.ts",
+      "lines": 425,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\AdvancedDiscountModal.tsx",
+      "lines": 425,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\AI intelligence tools\\ProfitEngine.tsx",
+      "lines": 420,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\ProfitEngine.tsx",
+      "lines": 420,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\TableSelectionModal.tsx",
+      "lines": 420,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\printer\\MainPrinterView.tsx",
+      "lines": 415,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Past Bills History\\PastBillsHistoryMain.tsx",
+      "lines": 409,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\staff creat\\StaffPermissionEngine.ts",
+      "lines": 400,
+      "components": 3,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(auth)\\custom-login.tsx",
+      "lines": 390,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\item-sales-report\\item-sales-report.tsx",
+      "lines": 388,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MultiProfileView.tsx",
+      "lines": 377,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\CartBar.tsx",
+      "lines": 373,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\FinishedProductList.tsx",
+      "lines": 355,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Restaurant Expenses\\ExpenseModals.tsx",
+      "lines": 350,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\item-sales-report\\WeeklyItemSalesReport.tsx",
+      "lines": 338,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\CartItemsModal.tsx",
+      "lines": 337,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\KOTTablesModal.tsx",
+      "lines": 336,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\item-sales-report\\MonthlyItemSalesReport.tsx",
+      "lines": 332,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(auth)\\reset-password.tsx",
+      "lines": 323,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\PremiumSalesChart.tsx",
+      "lines": 322,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\item-sales-report\\DailyItemSalesReport.tsx",
+      "lines": 321,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\RawMaterialList.tsx",
+      "lines": 318,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\MenuItemCard.tsx",
+      "lines": 318,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\table-insights\\TableRotation.tsx",
+      "lines": 318,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(auth)\\otp-verify.tsx",
+      "lines": 300,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Past Bills History\\FilterSection.tsx",
+      "lines": 292,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\CustomDatePicker.tsx",
+      "lines": 287,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\SimpleKOT.ts",
+      "lines": 276,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Restaurant Expenses\\RestaurantExpensesMain.tsx",
+      "lines": 275,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(auth)\\forgot-password.tsx",
+      "lines": 271,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\sidebar\\CustomDrawer.tsx",
+      "lines": 260,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\_layout.tsx",
+      "lines": 255,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\ConfirmHoldModal.tsx",
+      "lines": 254,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\utils\\billCalculator.js",
+      "lines": 250,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\services\\inventoryService.ts",
+      "lines": 244,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\orders\\CreateTableModal.tsx",
+      "lines": 241,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\services\\menuService.ts",
+      "lines": 229,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\OfferCard.tsx",
+      "lines": 226,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\services\\authService.ts",
+      "lines": 224,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(tabs)\\_layout.tsx",
+      "lines": 214,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Past Bills History\\StatsCards.tsx",
+      "lines": 212,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\LanguageSelectionModal.tsx",
+      "lines": 212,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MenuGridModal.tsx",
+      "lines": 211,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\OrderAcceptModal.tsx",
+      "lines": 211,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\orders\\TableCard.tsx",
+      "lines": 204,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\AppFeaturesCard.tsx",
+      "lines": 204,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\ForceUpdateChecker.tsx",
+      "lines": 198,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\MenuHeader.tsx",
+      "lines": 190,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\AddPartyView.tsx",
+      "lines": 183,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Restaurant Expenses\\ExpenseHeader.tsx",
+      "lines": 183,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\CategorySidebar.tsx",
+      "lines": 179,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\StatusModal.tsx",
+      "lines": 175,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\sidebar\\SidebarModals.tsx",
+      "lines": 175,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\StaffTransferModal.tsx",
+      "lines": 164,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\TopNavBar.tsx",
+      "lines": 163,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\utils\\SoundManager.ts",
+      "lines": 163,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\ProfileSelectionModal.tsx",
+      "lines": 162,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\staff creat\\useStaffPermissions.ts",
+      "lines": 162,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\StockMetricCards.tsx",
+      "lines": 157,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\orders\\DeleteConfirmModal.tsx",
+      "lines": 157,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\staff creat\\NoAccessView.tsx",
+      "lines": 155,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Restaurant Expenses\\ExpensesAPI.ts",
+      "lines": 150,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\ZoneSelectionModal.tsx",
+      "lines": 149,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\services\\companyService.ts",
+      "lines": 147,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\LoginRequiredModal.tsx",
+      "lines": 144,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\LoginRequiredModal.tsx",
+      "lines": 144,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\UserProfileCard.tsx",
+      "lines": 141,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\AdvancedControlsModal.tsx",
+      "lines": 139,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\ClearCartModal.tsx",
+      "lines": 138,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\Restaurant Expenses\\ExpenseList.tsx",
+      "lines": 132,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\MarketingHubScreen.tsx",
+      "lines": 130,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\SalesScreen.tsx",
+      "lines": 124,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\StaffPermissionsData.ts",
+      "lines": 122,
+      "components": 2,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\printer\\DeviceCard.tsx",
+      "lines": 116,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\ItemSalesReport.tsx",
+      "lines": 110,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\sidebar\\SidebarHeader.tsx",
+      "lines": 107,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\CustomToast.tsx",
+      "lines": 104,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\NetworkErrorModal.tsx",
+      "lines": 99,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\services\\staffService.ts",
+      "lines": 98,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\PartyProfileView.tsx",
+      "lines": 96,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(auth)\\sign-up.tsx",
+      "lines": 95,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\LanguageCard.tsx",
+      "lines": 92,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\InventoryTabs.tsx",
+      "lines": 91,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\AdvancedDiscountCard.tsx",
+      "lines": 89,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\BusinessManagementCard.tsx",
+      "lines": 89,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\StaffCard.tsx",
+      "lines": 89,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\TaxDiscountsCard.tsx",
+      "lines": 89,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\client\\PartyListItem.tsx",
+      "lines": 82,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\services\\offerService.ts",
+      "lines": 82,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\utils\\responsive.ts",
+      "lines": 77,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\StockAlertBanner.tsx",
+      "lines": 75,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\SearchBar.tsx",
+      "lines": 68,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\SuccessFeedback.tsx",
+      "lines": 65,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\services\\SyncManager.ts",
+      "lines": 63,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\MainInventoryView.tsx",
+      "lines": 62,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\WhySignInBox.tsx",
+      "lines": 61,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\context\\RefreshContext.tsx",
+      "lines": 60,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\MenuAccessWrapper.tsx",
+      "lines": 59,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\orders\\OrderHeader.tsx",
+      "lines": 59,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\QuickAddItemCard.tsx",
+      "lines": 58,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\constants\\theme.ts",
+      "lines": 54,
+      "components": 2,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\dashboard\\DashboardAccessWrapper.tsx",
+      "lines": 50,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\client\\ClientAccessWrapper.tsx",
+      "lines": 47,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\orders\\OrderAccessWrapper.tsx",
+      "lines": 47,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\SettingAccessWrapper.tsx",
+      "lines": 47,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(auth)\\index.tsx",
+      "lines": 44,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\client\\ClientHeader.tsx",
+      "lines": 44,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\settings\\SettingsHeader.tsx",
+      "lines": 44,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\menu\\KotAccessWrapper.tsx",
+      "lines": 40,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\printer\\PrinterHeader.tsx",
+      "lines": 34,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\printer\\PrinterAccessWrapper.tsx",
+      "lines": 33,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\oauth-native-callback.tsx",
+      "lines": 26,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\inventory\\InventoryList.tsx",
+      "lines": 26,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\hooks\\use-color-scheme.web.ts",
+      "lines": 23,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\hooks\\use-theme-color.ts",
+      "lines": 22,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\PermissionGuard.tsx",
+      "lines": 21,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(tabs)\\Client.tsx",
+      "lines": 20,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(tabs)\\menu.tsx",
+      "lines": 20,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(tabs)\\orders.tsx",
+      "lines": 20,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(tabs)\\Printer.tsx",
+      "lines": 20,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\(tabs)\\setting.tsx",
+      "lines": 20,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\menu\\[clerkId].tsx",
+      "lines": 18,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\app\\index.tsx",
+      "lines": 6,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\hooks\\use-color-scheme.ts",
+      "lines": 4,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\components\\common\\index.ts",
+      "lines": 3,
+      "components": 0,
+      "todos": 0
+    }
+  ]
+}

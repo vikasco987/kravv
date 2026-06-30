@@ -15,6 +15,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   ToastAndroid,
   TouchableOpacity,
   View
@@ -1419,6 +1420,21 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
   const [cart, setCart] = useState<Record<string, any>>({});
   const [isZoneModalVisible, setIsZoneModalVisible] = useState(false);
   const [selectedItemForSize, setSelectedItemForSize] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredCategories = React.useMemo(() => {
+    if (!searchQuery.trim() || !categories) return categories;
+    const query = searchQuery.toLowerCase();
+
+    return categories.map((cat: any) => {
+      if (cat.name.toLowerCase().includes(query)) return cat;
+      const matchingItems = cat.items.filter((item: any) =>
+        item.name.toLowerCase().includes(query)
+      );
+      if (matchingItems.length > 0) return { ...cat, items: matchingItems };
+      return null;
+    }).filter(Boolean);
+  }, [categories, searchQuery]);
 
   const { width: SCREEN_WIDTH } = Dimensions.get("window");
   const CATEGORY_COLUMN_WIDTH = s(90);
@@ -1438,7 +1454,20 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
   const removeFromCart = (item: any) => {
     setCart((prev) => {
       const existing = prev[item.id];
-      if (!existing) return prev;
+      if (!existing) {
+        const variantKey = Object.keys(prev).reverse().find(key => key.startsWith(`${item.id}_`));
+        if (!variantKey) return prev;
+        const variantExisting = prev[variantKey];
+        if (variantExisting.quantity === 1) {
+          const newCart = { ...prev };
+          delete newCart[variantKey];
+          return newCart;
+        }
+        return {
+          ...prev,
+          [variantKey]: { ...variantExisting, quantity: variantExisting.quantity - 1 },
+        };
+      }
       if (existing.quantity === 1) {
         const newCart = { ...prev };
         delete newCart[item.id];
@@ -1489,6 +1518,24 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
             </View>
           </View>
 
+          <View style={{ padding: s(10), backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: s(8), paddingHorizontal: s(10), paddingVertical: vs(6) }}>
+              <Ionicons name="search" size={rf(18)} color="#9CA3AF" />
+              <TextInput
+                style={{ flex: 1, marginLeft: s(8), fontSize: rf(14), color: '#374151', padding: 0 }}
+                placeholder="Search categories or items..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery("")}>
+                  <Ionicons name="close-circle" size={rf(18)} color="#9CA3AF" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
           <View style={[styles.modalBody, { flexDirection: "row", padding: 0 }]}>
             {loading && (!categories || categories.length === 0) ? (
               <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -1498,7 +1545,7 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
             ) : (
               <>
                 <CategorySidebar
-                  categories={categories}
+                  categories={filteredCategories}
                   onCategoryPress={(cat: any, index: number) =>
                     flatListRef.current?.scrollToIndex({ index, animated: true })
                   }
@@ -1507,7 +1554,7 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
 
                 <FlatList
                   ref={flatListRef}
-                  data={categories}
+                  data={filteredCategories}
                   keyExtractor={(cat) => cat.id}
                   contentContainerStyle={{ paddingBottom: 150, flexGrow: 1 }}
                   removeClippedSubviews={true}
@@ -1525,8 +1572,14 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
                             key={item.id}
                             item={item}
                             itemWidth={itemWidth}
-                            quantity={cart[item.id]?.quantity || 0}
-                            onAdd={(item: any) => setSelectedItemForSize(item)}
+                            quantity={Object.keys(cart).filter(key => key === item.id || key.startsWith(`${item.id}_`)).reduce((sum, key) => sum + cart[key].quantity, 0)}
+                            onAdd={(item: any) => {
+                              if (item.variants && item.variants.length > 0) {
+                                setSelectedItemForSize(item);
+                              } else {
+                                addToCart(item);
+                              }
+                            }}
                             onRemove={removeFromCart}
                           />
                         ))}

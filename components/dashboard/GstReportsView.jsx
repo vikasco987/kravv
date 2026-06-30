@@ -43,6 +43,7 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
   const [gstSettings, setGstSettings] = useState({
     taxEnabled: false,
     taxRate: 0,
+    taxInclusive: false,
     perProductTaxEnabled: false
   });
 
@@ -52,6 +53,7 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
         const settings = await AsyncStorage.multiGet([
           "tax_enabled",
           "tax_rate",
+          "tax_inclusive",
           "per_product_tax"
         ]);
         const sMap = {};
@@ -60,6 +62,7 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
         setGstSettings({
           taxEnabled: sMap["tax_enabled"] === "true",
           taxRate: parseFloat(sMap["tax_rate"] || "0"),
+          taxInclusive: sMap["tax_inclusive"] === "true",
           perProductTaxEnabled: sMap["per_product_tax"] === "true"
         });
       } catch (err) {
@@ -139,7 +142,16 @@ const GstReportsView = ({ onClose, allBills = [], userProfile = {} }) => {
         let taxable = 0;
         let gst = 0;
 
-        if (item.taxStatus === "With Tax" || item.taxType === "With Tax") {
+        let isInclusive = false;
+        if (perProductEnabled && Number(itemGst || 0) > 0) {
+          isInclusive = (item.taxStatus === "With Tax" || item.taxType === "With Tax");
+        } else if (gstSettings.taxEnabled) {
+          isInclusive = gstSettings.taxInclusive;
+        } else if (perProductEnabled) {
+          isInclusive = (item.taxStatus === "With Tax" || item.taxType === "With Tax");
+        }
+
+        if (isInclusive) {
           taxable = gross / (1 + rate / 100);
           gst = gross - taxable;
         } else {

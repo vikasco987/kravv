@@ -1218,7 +1218,20 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
   const removeFromCart = useCallback(async (item: MenuItem) => {
     setCart((prev) => {
       const existing = prev[item.id];
-      if (!existing) return prev;
+      if (!existing) {
+        const variantKey = Object.keys(prev).reverse().find(key => key.startsWith(`${item.id}_`));
+        if (!variantKey) return prev;
+        const variantExisting = prev[variantKey];
+        if (variantExisting.quantity === 1) {
+          const newCart = { ...prev };
+          delete newCart[variantKey];
+          return newCart;
+        }
+        return {
+          ...prev,
+          [variantKey]: { ...variantExisting, quantity: variantExisting.quantity - 1 },
+        };
+      }
       if (existing.quantity === 1) {
         const newCart = { ...prev };
         delete newCart[item.id];
@@ -1892,8 +1905,14 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                     key={item.id}
                     item={item}
                     itemWidth={itemWidth}
-                    quantity={cart[item.id]?.quantity || 0}
-                    onAdd={(item) => setSelectedItemForSize(item)}
+                    quantity={Object.keys(cart).filter(key => key === item.id || key.startsWith(`${item.id}_`)).reduce((sum, key) => sum + cart[key].quantity, 0)}
+                    onAdd={(item: any) => {
+                      if (item.variants && item.variants.length > 0) {
+                        setSelectedItemForSize(item);
+                      } else {
+                        addToCart(item);
+                      }
+                    }}
                     onRemove={removeFromCart}
                     isListView={isListView}
                   />

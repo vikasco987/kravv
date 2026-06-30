@@ -79,6 +79,7 @@ export default function CheckoutView({
   const [taxSettings, setTaxSettings] = useState({
     enabled: false,
     rate: 0,
+    taxInclusive: false,
     perProduct: false,
     discountEnabled: false,
     discountRate: 0,
@@ -147,6 +148,7 @@ export default function CheckoutView({
       const keys = [
         "tax_enabled",
         "tax_rate",
+        "tax_inclusive",
         "per_product_tax",
         "discount_enabled",
         "discount_rate",
@@ -172,6 +174,7 @@ export default function CheckoutView({
       setTaxSettings({
         enabled: settings["tax_enabled"] === "true",
         rate: parseFloat(settings["tax_rate"] || "0"),
+        taxInclusive: settings["tax_inclusive"] === "true",
         perProduct: settings["per_product_tax"] === "true",
         discountEnabled: settings["discount_enabled"] === "true",
         discountRate: parseFloat(settings["discount_rate"] || "0"),
@@ -494,7 +497,16 @@ export default function CheckoutView({
 
       const taxType = item.taxType || item.taxStatus || "Without Tax";
 
-      if (taxType === "With Tax") {
+      let isInclusive = false;
+      if (taxSettings.perProduct && productGst > 0) {
+        isInclusive = taxType === "With Tax";
+      } else if (taxSettings.enabled) {
+        isInclusive = taxSettings.taxInclusive;
+      } else if (taxSettings.perProduct) {
+        isInclusive = taxType === "With Tax";
+      }
+
+      if (isInclusive) {
         taxable = itemPriceAfterDiscount / (1 + itemGstRate / 100);
         gst = itemPriceAfterDiscount - taxable;
       } else {

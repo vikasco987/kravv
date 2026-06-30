@@ -315,6 +315,11 @@ export const StaffPermissionEngine = {
         if (typeof p !== "string") return false;
         const pLower = p.toLowerCase().trim();
 
+        // STRICT EXCLUSION: Prevent dedicated item editor permissions from accidentally unlocking "Menu"
+        if (searchTerm === "menu" && (pLower.includes("edit menu item") || pLower.includes("item editor"))) {
+          return false;
+        }
+
         // 1. Precise or Partial Match on variations
         if (variations.some((v) => pLower === v || pLower.includes(v)))
           return true;

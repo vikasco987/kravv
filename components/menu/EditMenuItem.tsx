@@ -1214,8 +1214,20 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                 {variants.map((v, idx) => (
                   <View key={idx} style={{ flexDirection: 'row', gap: s(8), alignItems: 'center' }}>
                     <TextInput
-                      style={[styles.formInput, { flex: 1.5, marginBottom: 0 }]}
-                      placeholder="Name (e.g. Half)"
+                      style={[
+                        styles.formInput,
+                        {
+                          flex: 1.5,
+                          marginBottom: 0,
+                          borderWidth: 1,
+                          borderColor: '#D1D5DB',
+                          borderRadius: s(8),
+                          paddingHorizontal: s(12),
+                          backgroundColor: '#F9FAFB'
+                        }
+                      ]}
+                      placeholder="Name"
+                      placeholderTextColor="#9CA3AF"
                       value={v.name}
                       onChangeText={(text) => {
                         const newVars = [...variants];
@@ -1224,8 +1236,20 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                       }}
                     />
                     <TextInput
-                      style={[styles.formInput, { flex: 1, marginBottom: 0 }]}
+                      style={[
+                        styles.formInput,
+                        {
+                          flex: 1,
+                          marginBottom: 0,
+                          borderWidth: 1,
+                          borderColor: '#D1D5DB',
+                          borderRadius: s(8),
+                          paddingHorizontal: s(12),
+                          backgroundColor: '#F9FAFB'
+                        }
+                      ]}
                       placeholder="Price"
+                      placeholderTextColor="#9CA3AF"
                       keyboardType="numeric"
                       value={v.price?.toString()}
                       onChangeText={(text) => {
@@ -1238,7 +1262,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                       const newVars = [...variants];
                       newVars.splice(idx, 1);
                       setVariants(newVars);
-                    }} style={{ padding: s(8), backgroundColor: '#FEE2E2', borderRadius: s(8) }}>
+                    }} style={{ padding: s(10), backgroundColor: '#FEE2E2', borderRadius: s(8), borderWidth: 1, borderColor: '#FECACA' }}>
                       <Ionicons name="trash-outline" size={rf(18)} color="#EF4444" />
                     </TouchableOpacity>
                   </View>

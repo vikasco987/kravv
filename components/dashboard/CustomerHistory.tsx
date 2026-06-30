@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-    DeviceEventEmitter,
-    Dimensions,
-    Modal,
-    NativeModules,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Vibration,
-    View,
+  DeviceEventEmitter,
+  Dimensions,
+  Modal,
+  NativeModules,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Vibration,
+  View,
 } from "react-native";
 // @ts-ignore
 import { Ionicons } from "@expo/vector-icons";
@@ -43,6 +43,7 @@ const CustomerHistory = ({
   const [taxEnabled, setTaxEnabled] = useState(false);
   const [perProductTax, setPerProductTax] = useState(false);
   const [taxRate, setTaxRate] = useState(0);
+  const [taxInclusive, setTaxInclusive] = useState(false);
   const [discountEnabled, setDiscountEnabled] = useState(false);
   const [discountRate, setDiscountRate] = useState(0);
   const [serviceChargeEnabled, setServiceChargeEnabled] = useState(false);
@@ -56,6 +57,7 @@ const CustomerHistory = ({
         "tax_enabled",
         "per_product_tax",
         "tax_rate",
+        "tax_inclusive",
         "discount_enabled",
         "discount_rate",
         "service_charge_enabled",
@@ -67,6 +69,7 @@ const CustomerHistory = ({
       setTaxEnabled(sMap["tax_enabled"] === "true");
       setPerProductTax(sMap["per_product_tax"] === "true");
       setTaxRate(parseFloat(sMap["tax_rate"] || "0"));
+      setTaxInclusive(sMap["tax_inclusive"] === "true");
       setDiscountEnabled(sMap["discount_enabled"] === "true");
       setDiscountRate(parseFloat(sMap["discount_rate"] || "0"));
       setServiceChargeEnabled(sMap["service_charge_enabled"] === "true");
@@ -159,7 +162,7 @@ const CustomerHistory = ({
                   rate: 0.9,
                 });
               }
-            } catch (err) {}
+            } catch (err) { }
           }
         }
       }),
@@ -185,7 +188,7 @@ const CustomerHistory = ({
     return () => {
       subscriptions.forEach((sub) => sub.remove());
       if (Voice && typeof Voice.destroy === "function") {
-        Voice.destroy().catch(() => {});
+        Voice.destroy().catch(() => { });
       }
     };
   }, [visible, bills]);
@@ -203,7 +206,7 @@ const CustomerHistory = ({
             setTimeout(() => resolve(true), 200);
           });
           await new Promise((resolve) => setTimeout(resolve, 350));
-        } catch (e) {}
+        } catch (e) { }
       }
 
       if (typeof nativeBridge.startSpeech === "function") {
@@ -215,7 +218,7 @@ const CustomerHistory = ({
         };
 
         await new Promise((resolve) => setTimeout(resolve, 150));
-        await nativeBridge.startSpeech("en-IN", options, () => {});
+        await nativeBridge.startSpeech("en-IN", options, () => { });
       } else {
         await Voice.start("en-IN");
       }
@@ -230,7 +233,7 @@ const CustomerHistory = ({
     try {
       const nativeBridge = NativeModules.Voice || NativeModules.RCTVoice;
       if (nativeBridge && typeof nativeBridge.stopSpeech === "function") {
-        await nativeBridge.stopSpeech(() => {});
+        await nativeBridge.stopSpeech(() => { });
       } else {
         await Voice.stop();
       }
@@ -350,7 +353,16 @@ const CustomerHistory = ({
         let gst = 0;
         const mode = item.taxStatus || item.taxType || "Without Tax";
 
-        if (mode === "With Tax") {
+        let isInclusive = false;
+        if (perProductTax && Number(item.gst || item.gst_percent || 0) > 0) {
+          isInclusive = mode === "With Tax";
+        } else if (taxEnabled) {
+          isInclusive = taxInclusive;
+        } else if (perProductTax) {
+          isInclusive = mode === "With Tax";
+        }
+
+        if (isInclusive) {
           taxable = lineTotal / (1 + itemGstRate / 100);
           gst = lineTotal - taxable;
         } else {
@@ -452,7 +464,7 @@ const CustomerHistory = ({
       // ✅ LINK CUSTOMER TO SESSION: Save party data so menu/bill can recognize them
       if (party) {
         AsyncStorage.setItem("@active_customer", JSON.stringify(party)).catch(
-          () => {},
+          () => { },
         );
       }
 
@@ -545,7 +557,7 @@ const CustomerHistory = ({
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scroll}
-           {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
+            {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {!insights ? (
               <View style={styles.emptyContent}>
                 <Ionicons

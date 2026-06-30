@@ -55,7 +55,6 @@ export const PERMISSION_GROUPS = [
     title: "Menu & Items Permissions",
     permissions: [
       "Add Menu Items",
-      "Edit Menu Items",
       "Delete Menu Items",
       "Manage Item Categories",
       "Generate Table QR Codes",
@@ -109,6 +108,12 @@ export const PERMISSION_GROUPS = [
     title: "Past Bills History",
     permissions: [
       "Access Past Bills / History"
+    ]
+  },
+  {
+    title: "Item Editor",
+    permissions: [
+      "Dedicated Item Editor"
     ]
   }
 ];

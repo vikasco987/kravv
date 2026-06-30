@@ -289,6 +289,10 @@ const StaffAddEditModal = ({
         displayTitle: "Past Bills / History",
         displaySubtitle: "Access Past Bills Records",
       },
+      "Item Editor": {
+        displayTitle: "Edit Menu Item",
+        displaySubtitle: "Access to Edit Menu Item",
+      },
     };
     return mappings[title] || { displayTitle: title, displaySubtitle: title };
   };

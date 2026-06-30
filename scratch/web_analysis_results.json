@@ -1,0 +1,2778 @@
+{
+  "totalFiles": 388,
+  "totalLines": 96557,
+  "componentsFound": 171,
+  "todosFound": 3,
+  "complexFiles": [
+    {
+      "path": "\\src\\app\\dashboard\\billing\\checkout\\CheckoutClient.tsx",
+      "lines": 3907,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\menu\\[clerkId]\\page.tsx",
+      "lines": 3184,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\workflow\\page.tsx",
+      "lines": 2612,
+      "todos": 1
+    },
+    {
+      "path": "\\src\\app\\dashboard\\terminal\\page.tsx",
+      "lines": 2541,
+      "todos": 1
+    },
+    {
+      "path": "\\src\\app\\dashboard\\menu\\view\\page.tsx",
+      "lines": 2224,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\kitchen\\page.tsx",
+      "lines": 2035,
+      "todos": 1
+    },
+    {
+      "path": "\\src\\app\\dashboard\\billing\\BillHistoryTable.tsx",
+      "lines": 1518,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuQRAddMoreFlow.css",
+      "lines": 1518,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\users\\[id]\\page.tsx",
+      "lines": 1466,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\UploadItemPage.tsx",
+      "lines": 1330,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\globals.css",
+      "lines": 1264,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\store-item-upload\\StoreItemPage.tsx",
+      "lines": 1245,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\printing\\page.tsx",
+      "lines": 1193,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\parties\\page.tsx",
+      "lines": 1192,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\billing\\[id]\\page.tsx",
+      "lines": 1073,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\inventory\\page.tsx",
+      "lines": 1017,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\Sidebar.tsx",
+      "lines": 946,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\tax\\page.tsx",
+      "lines": 864,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\offers\\generator\\page.tsx",
+      "lines": 861,
+      "todos": 0
+    },
+    {
+      "path": "\\prisma\\schema.prisma",
+      "lines": 844,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\profile\\_components\\BusinessProfileForm.tsx",
+      "lines": 806,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\page.tsx",
+      "lines": 791,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuQRAddMoreFlow.tsx",
+      "lines": 784,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\tables\\page.tsx",
+      "lines": 727,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\sidebar.tsx",
+      "lines": 727,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\qr-menu\\page.tsx",
+      "lines": 715,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\users\\page.tsx",
+      "lines": 702,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\backup\\page.tsx",
+      "lines": 682,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\qr-management\\page.tsx",
+      "lines": 679,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\offers\\page.tsx",
+      "lines": 670,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\offers\\reviews\\page.tsx",
+      "lines": 667,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\staff\\page.tsx",
+      "lines": 667,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\india-state-district.ts",
+      "lines": 641,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\printing\\PrintTemplates.tsx",
+      "lines": 638,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\items\\route.ts",
+      "lines": 606,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\billing\\page.tsx",
+      "lines": 588,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\billing\\checkout\\page.tsx",
+      "lines": 583,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\order-tracking\\[orderId]\\page.tsx",
+      "lines": 562,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\Navbar.tsx",
+      "lines": 558,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\integration\\gmail\\page.tsx",
+      "lines": 556,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\combos\\page.tsx",
+      "lines": 553,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\menu\\edit\\page.tsx",
+      "lines": 548,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\docs\\staff-access\\interactive\\page.tsx",
+      "lines": 536,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\dashboard\\page.tsx",
+      "lines": 527,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\discounts\\page.tsx",
+      "lines": 513,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\demo\\page.tsx",
+      "lines": 511,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\AccountSettings.tsx",
+      "lines": 510,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\review\\[orderId]\\page.tsx",
+      "lines": 508,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\sales\\daily\\page.tsx",
+      "lines": 486,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\admin\\invoice-generator\\page.tsx",
+      "lines": 479,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\printing\\BillPreview.tsx",
+      "lines": 478,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuEditor\\AddonGroupsModal.tsx",
+      "lines": 471,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\gst\\page.tsx",
+      "lines": 469,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\expenses\\reports\\page.tsx",
+      "lines": 464,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\expenses\\page.tsx",
+      "lines": 459,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\bill-manager\\[id]\\route.ts",
+      "lines": 451,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\merchants\\page.tsx",
+      "lines": 449,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\profile\\page.tsx",
+      "lines": 432,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\merchants\\[id]\\page.tsx",
+      "lines": 429,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\home.css",
+      "lines": 428,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\stats-grid.tsx",
+      "lines": 427,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\bill-manager\\[id]\\pdf\\route.ts",
+      "lines": 425,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuEditor\\ItemModal.tsx",
+      "lines": 417,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\docs\\workflow\\page.tsx",
+      "lines": 403,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\auth\\custom\\page.tsx",
+      "lines": 396,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\inventory\\reports\\page.tsx",
+      "lines": 389,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\expenses\\pnl\\page.tsx",
+      "lines": 384,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\gallery\\page.tsx",
+      "lines": 382,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\sales\\weekly\\page.tsx",
+      "lines": 380,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\sounds.ts",
+      "lines": 372,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\profile\\BusinessProfile.tsx",
+      "lines": 368,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\rewards\\page.tsx",
+      "lines": 367,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\dashboard\\route.ts",
+      "lines": 361,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\profile\\route.ts",
+      "lines": 360,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\security\\page.tsx",
+      "lines": 360,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\menu\\addons\\page.tsx",
+      "lines": 359,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\chart.tsx",
+      "lines": 358,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\upgrade\\page.tsx",
+      "lines": 357,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\help\\page.tsx",
+      "lines": 356,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\menu\\upload\\page.tsx",
+      "lines": 349,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\checkout\\page.tsx",
+      "lines": 347,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\users\\route.ts",
+      "lines": 336,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\qr-orders\\page.tsx",
+      "lines": 332,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\parties\\route.ts",
+      "lines": 326,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\page.tsx",
+      "lines": 316,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\orders\\route.ts",
+      "lines": 314,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\gst\\dashboard\\page.tsx",
+      "lines": 314,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\bill-manager\\route.ts",
+      "lines": 312,
+      "todos": 0
+    }
+  ],
+  "fileStats": [
+    {
+      "path": "\\src\\app\\dashboard\\billing\\checkout\\CheckoutClient.tsx",
+      "lines": 3907,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\menu\\[clerkId]\\page.tsx",
+      "lines": 3184,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\workflow\\page.tsx",
+      "lines": 2612,
+      "components": 1,
+      "todos": 1
+    },
+    {
+      "path": "\\src\\app\\dashboard\\terminal\\page.tsx",
+      "lines": 2541,
+      "components": 1,
+      "todos": 1
+    },
+    {
+      "path": "\\src\\app\\dashboard\\menu\\view\\page.tsx",
+      "lines": 2224,
+      "components": 2,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\kitchen\\page.tsx",
+      "lines": 2035,
+      "components": 1,
+      "todos": 1
+    },
+    {
+      "path": "\\src\\app\\dashboard\\billing\\BillHistoryTable.tsx",
+      "lines": 1518,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuQRAddMoreFlow.css",
+      "lines": 1518,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\users\\[id]\\page.tsx",
+      "lines": 1466,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\UploadItemPage.tsx",
+      "lines": 1330,
+      "components": 5,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\globals.css",
+      "lines": 1264,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\store-item-upload\\StoreItemPage.tsx",
+      "lines": 1245,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\printing\\page.tsx",
+      "lines": 1193,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\parties\\page.tsx",
+      "lines": 1192,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\billing\\[id]\\page.tsx",
+      "lines": 1073,
+      "components": 2,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\inventory\\page.tsx",
+      "lines": 1017,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\Sidebar.tsx",
+      "lines": 946,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\tax\\page.tsx",
+      "lines": 864,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\offers\\generator\\page.tsx",
+      "lines": 861,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\prisma\\schema.prisma",
+      "lines": 844,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\profile\\_components\\BusinessProfileForm.tsx",
+      "lines": 806,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\page.tsx",
+      "lines": 791,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuQRAddMoreFlow.tsx",
+      "lines": 784,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\tables\\page.tsx",
+      "lines": 727,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\sidebar.tsx",
+      "lines": 727,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\qr-menu\\page.tsx",
+      "lines": 715,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\users\\page.tsx",
+      "lines": 702,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\backup\\page.tsx",
+      "lines": 682,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\qr-management\\page.tsx",
+      "lines": 679,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\offers\\page.tsx",
+      "lines": 670,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\offers\\reviews\\page.tsx",
+      "lines": 667,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\staff\\page.tsx",
+      "lines": 667,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\india-state-district.ts",
+      "lines": 641,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\printing\\PrintTemplates.tsx",
+      "lines": 638,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\items\\route.ts",
+      "lines": 606,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\billing\\page.tsx",
+      "lines": 588,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\billing\\checkout\\page.tsx",
+      "lines": 583,
+      "components": 2,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\order-tracking\\[orderId]\\page.tsx",
+      "lines": 562,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\Navbar.tsx",
+      "lines": 558,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\integration\\gmail\\page.tsx",
+      "lines": 556,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\combos\\page.tsx",
+      "lines": 553,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\menu\\edit\\page.tsx",
+      "lines": 548,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\docs\\staff-access\\interactive\\page.tsx",
+      "lines": 536,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\dashboard\\page.tsx",
+      "lines": 527,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\discounts\\page.tsx",
+      "lines": 513,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\demo\\page.tsx",
+      "lines": 511,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\AccountSettings.tsx",
+      "lines": 510,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\review\\[orderId]\\page.tsx",
+      "lines": 508,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\sales\\daily\\page.tsx",
+      "lines": 486,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\admin\\invoice-generator\\page.tsx",
+      "lines": 479,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\printing\\BillPreview.tsx",
+      "lines": 478,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuEditor\\AddonGroupsModal.tsx",
+      "lines": 471,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\gst\\page.tsx",
+      "lines": 469,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\expenses\\reports\\page.tsx",
+      "lines": 464,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\expenses\\page.tsx",
+      "lines": 459,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\bill-manager\\[id]\\route.ts",
+      "lines": 451,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\merchants\\page.tsx",
+      "lines": 449,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\profile\\page.tsx",
+      "lines": 432,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\merchants\\[id]\\page.tsx",
+      "lines": 429,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\home.css",
+      "lines": 428,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\stats-grid.tsx",
+      "lines": 427,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\bill-manager\\[id]\\pdf\\route.ts",
+      "lines": 425,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuEditor\\ItemModal.tsx",
+      "lines": 417,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\docs\\workflow\\page.tsx",
+      "lines": 403,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\auth\\custom\\page.tsx",
+      "lines": 396,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\inventory\\reports\\page.tsx",
+      "lines": 389,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\expenses\\pnl\\page.tsx",
+      "lines": 384,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\gallery\\page.tsx",
+      "lines": 382,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\sales\\weekly\\page.tsx",
+      "lines": 380,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\sounds.ts",
+      "lines": 372,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\profile\\BusinessProfile.tsx",
+      "lines": 368,
+      "components": 2,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\rewards\\page.tsx",
+      "lines": 367,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\dashboard\\route.ts",
+      "lines": 361,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\profile\\route.ts",
+      "lines": 360,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\security\\page.tsx",
+      "lines": 360,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\menu\\addons\\page.tsx",
+      "lines": 359,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\chart.tsx",
+      "lines": 358,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\upgrade\\page.tsx",
+      "lines": 357,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\help\\page.tsx",
+      "lines": 356,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\menu\\upload\\page.tsx",
+      "lines": 349,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\checkout\\page.tsx",
+      "lines": 347,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\users\\route.ts",
+      "lines": 336,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\qr-orders\\page.tsx",
+      "lines": 332,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\parties\\route.ts",
+      "lines": 326,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\page.tsx",
+      "lines": 316,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\orders\\route.ts",
+      "lines": 314,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\gst\\dashboard\\page.tsx",
+      "lines": 314,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\bill-manager\\route.ts",
+      "lines": 312,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\items\\page.tsx",
+      "lines": 300,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuQRAddMoreFlow.example.tsx",
+      "lines": 295,
+      "components": 4,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\OrderNotificationProvider.tsx",
+      "lines": 293,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\docs\\menu-management\\page.tsx",
+      "lines": 292,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\page.tsx",
+      "lines": 292,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\docs\\architecture\\page.tsx",
+      "lines": 290,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\docs\\staff-access\\page.tsx",
+      "lines": 289,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\ai-scraper\\page.tsx",
+      "lines": 282,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\onboarding-custom\\page.tsx",
+      "lines": 281,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\PremiumAlert.tsx",
+      "lines": 278,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\mail-templates.ts",
+      "lines": 277,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\onboarding\\page.tsx",
+      "lines": 276,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\store-items\\bulk-update\\route.ts",
+      "lines": 268,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\analytics\\order-type\\page.tsx",
+      "lines": 268,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\customers\\page.tsx",
+      "lines": 267,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ClientLayout.tsx",
+      "lines": 262,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\dropdown-menu.tsx",
+      "lines": 258,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\generateInvoice.ts",
+      "lines": 258,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\top-items.tsx",
+      "lines": 255,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\payments\\page.tsx",
+      "lines": 255,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\customer\\page.tsx",
+      "lines": 254,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\date-filter.tsx",
+      "lines": 249,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\pdf\\invoice-pdf.ts",
+      "lines": 247,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\notifications\\page.tsx",
+      "lines": 246,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\seller\\staff\\route.ts",
+      "lines": 242,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\docs\\gst-billing\\page.tsx",
+      "lines": 238,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\analytics\\page.tsx",
+      "lines": 238,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\sales\\monthly\\page.tsx",
+      "lines": 238,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\advanced\\page.tsx",
+      "lines": 238,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\sales\\revenue\\page.tsx",
+      "lines": 236,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ResponsiveHeader.tsx",
+      "lines": 236,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\activity\\page.tsx",
+      "lines": 231,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\reports\\gst\\route.ts",
+      "lines": 231,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\payment-mode-chart.tsx",
+      "lines": 228,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\printing\\QRMenuTemplate.tsx",
+      "lines": 223,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\public\\orders\\route.ts",
+      "lines": 222,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\loyalty\\page.tsx",
+      "lines": 219,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\onboard\\route.ts",
+      "lines": 213,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\payment\\result\\[id]\\page.tsx",
+      "lines": 210,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\recent-bills.tsx",
+      "lines": 209,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\docs\\gst-category-pro\\page.tsx",
+      "lines": 206,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\bills\\page.tsx",
+      "lines": 206,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\WhatsAppBillButton.tsx",
+      "lines": 206,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\users\\roles\\page.tsx",
+      "lines": 205,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\TerminalContext.tsx",
+      "lines": 203,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\track\\page.tsx",
+      "lines": 202,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\email-parser.ts",
+      "lines": 202,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\billing\\deleted\\page.tsx",
+      "lines": 201,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\uploaditems\\CategorySelect.tsx",
+      "lines": 201,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\pos\\page.tsx",
+      "lines": 200,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\user\\me\\route.ts",
+      "lines": 195,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\performance\\page.tsx",
+      "lines": 194,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuEditor\\index.tsx",
+      "lines": 191,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\select.tsx",
+      "lines": 191,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\analytics\\order-type\\BillTable.tsx",
+      "lines": 188,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\onboard-custom\\route.ts",
+      "lines": 187,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\auth-utils.ts",
+      "lines": 186,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\whatsapp-bill.ts",
+      "lines": 186,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\profile\\page.tsx",
+      "lines": 181,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\users\\create\\page.tsx",
+      "lines": 179,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\dashboard-stats\\route.ts",
+      "lines": 174,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\revenue-chart.tsx",
+      "lines": 174,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\categories\\route.ts",
+      "lines": 173,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\sales\\daily\\BillActionsReport.tsx",
+      "lines": 170,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\tokens\\page.tsx",
+      "lines": 168,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\gmail\\sync\\route.ts",
+      "lines": 166,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\auth\\register\\route.ts",
+      "lines": 163,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\staff\\login\\page.tsx",
+      "lines": 158,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\payments\\cash\\page.tsx",
+      "lines": 157,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\profile\\UserActivityHeatmap.tsx",
+      "lines": 157,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\payments\\upi\\page.tsx",
+      "lines": 156,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\CustomUserButton.tsx",
+      "lines": 154,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\types\\menuQRAddMore.ts",
+      "lines": 154,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\menu-editor\\addon-groups\\route.ts",
+      "lines": 152,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\orders\\[orderId]\\merge-items\\route.ts",
+      "lines": 152,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ActiveOrderBanner.tsx",
+      "lines": 152,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\Sidebar.module.css",
+      "lines": 152,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\combos-offers\\route.ts",
+      "lines": 149,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\notifications\\route.ts",
+      "lines": 149,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\gmail-service.ts",
+      "lines": 149,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\staff\\route.ts",
+      "lines": 147,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\upload\\route.ts",
+      "lines": 146,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\reports\\sellers\\route.ts",
+      "lines": 144,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\users\\[id]\\route.ts",
+      "lines": 144,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\Navbar.module.css",
+      "lines": 141,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\sheet.tsx",
+      "lines": 140,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\user\\identifiers\\route.ts",
+      "lines": 136,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\drawer.tsx",
+      "lines": 136,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\users\\disable\\route.ts",
+      "lines": 134,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuEditor\\ItemsList.tsx",
+      "lines": 131,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\offers\\route.ts",
+      "lines": 128,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\inventory\\materials\\route.ts",
+      "lines": 128,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\public\\menu\\[clerkId]\\route.ts",
+      "lines": 125,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\uploaditems\\ImageUpload.tsx",
+      "lines": 124,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\admin\\users\\docs\\page.tsx",
+      "lines": 121,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\sign-up\\[[...sign-up]]\\page.tsx",
+      "lines": 120,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\categories\\upload\\route.ts",
+      "lines": 119,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\generate-seller-excel.js",
+      "lines": 119,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ThemeProvider.tsx",
+      "lines": 118,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\weekly-revenue-chart.tsx",
+      "lines": 117,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\table.tsx",
+      "lines": 117,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\tables\\[id]\\route.ts",
+      "lines": 116,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\sign-in\\[[...sign-in]]\\page.tsx",
+      "lines": 116,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\auth\\login\\route.ts",
+      "lines": 115,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\seller-detail\\route.ts",
+      "lines": 111,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\staff\\login\\route.ts",
+      "lines": 110,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\breadcrumb.tsx",
+      "lines": 110,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\middleware.ts",
+      "lines": 110,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\analytics\\order-type\\CustomDateSelector.tsx",
+      "lines": 109,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\reports\\analytics\\order-type\\OrderTypeCharts.tsx",
+      "lines": 109,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\phonepe\\pay\\route.ts",
+      "lines": 108,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\reports\\sellers\\[id]\\route.ts",
+      "lines": 107,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\wallet\\route.ts",
+      "lines": 107,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\backup\\mongodb-backup.ts",
+      "lines": 106,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\tables\\route.ts",
+      "lines": 105,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\discounts\\[id]\\route.ts",
+      "lines": 103,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\deleted-bills\\page.tsx",
+      "lines": 103,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\backups\\export\\route.ts",
+      "lines": 102,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\whatsapp\\send-bill\\route.ts",
+      "lines": 100,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\card.tsx",
+      "lines": 100,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\reviews\\route.ts",
+      "lines": 99,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\store-items\\bulk\\route.ts",
+      "lines": 99,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\public\\reviews\\route.ts",
+      "lines": 98,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\order-type-chart.tsx",
+      "lines": 98,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\activity\\page.tsx",
+      "lines": 98,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\gallery\\route.ts",
+      "lines": 97,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ConfirmContext.tsx",
+      "lines": 97,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\Page.module.css",
+      "lines": 94,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\reports\\sellers\\export\\route.ts",
+      "lines": 93,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\MenuEditor\\CategorySidebar.tsx",
+      "lines": 93,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\users\\invite\\route.ts",
+      "lines": 92,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\discounts\\route.ts",
+      "lines": 92,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\generate-seller-excel-sheetjs.js",
+      "lines": 92,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\gmail\\test-parse\\route.ts",
+      "lines": 91,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\peak-hours-chart.tsx",
+      "lines": 87,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\profile\\edit\\page.tsx",
+      "lines": 86,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\toggle-group.tsx",
+      "lines": 84,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\hooks\\useRealTimeNotifications.ts",
+      "lines": 84,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\activity\\admin\\page.tsx",
+      "lines": 81,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\auth\\verify-otp\\route.ts",
+      "lines": 78,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\bill-manager\\deleted\\list\\route.ts",
+      "lines": 78,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\phonepe\\status\\[id]\\route.ts",
+      "lines": 78,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\orders\\[orderId]\\route.ts",
+      "lines": 77,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\menu\\update\\route.ts",
+      "lines": 76,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\generate-seller-report.ts",
+      "lines": 76,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\backups\\delete\\route.ts",
+      "lines": 75,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\auth\\sync-user\\route.ts",
+      "lines": 75,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\external\\users\\route.ts",
+      "lines": 74,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\uploaditems\\ProductDetailsSection.tsx",
+      "lines": 74,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\generate-seller-report.js",
+      "lines": 74,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\staff\\[id]\\route.ts",
+      "lines": 73,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\uploaditems\\GstTaxSection.tsx",
+      "lines": 72,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\parties\\add\\page.tsx",
+      "lines": 72,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\backups\\inspect\\route.ts",
+      "lines": 70,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\bill-manager\\deleted\\restore\\[id]\\route.ts",
+      "lines": 70,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\public\\orders\\[orderId]\\combined-bill\\route.ts",
+      "lines": 69,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\expenses\\route.ts",
+      "lines": 68,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\AuthContext.tsx",
+      "lines": 68,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\inventory\\export\\route.ts",
+      "lines": 67,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\tabs.tsx",
+      "lines": 67,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\discount-utils.ts",
+      "lines": 67,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\inventory-utils.ts",
+      "lines": 66,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\auth\\resend-otp\\route.ts",
+      "lines": 65,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\users\\impersonate\\route.ts",
+      "lines": 64,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\public\\loyalty\\route.ts",
+      "lines": 64,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\public\\pos\\[identifier]\\route.ts",
+      "lines": 64,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\bill-manager\\export\\route.ts",
+      "lines": 63,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\parties\\[id]\\route.ts",
+      "lines": 62,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\tooltip.tsx",
+      "lines": 62,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\users\\role\\route.ts",
+      "lines": 61,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\inventory\\recipes\\route.ts",
+      "lines": 61,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\search\\route.ts",
+      "lines": 60,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\uploaditems\\InventorySection.tsx",
+      "lines": 60,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\button.tsx",
+      "lines": 60,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\user\\sync\\route.ts",
+      "lines": 57,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\activity\\log\\route.ts",
+      "lines": 56,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\expenses\\categories\\route.ts",
+      "lines": 56,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\profile\\loading.tsx",
+      "lines": 55,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\backups\\download\\route.ts",
+      "lines": 54,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\gmail\\callback\\route.ts",
+      "lines": 54,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\inventory\\route.ts",
+      "lines": 54,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\avatar.tsx",
+      "lines": 54,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\combos\\route.ts",
+      "lines": 53,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\user\\activity\\route.ts",
+      "lines": 53,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\layout.tsx",
+      "lines": 53,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\auth\\forgot-password\\route.ts",
+      "lines": 52,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\expenses\\[id]\\route.ts",
+      "lines": 52,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\menu\\delete\\route.ts",
+      "lines": 52,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\subscription\\confirm\\route.ts",
+      "lines": 52,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\backups\\collections\\route.ts",
+      "lines": 51,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\rewards\\route.ts",
+      "lines": 51,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\roles\\route.ts",
+      "lines": 51,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\public\\orders\\track\\route.ts",
+      "lines": 51,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\uploaditems\\DisplaySection.tsx",
+      "lines": 50,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\orderStorage.ts",
+      "lines": 50,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\clerks\\route.ts",
+      "lines": 48,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\kitchen\\components\\order-alert-loop.tsx",
+      "lines": 48,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\terminal\\components\\order-alert-loop.tsx",
+      "lines": 48,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\workflow\\components\\order-alert-loop.tsx",
+      "lines": 48,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\toggle.tsx",
+      "lines": 48,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\activity\\route.ts",
+      "lines": 47,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\combos\\[id]\\route.ts",
+      "lines": 47,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\auth\\reset-password\\route.ts",
+      "lines": 47,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\gmail\\status\\route.ts",
+      "lines": 47,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\badge.tsx",
+      "lines": 47,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\phonepe.ts",
+      "lines": 47,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\generate-invoice\\route.ts",
+      "lines": 46,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\rewards\\[id]\\route.ts",
+      "lines": 46,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\route.ts",
+      "lines": 46,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\reports\\tokens\\route.ts",
+      "lines": 46,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\dashboard-stats\\config\\route.ts",
+      "lines": 45,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\expenses\\categories\\[id]\\route.ts",
+      "lines": 45,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\menu\\items\\route.ts",
+      "lines": 45,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\parties\\[id]\\bills\\route.ts",
+      "lines": 45,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\SidebarContext.tsx",
+      "lines": 44,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\activity\\list\\route.ts",
+      "lines": 43,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\menu-editor\\page.tsx",
+      "lines": 43,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\settings\\route.ts",
+      "lines": 41,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\sonner.tsx",
+      "lines": 41,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\categories\\ensure\\route.ts",
+      "lines": 40,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\TopProgressBar.tsx",
+      "lines": 40,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\offers\\[id]\\route.ts",
+      "lines": 39,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\backups\\create\\route.ts",
+      "lines": 38,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\backups\\route.ts",
+      "lines": 38,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\external\\menu\\update\\[id]\\route.ts",
+      "lines": 38,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\external\\menu\\[userId]\\route.ts",
+      "lines": 38,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\invoice\\[id]\\route.ts",
+      "lines": 38,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\upload\\image\\route.ts",
+      "lines": 38,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\check-orders.js",
+      "lines": 38,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\cron\\backup\\route.ts",
+      "lines": 37,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\menu\\view\\route.ts",
+      "lines": 37,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\cloudinaryUploadFromUrl.ts",
+      "lines": 37,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\uploaditems\\ExpandableSection.tsx",
+      "lines": 36,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\switch.tsx",
+      "lines": 36,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\bill-manager\\[id]\\hold\\route.ts",
+      "lines": 35,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\external-sales\\route.ts",
+      "lines": 35,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\profile\\push-token\\route.ts",
+      "lines": 35,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\profiles\\route.ts",
+      "lines": 35,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\public\\profile\\route.ts",
+      "lines": 35,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\wallet\\history\\[partyId]\\route.ts",
+      "lines": 35,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\analytics-card.tsx",
+      "lines": 35,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\dashboard-sound-alerts.tsx",
+      "lines": 35,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\loading.tsx",
+      "lines": 35,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\auth\\me\\route.ts",
+      "lines": 34,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\profile\\empty.tsx",
+      "lines": 34,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\test-api-query3.js",
+      "lines": 34,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\checkbox.tsx",
+      "lines": 33,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\auth\\logout\\route.ts",
+      "lines": 32,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\public\\gallery\\[clerkId]\\route.ts",
+      "lines": 31,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\public\\menu\\route.ts",
+      "lines": 31,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\billing\\loading.tsx",
+      "lines": 31,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\Providers.tsx",
+      "lines": 30,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\payments\\route.ts",
+      "lines": 29,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\staff\\me\\route.ts",
+      "lines": 29,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\components\\copy-button.tsx",
+      "lines": 29,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\SearchContext.tsx",
+      "lines": 29,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\separator.tsx",
+      "lines": 29,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\profile\\create\\page.tsx",
+      "lines": 28,
+      "components": 2,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\check-all.js",
+      "lines": 28,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\input.tsx",
+      "lines": 26,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\gmail\\auth\\route.ts",
+      "lines": 25,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\profile\\edit\\[[...rest]]\\page.tsx",
+      "lines": 25,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\label.tsx",
+      "lines": 25,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\admin\\self-promote\\route.ts",
+      "lines": 24,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\inventory\\loading.tsx",
+      "lines": 24,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\textarea.tsx",
+      "lines": 24,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\cloudinary-client.ts",
+      "lines": 24,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\staff\\logout\\route.ts",
+      "lines": 23,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\layout.tsx",
+      "lines": 23,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\fix-isdeleted.js",
+      "lines": 23,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\profile\\edit\\BusinessProfileFormClient.tsx",
+      "lines": 21,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\PrintButton.tsx",
+      "lines": 21,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\check-orders-simple.js",
+      "lines": 21,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\upload-image\\route.ts",
+      "lines": 20,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\hooks\\use-mobile.ts",
+      "lines": 20,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\prisma.ts",
+      "lines": 20,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\qr-orders\\loading.tsx",
+      "lines": 19,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\loading.tsx",
+      "lines": 19,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\tables\\loading.tsx",
+      "lines": 19,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\validators\\businessProfile.ts",
+      "lines": 19,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\test-api-query4.js",
+      "lines": 19,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\phonepe\\webhook\\route.ts",
+      "lines": 17,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\test-api-query.js",
+      "lines": 17,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\utils\\prismaClient.ts",
+      "lines": 17,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\combos\\loading.tsx",
+      "lines": 16,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\test-api-query2.js",
+      "lines": 16,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\scripts\\test-orders.js",
+      "lines": 16,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\components\\ui\\skeleton.tsx",
+      "lines": 14,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\check_user.js",
+      "lines": 13,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\cloudinary.ts",
+      "lines": 13,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\order-tracking\\[orderId]\\layout.tsx",
+      "lines": 12,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\debug\\route.ts",
+      "lines": 10,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\api\\debug-cloudinary\\route.ts",
+      "lines": 10,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\store-item-upload\\page.tsx",
+      "lines": 10,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\whatsapp.ts",
+      "lines": 10,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\settings\\account\\page.tsx",
+      "lines": 8,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\store-item-upload\\page.tsx",
+      "lines": 7,
+      "components": 1,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\lib\\utils.ts",
+      "lines": 7,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\types\\esc-pos-encoder.d.ts",
+      "lines": 5,
+      "components": 0,
+      "todos": 0
+    },
+    {
+      "path": "\\src\\app\\dashboard\\workflow\\workflow.css",
+      "lines": 1,
+      "components": 0,
+      "todos": 0
+    }
+  ]
+}
