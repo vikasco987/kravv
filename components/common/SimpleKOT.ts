@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ToastAndroid } from "react-native";
 // @ts-ignore
 
-import { enqueuePrintTask, ensurePrinterConnected } from "../../utils/SimpleBill";
+import { enqueuePrintTask, ensureKOTPrinterConnected } from "../../utils/SimpleBill";
 
 /* ---------- Helpers ---------- */
 const centerText = (text: string, width = 32) => {
@@ -98,9 +98,9 @@ export async function SimpleKOT(
     // --- Start Printing (Backgrounded for speed) ---
     enqueuePrintTask(async () => {
       try {
-        const printer = await ensurePrinterConnected();
+        const printer = await ensureKOTPrinterConnected();
         if (!printer) {
-          ToastAndroid.show("⚠️ Printer not connected!", ToastAndroid.SHORT);
+          ToastAndroid.show("⚠️ KOT Printer not connected!", ToastAndroid.SHORT);
           return;
         }
         const globalWeight = printSettings.kotFontWeight;

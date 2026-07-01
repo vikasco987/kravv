@@ -171,79 +171,77 @@ function utf8Encode(str: string): Uint8Array {
   return new Uint8Array(codePoints);
 }
 
-let globalPrinter: any = null;
+let globalBillPrinter: any = null;
+let globalKOTPrinter: any = null;
 
-export async function ensurePrinterConnected(silent = false): Promise<any> {
+async function getTargetPrinter(printerCache: any, storageKey: string, silent = false): Promise<any> {
   try {
-    if (globalPrinter) {
+    const savedMac = await AsyncStorage.getItem(storageKey);
+    if (!savedMac) return null; // No printer assigned for this role
+
+    if (printerCache) {
       try {
-        const isConnected = await globalPrinter.isConnected();
-        if (isConnected) return globalPrinter;
+        const isConnected = await printerCache.isConnected();
+        if (isConnected) return printerCache;
       } catch (e) { }
-      globalPrinter = null;
+      printerCache = null;
     }
 
     const connected = await RNBluetoothClassic.getConnectedDevices();
-    if (connected && connected.length > 0) {
-      globalPrinter = connected[0];
-      if (!globalPrinter._isSafeWrapped) {
-        const _origWrite = globalPrinter.write.bind(globalPrinter);
-        globalPrinter.write = async (data: any) => {
+    let targetDev = connected.find((d: any) => d.address === savedMac);
+
+    if (!targetDev) {
+      const bonded = await RNBluetoothClassic.getBondedDevices();
+      targetDev = bonded.find((d: any) => d.address === savedMac);
+
+      if (targetDev) {
+        try {
+          const isConnected = await targetDev.isConnected();
+          if (!isConnected) {
+            const success = await targetDev.connect();
+            if (!success) targetDev = null;
+          }
+        } catch (e) {
+          targetDev = null;
+        }
+      }
+    }
+
+    if (targetDev) {
+      const devAny = targetDev as any;
+      if (!devAny._isSafeWrapped) {
+        const _origWrite = devAny.write.bind(devAny);
+        devAny.write = async (data: any) => {
           const d = data instanceof Uint8Array ? data : new Uint8Array(data);
           for (let i = 0; i < d.length; i += 512) {
             await _origWrite(d.slice(i, i + 512));
             await new Promise(r => setTimeout(r, 10));
           }
         };
-        globalPrinter._isSafeWrapped = true;
+        devAny._isSafeWrapped = true;
       }
-      try { await globalPrinter.clear(); } catch (e) { }
-      return globalPrinter;
-    }
-    const bonded = await RNBluetoothClassic.getBondedDevices();
-    if (bonded && bonded.length > 0) {
-      const dev = bonded[0];
-      try {
-        const isConnected = await dev.isConnected();
-        if (isConnected) {
-          globalPrinter = dev;
-          if (!globalPrinter._isSafeWrapped) {
-            const _origWrite = globalPrinter.write.bind(globalPrinter);
-            globalPrinter.write = async (data: any) => {
-              const d = data instanceof Uint8Array ? data : new Uint8Array(data);
-              for (let i = 0; i < d.length; i += 512) {
-                await _origWrite(d.slice(i, i + 512));
-                await new Promise(r => setTimeout(r, 10));
-              }
-            };
-            globalPrinter._isSafeWrapped = true;
-          }
-          return dev;
-        }
-      } catch (e) { }
-
-      const success = await dev.connect();
-      if (success) {
-        globalPrinter = dev;
-        if (!globalPrinter._isSafeWrapped) {
-          const _origWrite = globalPrinter.write.bind(globalPrinter);
-          globalPrinter.write = async (data: any) => {
-            const d = data instanceof Uint8Array ? data : new Uint8Array(data);
-            for (let i = 0; i < d.length; i += 512) {
-              await _origWrite(d.slice(i, i + 512));
-              await new Promise(r => setTimeout(r, 10));
-            }
-          };
-          globalPrinter._isSafeWrapped = true;
-        }
-        try { await dev.clear(); } catch (e) { }
-        return dev;
-      }
+      try { await targetDev.clear(); } catch (e) { }
+      return targetDev;
     }
   } catch (err) {
-    if (!silent) console.log("BT Error:", err);
+    if (!silent) console.log(`BT Error for ${storageKey}:`, err);
   }
   return null;
+}
+
+export async function ensureBillPrinterConnected(silent = false): Promise<any> {
+  globalBillPrinter = await getTargetPrinter(globalBillPrinter, "saved_bill_printer", silent);
+  return globalBillPrinter;
+}
+
+export async function ensureKOTPrinterConnected(silent = false): Promise<any> {
+  globalKOTPrinter = await getTargetPrinter(globalKOTPrinter, "saved_kot_printer", silent);
+  return globalKOTPrinter;
+}
+
+// Fallback for any other part of the app that uses this (maps to Bill printer by default)
+export async function ensurePrinterConnected(silent = false): Promise<any> {
+  return await ensureBillPrinterConnected(silent);
 }
 
 async function printQRCode(printer: any, data: string) {
@@ -529,6 +527,7 @@ export async function SimpleBill(
     const settings = await AsyncStorage.multiGet([
       "tax_enabled",
       "tax_rate",
+      "tax_inclusive",
       "per_product_tax",
       "discount_enabled",
       "discount_rate",
@@ -551,6 +550,7 @@ export async function SimpleBill(
     const tS = options?.taxSettings;
     const isTaxEnabled = tS ? tS.enabled : sMap["tax_enabled"] === "true";
     const globalTaxRate = tS ? tS.rate : parseFloat(sMap["tax_rate"] || "0");
+    const isTaxInclusive = tS ? tS.taxInclusive : sMap["tax_inclusive"] === "true";
     const perProductTaxEnabled = tS
       ? tS.perProduct
       : sMap["per_product_tax"] === "true";
@@ -642,7 +642,16 @@ export async function SimpleBill(
 
       const taxType = item.taxStatus || item.taxType || "Without Tax";
 
-      if (taxType === "With Tax") {
+      let isInclusive = false;
+      if (perProductTaxEnabled && productGst > 0) {
+        isInclusive = taxType === "With Tax";
+      } else if (isTaxEnabled) {
+        isInclusive = isTaxInclusive;
+      } else if (perProductTaxEnabled) {
+        isInclusive = taxType === "With Tax";
+      }
+
+      if (isInclusive) {
         taxable = itemPriceAfterDiscount / (1 + itemGstRate / 100);
         gst = itemPriceAfterDiscount - taxable;
       } else {

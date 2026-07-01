@@ -25,8 +25,10 @@ export default function TabsLayout() {
   useEffect(() => {
     const checkAndConnectPrinter = async () => {
       try {
-        const savedAddress = await AsyncStorage.getItem("saved_printer");
-        if (!savedAddress) {
+        const billSaved = await AsyncStorage.getItem("saved_bill_printer");
+        const kotSaved = await AsyncStorage.getItem("saved_kot_printer");
+
+        if (!billSaved && !kotSaved) {
           setIsPrinterConnected(false);
           return;
         }
@@ -37,20 +39,19 @@ export default function TabsLayout() {
           return;
         }
 
-        const isConnected = await RNBluetoothClassic.isDeviceConnected(savedAddress);
-        if (isConnected) {
-          setIsPrinterConnected(true);
-        } else {
-          try {
-            const connection = await RNBluetoothClassic.connectToDevice(savedAddress, {
-              connectorType: "rfcomm",
-              secure: false,
-            });
-            setIsPrinterConnected(!!connection);
-          } catch (e) {
-            setIsPrinterConnected(false);
-          }
+        let anyConnected = false;
+
+        if (billSaved) {
+          const isConnected = await RNBluetoothClassic.isDeviceConnected(billSaved);
+          if (isConnected) anyConnected = true;
         }
+
+        if (kotSaved && !anyConnected) {
+          const isConnected = await RNBluetoothClassic.isDeviceConnected(kotSaved);
+          if (isConnected) anyConnected = true;
+        }
+
+        setIsPrinterConnected(anyConnected);
       } catch (err) {
         setIsPrinterConnected(false);
       }

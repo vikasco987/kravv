@@ -66,6 +66,17 @@ export async function getRecentCompanyProfile(token: string) {
       discountEnabled: data.discountEnabled,
       discountRate: data.discountRate,
       multiZoneMenuEnabled: data.multiZoneMenuEnabled,
+      // Customer Setup Fields
+      collectCustomerName: data.collectCustomerName ?? true,
+      requireCustomerName: data.requireCustomerName ?? false,
+      collectCustomerPhone: data.collectCustomerPhone ?? true,
+      requireCustomerPhone: data.requireCustomerPhone ?? false,
+      collectCustomerAddress: data.collectCustomerAddress ?? false,
+      requireCustomerAddress: data.requireCustomerAddress ?? false,
+      isOnline: data.isOnline ?? true,
+      openingTime: data.openingTime ?? "00:00",
+      closingTime: data.closingTime ?? "23:59",
+      offlineMessage: data.offlineMessage ?? "Restaurant is currently closed or not accepting orders.",
       // Print Settings
       printSettings: data.printSettings || null,
       // SaaS Overrides

@@ -29,11 +29,17 @@ const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =
     const router = useRouter();
     const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
     const [devices, setDevices] = useState<any[]>([]);
-    const [connectedDevice, setConnectedDevice] = useState<any>(null);
+    const [activeTab, setActiveTab] = useState<"bill" | "kot">("bill");
+
+    const [connectedBillDevice, setConnectedBillDevice] = useState<any>(null);
+    const [connectedKOTDevice, setConnectedKOTDevice] = useState<any>(null);
+
     const [isLoading, setIsLoading] = useState(false);
     const [isBtOffModalVisible, setIsBtOffModalVisible] = useState(false);
     const [isNoDevicesModalVisible, setIsNoDevicesModalVisible] = useState(false);
     const [isConnectionErrorModalVisible, setIsConnectionErrorModalVisible] = useState(false);
+
+    const connectedDevice = activeTab === "bill" ? connectedBillDevice : connectedKOTDevice;
 
     // ================= PERMISSIONS =================
     const requestPermissions = async () => {
@@ -129,9 +135,16 @@ const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =
             );
 
             if (connection) {
-                setConnectedDevice(connection);
-                await AsyncStorage.setItem("saved_printer", device.address);
-                ToastAndroid.show("Connected ✅", ToastAndroid.SHORT);
+                const storageKey = activeTab === "bill" ? "saved_bill_printer" : "saved_kot_printer";
+                await AsyncStorage.setItem(storageKey, device.address);
+
+                if (activeTab === "bill") {
+                    setConnectedBillDevice(connection);
+                } else {
+                    setConnectedKOTDevice(connection);
+                }
+
+                ToastAndroid.show(`${activeTab === "bill" ? "Bill" : "KOT"} Printer Connected ✅`, ToastAndroid.SHORT);
                 SoundManager.playSuccess();
             }
         } catch (e: any) {
@@ -146,24 +159,34 @@ const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =
     // ================= AUTO CONNECT =================
     const autoConnect = async (showLoader = false) => {
         try {
-            const savedAddress = await AsyncStorage.getItem("saved_printer");
-            if (!savedAddress) return;
+            const billSaved = await AsyncStorage.getItem("saved_bill_printer");
+            const kotSaved = await AsyncStorage.getItem("saved_kot_printer");
+            if (!billSaved && !kotSaved) return;
 
             const isEnabled = await RNBluetoothClassic.isBluetoothEnabled();
             if (!isEnabled) return;
 
             if (showLoader) setIsLoading(true);
-            const connection = await RNBluetoothClassic.connectToDevice(
-                savedAddress, { connectorType: "rfcomm", secure: false }
-            );
 
-            if (connection) {
-                setConnectedDevice(connection);
-                ToastAndroid.show("Printer Connected ✅", ToastAndroid.SHORT);
-
-                const bonded = await RNBluetoothClassic.getBondedDevices();
-                setDevices(bonded);
+            // Connect Bill Printer if saved and not connected
+            if (billSaved && !connectedBillDevice) {
+                try {
+                    const conn1 = await RNBluetoothClassic.connectToDevice(billSaved, { connectorType: "rfcomm", secure: false });
+                    if (conn1) setConnectedBillDevice(conn1);
+                } catch (e) { }
             }
+
+            // Connect KOT Printer if saved and not connected
+            if (kotSaved && !connectedKOTDevice) {
+                try {
+                    const conn2 = await RNBluetoothClassic.connectToDevice(kotSaved, { connectorType: "rfcomm", secure: false });
+                    if (conn2) setConnectedKOTDevice(conn2);
+                } catch (e) { }
+            }
+
+            const bonded = await RNBluetoothClassic.getBondedDevices();
+            setDevices(bonded);
+
         } catch (e) {
             // Silently fail for background auto-connect
         } finally {
@@ -176,7 +199,8 @@ const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =
         if (!connectedDevice) return;
         try {
             await connectedDevice.disconnect();
-            setConnectedDevice(null);
+            if (activeTab === "bill") setConnectedBillDevice(null);
+            else setConnectedKOTDevice(null);
         } catch (e) { }
     };
 
@@ -184,9 +208,22 @@ const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =
     const forgetDevice = async (address: string) => {
         try {
             setDevices((prev) => prev.filter((d) => d.address !== address));
-            if (connectedDevice?.address === address) await disconnectDevice();
-            const savedPrinter = await AsyncStorage.getItem("saved_printer");
-            if (savedPrinter === address) await AsyncStorage.removeItem("saved_printer");
+
+            if (connectedBillDevice?.address === address) {
+                await connectedBillDevice.disconnect();
+                setConnectedBillDevice(null);
+            }
+            if (connectedKOTDevice?.address === address) {
+                await connectedKOTDevice.disconnect();
+                setConnectedKOTDevice(null);
+            }
+
+            const savedBill = await AsyncStorage.getItem("saved_bill_printer");
+            if (savedBill === address) await AsyncStorage.removeItem("saved_bill_printer");
+
+            const savedKot = await AsyncStorage.getItem("saved_kot_printer");
+            if (savedKot === address) await AsyncStorage.removeItem("saved_kot_printer");
+
             ToastAndroid.show("Device forgotten ✅", ToastAndroid.SHORT);
         } catch (e) { }
     };
@@ -198,13 +235,13 @@ const MainPrinterView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =
             return;
         }
         if (!connectedDevice) {
-            ToastAndroid.show("Connect printer first", ToastAndroid.SHORT);
+            ToastAndroid.show(`Connect ${activeTab === "bill" ? "Bill" : "KOT"} printer first`, ToastAndroid.SHORT);
             return;
         }
         try {
             setIsLoading(true);
             const text = `
-Kravy Billing App
+Kravy ${activeTab === "bill" ? "Billing" : "KOT"} App
 --------------------------
 Burger x2    100
 Pizza x1     200
@@ -235,21 +272,22 @@ Thank You\n\n\n`;
     useEffect(() => {
         if (isLockedUser) return;
         const interval = setInterval(async () => {
-            if (!connectedDevice && !isLoading) {
+            if ((!connectedBillDevice || !connectedKOTDevice) && !isLoading) {
                 await autoConnect(false);
             }
-        }, 3000); // Check every 3 seconds
+        }, 5000); // Check every 5 seconds
 
         return () => clearInterval(interval);
-    }, [connectedDevice, isLoading, isLockedUser]);
+    }, [connectedBillDevice, connectedKOTDevice, isLoading, isLockedUser]);
 
     // Connection Lost Listener
     useEffect(() => {
-        const sub = RNBluetoothClassic.onDeviceDisconnected(() => {
-            setConnectedDevice(null);
+        const sub = RNBluetoothClassic.onDeviceDisconnected((event: any) => {
+            if (connectedBillDevice?.address === event.device.address) setConnectedBillDevice(null);
+            if (connectedKOTDevice?.address === event.device.address) setConnectedKOTDevice(null);
         });
         return () => sub.remove();
-    }, []);
+    }, [connectedBillDevice, connectedKOTDevice]);
 
     if (isLockedUser) {
         return (
@@ -275,6 +313,21 @@ Thank You\n\n\n`;
 
     return (
         <View style={styles.content}>
+            {/* Tabs for Bill / KOT */}
+            <View style={{ flexDirection: 'row', paddingHorizontal: s(20), marginTop: vs(15) }}>
+                <TouchableOpacity
+                    style={{ flex: 1, paddingVertical: vs(12), borderBottomWidth: 3, borderBottomColor: activeTab === 'bill' ? '#4F46E5' : '#E5E7EB', alignItems: 'center' }}
+                    onPress={() => setActiveTab('bill')}
+                >
+                    <Text style={{ fontWeight: 'bold', color: activeTab === 'bill' ? '#4F46E5' : '#6B7280', fontSize: rf(15) }}>Bill Printer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={{ flex: 1, paddingVertical: vs(12), borderBottomWidth: 3, borderBottomColor: activeTab === 'kot' ? '#F59E0B' : '#E5E7EB', alignItems: 'center' }}
+                    onPress={() => setActiveTab('kot')}
+                >
+                    <Text style={{ fontWeight: 'bold', color: activeTab === 'kot' ? '#F59E0B' : '#6B7280', fontSize: rf(15) }}>KOT Printer</Text>
+                </TouchableOpacity>
+            </View>
 
             <View style={styles.actionRow}>
                 <TouchableOpacity style={[styles.mainBtn, { backgroundColor: '#10B981' }]} onPress={scanDevices} disabled={isLoading}>
@@ -282,13 +335,13 @@ Thank You\n\n\n`;
                     <Text style={styles.btnText}>Scan Devices</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.mainBtn, { backgroundColor: '#4F46E5' }]} onPress={printSample} disabled={!connectedDevice || isLoading}>
+                <TouchableOpacity style={[styles.mainBtn, { backgroundColor: activeTab === 'bill' ? '#4F46E5' : '#F59E0B' }]} onPress={printSample} disabled={!connectedDevice || isLoading}>
                     <Ionicons name="document-text-outline" size={rf(20)} color="#fff" />
                     <Text style={styles.btnText}>Print Test</Text>
                 </TouchableOpacity>
             </View>
 
-            <Text style={styles.sectionTitle}>Bonded Devices</Text>
+            <Text style={styles.sectionTitle}>Bonded Devices ({activeTab === "bill" ? "Bill Setup" : "KOT Setup"})</Text>
 
             {isLoading && <ActivityIndicator size="large" color="#4F46E5" style={{ marginVertical: vs(20) }} />}
 
@@ -299,22 +352,26 @@ Thank You\n\n\n`;
                         <Text style={styles.emptyText}>No devices detected. Tap Scan.</Text>
                     </View>
                 )}
-                {devices.map((d, i) => (
-                    <DeviceCard
-                        key={i}
-                        name={d.name}
-                        address={d.address}
-                        bonded={d.bonded}
-                        isConnected={connectedDevice?.address === d.address}
-                        onConnect={() => connectDevice(d)}
-                        onForget={() => forgetDevice(d.address)}
-                    />
-                ))}
+                {devices.map((d, i) => {
+                    const isConnected = connectedDevice?.address === d.address;
+                    const isAssignedToOther = activeTab === "bill" ? (connectedKOTDevice?.address === d.address) : (connectedBillDevice?.address === d.address);
+                    return (
+                        <DeviceCard
+                            key={i}
+                            name={d.name + (isAssignedToOther ? (activeTab === "bill" ? " (In use by KOT)" : " (In use by Bill)") : "")}
+                            address={d.address}
+                            bonded={d.bonded}
+                            isConnected={isConnected}
+                            onConnect={() => connectDevice(d)}
+                            onForget={() => forgetDevice(d.address)}
+                        />
+                    );
+                })}
 
                 {connectedDevice && (
                     <TouchableOpacity style={styles.disconnectBtn} onPress={disconnectDevice}>
                         <Ionicons name="close-circle-outline" size={rf(18)} color="#EF4444" />
-                        <Text style={styles.disconnectText}>Disconnect Printer</Text>
+                        <Text style={styles.disconnectText}>Disconnect {activeTab === "bill" ? "Bill" : "KOT"} Printer</Text>
                     </TouchableOpacity>
                 )}
             </ScrollView>

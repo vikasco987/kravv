@@ -26,6 +26,7 @@ import { AdvancedDiscountCard } from "./AdvancedDiscountCard";
 import { AdvancedDiscountModal } from "./AdvancedDiscountModal";
 import { AppFeaturesCard } from "./AppFeaturesCard";
 import { BusinessManagementCard } from "./BusinessManagementCard";
+import { CustomerSetupModal } from "./CustomerSetupModal";
 import { KOTTablesModal } from "./KOTTablesModal";
 import { LanguageCard } from "./LanguageCard";
 import { LanguageSelectionModal } from "./LanguageSelectionModal";
@@ -108,6 +109,7 @@ const MainSettingsView = ({
   const [staffModalVisible, setStaffModalVisible] = React.useState(false);
   const [orderAcceptModalVisible, setOrderAcceptModalVisible] = React.useState(false);
   const [menuGridModalVisible, setMenuGridModalVisible] = React.useState(false);
+  const [customerSetupModalVisible, setCustomerSetupModalVisible] = React.useState(false);
   const [menuGridEnabled, setMenuGridEnabled] = React.useState(false);
   const [orderAutoAccept, setOrderAutoAccept] = React.useState(false);
   const [currentView, setCurrentView] = React.useState<
@@ -754,6 +756,7 @@ const MainSettingsView = ({
         onAdvancedControlsPress={() => setAdvancedControlsModalVisible(true)}
         onMenuGridPress={() => setMenuGridModalVisible(true)}
         onMarketingHubPress={() => setCurrentView("marketingHub")}
+        onCustomerSetupPress={() => setCustomerSetupModalVisible(true)}
         onLoginRequired={() => setLoginModalVisible(true)}
       />
 
@@ -885,6 +888,10 @@ const MainSettingsView = ({
         menuGridEnabled={menuGridEnabled}
         setMenuGridEnabled={setMenuGridEnabled}
         onSave={saveSetting}
+      />
+      <CustomerSetupModal
+        visible={customerSetupModalVisible}
+        onClose={() => setCustomerSetupModalVisible(false)}
       />
     </ScrollView>
   );
