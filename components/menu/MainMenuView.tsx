@@ -1723,9 +1723,16 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     ToastAndroid.show("💾 Bill Saved", ToastAndroid.SHORT);
   };
 
+  const availableWidth = SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32);
+  const getNumColumns = () => {
+    if (SCREEN_WIDTH >= 1024) return menuGridEnabled ? 4 : 5;
+    if (SCREEN_WIDTH >= 768) return menuGridEnabled ? 3 : 4;
+    return menuGridEnabled ? 2 : 3;
+  };
+
   const itemWidth = isListView
     ? (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(20))
-    : (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32)) / (menuGridEnabled ? 2 : 3);
+    : availableWidth / getNumColumns();
 
   if (!isLoaded || loading || authBuffering)
     return (

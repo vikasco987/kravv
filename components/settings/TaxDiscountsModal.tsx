@@ -824,6 +824,7 @@ const styles = StyleSheet.create({
     },
     quickSelectGrid: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         gap: s(10),
     },
     rateBtn: {

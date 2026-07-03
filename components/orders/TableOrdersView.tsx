@@ -1438,7 +1438,13 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
 
   const { width: SCREEN_WIDTH } = Dimensions.get("window");
   const CATEGORY_COLUMN_WIDTH = s(90);
-  const itemWidth = (SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32)) / (menuGridEnabled ? 2 : 3);
+  const availableWidth = SCREEN_WIDTH - CATEGORY_COLUMN_WIDTH - s(32);
+  const getNumColumns = () => {
+    if (SCREEN_WIDTH >= 1024) return menuGridEnabled ? 4 : 5;
+    if (SCREEN_WIDTH >= 768) return menuGridEnabled ? 3 : 4;
+    return menuGridEnabled ? 2 : 3;
+  };
+  const itemWidth = availableWidth / getNumColumns();
 
   useEffect(() => {
     if (visible) setCart({});
@@ -1483,7 +1489,21 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
   const totalItems = Object.values(cart).reduce((sum, it) => sum + it.quantity, 0);
   const totalAmount = Object.values(cart).reduce((sum, it) => sum + (it.sellingPrice || it.price || 0) * it.quantity, 0);
 
-  const [printKOT, setPrintKOT] = useState(true); // Default to true
+  const [printKOT, setPrintKOT] = useState(false); // Default to false
+
+  useEffect(() => {
+    AsyncStorage.getItem('@default_kot_toggle_table_orders').then(val => {
+      if (val !== null) {
+        setPrintKOT(val === 'true');
+      }
+    }).catch(() => { });
+  }, []);
+
+  const togglePrintKOT = () => {
+    const newVal = !printKOT;
+    setPrintKOT(newVal);
+    AsyncStorage.setItem('@default_kot_toggle_table_orders', String(newVal)).catch(() => { });
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -1599,7 +1619,7 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
                 <TouchableOpacity
                   style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: printKOT ? '#ECFDF5' : '#F9FAFB', paddingHorizontal: s(12), paddingVertical: vs(12), borderRadius: s(12), borderWidth: 1, borderColor: printKOT ? '#10B981' : '#E5E7EB' }}
-                  onPress={() => setPrintKOT(!printKOT)}
+                  onPress={togglePrintKOT}
                 >
                   <Ionicons name={printKOT ? "checkmark-circle" : "ellipse-outline"} size={rf(18)} color={printKOT ? '#10B981' : '#9CA3AF'} />
                   <Text style={{ marginLeft: s(6), fontSize: rf(12), fontWeight: 'bold', color: printKOT ? '#10B981' : '#6B7280' }}>KOT</Text>

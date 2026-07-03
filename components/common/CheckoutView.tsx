@@ -728,7 +728,7 @@ export default function CheckoutView({
         customerAddress: newParty.address,
         businessProfile,
         taxSettings: finalTaxSettings,
-        tableName: params.selectedTable || undefined,
+        tableName: params.tableName || params.selectedTable || undefined,
         roomName: params.selectedRoom || undefined,
         tokenNo: params.tokenNo,
         orderId: params.kotId,
