@@ -83,7 +83,7 @@ type MenuItem = {
   zones?: string[];
   isVeg?: boolean;
   isEgg?: boolean;
-  variants?: { name: string, price: number | string }[];
+  variants?: { name: string, price: number | string, originalId?: string, originalName?: string }[];
 };
 
 type MenuCategory = {
@@ -400,7 +400,67 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
             processedItems = itemsList;
           }
 
-          processedItems.forEach((item: any) => {
+          // GROUPING LOGIC START (similar to QR menu)
+          const groupedProcessedItems: any[] = [];
+          const groupedMap: Record<string, any[]> = {};
+          
+          processedItems.forEach((it: any) => {
+            let rawName = it.name || "Unnamed";
+            // Remove (V), (v), (NV), (nv) from the name entirely
+            rawName = rawName.replace(/\s*\([vV]\)\s*/g, '').replace(/\s*\([nN][vV]\)\s*/g, '').trim();
+            it.name = rawName; // Update the name to hide it
+
+            let baseName = rawName;
+            // Match the size in the last parenthesis, e.g. "Pizza (Large)" -> "Large"
+            const suffixMatch = rawName.match(/\s*\(([^)]+)\)$/);
+            if (suffixMatch) {
+               baseName = rawName.substring(0, suffixMatch.index).trim();
+            }
+            const catId = it.category?.id || it.category?._id || it.category?.name || "others";
+            const groupKey = `${catId}_${baseName}`;
+            
+            if (!groupedMap[groupKey]) groupedMap[groupKey] = [];
+            groupedMap[groupKey].push(it);
+          });
+          
+          Object.values(groupedMap).forEach(group => {
+            if (group.length === 1) {
+              groupedProcessedItems.push(group[0]);
+            } else {
+              const baseItem = { ...group[0] };
+              baseItem.name = (baseItem.name || "").replace(/\s*\([^)]+\)$/, "").trim();
+              
+              const minPrice = Math.min(...group.map(i => Number(i.sellingPrice || i.price || i.selling_price || 0)));
+              baseItem.sellingPrice = minPrice;
+              baseItem.price = minPrice;
+              
+              // Merge size variants with existing addons
+              const existingVariants = group[0].variants || [];
+              const sizeVariants = group.map(i => {
+                  const match = (i.name || "").match(/\((.*?)\)/)?.[1] || (i.name || "");
+                  let niceName = match;
+                  if (match.toUpperCase() === 'F' || match.toUpperCase() === 'FULL') niceName = 'Full Portion';
+                  else if (match.toUpperCase() === 'H' || match.toUpperCase() === 'HALF') niceName = 'Half Portion';
+                  else if (match.toUpperCase() === 'S' || match.toUpperCase() === 'SMALL') niceName = 'Small';
+                  else if (match.toUpperCase() === 'R' || match.toUpperCase() === 'REGULAR') niceName = 'Regular';
+                  else if (match.toUpperCase() === 'M' || match.toUpperCase() === 'MEDIUM') niceName = 'Medium';
+                  else if (match.toUpperCase() === 'L' || match.toUpperCase() === 'LARGE') niceName = 'Large';
+                  
+                  return {
+                      name: niceName,
+                      price: Number(i.sellingPrice || i.price || i.selling_price || 0),
+                      originalId: String(i.id || i._id),
+                      originalName: i.name
+                  };
+              });
+              
+              baseItem.variants = [...sizeVariants, ...existingVariants];
+              
+              groupedProcessedItems.push(baseItem);
+            }
+          });
+
+          groupedProcessedItems.forEach((item: any) => {
             const rawCat = item.category || { id: "others", name: "Others" };
             const catId = String(rawCat.id || rawCat._id || "others");
             const catName = String(rawCat.name || "Others");
@@ -2154,8 +2214,8 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                     if (selectedItemForSize) {
                       addToCart({
                         ...selectedItemForSize,
-                        id: `${selectedItemForSize.id}_${v.name}`,
-                        name: `${selectedItemForSize.name} (${v.name})`,
+                        id: v.originalId || `${selectedItemForSize.id}_${v.name}`,
+                        name: v.originalName || `${selectedItemForSize.name} (${v.name})`,
                         price: Number(v.price) || 0,
                         sellingPrice: Number(v.price) || 0
                       });
