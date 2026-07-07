@@ -67,7 +67,7 @@ const DEFAULT_PRINT_SETTINGS = {
   showGreetings: true,
   showAmountInWords: true,
   showPaymentStatus: true,
-  showFoodTypeSuffix: true,
+  showFoodTypeSuffix: false,
   // Financial Summary
   showSubtotal: true,
   showDiscount: true,
@@ -854,7 +854,7 @@ export async function SimpleBill(
     }
 
     // 🖨️ STEP B: PRINTING PROCESS
-    await enqueuePrintTask(async () => {
+    enqueuePrintTask(async () => {
       try {
         const printer: any = await ensurePrinterConnected(options?.silent);
         if (printer) {
@@ -869,7 +869,7 @@ export async function SimpleBill(
           const businessTagLine =
             companyInfo?.businessTagline || companyInfo?.businessTagLine || "";
           const gstNumber = companyInfo?.gstNumber || "";
-          const bizPhone = companyInfo?.companyPhone || companyInfo?.businessPhone || companyInfo?.phone || "";
+          const bizPhone = companyInfo?.contactPersonPhone || companyInfo?.companyPhone || companyInfo?.businessPhone || companyInfo?.phone || "";
           const bizFSSAI = companyInfo?.fssaiNumber || companyInfo?.businessFSSAI || "";
           const reviewLink = companyInfo?.googleReviewLink || "";
 
@@ -933,6 +933,14 @@ export async function SimpleBill(
           await printer.write(BOLD_OFF);
           await printer.write(SIZE_NORMAL);
 
+          if (printSettings.showContact && bizPhone) {
+            await printer.write(detailsSizeCmd);
+            await printer.write(detailsBoldCmd);
+            await printer.write(utf8Encode(`Mob: ${bizPhone}\n`));
+            await printer.write(BOLD_OFF);
+            await printer.write(SIZE_NORMAL);
+          }
+
           if (printSettings.showTagline && businessTagLine) {
             await printer.write(taglineSizeCmd);
             await printer.write(taglineWeightCmd);
@@ -951,8 +959,6 @@ export async function SimpleBill(
 
           await printer.write(detailsSizeCmd);
           await printer.write(detailsBoldCmd);
-          if (printSettings.showContact && bizPhone)
-            await printer.write(utf8Encode(`Mob: ${bizPhone}\n`));
           if (printSettings.showGST && gstNumber)
             await printer.write(utf8Encode(`GSTIN: ${gstNumber}\n`));
           if (printSettings.showFSSAI && bizFSSAI)
@@ -1013,7 +1019,7 @@ export async function SimpleBill(
           if (printSettings.sepItemsHeader) {
             itemsHeader += formatLine("-") + "\n";
           }
-          itemsHeader += "Item".padEnd(16) + "Qty" + "Price".padStart(6) + "Total".padStart(7) + "\n";
+          itemsHeader += "Item".padEnd(14) + " Qty" + "Price".padStart(7) + "Total".padStart(7) + "\n";
           itemsHeader += formatLine("-") + "\n";
           await printer.write(utf8Encode(itemsHeader));
 
@@ -1022,18 +1028,23 @@ export async function SimpleBill(
           printBody = "";
           productsForBackend.forEach((i) => {
             let suffix = "";
-            if (printSettings.showFoodTypeSuffix) {
-              const isVeg = (i as any).isVeg ?? (i as any).veg ?? !/\b(nv|egg|chicken|mutton|fish|meat|pork|beef|non-veg|nonveg)\b/i.test(i.name);
-              suffix = isVeg ? "(V)" : "(NV)";
-            }
             const gstStr = i.gstRate > 0 ? `(${i.gstRate}%)` : "";
-            const displayName = (i.name + suffix + gstStr).padEnd(16).slice(0, 16);
+            const fullDisplayName = i.name + suffix + gstStr;
+            const displayName = fullDisplayName.padEnd(14).slice(0, 14);
 
-            const qtyStr = String(i.qty).padStart(3);
-            const rateStr = i.rate.toFixed(2).padStart(6);
-            const totStr = i.total.toFixed(2).padStart(7);
+            const qtyStr = String(i.qty).padStart(4);
+            const rateStr = Number(i.rate).toString().padStart(7);
+            const totStr = Number(i.total).toString().padStart(7);
 
             printBody += `${displayName}${qtyStr}${rateStr}${totStr}\n`;
+            
+            if (fullDisplayName.length > 14) {
+              let remaining = fullDisplayName.slice(14);
+              while (remaining.length > 0) {
+                printBody += `${remaining.slice(0, 32)}\n`;
+                remaining = remaining.slice(32);
+              }
+            }
           });
 
           const printBodyBytes = utf8Encode(printBody);
@@ -1227,7 +1238,7 @@ export async function PrintOldBill(
         const businessAddress = companyInfo?.businessAddress || companyInfo?.companyAddress || "";
         const businessTagLine = companyInfo?.businessTagline || companyInfo?.businessTagLine || "";
         const gstNumber = companyInfo?.gstNumber || "";
-        const bizPhone = companyInfo?.companyPhone || companyInfo?.businessPhone || companyInfo?.phone || "";
+        const bizPhone = companyInfo?.contactPersonPhone || companyInfo?.companyPhone || companyInfo?.businessPhone || companyInfo?.phone || "";
         const bizFSSAI = companyInfo?.fssaiNumber || companyInfo?.businessFSSAI || "";
         const reviewLink = companyInfo?.googleReviewLink || "";
 
@@ -1274,6 +1285,14 @@ export async function PrintOldBill(
         await printer.write(BOLD_OFF);
         await printer.write(SIZE_NORMAL);
 
+        if (printSettings.showContact && bizPhone) {
+          await printer.write(detailsSizeCmd);
+          await printer.write(detailsBoldCmd);
+          await printer.write(utf8Encode(`Mob: ${bizPhone}\n`));
+          await printer.write(BOLD_OFF);
+          await printer.write(SIZE_NORMAL);
+        }
+
         if (printSettings.showTagline && businessTagLine) {
           await printer.write(taglineSizeCmd);
           await printer.write(taglineWeightCmd);
@@ -1292,7 +1311,6 @@ export async function PrintOldBill(
 
         await printer.write(detailsSizeCmd);
         await printer.write(detailsBoldCmd);
-        if (printSettings.showContact && bizPhone) await printer.write(utf8Encode(`Mob: ${bizPhone}\n`));
         if (printSettings.showGST && gstNumber) await printer.write(utf8Encode(`GSTIN: ${gstNumber}\n`));
         if (printSettings.showFSSAI && bizFSSAI) await printer.write(utf8Encode(`FSSAI: ${bizFSSAI}\n`));
 
@@ -1333,7 +1351,7 @@ export async function PrintOldBill(
         await printer.write(detailsBoldCmd);
         let itemsHeader = "";
         if (printSettings.sepItemsHeader) itemsHeader += line("-") + "\n";
-        itemsHeader += "Item         Qty  Price   Total\n";
+        itemsHeader += "Item".padEnd(14) + " Qty" + "Price".padStart(7) + "Total".padStart(7) + "\n";
         itemsHeader += line("-") + "\n";
         await printer.write(utf8Encode(itemsHeader));
 
@@ -1342,17 +1360,28 @@ export async function PrintOldBill(
         printBody = "";
         (bill.items || []).forEach((i: any) => {
           let suffix = "";
-          if (printSettings.showFoodTypeSuffix) {
-            const isVeg = i.isVeg ?? i.veg ?? !/\b(nv|egg|chicken|mutton|fish|meat|pork|beef|non-veg|nonveg)\b/i.test(i.name);
-            suffix = isVeg ? "(V)" : "(NV)";
-          }
           const qty = Number(i.qty || i.quantity || 1);
           const rate = Number(i.rate || i.price || 0);
           const total = qty * rate;
           const gstRate = Number(i.gstRate || i.gst || i.gst_rate || 0);
 
-          const displayName = gstRate > 0 ? `${i.name.slice(0, 7)}${suffix}(${gstRate}%)` : `${i.name.slice(0, 12)}${suffix}`;
-          printBody += `${displayName.padEnd(12)} ${String(qty).padStart(3)} ${rate.toFixed(2).padStart(6)} ${total.toFixed(2).padStart(8)}\n`;
+          const gstStr = gstRate > 0 ? `(${gstRate}%)` : "";
+          const fullDisplayName = i.name + suffix + gstStr;
+          const displayName = fullDisplayName.padEnd(14).slice(0, 14);
+          
+          const qtyStr = String(qty).padStart(4);
+          const rateStr = Number(rate).toString().padStart(7);
+          const totStr = Number(total).toString().padStart(7);
+
+          printBody += `${displayName}${qtyStr}${rateStr}${totStr}\n`;
+          
+          if (fullDisplayName.length > 14) {
+            let remaining = fullDisplayName.slice(14);
+            while (remaining.length > 0) {
+              printBody += `${remaining.slice(0, 32)}\n`;
+              remaining = remaining.slice(32);
+            }
+          }
         });
 
         const printBodyBytesOld2 = utf8Encode(printBody);

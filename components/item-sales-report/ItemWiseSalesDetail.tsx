@@ -3,14 +3,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Sharing from "expo-sharing";
 import React from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { captureRef } from "react-native-view-shot";
@@ -347,7 +347,7 @@ const ItemWiseSalesDetail = ({
                 try {
                   const data = JSON.parse(text);
                   errMsg = data.message || data.error || errMsg;
-                } catch (e) {}
+                } catch (e) { }
                 Alert.alert("Error", errMsg);
               }
             } catch (e) {
@@ -434,12 +434,12 @@ const ItemWiseSalesDetail = ({
       b.itemsSubtotal !== undefined
         ? b.itemsSubtotal
         : (b.items || []).reduce(
-            (acc: number, it: any) =>
-              acc +
-              Number(it.qty || it.quantity || 1) *
-                Number(it.rate || it.price || 0),
-            0,
-          );
+          (acc: number, it: any) =>
+            acc +
+            Number(it.qty || it.quantity || 1) *
+            Number(it.rate || it.price || 0),
+          0,
+        );
 
     // 2. Discount
     const discPercent =
@@ -451,9 +451,9 @@ const ItemWiseSalesDetail = ({
       b.calculatedDiscount !== undefined && b.calculatedDiscount > 0
         ? b.calculatedDiscount
         : b.discountAmount ||
-          b.discount_amount ||
-          b.discount ||
-          (settings.discount_enabled ? itemsSubtotal * (discPercent / 100) : 0);
+        b.discount_amount ||
+        b.discount ||
+        (settings.discount_enabled ? itemsSubtotal * (discPercent / 100) : 0);
 
     const taxableAfterDiscount =
       b.calculatedTaxable !== undefined && b.calculatedTaxable !== itemsSubtotal
@@ -544,7 +544,7 @@ const ItemWiseSalesDetail = ({
     // 6. Packaging Charge
     const packagingCharge =
       b.calculatedPackagingCharge !== undefined &&
-      b.calculatedPackagingCharge > 0
+        b.calculatedPackagingCharge > 0
         ? b.calculatedPackagingCharge
         : b.packagingCharge !== undefined
           ? b.packagingCharge
@@ -1228,11 +1228,11 @@ const ItemWiseSalesDetail = ({
               b.itemsSubtotal !== undefined
                 ? b.itemsSubtotal
                 : (b.items || []).reduce(
-                    (acc: number, it: any) =>
-                      acc +
-                      Number(it.qty || 1) * Number(it.rate || it.price || 0),
-                    0,
-                  );
+                  (acc: number, it: any) =>
+                    acc +
+                    Number(it.qty || 1) * Number(it.rate || it.price || 0),
+                  0,
+                );
             const billDiscPercent =
               b.calculatedDiscountRate !== undefined
                 ? b.calculatedDiscountRate
@@ -1241,11 +1241,11 @@ const ItemWiseSalesDetail = ({
               b.calculatedDiscount !== undefined && b.calculatedDiscount > 0
                 ? b.calculatedDiscount
                 : b.discountAmount ||
-                  b.discount_amount ||
-                  b.discount ||
-                  (settings.discount_enabled
-                    ? billSubtotal * (billDiscPercent / 100)
-                    : 0);
+                b.discount_amount ||
+                b.discount ||
+                (settings.discount_enabled
+                  ? billSubtotal * (billDiscPercent / 100)
+                  : 0);
             const billTaxableAfterDiscount =
               b.calculatedTaxable !== undefined
                 ? b.calculatedTaxable
@@ -1290,12 +1290,12 @@ const ItemWiseSalesDetail = ({
 
             const billServiceCharge =
               b.calculatedServiceCharge !== undefined &&
-              b.calculatedServiceCharge > 0
+                b.calculatedServiceCharge > 0
                 ? b.calculatedServiceCharge
                 : b.serviceCharge ||
-                  (settings.service_charge_enabled
-                    ? settings.service_charge_rate
-                    : 0);
+                (settings.service_charge_enabled
+                  ? settings.service_charge_rate
+                  : 0);
             const bServiceGst =
               b.calculatedServiceGst !== undefined && b.calculatedServiceGst > 0
                 ? b.calculatedServiceGst
@@ -1304,32 +1304,32 @@ const ItemWiseSalesDetail = ({
                   : 0;
             const bDeliveryCharge =
               b.calculatedDeliveryCharge !== undefined &&
-              b.calculatedDeliveryCharge > 0
+                b.calculatedDeliveryCharge > 0
                 ? b.calculatedDeliveryCharge
                 : b.deliveryCharge ||
-                  b.deliveryCharges ||
-                  (settings.delivery_charge_enabled
-                    ? settings.delivery_charge_amount
-                    : 0);
+                b.deliveryCharges ||
+                (settings.delivery_charge_enabled
+                  ? settings.delivery_charge_amount
+                  : 0);
             const bDeliveryGst =
               b.calculatedDeliveryGst !== undefined &&
-              b.calculatedDeliveryGst > 0
+                b.calculatedDeliveryGst > 0
                 ? b.calculatedDeliveryGst
                 : settings.delivery_gst_enabled && bDeliveryCharge > 0
                   ? (bDeliveryCharge * settings.delivery_gst_rate) / 100
                   : 0;
             const bPackagingCharge =
               b.calculatedPackagingCharge !== undefined &&
-              b.calculatedPackagingCharge > 0
+                b.calculatedPackagingCharge > 0
                 ? b.calculatedPackagingCharge
                 : b.packagingCharge ||
-                  b.packagingCharges ||
-                  (settings.packaging_charge_enabled
-                    ? settings.packaging_charge_amount
-                    : 0);
+                b.packagingCharges ||
+                (settings.packaging_charge_enabled
+                  ? settings.packaging_charge_amount
+                  : 0);
             const bPackagingGst =
               b.calculatedPackagingGst !== undefined &&
-              b.calculatedPackagingGst > 0
+                b.calculatedPackagingGst > 0
                 ? b.calculatedPackagingGst
                 : settings.packaging_gst_enabled && bPackagingCharge > 0
                   ? (bPackagingCharge * settings.packaging_gst_rate) / 100

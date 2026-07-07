@@ -199,6 +199,37 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     }
   }, [cart]);
 
+  useFocusEffect(
+    useCallback(() => {
+      const checkResumeCart = async () => {
+        try {
+          const isBillEdit = await AsyncStorage.getItem("@is_bill_edit");
+          if (isBillEdit === "true") {
+            const resumeCart = await AsyncStorage.getItem("@resume_cart");
+            const resumeCartId = await AsyncStorage.getItem("@resume_cart_id");
+            if (resumeCart) {
+              const parsedCart = JSON.parse(resumeCart);
+              const newCart: Record<string, any> = {};
+              parsedCart.forEach((item: any) => {
+                newCart[item.id] = item;
+              });
+              setCart(newCart);
+            }
+            if (resumeCartId) {
+              setActiveOrderId(resumeCartId);
+            }
+            await AsyncStorage.removeItem("@is_bill_edit");
+            await AsyncStorage.removeItem("@resume_cart");
+            await AsyncStorage.removeItem("@resume_cart_id");
+          }
+        } catch (e) {
+          console.error("Error loading resume cart:", e);
+        }
+      };
+      checkResumeCart();
+    }, [])
+  );
+
   const isFocused = useIsFocused();
   const login = params.login;
   const [taxSettings, setTaxSettings] = useState<any>(null);
@@ -1650,51 +1681,52 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
     }
 
     isPrinting.current = true;
-    SoundManager.playPrint();
+    ToastAndroid.show("Processing...", ToastAndroid.SHORT);
     try {
       const tableToPrint = selectedTable;
       const roomToPrint = selectedRoom;
-      // 🚀 INSTANT UI FEEDBACK
-      setCart({});
-      setActiveOrderId(null);
-      setSelectedTable(null);
-      setSelectedRoom(null);
-      setActiveCustomer(null);
-      AsyncStorage.removeItem("@active_customer");
 
-      (async () => {
-        try {
-          const sessionStr = await AsyncStorage.getItem("staff_session");
-          const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
-          const finalToken = staffSession?.token || (await getToken());
-          const bId =
-            activeBusinessId ||
-            staffSession?.businessId ||
-            (await StaffPermissionEngine.getActiveBusinessId(user?.id));
+      const sessionStr = await AsyncStorage.getItem("staff_session");
+      const staffSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const finalToken = staffSession?.token || (await getToken());
+      const bId =
+        activeBusinessId ||
+        staffSession?.businessId ||
+        (await StaffPermissionEngine.getActiveBusinessId(user?.id));
 
-          const activeProfile = profiles.find((p) => (p.id || p._id || p.businessId) === bId) || profiles[0];
+      const activeProfile = profiles.find((p) => (p.id || p._id || p.businessId) === bId) || profiles[0];
 
-          await SimpleBill(itemsToPrint, finalToken!, bId!, {
-            paymentMode: paymentMethod,
-            billId: activeOrderId || undefined,
-            partyId: activeCustomer?.id || activeCustomer?._id,
-            customerName: activeCustomer?.name,
-            phone: activeCustomer?.phone,
-            customerAddress: activeCustomer?.address,
-            businessProfile: activeProfile,
-            tableName: tableToPrint || undefined,
-            roomName: roomToPrint || undefined,
-            taxSettings: taxSettings,
-            businessId: bId!,
-            tokenNo: lastKotTokenRef.current || undefined,
-          });
-          fetchHeldCount();
-        } catch (e) {
-          console.log("Background Bill error:", e);
-        }
-      })();
+      const result = await SimpleBill(itemsToPrint, finalToken!, bId!, {
+        paymentMode: paymentMethod,
+        billId: activeOrderId || undefined,
+        partyId: activeCustomer?.id || activeCustomer?._id,
+        customerName: activeCustomer?.name,
+        phone: activeCustomer?.phone,
+        customerAddress: activeCustomer?.address,
+        businessProfile: activeProfile,
+        tableName: tableToPrint || undefined,
+        roomName: roomToPrint || undefined,
+        taxSettings: taxSettings,
+        businessId: bId!,
+        tokenNo: lastKotTokenRef.current || undefined,
+      });
 
-      ToastAndroid.show("⚡ Bill Processed", ToastAndroid.SHORT);
+      if (result && result.status === "error") {
+        ToastAndroid.show("❌ Failed: " + (result.error || "Network error"), ToastAndroid.LONG);
+      } else {
+        SoundManager.playPrint();
+        setCart({});
+        setActiveOrderId(null);
+        setSelectedTable(null);
+        setSelectedRoom(null);
+        setActiveCustomer(null);
+        AsyncStorage.removeItem("@active_customer");
+        fetchHeldCount();
+        ToastAndroid.show("✅ Bill Processed Successfully", ToastAndroid.SHORT);
+      }
+    } catch (e) {
+      console.log("Bill error:", e);
+      ToastAndroid.show("❌ Network Error", ToastAndroid.SHORT);
     } finally {
       isPrinting.current = false;
     }
