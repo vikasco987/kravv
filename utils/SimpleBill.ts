@@ -213,9 +213,13 @@ async function getTargetPrinter(printerCache: any, storageKey: string, silent = 
         const _origWrite = devAny.write.bind(devAny);
         devAny.write = async (data: any) => {
           const d = data instanceof Uint8Array ? data : new Uint8Array(data);
-          for (let i = 0; i < d.length; i += 512) {
-            await _origWrite(d.slice(i, i + 512));
-            await new Promise(r => setTimeout(r, 10));
+          if (d.length <= 1024) {
+            await _origWrite(d);
+          } else {
+            for (let i = 0; i < d.length; i += 1024) {
+              await _origWrite(d.slice(i, i + 1024));
+              if (i + 1024 < d.length) await new Promise(r => setTimeout(r, 10));
+            }
           }
         };
         devAny._isSafeWrapped = true;
@@ -1186,7 +1190,7 @@ export async function SimpleBill(
           await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
           await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
 
-          await new Promise(r => setTimeout(r, 1500)); // Spooler Delay increased to prevent buffer overload
+          await new Promise(r => setTimeout(r, 500)); // Spooler Delay reduced for faster printing
         }
       } catch (err) {
         console.error("❌ Printer Error:", err);
@@ -1488,7 +1492,7 @@ export async function PrintOldBill(
         await printer.write(new Uint8Array([0x1b, 0x64, 0x03]));
         await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
 
-        await new Promise(r => setTimeout(r, 1500)); // Spooler Delay increased to prevent buffer overload
+        await new Promise(r => setTimeout(r, 500)); // Spooler Delay reduced for faster printing
 
         resolve({ status: "success" });
       } catch (err: any) {

@@ -260,7 +260,7 @@ export async function SimpleKOT(
         await printer.write(new Uint8Array([0x1d, 0x56, 0x42, 0x00]));
 
         // Spooler Delay to prevent buffer freeze
-        await new Promise(r => setTimeout(r, 4500));
+        await new Promise(r => setTimeout(r, 500));
       } catch (e) {
         console.log("KOT Print background error:", e);
       }
