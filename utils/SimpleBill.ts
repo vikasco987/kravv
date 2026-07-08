@@ -1037,7 +1037,7 @@ export async function SimpleBill(
             const totStr = Number(i.total).toString().padStart(7);
 
             printBody += `${displayName}${qtyStr}${rateStr}${totStr}\n`;
-            
+
             if (fullDisplayName.length > 14) {
               let remaining = fullDisplayName.slice(14);
               while (remaining.length > 0) {
@@ -1368,13 +1368,13 @@ export async function PrintOldBill(
           const gstStr = gstRate > 0 ? `(${gstRate}%)` : "";
           const fullDisplayName = i.name + suffix + gstStr;
           const displayName = fullDisplayName.padEnd(14).slice(0, 14);
-          
+
           const qtyStr = String(qty).padStart(4);
           const rateStr = Number(rate).toString().padStart(7);
           const totStr = Number(total).toString().padStart(7);
 
           printBody += `${displayName}${qtyStr}${rateStr}${totStr}\n`;
-          
+
           if (fullDisplayName.length > 14) {
             let remaining = fullDisplayName.slice(14);
             while (remaining.length > 0) {
