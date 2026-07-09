@@ -5,10 +5,21 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// API Endpoint for checking min version. Backend team needs to create this.
-const VERSION_CHECK_URL = "https://billing.kravy.in/api/config/app-version";
-
 const { width } = Dimensions.get('window');
+
+const isNewerVersion = (current: string, latest: string) => {
+  if (!current || !latest) return false;
+  const currParts = current.split('.').map(Number);
+  const latestParts = latest.split('.').map(Number);
+  
+  for (let i = 0; i < Math.max(currParts.length, latestParts.length); i++) {
+    const c = currParts[i] || 0;
+    const l = latestParts[i] || 0;
+    if (l > c) return true;
+    if (l < c) return false;
+  }
+  return false;
+};
 
 export default function ForceUpdateChecker() {
   const [isUpdateRequired, setIsUpdateRequired] = useState(false);
@@ -17,30 +28,21 @@ export default function ForceUpdateChecker() {
   useEffect(() => {
     const checkVersion = async () => {
       try {
-        const response = await fetch(VERSION_CHECK_URL);
-
-        // If API doesn't exist yet (404 etc.), do nothing silently
-        if (!response.ok) return;
-
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          return;
-        }
-
-        const data = await response.json();
-
-        const currentVersionCode = Constants.expoConfig?.android?.versionCode || 0;
-        const minRequiredVersion = data.minAndroidVersionCode || 0;
-
-        if (currentVersionCode > 0 && minRequiredVersion > 0 && currentVersionCode < minRequiredVersion) {
-          if (data.updateUrl) {
-            setUpdateUrl(data.updateUrl);
+        const response = await fetch("https://play.google.com/store/apps/details?id=com.vikas9095.kravy&hl=en&gl=US");
+        const html = await response.text();
+        
+        const match = html.match(/\[\[\["([0-9]+\.[0-9]+\.[0-9]+)"\]\]/);
+        
+        if (match && match[1]) {
+          const latestVersion = match[1];
+          const currentVersion = Constants.expoConfig?.version || '1.0.0';
+          
+          if (isNewerVersion(currentVersion, latestVersion)) {
+            setIsUpdateRequired(true);
           }
-          setIsUpdateRequired(true);
         }
       } catch (error) {
-        // Silently ignore network errors so app doesn't break
-        console.log("Force update check failed or API not ready:", error);
+        console.log("Play Store version check failed:", error);
       }
     };
 
