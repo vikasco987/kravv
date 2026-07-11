@@ -22,6 +22,7 @@ import { rf, s, vs } from "../../utils/responsive";
 // --- Orders Components ---
 import { CustomToast } from "../common/CustomToast";
 import { LoginRequiredModal } from "../common/LoginRequiredModal";
+import { useStaffPermissions } from "../staff creat/useStaffPermissions";
 import CreateTableModal from "./CreateTableModal";
 import DeleteConfirmModal from "./DeleteConfirmModal";
 import TableCard, { TableStatus } from "./TableCard";
@@ -44,6 +45,8 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
     const { t } = useLanguage();
     const { refreshSignal, triggerRefresh } = useRefresh();
     const router = useRouter();
+    const { canAccessSync } = useStaffPermissions();
+    const canEditTables = canAccessSync("edit tables and delete");
 
     const [tables, setTables] = useState<Table[]>([]);
     const [allOrders, setAllOrders] = useState<any[]>([]);
@@ -546,12 +549,12 @@ const MainOrdersView = ({ isLockedUser = false }: { isLockedUser?: boolean }) =>
                                 activeCount={item.activeCount}
                                 startTime={item.startTime}
                                 onPress={() => navigateToTable(item)}
-                                onEdit={() => {
+                                onEdit={canEditTables ? () => {
                                     setEditingTable(item);
                                     setNewTableName(item.name);
                                     setIsEditTableVisible(true);
-                                }}
-                                onDelete={() => setTableToDelete(item.id)}
+                                } : undefined}
+                                onDelete={canEditTables ? () => setTableToDelete(item.id) : undefined}
                             />
                         </View>
                     )}

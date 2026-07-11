@@ -115,7 +115,14 @@ export const PERMISSION_GROUPS = [
     permissions: [
       "Dedicated Item Editor"
     ]
+  },
+  {
+    title: "edit tables and delete",
+    permissions: [
+      "edit tables and delete"
+    ]
   }
 ];
 
-export const TOTAL_PERMISSIONS_COUNT = 46;
+export const TOTAL_PERMISSIONS_COUNT = 47;
+

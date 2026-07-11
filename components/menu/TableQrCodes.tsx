@@ -39,6 +39,7 @@ import ViewShot from "react-native-view-shot";
 import { useLanguage } from "../../context/LanguageContext";
 import { rf, s, vs } from "../../utils/responsive";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
+import { useStaffPermissions } from "../staff creat/useStaffPermissions";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -92,6 +93,9 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
   const { user, isLoaded, isSignedIn } = useUser();
   const router = useRouter();
   const { t } = useLanguage();
+  const { canAccessSync } = useStaffPermissions();
+  const canEditTables = canAccessSync("edit tables and delete");
+
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
@@ -614,7 +618,7 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
       <ScrollView
         contentContainerStyle={styles.listPadding}
         showsVerticalScrollIndicator={false}
-       {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
+        {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
         {/* Tables Section */}
         {tableBookingEnabled && (
           <View style={styles.sectionContainer}>
@@ -646,12 +650,14 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
                       </Text>
                     </View>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.deleteIcon}
-                    onPress={() => deleteTable(item.id, item.name)}
-                  >
-                    <Trash2 size={rf(18)} color={COLORS.DANGER} />
-                  </TouchableOpacity>
+                  {canEditTables && (
+                    <TouchableOpacity
+                      style={styles.deleteIcon}
+                      onPress={() => deleteTable(item.id, item.name)}
+                    >
+                      <Trash2 size={rf(18)} color={COLORS.DANGER} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))}
 
@@ -702,12 +708,14 @@ export const TableQrCodes = ({ onBack }: { onBack?: () => void }) => {
                       </Text>
                     </View>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.deleteIcon}
-                    onPress={() => deleteTable(item.id, item.name)}
-                  >
-                    <Trash2 size={rf(18)} color={COLORS.DANGER} />
-                  </TouchableOpacity>
+                  {canEditTables && (
+                    <TouchableOpacity
+                      style={styles.deleteIcon}
+                      onPress={() => deleteTable(item.id, item.name)}
+                    >
+                      <Trash2 size={rf(18)} color={COLORS.DANGER} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))}
 

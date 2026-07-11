@@ -486,8 +486,14 @@ const NewOrderNotifier = () => {
             processedOrderIds.current.add(o._id || o.id),
           );
 
-          // Only alert for online/QR orders
-          const alertableOrders = newlyArrivedOrders.filter((o) => o.source !== "OFFLINE" && o.source !== "POS");
+          // Only alert for online/QR orders that have not been processed yet (KOT not printed)
+          const alertableOrders = newlyArrivedOrders.filter((o) =>
+            o.source !== "OFFLINE" &&
+            o.source !== "POS" &&
+            o.source !== "POS_TABLE" &&
+            o.source !== "WEB_POS" &&
+            o.isKotPrinted !== true
+          );
 
           if (alertableOrders.length > 0) {
             // ✅ TRIGGER SYSTEM NOTIFICATION

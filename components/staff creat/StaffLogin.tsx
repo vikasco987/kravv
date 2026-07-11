@@ -50,31 +50,45 @@ export const StaffLogin = ({ visible, onClose }: StaffLoginProps) => {
     try {
       const res = await staffService.login(email.trim(), password);
       if (res.success && res.data) {
-        // 1. 🛡️ DATA ISOLATION: Wipe previous cached data to ensure a fresh start for this staff member
-        const currentLang = await AsyncStorage.getItem("app_language");
-        const savedPrinter = await AsyncStorage.getItem("saved_printer");
-        const kotEnabled = await AsyncStorage.getItem("kot_enabled");
-        const tableBookingEnabled = await AsyncStorage.getItem("table_booking_enabled");
-        const roomBookingEnabled = await AsyncStorage.getItem("room_booking_enabled");
-        const multiZoneMenuEnabled = await AsyncStorage.getItem("multi_zone_menu_enabled");
-        const orderAutoAccept = await AsyncStorage.getItem("order_auto_accept");
+        // 1. 🛡️ DATA ISOLATION: Wipe previous cached data but PRESERVE global app settings
+        const keysToPreserve = [
+          "app_language",
+          "saved_printer",
+          "kot_enabled",
+          "table_booking_enabled",
+          "room_booking_enabled",
+          "multi_zone_menu_enabled",
+          "order_auto_accept",
+          "tax_enabled",
+          "per_product_tax",
+          "tax_rate",
+          "tax_inclusive",
+          "qr_menu_price_inclusive",
+          "discount_enabled",
+          "discount_rate",
+          "service_charge_enabled",
+          "service_charge_rate",
+          "service_gst_enabled",
+          "service_gst_rate",
+          "delivery_charge_enabled",
+          "delivery_charge_amount",
+          "delivery_gst_enabled",
+          "delivery_gst_rate",
+          "packaging_charge_enabled",
+          "packaging_charge_amount",
+          "packaging_gst_enabled",
+          "packaging_gst_rate",
+          "menu_grid_enabled"
+        ];
+
+        const preservedData = await AsyncStorage.multiGet(keysToPreserve);
 
         await AsyncStorage.clear();
 
-        if (currentLang)
-          await AsyncStorage.setItem("app_language", currentLang);
-        if (savedPrinter)
-          await AsyncStorage.setItem("saved_printer", savedPrinter);
-        if (kotEnabled)
-          await AsyncStorage.setItem("kot_enabled", kotEnabled);
-        if (tableBookingEnabled)
-          await AsyncStorage.setItem("table_booking_enabled", tableBookingEnabled);
-        if (roomBookingEnabled)
-          await AsyncStorage.setItem("room_booking_enabled", roomBookingEnabled);
-        if (multiZoneMenuEnabled)
-          await AsyncStorage.setItem("multi_zone_menu_enabled", multiZoneMenuEnabled);
-        if (orderAutoAccept)
-          await AsyncStorage.setItem("order_auto_accept", orderAutoAccept);
+        const dataToRestore = preservedData.filter(([_, value]) => value !== null);
+        if (dataToRestore.length > 0) {
+          await AsyncStorage.multiSet(dataToRestore as [string, string][]);
+        }
 
         // 2. Save new staff session
         const sessionData = {
