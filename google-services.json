@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "714476396556",
+    "project_id": "kravy-74808",
+    "storage_bucket": "kravy-74808.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:714476396556:android:178deeb183ac27df600e29",
+        "android_client_info": {
+          "package_name": "com.vikas9095.kravy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwjHEuuNwhNrT-bkUR3MamOOC0Jy2VtwY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

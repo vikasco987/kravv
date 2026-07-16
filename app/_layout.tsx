@@ -20,8 +20,9 @@ import CustomDrawerContent from "../components/sidebar/CustomDrawer";
 import { LanguageProvider, useLanguage } from "../context/LanguageContext";
 import { RefreshProvider, useRefresh } from "../context/RefreshContext";
 import { SoundManager } from "../utils/SoundManager";
+import { FirebaseService } from "../services/FirebaseService";
 
-// Removed background notification logic as requested.
+// Removed duplicate background handler.
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -54,6 +55,7 @@ export default function RootLayout() {
   // Initialise global click sound once when app mounts
   useEffect(() => {
     SoundManager.init();
+    FirebaseService.init();
     return () => {
       SoundManager.destroy();
     };

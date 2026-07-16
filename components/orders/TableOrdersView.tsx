@@ -234,7 +234,63 @@ export default function TableOrdersView({
           processedItems = itemsList;
         }
 
-        processedItems.forEach((item: any) => {
+        // GROUPING LOGIC START (similar to MainMenuView)
+        const groupedProcessedItems: any[] = [];
+        const groupedMap: Record<string, any[]> = {};
+
+        processedItems.forEach((it: any) => {
+          let rawName = it.name || "Unnamed";
+          rawName = rawName.replace(/\s*\([vV]\)\s*/g, '').replace(/\s*\([nN][vV]\)\s*/g, '').trim();
+          it.name = rawName;
+
+          let baseName = rawName;
+          const suffixMatch = rawName.match(/\s*\(([^)]+)\)$/);
+          if (suffixMatch) {
+            baseName = rawName.substring(0, suffixMatch.index).trim();
+          }
+          const catId = it.category?.id || it.category?._id || it.category?.name || "others";
+          const groupKey = `${catId}_${baseName}`;
+
+          if (!groupedMap[groupKey]) groupedMap[groupKey] = [];
+          groupedMap[groupKey].push(it);
+        });
+
+        Object.values(groupedMap).forEach(group => {
+          if (group.length === 1) {
+            groupedProcessedItems.push(group[0]);
+          } else {
+            const baseItem = { ...group[0] };
+            baseItem.name = (baseItem.name || "").replace(/\s*\([^)]+\)$/, "").trim();
+
+            const minPrice = Math.min(...group.map(i => Number(i.sellingPrice || i.price || i.selling_price || 0)));
+            baseItem.sellingPrice = minPrice;
+            baseItem.price = minPrice;
+
+            const existingVariants = group[0].variants || [];
+            const sizeVariants = group.map(i => {
+              const match = (i.name || "").match(/\((.*?)\)/)?.[1] || (i.name || "");
+              let niceName = match;
+              if (match.toUpperCase() === 'F' || match.toUpperCase() === 'FULL') niceName = 'Full Portion';
+              else if (match.toUpperCase() === 'H' || match.toUpperCase() === 'HALF') niceName = 'Half Portion';
+              else if (match.toUpperCase() === 'S' || match.toUpperCase() === 'SMALL') niceName = 'Small';
+              else if (match.toUpperCase() === 'R' || match.toUpperCase() === 'REGULAR') niceName = 'Regular';
+              else if (match.toUpperCase() === 'M' || match.toUpperCase() === 'MEDIUM') niceName = 'Medium';
+              else if (match.toUpperCase() === 'L' || match.toUpperCase() === 'LARGE') niceName = 'Large';
+
+              return {
+                name: niceName,
+                price: Number(i.sellingPrice || i.price || i.selling_price || 0),
+                originalId: String(i.id || i._id),
+                originalName: i.name
+              };
+            });
+
+            baseItem.variants = [...sizeVariants, ...existingVariants];
+            groupedProcessedItems.push(baseItem);
+          }
+        });
+
+        groupedProcessedItems.forEach((item: any) => {
           const rawCat = item.category || { id: "others", name: "Others" };
           const catId = String(rawCat.id || rawCat._id || "others");
           const catName = String(rawCat.name || "Others");
@@ -1506,133 +1562,135 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add Items to Order</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
-              {multiZoneMenuEnabled && availableZones && availableZones.length > 0 && (
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: '#ECFDF5',
-                    paddingVertical: vs(4),
-                    paddingHorizontal: s(6),
-                    borderRadius: s(8),
-                    borderWidth: 1,
-                    borderColor: '#A7F3D0',
-                    gap: s(4),
-                    flexShrink: 1,
-                  }}
-                  onPress={() => setIsZoneModalVisible(true)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name={selectedZone === "Global" ? "earth-outline" : "location-outline"} size={rf(16)} color="#10B981" />
-                  <Text style={{ fontSize: rf(12), fontWeight: '700', color: '#065F46', flexShrink: 1 }} numberOfLines={1}>{selectedZone}</Text>
-                  <Ionicons name="chevron-down" size={rf(14)} color="#6B7280" />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={onClose}><Ionicons name="close" size={rf(24)} /></TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={{ padding: s(10), backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: s(8), paddingHorizontal: s(10), paddingVertical: vs(6) }}>
-              <Ionicons name="search" size={rf(18)} color="#9CA3AF" />
-              <TextInput
-                style={{ flex: 1, marginLeft: s(8), fontSize: rf(14), color: '#374151', padding: 0 }}
-                placeholder="Search categories or items..."
-                placeholderTextColor="#9CA3AF"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery("")}>
-                  <Ionicons name="close-circle" size={rf(18)} color="#9CA3AF" />
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-
-          <View style={[styles.modalBody, { flexDirection: "row", padding: 0 }]}>
-            {loading && (!categories || categories.length === 0) ? (
-              <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                <ActivityIndicator size="large" color="#4F46E5" />
-                <Text style={{ marginTop: 10, color: "#6B7280" }}>Loading Menu...</Text>
+    <>
+      <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Items to Order</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
+                {multiZoneMenuEnabled && availableZones && availableZones.length > 0 && (
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#ECFDF5',
+                      paddingVertical: vs(4),
+                      paddingHorizontal: s(6),
+                      borderRadius: s(8),
+                      borderWidth: 1,
+                      borderColor: '#A7F3D0',
+                      gap: s(4),
+                      flexShrink: 1,
+                    }}
+                    onPress={() => setIsZoneModalVisible(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name={selectedZone === "Global" ? "earth-outline" : "location-outline"} size={rf(16)} color="#10B981" />
+                    <Text style={{ fontSize: rf(12), fontWeight: '700', color: '#065F46', flexShrink: 1 }} numberOfLines={1}>{selectedZone}</Text>
+                    <Ionicons name="chevron-down" size={rf(14)} color="#6B7280" />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={onClose}><Ionicons name="close" size={rf(24)} /></TouchableOpacity>
               </View>
-            ) : (
-              <>
-                <CategorySidebar
-                  categories={filteredCategories}
-                  onCategoryPress={(cat: any, index: number) =>
-                    flatListRef.current?.scrollToIndex({ index, animated: true })
-                  }
-                  cartVisible={false}
-                />
+            </View>
 
-                <FlatList
-                  ref={flatListRef}
-                  data={filteredCategories}
-                  keyExtractor={(cat) => cat.id}
-                  contentContainerStyle={{ paddingBottom: 150, flexGrow: 1 }}
-                  removeClippedSubviews={true}
-                  onScrollToIndexFailed={(info) => {
-                    const estimatedOffset = info.averageItemLength * info.index;
-                    flatListRef.current?.scrollToOffset({ offset: estimatedOffset, animated: false });
-                    setTimeout(() => flatListRef.current?.scrollToIndex({ index: info.index, animated: true }), 100);
-                  }}
-                  renderItem={({ item: cat }) => (
-                    <View>
-                      <Text style={styles.categoryHeader}>{cat.name}</Text>
-                      <View style={styles.gridContainer}>
-                        {cat.items.map((item: any) => (
-                          <MenuItemCard
-                            key={item.id}
-                            item={item}
-                            itemWidth={itemWidth}
-                            quantity={Object.keys(cart).filter(key => key === item.id || key.startsWith(`${item.id}_`)).reduce((sum, key) => sum + cart[key].quantity, 0)}
-                            onAdd={(item: any) => {
-                              if (item.variants && item.variants.length > 0) {
-                                setSelectedItemForSize(item);
-                              } else {
-                                addToCart(item);
-                              }
-                            }}
-                            onRemove={removeFromCart}
-                          />
-                        ))}
-                      </View>
-                    </View>
-                  )}
+            <View style={{ padding: s(10), backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: s(8), paddingHorizontal: s(10), paddingVertical: vs(6) }}>
+                <Ionicons name="search" size={rf(18)} color="#9CA3AF" />
+                <TextInput
+                  style={{ flex: 1, marginLeft: s(8), fontSize: rf(14), color: '#374151', padding: 0 }}
+                  placeholder="Search categories or items..."
+                  placeholderTextColor="#9CA3AF"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
                 />
-              </>
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")}>
+                    <Ionicons name="close-circle" size={rf(18)} color="#9CA3AF" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            <View style={[styles.modalBody, { flexDirection: "row", padding: 0 }]}>
+              {loading && (!categories || categories.length === 0) ? (
+                <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                  <ActivityIndicator size="large" color="#4F46E5" />
+                  <Text style={{ marginTop: 10, color: "#6B7280" }}>Loading Menu...</Text>
+                </View>
+              ) : (
+                <>
+                  <CategorySidebar
+                    categories={filteredCategories}
+                    onCategoryPress={(cat: any, index: number) =>
+                      flatListRef.current?.scrollToIndex({ index, animated: true })
+                    }
+                    cartVisible={false}
+                  />
+
+                  <FlatList
+                    ref={flatListRef}
+                    data={filteredCategories}
+                    keyExtractor={(cat) => cat.id}
+                    contentContainerStyle={{ paddingBottom: 150, flexGrow: 1 }}
+                    removeClippedSubviews={true}
+                    onScrollToIndexFailed={(info) => {
+                      const estimatedOffset = info.averageItemLength * info.index;
+                      flatListRef.current?.scrollToOffset({ offset: estimatedOffset, animated: false });
+                      setTimeout(() => flatListRef.current?.scrollToIndex({ index: info.index, animated: true }), 100);
+                    }}
+                    renderItem={({ item: cat }) => (
+                      <View>
+                        <Text style={styles.categoryHeader}>{cat.name}</Text>
+                        <View style={styles.gridContainer}>
+                          {cat.items.map((item: any) => (
+                            <MenuItemCard
+                              key={item.id}
+                              item={item}
+                              itemWidth={itemWidth}
+                              quantity={Object.keys(cart).filter(key => key === item.id || key.startsWith(`${item.id}_`)).reduce((sum, key) => sum + cart[key].quantity, 0)}
+                              onAdd={(item: any) => {
+                                if (item.variants && item.variants.length > 0) {
+                                  setSelectedItemForSize(item);
+                                } else {
+                                  addToCart(item);
+                                }
+                              }}
+                              onRemove={removeFromCart}
+                            />
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  />
+                </>
+              )}
+            </View>
+            {totalItems > 0 && (
+              <View style={styles.modalFooter}>
+                <View>
+                  <Text style={styles.footerQty}>{totalItems} Items</Text>
+                  <Text style={styles.footerTotal}>₹{totalAmount.toFixed(2)}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: printKOT ? '#ECFDF5' : '#F9FAFB', paddingHorizontal: s(12), paddingVertical: vs(12), borderRadius: s(12), borderWidth: 1, borderColor: printKOT ? '#10B981' : '#E5E7EB' }}
+                    onPress={togglePrintKOT}
+                  >
+                    <Ionicons name={printKOT ? "checkmark-circle" : "ellipse-outline"} size={rf(18)} color={printKOT ? '#10B981' : '#9CA3AF'} />
+                    <Text style={{ marginLeft: s(6), fontSize: rf(12), fontWeight: 'bold', color: printKOT ? '#10B981' : '#6B7280' }}>KOT</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.confirmBtn} onPress={() => onConfirm(Object.values(cart), printKOT)}>
+                    <Text style={styles.confirmBtnText}>Add to Order</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             )}
           </View>
-          {totalItems > 0 && (
-            <View style={styles.modalFooter}>
-              <View>
-                <Text style={styles.footerQty}>{totalItems} Items</Text>
-                <Text style={styles.footerTotal}>₹{totalAmount.toFixed(2)}</Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: printKOT ? '#ECFDF5' : '#F9FAFB', paddingHorizontal: s(12), paddingVertical: vs(12), borderRadius: s(12), borderWidth: 1, borderColor: printKOT ? '#10B981' : '#E5E7EB' }}
-                  onPress={togglePrintKOT}
-                >
-                  <Ionicons name={printKOT ? "checkmark-circle" : "ellipse-outline"} size={rf(18)} color={printKOT ? '#10B981' : '#9CA3AF'} />
-                  <Text style={{ marginLeft: s(6), fontSize: rf(12), fontWeight: 'bold', color: printKOT ? '#10B981' : '#6B7280' }}>KOT</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.confirmBtn} onPress={() => onConfirm(Object.values(cart), printKOT)}>
-                  <Text style={styles.confirmBtnText}>Add to Order</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
         </View>
-      </View>
+      </Modal>
 
       <ZoneSelectionModal
         visible={isZoneModalVisible}
@@ -1700,8 +1758,8 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
                     if (selectedItemForSize) {
                       addToCart({
                         ...selectedItemForSize,
-                        id: `${selectedItemForSize.id}_${v.name}`,
-                        name: `${selectedItemForSize.name} (${v.name})`,
+                        id: v.originalId || `${selectedItemForSize.id}_${v.name}`,
+                        name: v.originalName || `${selectedItemForSize.name} (${v.name})`,
                         price: Number(v.price) || 0,
                         sellingPrice: Number(v.price) || 0
                       });
@@ -1717,7 +1775,7 @@ const FullMenuModal = ({ visible, onClose, categories, onConfirm, loading, multi
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
-    </Modal>
+    </>
   );
 };
 

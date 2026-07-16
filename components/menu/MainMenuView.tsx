@@ -1198,6 +1198,12 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
               await AsyncStorage.removeItem("@resume_table");
             }
 
+            const room = await AsyncStorage.getItem("@resume_room");
+            if (room) {
+              setSelectedRoom(room);
+              await AsyncStorage.removeItem("@resume_room");
+            }
+
             if (isEdit === "true") {
               ToastAndroid.show(
                 "📝 Bill Loaded for Editing",

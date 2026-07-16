@@ -132,7 +132,9 @@ const NewOrderNotifier = () => {
   // Sync Push Token to Backend
   useEffect(() => {
     async function registerAndSyncPushToken() {
-      if (!user?.id) return;
+      // ✅ FIX: Allow BOTH Clerk Owner (user.id) and Staff OTP (staffData.id) to sync their tokens!
+      const syncUserId = user?.id || staffData?.id;
+      if (!syncUserId) return;
 
       try {
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -142,12 +144,16 @@ const NewOrderNotifier = () => {
         const tokenData = await Notifications.getExpoPushTokenAsync();
         const pushToken = tokenData.data;
 
-        if (pushToken) {
-          console.log("📲 Syncing Push Token to Backend:", pushToken);
-          await fetch("https://billing.kravy.in/api/profile/push-token", {
+        // Also get FCM token
+        const messaging = require('@react-native-firebase/messaging').default;
+        const fcmToken = await messaging().getToken();
+
+        if (pushToken || fcmToken) {
+          console.log("📲 Syncing Push Token to Backend for User/Staff:", syncUserId, pushToken, "FCM:", fcmToken);
+          await fetch("https://billing.kravy.in/api/update-token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ clerkUserId: user.id, token: pushToken }),
+            body: JSON.stringify({ clerkUserId: syncUserId, token: pushToken, fcmToken: fcmToken }),
           }).catch((err) => console.log("Push token sync failed:", err));
         }
       } catch (error) {
@@ -156,7 +162,7 @@ const NewOrderNotifier = () => {
     }
 
     registerAndSyncPushToken();
-  }, [user?.id]);
+  }, [user?.id, staffData?.id]);
 
   // Check for Staff Session
   useEffect(() => {
@@ -533,6 +539,14 @@ const NewOrderNotifier = () => {
       fetchOrders,
     );
 
+    // ✅ Listen for forced background alarms
+    const alarmSub = DeviceEventEmitter.addListener(
+      "FORCE_PLAY_ALARM",
+      () => {
+        startRingtone();
+      }
+    );
+
     // ✅ Listen for local offline orders so they don't trigger alarms
     const localOrderSub = DeviceEventEmitter.addListener(
       "LOCAL_ORDER_CREATED",
@@ -561,6 +575,7 @@ const NewOrderNotifier = () => {
       clearInterval(intervalId);
       appStateSub.remove();
       refreshSub.remove();
+      alarmSub.remove();
       localOrderSub.remove();
       // Foreground service removed
     };

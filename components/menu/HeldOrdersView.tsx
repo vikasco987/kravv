@@ -29,6 +29,8 @@ type HeldOrder = {
   customerName?: string;
   customerPhone?: string;
   tokenNumber?: string | number;
+  tableName?: string;
+  roomName?: string;
 };
 
 interface HeldOrdersViewProps {
@@ -133,6 +135,8 @@ export default function HeldOrdersView({
               customerPhone: b.customerPhone,
               tokenNumber: b.tokenNumber || b.tokenNo || undefined,
               orderId: b.orderId,
+              tableName: b.tableName || b.table || undefined,
+              roomName: b.roomName || b.room || undefined,
             }));
 
           setHeldOrders(
@@ -237,6 +241,12 @@ export default function HeldOrdersView({
       await AsyncStorage.setItem("@resume_cart", JSON.stringify(cleanItems));
       if (orderToResume.tokenNumber) {
         await AsyncStorage.setItem("@resume_token", String(orderToResume.tokenNumber));
+      }
+      if (orderToResume.tableName) {
+        await AsyncStorage.setItem("@resume_table", String(orderToResume.tableName));
+      }
+      if (orderToResume.roomName) {
+        await AsyncStorage.setItem("@resume_room", String(orderToResume.roomName));
       }
 
       setIsResumeModalVisible(false);

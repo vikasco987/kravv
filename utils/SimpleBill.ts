@@ -284,18 +284,21 @@ export const preCacheLogo = (url: string) => {
  * it generates a local token and caches it for future KOTs/Bills of the same order.
  */
 export async function resolveOrderToken(orderId: string | undefined | null, backendToken: any, businessId?: string, authToken?: string): Promise<string> {
-  if (backendToken && backendToken !== "null" && backendToken !== "undefined" && backendToken !== 0) {
-    return String(backendToken);
-  }
-
   if (orderId) {
     try {
       const storedStr = await AsyncStorage.getItem("@order_tokens");
       const stored = storedStr ? JSON.parse(storedStr) : {};
 
-      // 1. Check cache first so the same order gets the same sequential token
+      // 1. ALWAYS Check cache first so the same order gets the EXACT SAME token assigned initially
       if (stored[orderId]) {
         return stored[orderId];
+      }
+
+      // 2. If no cache but backendToken exists, use it and CACHE IT.
+      if (backendToken && backendToken !== "null" && backendToken !== "undefined" && backendToken !== 0 && backendToken !== "0") {
+        stored[orderId] = String(backendToken);
+        await AsyncStorage.setItem("@order_tokens", JSON.stringify(stored));
+        return String(backendToken);
       }
 
       // 2. Fetch fresh token from backend so Web and App are 100% perfectly synced
@@ -337,6 +340,10 @@ export async function resolveOrderToken(orderId: string | undefined | null, back
   }
 
   // Fallback for orders without ID
+  if (backendToken && backendToken !== "null" && backendToken !== "undefined" && backendToken !== 0 && backendToken !== "0") {
+    return String(backendToken);
+  }
+
   try {
     const currentToken = await AsyncStorage.getItem("@token_counter");
     const nextToken = currentToken ? parseInt(currentToken) + 1 : 1;
@@ -795,7 +802,7 @@ export async function SimpleBill(
             customerAddress: options?.customerAddress || "",
             tableName: options?.tableName || "POS",
             roomName: options?.roomName || "",
-            tokenNumber: options?.tokenNo ? Number(options.tokenNo) : 0, // Let backend generate sequential token if not provided
+            tokenNumber: finalTokenNo ? Number(finalTokenNo) : (options?.tokenNo ? Number(options.tokenNo) : 0), // Let backend generate sequential token if not provided
             source: options?.source || "POS",
             discountAmount: Number(totalDiscount.toFixed(2)),
             discountRate: discountRatePercent,
