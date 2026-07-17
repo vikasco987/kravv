@@ -2,6 +2,7 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
   ArrowLeft,
@@ -130,6 +131,22 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
   const [showDeleteCategorySuccess, setShowDeleteCategorySuccess] =
     useState(false);
 
+  // Image Search States
+  const [showImageSearchModal, setShowImageSearchModal] = useState(false);
+  const [searchImageQuery, setSearchImageQuery] = useState("");
+  const [searchedImages, setSearchedImages] = useState<{ url: string; title?: string }[]>([]);
+  const [searchingImages, setSearchingImages] = useState(false);
+  const [loadingMoreImages, setLoadingMoreImages] = useState(false);
+  const [syncingAllImages, setSyncingAllImages] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ completed: 0, total: 0 });
+  const [syncPopupConfig, setSyncPopupConfig] = useState<{
+    visible: boolean;
+    type: 'confirm' | 'info' | 'success';
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({ visible: false, type: 'info', title: '', message: '' });
+
   const flatListRef = useRef<FlatList>(null);
 
   const fetchAllCategories = async () => {
@@ -244,9 +261,12 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
         const data = await menuService.getMenu(finalToken, bId);
         let processedItems: any[] = [];
-        if (Array.isArray(data)) {
-          processedItems = data;
-        } else if (data && Array.isArray(data.menus)) {
+        let itemsList = Array.isArray(data)
+          ? data
+          : data?.menus || data?.items || [];
+
+        // If it's the 'menus' structure (grouped by category)
+        if (data && Array.isArray(data.menus)) {
           data.menus.forEach((cat: any) => {
             const categoryRaw = {
               id: cat.id || cat._id || "others",
@@ -258,7 +278,71 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
               });
             }
           });
+        } else {
+          processedItems = itemsList;
         }
+
+        // GROUPING LOGIC START (similar to QR menu)
+        const groupedProcessedItems: any[] = [];
+        const groupedMap: Record<string, any[]> = {};
+
+        processedItems.forEach((it: any) => {
+          let rawName = it.name || "Unnamed";
+          // Remove (V), (v), (NV), (nv) from the name entirely
+          rawName = rawName.replace(/\s*\([vV]\)\s*/g, '').replace(/\s*\([nN][vV]\)\s*/g, '').trim();
+          it.name = rawName; // Update the name to hide it
+
+          let baseName = rawName;
+          // Match the size in the last parenthesis, e.g. "Pizza (Large)" -> "Large"
+          const suffixMatch = rawName.match(/\s*\(([^)]+)\)$/);
+          if (suffixMatch) {
+            baseName = rawName.substring(0, suffixMatch.index).trim();
+          }
+          const catId = it.category?.id || it.category?._id || it.category?.name || "others";
+          const groupKey = `${catId}_${baseName}`;
+
+          if (!groupedMap[groupKey]) groupedMap[groupKey] = [];
+          groupedMap[groupKey].push(it);
+        });
+
+        Object.values(groupedMap).forEach(group => {
+          if (group.length === 1) {
+            groupedProcessedItems.push(group[0]);
+          } else {
+            const baseItem = { ...group[0] };
+            baseItem.name = (baseItem.name || "").replace(/\s*\([^)]+\)$/, "").trim();
+
+            const minPrice = Math.min(...group.map(i => Number(i.sellingPrice || i.price || i.selling_price || 0)));
+            baseItem.sellingPrice = minPrice;
+            baseItem.price = minPrice;
+
+            // Merge size variants with existing addons
+            const existingVariants = group[0].variants || [];
+            const sizeVariants = group.map(i => {
+              const match = (i.name || "").match(/\((.*?)\)/)?.[1] || (i.name || "");
+              let niceName = match;
+              if (match.toUpperCase() === 'F' || match.toUpperCase() === 'FULL') niceName = 'Full Portion';
+              else if (match.toUpperCase() === 'H' || match.toUpperCase() === 'HALF') niceName = 'Half Portion';
+              else if (match.toUpperCase() === 'S' || match.toUpperCase() === 'SMALL') niceName = 'Small';
+              else if (match.toUpperCase() === 'R' || match.toUpperCase() === 'REGULAR') niceName = 'Regular';
+              else if (match.toUpperCase() === 'M' || match.toUpperCase() === 'MEDIUM') niceName = 'Medium';
+              else if (match.toUpperCase() === 'L' || match.toUpperCase() === 'LARGE') niceName = 'Large';
+
+              return {
+                name: niceName,
+                price: Number(i.sellingPrice || i.price || i.selling_price || 0),
+                originalId: String(i.id || i._id),
+                originalName: i.name
+              };
+            });
+
+            baseItem.variants = [...sizeVariants, ...existingVariants];
+
+            groupedProcessedItems.push(baseItem);
+          }
+        });
+
+        processedItems = groupedProcessedItems;
 
         const categoryMap: Record<string, MenuCategory> = {};
         processedItems.forEach((item: any) => {
@@ -277,6 +361,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
             imageUrl: item.imageUrl,
             unit: item.unit,
             categoryId: catId,
+            variants: item.variants || [],
           });
         });
 
@@ -374,6 +459,187 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
     } catch (error) {
       Alert.alert("Error", "Could not open gallery.");
     }
+  };
+
+  const handleSearchImages = async (forcedQuery?: string) => {
+    const q = forcedQuery || searchImageQuery.trim();
+    if (!q) return;
+    setSearchingImages(true);
+    try {
+      const res = await fetch(`https://billing.kravy.in/api/proxy/image-search?q=${encodeURIComponent(q)}`);
+      let photos = [];
+      if (res.ok) {
+        const data = await res.json();
+        photos = data.data || [];
+      }
+
+      if (photos.length === 0) {
+        const resDeep = await fetch(`https://billing.kravy.in/api/proxy/google-image-search?q=${encodeURIComponent(q)}&offset=0`);
+        if (resDeep.ok) {
+          const dataDeep = await resDeep.json();
+          photos = dataDeep.data || [];
+        }
+      }
+
+      const results = photos.map((p: any) => ({
+        url: p.image_url || p.image || p.url || p.imageUrl,
+        title: p.title || p.name || ""
+      })).filter((x: any) => Boolean(x.url));
+
+      setSearchedImages(results);
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Error", "Failed to search images");
+    } finally {
+      setSearchingImages(false);
+    }
+  };
+
+  const handleLoadMoreImages = async () => {
+    const q = searchImageQuery.trim();
+    if (!q) return;
+    const currentOffset = searchedImages.length;
+    const page = Math.floor(currentOffset / 12) + 1;
+    setLoadingMoreImages(true);
+    try {
+      const res = await fetch(`https://billing.kravy.in/api/proxy/image-search?q=${encodeURIComponent(q)}&page=${page}`);
+      let photos = [];
+      if (res.ok) {
+        const data = await res.json();
+        photos = data.data || [];
+      }
+
+      if (photos.length === 0) {
+        const resDeep = await fetch(`https://billing.kravy.in/api/proxy/google-image-search?q=${encodeURIComponent(q)}&offset=${currentOffset}`);
+        if (resDeep.ok) {
+          const dataDeep = await resDeep.json();
+          photos = dataDeep.data || [];
+        }
+      }
+
+      const nextResults = photos.map((p: any) => ({
+        url: p.image_url || p.image || p.url || p.imageUrl,
+        title: p.title || p.name || ""
+      })).filter((x: any) => Boolean(x.url));
+
+      if (nextResults.length === 0) {
+        Alert.alert("Info", "No more images found.");
+      } else {
+        setSearchedImages(prev => {
+          const existingUrls = new Set(prev.map(img => img.url));
+          const uniqueNew = nextResults.filter(img => !existingUrls.has(img.url));
+          return [...prev, ...uniqueNew];
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Error", "Failed to load more images");
+    } finally {
+      setLoadingMoreImages(false);
+    }
+  };
+
+  const handleSyncAllImages = async () => {
+    const blankItems: MenuItem[] = [];
+    menus.forEach(cat => {
+      cat.items.forEach(it => {
+        if (!it.imageUrl) {
+          blankItems.push(it);
+        }
+      });
+    });
+
+    if (blankItems.length === 0) {
+      setSyncPopupConfig({
+        visible: true,
+        type: 'info',
+        title: 'Info',
+        message: 'All items already have images!'
+      });
+      return;
+    }
+
+    setSyncPopupConfig({
+      visible: true,
+      type: 'confirm',
+      title: 'Sync Images',
+      message: `Are you sure you want to auto-sync images for ${blankItems.length} items without images?`,
+      onConfirm: async () => {
+        setSyncingAllImages(true);
+        setSyncProgress({ completed: 0, total: blankItems.length });
+
+        const authToken = await getToken();
+        const session = await StaffPermissionEngine.getSession();
+        const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+        const finalToken = authToken || session?.token;
+        if (!finalToken) {
+          setSyncingAllImages(false);
+          return;
+        }
+
+        let completedCount = 0;
+        const chunkSize = 5;
+
+        for (let i = 0; i < blankItems.length; i += chunkSize) {
+          const chunk = blankItems.slice(i, i + chunkSize);
+
+          const promises = chunk.map(async (item) => {
+            try {
+              const cleanName = item.name.replace(/^\(v\)\s*/i, '').replace(/\[.*?\]|\(.*?\)/g, '').trim();
+
+              let firstImg = null;
+              try {
+                const res = await fetch(`https://billing.kravy.in/api/proxy/image-search?q=${encodeURIComponent(cleanName)}`);
+                if (res.ok) {
+                  const data = await res.json();
+                  const photos = data.data || [];
+                  firstImg = photos[0]?.image_url || photos[0]?.image || photos[0]?.url;
+                }
+              } catch (err) { }
+
+              if (!firstImg) {
+                const resDeep = await fetch(`https://billing.kravy.in/api/proxy/google-image-search?q=${encodeURIComponent(cleanName)}&offset=0`);
+                if (resDeep.ok) {
+                  const dataDeep = await resDeep.json();
+                  const photosDeep = dataDeep.data || [];
+                  firstImg = photosDeep[0]?.image_url || photosDeep[0]?.image || photosDeep[0]?.url;
+                }
+              }
+
+              if (firstImg) {
+                await fetch("https://billing.kravy.in/api/items", {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+                  body: JSON.stringify({
+                    id: item.id,
+                    imageUrl: firstImg,
+                    businessId: bId
+                  })
+                });
+              }
+            } catch (e) {
+              console.error(e);
+            } finally {
+              completedCount++;
+              setSyncProgress({ completed: completedCount, total: blankItems.length });
+            }
+          });
+
+          await Promise.all(promises);
+        }
+
+        setSyncingAllImages(false);
+        fetchMenus();
+        setTimeout(() => {
+          setSyncPopupConfig({
+            visible: true,
+            type: 'success',
+            title: 'Success',
+            message: 'Images synced successfully!'
+          });
+        }, 500);
+      }
+    });
   };
 
   const handleDelete = async () => {
@@ -804,6 +1070,32 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
         </ScrollView>
       </View>
 
+      {/* Sync All Images Button */}
+      <View style={{ paddingHorizontal: 20, paddingBottom: 10 }}>
+        <TouchableOpacity
+          onPress={handleSyncAllImages}
+          disabled={syncingAllImages}
+        >
+          <LinearGradient
+            colors={['#10B981', '#3B82F6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ padding: 12, borderRadius: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
+          >
+            {syncingAllImages ? (
+              <Text style={{ color: COLORS.WHITE, fontWeight: '600' }}>
+                Syncing {syncProgress.completed} / {syncProgress.total}...
+              </Text>
+            ) : (
+              <>
+                <Sparkles size={rf(16)} color={COLORS.WHITE} style={{ marginRight: 8 }} />
+                <Text style={{ color: COLORS.WHITE, fontWeight: '600', fontSize: rf(14) }}>Sync All Images</Text>
+              </>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+
       {/* List */}
       {loading ? (
         <View style={styles.center}>
@@ -1153,7 +1445,11 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
             {/* Image Section */}
             <View style={{ alignItems: "center", marginBottom: vs(20) }}>
               <TouchableOpacity
-                onPress={pickImage}
+                onPress={() => {
+                  setSearchImageQuery(editName);
+                  setShowImageSearchModal(true);
+                  handleSearchImages(editName);
+                }}
                 style={styles.imagePickerContainer}
               >
                 {editImageUrl ? (
@@ -1409,6 +1705,101 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
                     </View>
                   }
                 />
+              </View>
+            </View>
+          </Modal>
+
+          {/* Image Search Modal */}
+          <Modal
+            visible={showImageSearchModal}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowImageSearchModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={[styles.modalContent, { height: '85%', paddingHorizontal: 0, paddingBottom: 0 }]}>
+                <View style={[styles.modalHeader, { paddingHorizontal: 20, marginTop: 0, paddingTop: 10, marginBottom: 0 }]}>
+                  <Text style={styles.modalTitle}>Search Images</Text>
+                  <TouchableOpacity onPress={() => setShowImageSearchModal(false)}>
+                    <Ionicons name="close-circle" size={rf(28)} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ paddingHorizontal: 20, marginBottom: 10, marginTop: 5 }}>
+                  <View style={styles.searchBar}>
+                    <Search size={rf(20)} color={COLORS.GRAY} />
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Search image..."
+                      value={searchImageQuery}
+                      onChangeText={setSearchImageQuery}
+                      onSubmitEditing={() => handleSearchImages()}
+                      placeholderTextColor={COLORS.GRAY}
+                    />
+                    <TouchableOpacity onPress={() => handleSearchImages()}>
+                      <Text style={{ color: COLORS.PRIMARY, fontWeight: 'bold' }}>Search</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {searchingImages ? (
+                  <ActivityIndicator size="large" color={COLORS.PRIMARY} style={{ marginTop: 50 }} />
+                ) : (
+                  <FlatList
+                    data={searchedImages}
+                    keyExtractor={(item, index) => index.toString()}
+                    numColumns={3}
+                    contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 20 }}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={{ flex: 1 / 3, margin: 5, alignItems: 'center' }}
+                        onPress={() => {
+                          setEditImageUrl(item.url);
+                          setShowImageSearchModal(false);
+                        }}
+                      >
+                        <Image source={{ uri: item.url }} style={{ width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#F3F4F6' }} />
+                        {!!item.title && (
+                          <Text numberOfLines={2} style={{ fontSize: rf(10), marginTop: 4, textAlign: 'center', color: COLORS.SECONDARY }}>
+                            {item.title}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                    ListEmptyComponent={
+                      <View style={{ padding: 20, alignItems: "center" }}>
+                        <Text style={{ color: COLORS.GRAY }}>No images found. Try another search.</Text>
+                      </View>
+                    }
+                    ListFooterComponent={
+                      searchedImages.length > 0 ? (
+                        <View style={{ paddingVertical: 15, alignItems: 'center' }}>
+                          <TouchableOpacity
+                            style={{ backgroundColor: COLORS.PRIMARY, paddingVertical: 8, paddingHorizontal: 20, borderRadius: 8 }}
+                            onPress={handleLoadMoreImages}
+                            disabled={loadingMoreImages}
+                          >
+                            <Text style={{ color: COLORS.WHITE, fontWeight: '600', fontSize: rf(14) }}>
+                              {loadingMoreImages ? "Loading..." : "Search Next Page"}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : null
+                    }
+                  />
+                )}
+
+                <View style={{ padding: 20, paddingBottom: 70, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+                  <TouchableOpacity
+                    style={styles.saveBtn}
+                    onPress={() => {
+                      setShowImageSearchModal(false);
+                      setTimeout(() => { pickImage() }, 500);
+                    }}
+                  >
+                    <Text style={styles.saveBtnText}>Upload from Gallery</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </Modal>
@@ -1695,6 +2086,40 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
             </View>
           </Modal>
         </SafeAreaView>
+      </Modal>
+
+      {/* Custom Sync Popup (Root Level) */}
+      <Modal visible={syncPopupConfig.visible} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: '75%', backgroundColor: COLORS.WHITE, borderRadius: 16, padding: 24, alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 }}>
+            {syncPopupConfig.type === 'confirm' && <Ionicons name="help-circle" size={48} color={COLORS.PRIMARY} style={{ marginBottom: 12 }} />}
+            {syncPopupConfig.type === 'success' && <Ionicons name="checkmark-circle" size={48} color="#10B981" style={{ marginBottom: 12 }} />}
+            {syncPopupConfig.type === 'info' && <Ionicons name="information-circle" size={48} color="#3B82F6" style={{ marginBottom: 12 }} />}
+
+            <Text style={{ fontSize: rf(16), fontWeight: 'bold', color: COLORS.SECONDARY, marginBottom: 8, textAlign: 'center' }}>{syncPopupConfig.title}</Text>
+            <Text style={{ fontSize: rf(13), color: COLORS.GRAY, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>{syncPopupConfig.message}</Text>
+
+            <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'center', gap: 12 }}>
+              {syncPopupConfig.type === 'confirm' && (
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center' }}
+                  onPress={() => setSyncPopupConfig(prev => ({ ...prev, visible: false }))}
+                >
+                  <Text style={{ color: COLORS.SECONDARY, fontWeight: '600' }}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: COLORS.PRIMARY, alignItems: 'center' }}
+                onPress={() => {
+                  setSyncPopupConfig(prev => ({ ...prev, visible: false }));
+                  if (syncPopupConfig.onConfirm) syncPopupConfig.onConfirm();
+                }}
+              >
+                <Text style={{ color: COLORS.WHITE, fontWeight: '600' }}>{syncPopupConfig.type === 'confirm' ? 'Sync' : 'OK'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );

@@ -52,7 +52,7 @@ export const SubscriptionRequiredModal: React.FC<
 
   const handleWhatsAppSupport = () => {
     Linking.openURL(
-      "https://wa.me/919289507822?text=Hello%20Kravy%20Support%2C%20I%20would%20like%20to%20subscribe%20to%20Kravy%20POS%20services.",
+      "https://wa.me/919289507882?text=Hello%20Kravy%20Support%2C%20I%20would%20like%20to%20subscribe%20to%20Kravy%20POS%20services.",
     );
   };
 
@@ -75,7 +75,7 @@ export const SubscriptionRequiredModal: React.FC<
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
-           {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
+            {...{ delaysContentTouches: false } as any} keyboardShouldPersistTaps="handled">
             {/* Crown Brand Header */}
             <View style={styles.brandHeader}>
               <View style={styles.crownCircle}>
@@ -89,42 +89,41 @@ export const SubscriptionRequiredModal: React.FC<
 
             {/* Brand Core Pillars */}
             <View style={styles.pillarsContainer}>
-              <View style={styles.pillarRow}>
-                <Ionicons name="checkmark-circle" size={20} color="#D4AF37" />
-                <View style={styles.pillarTextWrapper}>
-                  <Text style={styles.pillarTitle}>Unlimited Billing</Text>
-                  <Text style={styles.pillarSub}>
-                    No limits on invoices or orders
-                  </Text>
+              <Text style={{ fontSize: 16, fontWeight: '900', color: '#D4AF37', marginBottom: 12, marginLeft: 10, letterSpacing: 0.5 }}>Key Features</Text>
+              {[
+                "⚡ Fast Billing (Bill in 2 Seconds)",
+                "🖨️ 2-Inch Thermal Printer Support",
+                "🍽️ Table Booking & Table Management",
+                "📱 QR Code Table Ordering",
+                "🌐 Website Order Acceptance",
+                "🤖 AI Auto Order Acceptance",
+                "🎙️ AI Voice Order Acceptance",
+                "🤖 AI Browse Products",
+                "🤖 AI Menu Update",
+                "📄 Unlimited Invoices",
+                "🧾 Invoice with Logo & QR Code",
+                "📊 Analytics Dashboard",
+                "📈 Sales & GST Reports",
+                "📦 Inventory Management",
+                "🚨 Low Stock Alerts",
+                "🎁 Advanced Loyalty Program",
+                "👥 Customer Management",
+                "👨‍💼 Staff Management",
+                "📣 Marketing Hub (Offers & Coupons)",
+                "🌍 Multi-Language Support",
+                "🔐 Advanced Controls & Permissions",
+                "☁️ Cloud Backup",
+                "📱 Mobile & Computer or Laptop Support",
+                "⭐ Priority Customer Support",
+                "🎓 Free Setup & Training",
+              ].map((feature, index) => (
+                <View key={index} style={styles.pillarRow}>
+                  <Ionicons name="checkmark-circle" size={20} color="#D4AF37" />
+                  <View style={styles.pillarTextWrapper}>
+                    <Text style={styles.pillarTitle}>{feature}</Text>
+                  </View>
                 </View>
-              </View>
-              <View style={styles.pillarRow}>
-                <Ionicons name="checkmark-circle" size={20} color="#D4AF37" />
-                <View style={styles.pillarTextWrapper}>
-                  <Text style={styles.pillarTitle}>Smart Inventory</Text>
-                  <Text style={styles.pillarSub}>
-                    Track stock & get low alerts
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.pillarRow}>
-                <Ionicons name="checkmark-circle" size={20} color="#D4AF37" />
-                <View style={styles.pillarTextWrapper}>
-                  <Text style={styles.pillarTitle}>Advanced Reports</Text>
-                  <Text style={styles.pillarSub}>
-                    Sales, GST & Profit insights
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.pillarRow}>
-                <Ionicons name="checkmark-circle" size={20} color="#D4AF37" />
-                <View style={styles.pillarTextWrapper}>
-                  <Text style={styles.pillarTitle}>24/7 Support</Text>
-                  <Text style={styles.pillarSub}>
-                    Priority assistance for you
-                  </Text>
-                </View>
-              </View>
+              ))}
             </View>
 
             {/* Subscription Title & active discounts badge */}
@@ -143,39 +142,14 @@ export const SubscriptionRequiredModal: React.FC<
             <View style={styles.planCard}>
               <Text style={styles.planLabel}>1 YEAR PLAN</Text>
               <View style={styles.priceRow}>
-                <Text style={styles.priceText}>₹3,999</Text>
-                <Text style={styles.crossedPrice}>₹7,000</Text>
+                <Text style={styles.priceText}>₹6,000</Text>
+                <Text style={styles.crossedPrice}>₹9,000</Text>
               </View>
               <View style={styles.divider} />
 
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>Unlimited invoices</Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>Analytics dashboard</Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>Inventory management</Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>Tax / GST management</Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>Invoice with logo & QR</Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>Chat & Email support</Text>
-              </View>
-
               <TouchableOpacity
                 style={styles.payBtn}
-                onPress={() => handlePayNow("year1", 3999)}
+                onPress={() => handlePayNow("year1", 6000)}
               >
                 <Text style={styles.payBtnText}>PAY NOW</Text>
                 <Ionicons
@@ -196,43 +170,14 @@ export const SubscriptionRequiredModal: React.FC<
                 </View>
               </View>
               <View style={styles.priceRow}>
-                <Text style={styles.priceText}>₹5,999</Text>
-                <Text style={styles.crossedPrice}>₹14,000</Text>
+                <Text style={styles.priceText}>₹9,000</Text>
+                <Text style={styles.crossedPrice}>₹13,000</Text>
               </View>
               <View style={styles.divider} />
 
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>
-                  Everything in 1 Year plan
-                </Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>
-                  Advanced Kitchen workflow
-                </Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>Coupons & Loyalty system</Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>Table QR ordering system</Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>Inventory alerts</Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#D4AF37" />
-                <Text style={styles.featureText}>Priority support</Text>
-              </View>
-
               <TouchableOpacity
                 style={styles.payBtn}
-                onPress={() => handlePayNow("year2", 5999)}
+                onPress={() => handlePayNow("year2", 9000)}
               >
                 <Text style={styles.payBtnText}>PAY NOW</Text>
                 <Ionicons
@@ -261,10 +206,10 @@ export const SubscriptionRequiredModal: React.FC<
               </View>
               <View style={styles.priceRow}>
                 <Text style={[styles.priceText, { color: "#000000" }]}>
-                  ₹7,499
+                  ₹12,000
                 </Text>
                 <Text style={[styles.crossedPrice, { color: "#4E4112" }]}>
-                  ₹21,000
+                  ₹17,000
                 </Text>
               </View>
               <View
@@ -274,76 +219,9 @@ export const SubscriptionRequiredModal: React.FC<
                 ]}
               />
 
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#000000" />
-                <Text
-                  style={[
-                    styles.featureText,
-                    { color: "#000000", fontWeight: "700" },
-                  ]}
-                >
-                  Everything in 2 Year plan
-                </Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#000000" />
-                <Text
-                  style={[
-                    styles.featureText,
-                    { color: "#000000", fontWeight: "700" },
-                  ]}
-                >
-                  Kitchen automation
-                </Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#000000" />
-                <Text
-                  style={[
-                    styles.featureText,
-                    { color: "#000000", fontWeight: "700" },
-                  ]}
-                >
-                  Smart inventory tracking
-                </Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#000000" />
-                <Text
-                  style={[
-                    styles.featureText,
-                    { color: "#000000", fontWeight: "700" },
-                  ]}
-                >
-                  Advanced tax reports
-                </Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#000000" />
-                <Text
-                  style={[
-                    styles.featureText,
-                    { color: "#000000", fontWeight: "700" },
-                  ]}
-                >
-                  Lifetime priority support
-                </Text>
-              </View>
-              <View style={styles.featureRow}>
-                <Ionicons name="checkmark" size={18} color="#000000" />
-                <Text
-                  style={[
-                    styles.featureText,
-                    { color: "#000000", fontWeight: "700" },
-                  ]}
-                >
-                  VIP Onboarding
-                </Text>
-              </View>
-
               <TouchableOpacity
                 style={styles.payBtnWhite}
-                onPress={() => handlePayNow("year3", 7499)}
+                onPress={() => handlePayNow("year3", 12000)}
               >
                 <Text style={styles.payBtnTextIndigo}>PAY NOW</Text>
                 <Ionicons
@@ -430,7 +308,7 @@ export const SubscriptionRequiredModal: React.FC<
             {/* NEED HELP WHATSAPP SECTION */}
             <View style={styles.helpCard}>
               <Text style={styles.helpHeader}>NEED HELP?</Text>
-              <Text style={styles.helpPhone}>9289507822</Text>
+              <Text style={styles.helpPhone}>9289507882</Text>
               <TouchableOpacity
                 style={styles.whatsappBtn}
                 onPress={handleWhatsAppSupport}

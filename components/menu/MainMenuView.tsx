@@ -835,8 +835,14 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                 const diffDays =
                   (now.getTime() - trialStart.getTime()) /
                   (1000 * 60 * 60 * 24);
-                if (diffDays > 14) {
+                if (diffDays > 3) {
                   setIsSubscriptionModalVisible(true);
+                  setIsAccountBlocked(true);
+                  // Sync to backend so web also gets frozen
+                  updateBusinessSettings(finalToken || "", {
+                    showPremiumPopup: true,
+                    isFrozen: true,
+                  }).catch(console.error);
                 } else {
                   setIsSubscriptionModalVisible(false);
                 }
@@ -932,8 +938,14 @@ const MainMenuView = ({ isLockedUser = false }: { isLockedUser?: boolean }) => {
                 const diffDays =
                   (now.getTime() - trialStart.getTime()) /
                   (1000 * 60 * 60 * 24);
-                if (diffDays > 14) {
+                if (diffDays > 3) {
                   setIsSubscriptionModalVisible(true);
+                  setIsAccountBlocked(true);
+                  // Sync to backend so web also gets frozen
+                  updateBusinessSettings(finalToken || "", {
+                    showPremiumPopup: true,
+                    isFrozen: true,
+                  }).catch(console.error);
                 }
               }
             }
