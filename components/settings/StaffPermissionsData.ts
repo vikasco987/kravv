@@ -121,8 +121,14 @@ export const PERMISSION_GROUPS = [
     permissions: [
       "edit tables and delete"
     ]
+  },
+  {
+    title: "Upload Menu AI",
+    permissions: [
+      "Access Upload Menu AI"
+    ]
   }
 ];
 
-export const TOTAL_PERMISSIONS_COUNT = 47;
+export const TOTAL_PERMISSIONS_COUNT = 48;
 

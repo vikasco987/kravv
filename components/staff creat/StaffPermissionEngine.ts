@@ -316,7 +316,7 @@ export const StaffPermissionEngine = {
         const pLower = p.toLowerCase().trim();
 
         // STRICT EXCLUSION: Prevent dedicated item editor permissions from accidentally unlocking "Menu"
-        if (searchTerm === "menu" && (pLower.includes("edit menu item") || pLower.includes("item editor"))) {
+        if (searchTerm === "menu" && (pLower.includes("edit menu item") || pLower.includes("item editor") || pLower.includes("upload menu ai"))) {
           return false;
         }
 

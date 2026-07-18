@@ -177,6 +177,10 @@ export default function CustomDrawerContent(props: any) {
       case "signIn":
         router.push("/(auth)/sign-in");
         break;
+      case "uploadMenuAI":
+        props.navigation.closeDrawer();
+        router.push("/upload-menu-ai");
+        break;
     }
   };
 

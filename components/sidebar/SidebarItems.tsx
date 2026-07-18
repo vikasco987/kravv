@@ -179,6 +179,27 @@ const SidebarItems = ({
       <Text style={styles.sectionTitle}>SMART INTELLIGENCE</Text>
 
       <TouchableOpacity
+        style={styles.aiCardCyan}
+        onPress={() => checkAndNavigate("Upload Menu AI", "uploadMenuAI")}
+      >
+        <View style={styles.aiIconCyan}>
+          <Ionicons name="document-text-outline" size={rf(18)} color="#0891B2" />
+          {!canAccessSync("Upload Menu AI") && (
+            <View style={styles.lockBadge}>
+              <Ionicons name="lock-closed" size={rf(10)} color="#fff" />
+            </View>
+          )}
+        </View>
+        <View style={styles.aiInfo}>
+          <Text style={styles.aiTitleCyan}>Upload Menu (AI)</Text>
+          <Text style={styles.aiSubCyan}>Photo to Menu</Text>
+        </View>
+        <View style={styles.aiBadgeCyan}>
+          <Text style={styles.aiBadgeTextCyan}>AI</Text>
+        </View>
+      </TouchableOpacity>
+
+      <TouchableOpacity
         style={styles.aiCardGreen}
         onPress={() => checkAndNavigate("AI Intelligence Tools", "profit")}
       >
@@ -478,6 +499,50 @@ const styles = StyleSheet.create({
   },
   aiBadgeTextOrange: {
     color: "#D97706",
+    fontSize: rf(10),
+    fontWeight: "bold",
+  },
+
+  aiCardCyan: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFEFF",
+    borderWidth: 1,
+    borderColor: "#A5F3FC",
+    borderRadius: s(12),
+    padding: s(12),
+    marginHorizontal: s(10),
+    marginBottom: vs(12),
+  },
+  aiIconCyan: {
+    width: s(36),
+    height: s(36),
+    borderRadius: s(8),
+    backgroundColor: "#CFFAFE",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: s(12),
+  },
+  aiTitleCyan: {
+    fontSize: rf(13),
+    fontWeight: "700",
+    color: "#0891B2",
+    marginBottom: vs(2),
+  },
+  aiSubCyan: {
+    fontSize: rf(11),
+    color: "#22D3EE",
+    fontWeight: "500",
+  },
+  aiBadgeCyan: {
+    borderWidth: 1,
+    borderColor: "#0891B2",
+    paddingHorizontal: s(8),
+    paddingVertical: vs(2),
+    borderRadius: s(12),
+  },
+  aiBadgeTextCyan: {
+    color: "#0891B2",
     fontSize: rf(10),
     fontWeight: "bold",
   },

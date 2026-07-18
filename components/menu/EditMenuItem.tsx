@@ -30,6 +30,7 @@ import {
   View,
 } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
+import { useRefresh } from "../../context/RefreshContext";
 import { menuService, uploadToCloudinary } from "../../services/menuService";
 import { rf, s, vs } from "../../utils/responsive";
 import { StaffPermissionEngine } from "../staff creat/StaffPermissionEngine";
@@ -73,6 +74,7 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
   const { t } = useLanguage();
+  const { triggerRefresh } = useRefresh();
 
   // States
   const [menus, setMenus] = useState<MenuCategory[]>([]);
@@ -234,8 +236,10 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
       if (!isLoaded) return;
       let cacheFound = false;
       try {
+        const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
+        const cacheKey = `@cached_menu_${bId || user?.id || 'guest'}`;
         // 🚀 STEP 1: Load from Cache FIRST for instant UI
-        const cachedData = await AsyncStorage.getItem("@cached_menu");
+        const cachedData = await AsyncStorage.getItem(cacheKey);
         if (cachedData && !isManual) {
           const parsed = JSON.parse(cachedData);
           if (parsed && parsed.length > 0) {
@@ -251,7 +255,6 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
 
         const authToken = await getToken();
         const session = await StaffPermissionEngine.getSession();
-        const bId = await StaffPermissionEngine.getActiveBusinessId(user?.id);
         const finalToken = authToken || session?.token;
 
         if (!finalToken) {
@@ -369,7 +372,8 @@ export const EditMenuItem = ({ onBack }: { onBack: () => void }) => {
           a.name.localeCompare(b.name),
         );
         setMenus(finalMenus);
-        await AsyncStorage.setItem("@cached_menu", JSON.stringify(finalMenus));
+        await AsyncStorage.setItem(cacheKey, JSON.stringify(finalMenus));
+        triggerRefresh();
       } catch (err) {
         console.error("Fetch menu error:", err);
       } finally {
